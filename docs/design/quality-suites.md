@@ -235,6 +235,7 @@ Additive throughout: an evaluator that ignores `Measurement` is unchanged, and
 - Correction uses a separate SuiteCorrection type in pass space.
 - The suite builds its summary once and stores it at run schema 9. A saved run prints that stored conclusion.
 - Configured judge calls during `probe` and `monitor` use the run's budgets on a separate meter from the target.
+- The loader accepts a suite with no `taxonomy`. The mapping requirement above applies to rules shipped in `guardana-rules`; an application's own quality criteria need not name a public framework.
 
 ## See also
 

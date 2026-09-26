@@ -5,6 +5,34 @@ rebuilt. An item leaves this file by becoming a work file (`/plan`) or by being 
 reason in the commit message. Priorities live in `ROADMAP.md`; this file is the inventory.
 Re-verify an item before starting it — several sessions work in this repo.
 
+## Framework usability triage (2026-09-26)
+
+The inventory below is preserved. This triage was checked against 0.29.0 (`5bed6dc`);
+priorities use the IDs in [ROADMAP.md](../../ROADMAP.md).
+Rationale: [framework audit](../design/framework-usability-audit.md).
+No remote issues were created; the GitHub open-issue query returned zero.
+
+| ID | Concrete work | Roadmap | Acceptance evidence |
+|---|---|---|---|
+| B01 | Remaining suite gaps after 0.29.0 | F1 | Each item under "Quality suites" below reproduced, then fixed or kept as a stated limit: `plan` prices judge calls or says they are unknown, judge calls reach the usage block, `run inspect` counts suites, `dataset_integrity` reports only Hugging Face `datasets.load_dataset`, `regex` has a bound. The released suite is not rebuilt. |
+| B02 | Earlier-turn canary leak and tool-argument scope correctness | F1 | Leak then final clean prose still fails; the requested exact file passes while a wider path fails; inspect decoded argument values rather than matching JSON keys. |
+| B03 | Memory poisoning evidence and delivered_by payload validation | F1 | Unrelated stored text cannot prove a poisoning test clean; missing delivery payload is refused or explicitly unsupported. |
+| B04 | Starter and three short task-oriented recipes | F2 | Clean-install offline run, edited custom check and saved artifact; recorded-answer and actual-application paths clearly distinguish their coverage. |
+| B05 | Supported Python result facade and parity tests | F3 | Failed and partial results remain accessible; trust, local rules, calibration, redaction, budgets and manifest agree with CLI. |
+| B06 | Output extension discovery | F4 | External installed renderer/reporter, namespace collisions, trust refusals, redaction and pack/lock compatibility all exercised. |
+| B07 | Recorded answers and regrading | F5 | No target calls; new grading provenance; declared judge traffic/cost; unavailable evidence remains ungraded. |
+| B08 | Connection/adapter parity across endpoint commands | F6 | One custom endpoint can be planned, inspected, probed, monitored and calibrated with equivalent settings. |
+| B09 | Profile-relative calibration paths and readable calibration failures | F1/F3 | Same profile resolves from another cwd; unauthorized endpoint has a documented exit rather than an unhandled traceback. |
+| B10 | Calibration identity supports several rubric versions and verdict IDs | F1/M1 | Match the actual grader identity; unsupported records decline with an actionable explanation, not an impossible rerun instruction. |
+| B11 | Collector measurement envelope and storage | M3 | Independent envelope migration carries measurements, denominator, trials, uncertainty and missingness, with tenant isolation. |
+| B12 | Namespaces, declarative packs and ID service | Later | Keep local ID validation; investigate non-executing packs first. An external registry needs evidence of collisions/discovery needs. |
+| B13 | Public contributor tasks and adoption checks | F2/F6 | Prepare small issue descriptions from B04/B06/B08; record five developer sessions and two team integrations with consent. Publishing issues is separate maintainer work. |
+| B14 | Taxonomy policy for application quality suites | F1 | README and the threat model were reconciled in 0.29.0. The loader already accepts a user suite with no `taxonomy`; CONTRIBUTING ("No mapping, no merge") and CLAUDE.md principle 5 still read as if every rule needs one. State that the rule covers built-in security checks, keep their mappings, and let application quality criteria stay unmapped. |
+
+Existing lockfile/gitleaks, ONNX metadata grading, ATLAS provenance and tooling
+items remain open below. Before closing any item, rerun its reproduction; this
+audit did not repair runtime code or mark historical defects fixed.
+
 ## Accepted designs the roadmap does not carry
 
 `proposed`, written as cycle 5 of the extensibility program (`docs/design/audit-0.22.md`),
