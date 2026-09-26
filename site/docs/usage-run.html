@@ -268,9 +268,10 @@ guardana run inspect run.json
   gate:      pass
   findings:  0 (0 unverified, 0 waived, 0 error(s))
   rules run: 19 (0 skipped)
-  trials:    1 per case asked; 0 rule(s) repeated
+  trials:    1 per case asked; 0 rule(s) and 0 suite(s) repeated
   requests:  0
   tokens:    in not recorded, out not recorded
+  judge:     not counted
   wall time: 0.42
   evidence:  full
 </code></pre>
@@ -289,6 +290,16 @@ read them from the response; a transport that does not implement the optional
 requests reported tokens, the manifest carries the sum <strong>and</strong>
 <code>requests_missing_token_counts</code>, so the number is never mistaken for the whole
 bill. See <a href="writing-rules.html"><code>docs/writing-rules.md</code></a> for the protocol.</p>
+<p><code>usage.judge</code> counts the judges configured under the profile's <code>evaluators:</code> block,
+each on its own meter and apart from the target: <code>llm_judge</code> (which <code>reference_judge</code>
+shares) and <code>guard</code>. Each entry carries <code>requests</code>, <code>input_tokens</code>, <code>output_tokens</code>,
+<code>requests_missing_token_counts</code> and <code>budget_exhausted</code>, which says that this meter's
+ceiling stopped the run. <code>usage.judge</code> is <code>null</code> when nobody counted judge calls: no
+judge block was configured, or the command never wires a judge (<code>scan</code>). An evaluator
+from a plugin that makes its own network calls is not counted anywhere. <code>inspect</code>
+prints one <code>judge:</code> line per block:</p>
+<pre><code class="language-text">  judge:     llm_judge 36 request(s), tokens in 1440, out 108
+</code></pre>
 <h2 id="what-not-recorded-means">What &quot;not recorded&quot; means</h2>
 <p>It means <strong>nobody measured this</strong>, and it is deliberately not printed as <code>0</code>.
 A file scan that sends zero requests and a run from a version that never counted
@@ -327,6 +338,8 @@ recomputed. Its trials line still prints
 <code>graded by &lt;assessor&gt;, grader error not corrected</code>, as it was written.</p>
 <p>A schema-8 run migrates to schema 9 with <code>suite: null</code> on every rule; nothing is
 recomputed.</p>
+<p>A schema-9 run migrates to schema 10 with <code>usage.judge: null</code>: judge calls were not
+counted, which is not the same as none being made. <code>inspect</code> prints <code>judge: not counted</code>.</p>
 <p>One thing <em>is</em> recovered: the <strong>title</strong> of a framework reference, which version 3
 onward records beside its framework and id. It is looked up from the installed
 catalogue for the exact <code>(framework, id)</code> pair the document already carries, so
@@ -348,8 +361,8 @@ published was the file. There is now a test that validates the <em>artifact</em>
 parametrised over every field a version-1 run could be missing.</p>
 <h2 id="the-document">The document</h2>
 <p>The saved-run schema lives at
-<a href="https://github.com/guardana/guardana/blob/main/schemas/run-v8.schema.json"><code>schemas/run-v8.schema.json</code></a>, identified by
-<code>https://guardana.dev/schemas/run/v8.schema.json</code>, and the site serves every schema
+<a href="https://github.com/guardana/guardana/blob/main/schemas/run-v10.schema.json"><code>schemas/run-v10.schema.json</code></a>, identified by
+<code>https://guardana.dev/schemas/run/v10.schema.json</code>, and the site serves every schema
 at the URL its identifier names. The version is in the identifier,
 so a consumer can tell which contract it is holding before parsing anything; it
 changes whenever the change is not backwards-compatible. A test validates what
@@ -365,7 +378,9 @@ records repeated trials: <code>run.execution.trials</code>, <code>assessments[].
 <code>run.rules[].trial_summary</code>, and renames <code>run.rules[].trials</code> to <code>declared_requests</code>,
 which is what it always counted. Version 8 records the <code>correction</code> block on
 <code>trial_summary</code> and the calibration fields on <code>run.evaluators[]</code>. Version 9 records
-<code>run.rules[].suite</code>, what a quality suite measured and concluded.</p>
+<code>run.rules[].suite</code>, what a quality suite measured and concluded. Version 10 records
+<code>run.usage.judge</code>, what the configured judges spent and whether one of their budgets
+stopped the run.</p>
 <p>Top level:</p>
 <div class="table-wrap"><table>
 <thead>
@@ -377,7 +392,7 @@ which is what it always counted. Version 8 records the <code>correction</code> b
 <tbody>
 <tr>
 <td><code>schema_version</code></td>
-<td><code>9</code>. Stated once, for the whole document.</td>
+<td><code>10</code>. Stated once, for the whole document.</td>
 </tr>
 <tr>
 <td><code>run</code></td>
@@ -436,11 +451,11 @@ which is what it always counted. Version 8 records the <code>correction</code> b
 </tr>
 <tr>
 <td><code>usage</code></td>
-<td>what it actually consumed</td>
+<td>what it actually consumed, the configured judges on their own meters</td>
 </tr>
 <tr>
 <td><code>rules</code> / <code>evaluators</code></td>
-<td>what did the checking, with digests, declared request counts, a <code>trial_summary</code> for each rule that repeated, a <code>suite</code> summary for each quality suite, and calibration</td>
+<td>what did the checking, with digests, declared request counts, a <code>trial_summary</code> for each rule that repeated, a <code>suite</code> summary for each quality suite, and calibration. A suite the budget stopped or that raised is listed with its declined summary, though not in <code>result_summary.rules_run</code></td>
 </tr>
 <tr>
 <td><code>coverage</code></td>

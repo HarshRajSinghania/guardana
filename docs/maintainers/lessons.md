@@ -56,9 +56,11 @@ expressed as a plan.
    (language/industry corpora, extended advisory data) may ever be paid. Never withhold a
    security capability from the OSS build to make a paid tier look better — that trade destroys
    the trust the project runs on.
-5. **Every rule maps to a public framework** (OWASP LLM / OWASP ASI / MITRE ATLAS / NIST). A rule
-   without a mapping does not ship: the mapping is what makes a finding answerable in someone
-   else's audit.
+5. **Every built-in security rule maps to a public framework** (OWASP LLM / OWASP ASI / MITRE
+   ATLAS / NIST), in edition form. A built-in rule without a mapping does not ship: the mapping is
+   what makes a finding answerable in someone else's audit. A team's own quality criteria (suites,
+   local checks) need no public mapping; an invented one would be the unanswerable claim this
+   principle exists to prevent.
 6. **The dependency surface is part of the security posture.** `guardana-core` depends on
    `pyyaml`; `guardana-rules` adds `defusedxml`. A security scanner with a sprawling dependency
    tree is its own supply-chain risk. A new dependency needs a justification in the PR

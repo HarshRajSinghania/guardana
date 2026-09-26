@@ -1,4 +1,4 @@
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, replace
 from pathlib import Path
 
@@ -81,6 +81,11 @@ class YamlRule(Rule):
         — which means this is an exact count rather than a ceiling.
         """
         return len(self.prompts) * self.trials_per_case
+
+    @property
+    def graded_verdicts(self) -> Mapping[str, int]:
+        """One verdict per prompt per trial, all from the rule's evaluator."""
+        return {self.meta.evaluator or "": len(self.prompts) * self.trials_per_case}
 
     def with_trials(self, trials: int) -> "Rule | None":
         """Send every prompt `trials` times: the verdict depends on a sampled reply."""

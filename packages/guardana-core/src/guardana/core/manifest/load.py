@@ -28,7 +28,7 @@ from guardana.core.manifest.records import (
 )
 from guardana.core.manifest.settings import ConfigurationRef, EvidenceMode, ExecutionSettings
 from guardana.core.manifest.settings import PrivacyRecord as _PrivacyRecord
-from guardana.core.manifest.usage import RunUsage
+from guardana.core.manifest.usage import JUDGE_BLOCKS, JudgeUsage, RunUsage
 from guardana.core.report.shortfall import CoverageShortfall, ShortfallKind
 from guardana.core.report.skipped import SkippedRule, SkipReason
 from guardana.core.report.stop import StopReason
@@ -227,7 +227,46 @@ def _usage(raw: object) -> RunUsage:
         requests_missing_token_counts=_optional_int(block, "requests_missing_token_counts"),
         estimated_cost=_optional_number(block, "estimated_cost"),
         wall_time_seconds=_optional_number(block, "wall_time_seconds"),
+        judge=_judge_usage(block),
     )
+
+
+def _judge_usage(usage: Mapping[str, Any]) -> dict[str, JudgeUsage] | None:
+    """Read what each configured judge spent, refusing a block absent or malformed.
+
+    Every key is required, null included: judge calls read back as uncounted when the
+    writer counted them would hide a bill, and read back as zero would invent one.
+    """
+    what = "run.usage.judge"
+    raw = _present(usage, "judge", "run.usage")
+    if raw is None:
+        return None
+    block = _mapping(raw, what)
+    if not block:
+        raise ManifestLoadError(f"{what} is empty; null says nobody counted judge calls")
+    unknown = sorted(set(block) - set(JUDGE_BLOCKS))
+    if unknown:
+        raise ManifestLoadError(f"{what} names {unknown}, which no judge block meters")
+    out: dict[str, JudgeUsage] = {}
+    for name in JUDGE_BLOCKS:
+        if name not in block:
+            continue
+        entry = _mapping(block[name], f"{what}.{name}")
+        where = f"{what}.{name}"
+        exhausted = _present(entry, "budget_exhausted", where)
+        if not isinstance(exhausted, bool):
+            raise ManifestLoadError(f"{where}.budget_exhausted must be true or false")
+        try:
+            out[name] = JudgeUsage(
+                requests=_whole(entry, "requests", where),
+                input_tokens=_nullable_count(entry, "input_tokens", where),
+                output_tokens=_nullable_count(entry, "output_tokens", where),
+                requests_missing_token_counts=_whole(entry, "requests_missing_token_counts", where),
+                budget_exhausted=exhausted,
+            )
+        except ValueError as exc:
+            raise ManifestLoadError(f"{where}: {exc}") from exc
+    return out
 
 
 def _rules(raw: object) -> tuple[RuleRecord, ...]:

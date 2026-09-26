@@ -23,6 +23,7 @@ from guardana.core.manifest.migrations import (
     migrate_v6,
     migrate_v7,
     migrate_v8,
+    migrate_v9,
 )
 from guardana.core.manifest.model import RunManifest
 from guardana.core.manifest.usage import RunUsage
@@ -50,6 +51,7 @@ _MIGRATIONS = {
     6: migrate_v6,
     7: migrate_v7,
     8: migrate_v8,
+    9: migrate_v9,
 }
 """One step forward per version, keyed by the version the document *is*.
 
@@ -114,7 +116,7 @@ def load_report(path: Path) -> RunReport:
         # unreadable file is not.
         if migrated_from is not None:
             raw = migrate_forward(raw, migrated_from)
-        manifest = manifest_from_dict(raw.get("run"))
+        manifest = manifest_from_dict(raw.get("run"), migrated_from=migrated_from)
     except ManifestLoadError as exc:
         raise ReportLoadError(f"{path}: {exc}") from exc
     return RunReport(manifest=manifest, result=_result(raw, manifest, path))

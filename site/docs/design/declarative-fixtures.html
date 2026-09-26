@@ -254,7 +254,7 @@
 </nav>
 </details>
 <main>
-<h1>Fixtures for <code>steps:</code> and <code>task:</code> rules: the same law, two more shapes<span class="status implemented">implemented</span></h1><p class="lede">one reply per step for a scenario, one scripted turn per round trip for an agent run, the same three outcomes — the fixture law reaches every declarative shape</p><p><strong>Status:</strong> implemented in 0.25.0 · <strong>Written:</strong> 2026-09-19 · <strong>Roadmap &quot;Now&quot;, row 1</strong></p>
+<h1>Fixtures for <code>steps:</code> and <code>task:</code> rules: the same law, two more shapes<span class="status implemented">implemented</span></h1><p class="lede">one reply per step for a scenario, one scripted turn per round trip for an agent run, the same three outcomes — the fixture law reaches every declarative shape</p><p><strong>Status:</strong> implemented in 0.25.0 · <strong>Written:</strong> 2026-09-19 · <strong>Amended:</strong> 2026-09-26 (three deferred rows resolved) · <strong>Roadmap &quot;Now&quot;, row 1</strong></p>
 <h2 id="the-question">The question</h2>
 <p><code>fixtures:</code> exists for the single-turn shape and for nothing else. A scenario
 (<code>steps:</code>) or an agent run (<code>task:</code>/<code>tools:</code>) that carries the key fails to load,
@@ -509,15 +509,15 @@ promised and the entry point did not register.</li>
 </tr>
 <tr>
 <td>&quot;the argument is wider than the named file&quot; in <code>tool_call</code></td>
-<td>an evaluator criterion, not a fixture; backlog, with the reproduction</td>
+<td>resolved: <code>allowed_argument_values</code> lists the exact values per tool, argument values are decoded before matching, and <code>tool_argument_scope</code> has its clean sample</td>
 </tr>
 <tr>
 <td><code>canary</code> reading every prose turn of a run</td>
-<td>an evaluator change; backlog</td>
+<td>resolved: <code>canary</code> reads every assistant turn it is handed</td>
 </tr>
 <tr>
 <td>a load check that the tool named in <code>delivered_by</code> returns a payload</td>
-<td>a scripted fixture cannot see the payload at all, so the rule file is the only place to check it; a lint of its own</td>
+<td>resolved: <code>payload_marker</code> names the payload, and a <code>tool_call</code> rule whose <code>delivered_by</code> cannot carry it is refused at load</td>
 </tr>
 </tbody>
 </table></div>

@@ -126,7 +126,7 @@ def _migration_note(before: RunReport, after: RunReport) -> tuple[str, ...]:
         return ()
     return (
         f"the {' and '.join(migrated)} run(s) were migrated from an older saved-run schema, "
-        f"so what they do not record (cost, and the gate verdict) is unknown rather than zero",
+        f"so what that schema did not record is unknown rather than zero",
     )
 
 

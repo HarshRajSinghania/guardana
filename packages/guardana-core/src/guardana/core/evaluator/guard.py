@@ -44,6 +44,11 @@ class GuardEvaluator(Evaluator):
         self._safe = {m.casefold() for m in safe_markers}
         self._confidence = confidence
 
+    @property
+    def judge_calls_per_verdict(self) -> int:
+        """One: a verdict is the guard's reading of a single classification."""
+        return 1
+
     def evaluate(self, exchange: Exchange, expectation: Expectation) -> Verdict:
         """Ask the guard whether the response is unsafe, and read its leading verdict."""
         content = exchange.reply_text

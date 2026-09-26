@@ -187,6 +187,7 @@ Guardana version, or upgrade every Guardana install that reads the file together
 | measured, and ECE is over `--max-ece` | fail | `1` |
 | too few graded samples, or too many abstentions | **indeterminate** | `2` |
 | no such evaluator, or an unreadable corpus | refused | `3` |
+| the judge endpoint could not be reached or rejected the request | refused | `4` |
 
 Exit `2` rather than `0` because "we measured nothing" must not read as "we measured,
 and it was fine".

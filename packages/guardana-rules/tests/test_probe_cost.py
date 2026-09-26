@@ -12,9 +12,12 @@ would grow past the point where anyone leaves it in CI. A scanner that gets
 switched off fails open at a level no rule can defend.
 """
 
-from collections.abc import Sequence
+from collections import Counter
+from collections.abc import Mapping, Sequence
 from contextlib import suppress
 
+from guardana.core.evaluator import Evaluator, Expectation, Verdict
+from guardana.core.exchange import Exchange
 from guardana.core.registry import Registry
 from guardana.core.rule import Rule, RuleContext, RuleError
 from guardana.core.rule.trajectory_rule import TrajectoryRule
@@ -352,6 +355,80 @@ def test_the_mcp_rule_declares_the_one_listing_it_makes() -> None:
     list(rule.run(target, _CTX))
 
     assert target.usage().requests == rule.estimated_requests
+
+
+# --- What a rule grades, measured the same way. ---
+#
+# `guardana plan probe` prices judge calls as the verdicts each rule declares per
+# evaluator times what one verdict costs. The counting wrapper below stands in for
+# every evaluator a rule can reach, so a rule that grades more than it declares is
+# caught here rather than in a judge-graded run that stops early.
+
+
+class _CountingEvaluator(Evaluator):
+    """Delegates to a real evaluator and counts every verdict it is asked for."""
+
+    def __init__(self, inner: Evaluator, tally: Counter[str]) -> None:
+        self.id = inner.id
+        self._inner = inner
+        self._tally = tally
+
+    def evaluate(self, exchange: Exchange, expectation: Expectation) -> Verdict:
+        self._tally[self.id] += 1
+        return self._inner.evaluate(exchange, expectation)
+
+
+def _counting_context(tally: Counter[str]) -> RuleContext:
+    return RuleContext(
+        evaluators={e.id: _CountingEvaluator(e, tally) for e in provide_evaluators()}
+    )
+
+
+def _verdicts_graded(rule: Rule) -> Counter[str]:
+    """Run one rule against a maximally talkative model and count the verdicts it graded."""
+    tally: Counter[str] = Counter()
+    target = EndpointTarget("http://x", "m", system_prompt="s", transport=_AlwaysAnswers())
+    with suppress(RuleError):
+        list(rule.run(target, _counting_context(tally)))
+    return tally
+
+
+def _over(declared: Mapping[str, int] | None, graded: Counter[str]) -> dict[str, int]:
+    """The evaluators graded more often than declared, with how often they were."""
+    allowed = declared or {}
+    return {e: n for e, n in graded.items() if n > allowed.get(e, 0)}
+
+
+def test_every_shipped_endpoint_rule_declares_what_it_grades() -> None:
+    undeclared = [r.meta.id for r in _endpoint_rules() if r.graded_verdicts is None]
+    assert not undeclared, f"these shipped rules do not declare what they grade: {undeclared}"
+
+
+def test_no_shipped_rule_grades_more_verdicts_than_it_declared() -> None:
+    measured = 0
+    for rule in [*_chat_rules(), *_repeated(_chat_rules(), 3)]:
+        graded = _verdicts_graded(rule)
+        measured += sum(graded.values())
+        over = _over(rule.graded_verdicts, graded)
+        assert not over, (
+            f"{rule.meta.id} (K = {rule.trials_per_case}) graded {over} against a "
+            f"declaration of {rule.graded_verdicts}"
+        )
+    assert measured, "no rule graded anything, so this gate measured nothing"
+
+
+def test_no_mcp_rule_grades_with_an_evaluator_it_did_not_declare() -> None:
+    from guardana.core.target import McpServerTarget  # noqa: PLC0415
+    from guardana.core.testing import ScriptedMcpServer  # noqa: PLC0415
+
+    url = "https://93.184.215.14/mcp"
+    server = ScriptedMcpServer(url, tools=[{"name": "read", "description": "reads"}])
+    for rule in _mcp_rules():
+        tally: Counter[str] = Counter()
+        target = McpServerTarget(url, sender=server)
+        with suppress(RuleError):
+            list(rule.run(target, _counting_context(tally)))
+        assert not _over(rule.graded_verdicts, tally), rule.meta.id
 
 
 def test_every_endpoint_rule_declares_at_least_active_impact() -> None:

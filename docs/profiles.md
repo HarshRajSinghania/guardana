@@ -65,7 +65,7 @@ contracts:                      # optional; security contracts to load, files or
 trials: 1                       # optional; attempts per case for rules that grade a
                                 # sampled reply — see usage-probe.md#repeated-trials
 
-calibrations: []                # optional; list of calibration file globs
+calibrations: []                # optional; calibration files, beside this profile
 
 evaluators:                     # config-wired evaluators — see the section below
   llm_judge:
@@ -92,8 +92,8 @@ evaluators:                     # config-wired evaluators — see the section be
 | `trace.require` | list of dimension names | `[]` | Evidence a trace run demands: `messages`, `tools`, `retrieval`, `memory`, `identity`, `delegation`, `consent`, `policy`, `approval`, `effects`, `handoff`. A producer that does not record one makes the run **`indeterminate`, unconditionally** — no `fail_on_*` governs it, because you asked for this coverage by name. An unknown dimension raises at load. Governs traces only: a shared config carrying it does not affect `scan` or `probe`. See [`usage-trace-inspect.md`](usage-trace-inspect.md). |
 | `contracts` | list of paths | `[]` | Security contracts to load — files, or directories of `.yaml`/`.yml`. Added to anything passed via the repeatable `--contract PATH` flag. Unlike a malformed *rule* file, a contract that will not load is a hard error: it is your own threat model, and a silently absent one is a gate you think you have. See [`usage-contracts.md`](usage-contracts.md). |
 | `trials` | integer ≥ 1 | `1` | How many independent attempts `probe`, `monitor` and `plan probe` make at each case of a rule that grades a sampled model reply. `--trials N` wins over it. A rule that does not repeat (a protocol check, a `stateful` scenario) makes one attempt whatever this says, and the run records that. Anything other than a whole number of at least 1 is refused at load. See [`usage-probe.md`](usage-probe.md#repeated-trials). |
-| `calibrations` | list of strings | `[]` | Glob patterns for calibration files written by `guardana calibrate --record`. Paths are read relative to the current working directory. A missing listed path stops the run with exit code `3` (`INVALID_USAGE`). A bare string is refused. |
-| `evaluators` | mapping | `{}` | Config blocks for evaluators that need a model of their own, keyed by evaluator id — `llm_judge` and `guard` today. `probe` and `monitor` build and register them from this block at startup; see the next section. With no block, a rule naming that evaluator is skipped **visibly**, never silently passed. |
+| `calibrations` | list of paths | `[]` | Calibration files written by `guardana calibrate --record`. A relative path is read beside the profile file, not from the current working directory; globs are not expanded. A missing listed path stops the run with exit code `3` (`INVALID_USAGE`), and so do two files that both record the same evaluator. A bare string is refused. |
+| `evaluators` | mapping | `{}` | Config blocks for evaluators that need a model of their own, keyed by evaluator id — `llm_judge` and `guard` today. `probe` and `monitor` build and register them from this block at startup, and `plan probe` builds them to price their calls without sending any; see the next section. With no block, a rule naming that evaluator is skipped **visibly**, never silently passed. |
 
 `include`/`exclude` are matched with shell-style globbing (`fnmatch`) against
 the rule's `id`, so namespacing rules (`guardana.*` for built-ins, `acme.*`
@@ -175,7 +175,7 @@ layer runs is already decided by the command (`scan` runs the build-time rules,
 | Preset | Fails on | For |
 |---|---|---|
 | `ci` | HIGH | The dev machine and CI — the standard gate. |
-| `pre-training` | MEDIUM | The training server: stricter, so leads (an unpinned dataset, a provenance gap) block a run before it consumes bad data. |
+| `pre-training` | MEDIUM | The training server: stricter, so leads (a dataset loading script, an unpinned model download) block a run before it consumes bad data. An unpinned dataset pull is a LOW lead and does not block. |
 | `monitor` | HIGH **and** inconclusive | A live monitor, so its own checks going dark (a downed judge, empty replies) is itself an alert. |
 
 ```bash

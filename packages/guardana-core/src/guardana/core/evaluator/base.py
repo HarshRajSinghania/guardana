@@ -148,6 +148,18 @@ class Evaluator(ABC):
     another, so the two are compared verbatim. None when the evaluator states none.
     """
 
+    @property
+    def judge_calls_per_verdict(self) -> int | None:
+        """At most how many judge or model calls one `evaluate` makes, or None if unknown.
+
+        What `guardana plan probe` multiplies by the verdicts a rule grades to price
+        judge calls against a request budget. None here: the engine never claims zero
+        cost for code it has not read, so an evaluator that does not declare it is
+        listed as of unknown cost. Not inferred from `deterministic`, which is about
+        whether a verdict is a fact, not about whether grading it calls anything.
+        """
+        return None
+
     @abstractmethod
     def evaluate(self, exchange: Exchange, expectation: Expectation) -> Verdict:
         """Grade one exchange against one expectation.

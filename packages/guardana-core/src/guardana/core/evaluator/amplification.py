@@ -28,6 +28,7 @@ class AmplificationEvaluator(Evaluator):
 
     id = "amplification"
     deterministic: ClassVar[bool] = True
+    judge_calls_per_verdict: ClassVar[int] = 0
     expects: ClassVar[Mapping[str, bool]] = {"max_amplification": True}
 
     def evaluate(self, exchange: Exchange, expectation: Expectation) -> Verdict:

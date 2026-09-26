@@ -97,7 +97,7 @@ class ScanResult:
     """
 
     suites: Mapping[str, "SuiteSummary"] = field(default_factory=dict)
-    """What each suite that ran concluded about its pass rate, by rule id.
+    """What each suite concluded about its pass rate, by rule id, a budget-stopped one included.
 
     Built by the suite while it ran and carried as it was built, so the manifest stores
     and every renderer prints the conclusion the gate read.

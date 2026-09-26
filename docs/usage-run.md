@@ -25,9 +25,10 @@ run 0191d4c2-8f1a-7c3e-9b21-6f0a2d8e4c11
   gate:      pass
   findings:  0 (0 unverified, 0 waived, 0 error(s))
   rules run: 19 (0 skipped)
-  trials:    1 per case asked; 0 rule(s) repeated
+  trials:    1 per case asked; 0 rule(s) and 0 suite(s) repeated
   requests:  0
   tokens:    in not recorded, out not recorded
+  judge:     not counted
   wall time: 0.42
   evidence:  full
 ```
@@ -51,6 +52,19 @@ read them from the response; a transport that does not implement the optional
 requests reported tokens, the manifest carries the sum **and**
 `requests_missing_token_counts`, so the number is never mistaken for the whole
 bill. See [`docs/writing-rules.md`](writing-rules.md) for the protocol.
+
+`usage.judge` counts the judges configured under the profile's `evaluators:` block,
+each on its own meter and apart from the target: `llm_judge` (which `reference_judge`
+shares) and `guard`. Each entry carries `requests`, `input_tokens`, `output_tokens`,
+`requests_missing_token_counts` and `budget_exhausted`, which says that this meter's
+ceiling stopped the run. `usage.judge` is `null` when nobody counted judge calls: no
+judge block was configured, or the command never wires a judge (`scan`). An evaluator
+from a plugin that makes its own network calls is not counted anywhere. `inspect`
+prints one `judge:` line per block:
+
+```text
+  judge:     llm_judge 36 request(s), tokens in 1440, out 108
+```
 
 ## What "not recorded" means
 
@@ -100,6 +114,9 @@ recomputed. Its trials line still prints
 A schema-8 run migrates to schema 9 with `suite: null` on every rule; nothing is
 recomputed.
 
+A schema-9 run migrates to schema 10 with `usage.judge: null`: judge calls were not
+counted, which is not the same as none being made. `inspect` prints `judge: not counted`.
+
 One thing *is* recovered: the **title** of a framework reference, which version 3
 onward records beside its framework and id. It is looked up from the installed
 catalogue for the exact `(framework, id)` pair the document already carries, so
@@ -128,8 +145,8 @@ parametrised over every field a version-1 run could be missing.
 ## The document
 
 The saved-run schema lives at
-[`schemas/run-v8.schema.json`](../schemas/run-v8.schema.json), identified by
-`https://guardana.dev/schemas/run/v8.schema.json`, and the site serves every schema
+[`schemas/run-v10.schema.json`](../schemas/run-v10.schema.json), identified by
+`https://guardana.dev/schemas/run/v10.schema.json`, and the site serves every schema
 at the URL its identifier names. The version is in the identifier,
 so a consumer can tell which contract it is holding before parsing anything; it
 changes whenever the change is not backwards-compatible. A test validates what
@@ -146,13 +163,15 @@ records repeated trials: `run.execution.trials`, `assessments[].trial` and
 `run.rules[].trial_summary`, and renames `run.rules[].trials` to `declared_requests`,
 which is what it always counted. Version 8 records the `correction` block on
 `trial_summary` and the calibration fields on `run.evaluators[]`. Version 9 records
-`run.rules[].suite`, what a quality suite measured and concluded.
+`run.rules[].suite`, what a quality suite measured and concluded. Version 10 records
+`run.usage.judge`, what the configured judges spent and whether one of their budgets
+stopped the run.
 
 Top level:
 
 | Key | What it is |
 |---|---|
-| `schema_version` | `9`. Stated once, for the whole document. |
+| `schema_version` | `10`. Stated once, for the whole document. |
 | `run` | the manifest — everything below |
 | `findings` / `unverified` / `waived` / `errors` / `observations` | the problem, evidence and inventory channels |
 | `assessments` | what the run *measured*, pass included — see [assessments](#assessments) |
@@ -169,8 +188,8 @@ Inside `run`:
 | `deployment` | which deployment of which AI system this verifies |
 | `configuration` | which settings produced it, **by digest** |
 | `execution` | what limits it ran under, and `trials`: the attempts per case the run asked for |
-| `usage` | what it actually consumed |
-| `rules` / `evaluators` | what did the checking, with digests, declared request counts, a `trial_summary` for each rule that repeated, a `suite` summary for each quality suite, and calibration |
+| `usage` | what it actually consumed, the configured judges on their own meters |
+| `rules` / `evaluators` | what did the checking, with digests, declared request counts, a `trial_summary` for each rule that repeated, a `suite` summary for each quality suite, and calibration. A suite the budget stopped or that raised is listed with its declined summary, though not in `result_summary.rules_run` |
 | `coverage` | what the run was *able* to check: one fingerprint, the framework catalogues it mapped against by digest, and any protocol versions the target negotiated |
 | `result_summary` | the counts, the gate, and whether the run was cut short |
 | `privacy` | which evidence policy was in force |

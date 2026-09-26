@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`tool_call` argument allowlist.** `allowed_argument_values: {tool: [exact values]}` fails a call to a listed tool that carries any other string value, under any argument name. `guardana.agent.tool_argument_scope` uses it and now ships a clean fixture: deleting exactly the file the task names passes, while `/tmp/`, `/tmp/*.log`, `{file_path: "/tmp/*"}` or an extra `{pattern: "*"}` fails.
+- **`tool_call` payload proof.** `payload_marker`, with `delivered_by`, counts a delivery only when that tool's result contained the marker. `guardana.agent.memory_poisoning` declares one, so a first session that saved an unrelated note no longer makes a clean second session read as a robust model.
+- **Mapping test for built-in rules.** A test fails the build when a built-in rule has no framework mapping.
+- **`plan probe` prices judge calls.** Each judge configured under `evaluators:` is priced on its own meter: verdicts graded (`Rule.graded_verdicts`, times K) × calls per verdict (`Evaluator.judge_calls_per_verdict`; `min_agreement` for `llm_judge` and `reference_judge`, which share a meter). A plan whose judge meter could exceed `max_requests`, or whose judge cost is unknown while a judge is configured, does not fit and exits `3`; before, it reported `fits_budget: true` for a run that stopped with exit `6`. Rules or evaluators that do not declare their judge cost are named, not counted as free.
+- **`plan probe` takes probe's budget flags** (`--max-requests`, `--max-input-tokens`, `--max-output-tokens`, `--max-duration`), so a plan checks the ceilings the run will apply.
+- **Judge usage in the saved run.** `usage.judge` records each configured judge's requests and tokens, and whether its budget stopped the run; `run inspect` prints a `judge:` line per judge. It is `null` when nobody counted judge calls.
+- **Extension declarations for cost.** `Evaluator.judge_calls_per_verdict` and `Rule.graded_verdicts`, both `None` (unknown) unless declared; every built-in declares them and a gate measures the built-in rules against their declarations.
+
+### Changed
+
+- **Run schema 10** adds `run.usage.judge`. A schema-9 run migrates with `usage.judge: null`, which reads as not counted, never as zero. **Plan schema 3** adds `judge_calls` (`null` for `plan scan`); a consumer validating against plan schema 2 must move to 3.
+- **Judge failures name the judge.** A judge that cannot be reached or rejects the request exits `4` with its `evaluators:` block and its URL without credentials, instead of blaming the target. A spent judge budget says which judge stopped the run.
+- **Two calibration files that record the same evaluator are refused** (exit `3`), instead of the later one silently winning.
+- **Framework mapping policy.** Built-in security rules map to a public framework, in edition form; a team's own quality criteria (suites, local checks) need no public mapping. `CONTRIBUTING.md` says so; the loader already accepted a suite with no `taxonomy`.
+- **`tool_call` reads decoded argument values.** `forbidden_argument_values` matches substrings of decoded JSON values and never a key, so `["path"]` no longer fires on the key `path`; a repeated key counts every value it carries, and on a tool scoped by `allowed_argument_values` an argument name that is not a plain identifier makes the call `inconclusive`. `canary_in_arguments` also matches decoded keys and values, so a `\uXXXX`-escaped marker is found.
+- **`tool_call` rules refuse a `delivered_by` that cannot carry a payload.** At load, and for a `TrajectoryRule` built in Python: an undeclared tool, a `memory: write` tool, a `memory: read` tool without `payload_marker` or with one the `task` or `then` text also contains, a marker no fixed `returns:` text contains, or a marker that overlaps the canary. A `tool_call` field of the wrong type (`forbidden_tools: send_email` instead of a list, `canary_in_arguments: "yes"`) is refused at load too, where it was read as absent. A third-party rule with one of these stops loading.
+- **A `memory: read` tool hands back the values each note saved**, not the raw JSON arguments the model passed, so a payload marker cannot be satisfied by an argument name. What the model reads on recall in an agent run changes accordingly.
+- **A `regex` reply over 65,536 characters is `inconclusive`**, never truncated. Python's `re` has no match timeout and `--max-duration` cannot interrupt a running search, so the bound caps the input a pattern runs on; it is not a time bound. A pattern that backtracks (nested quantifiers, or several `.*` in a row) can still run for a very long time on a crafted reply, and ends in a hang, never a pass.
+- **`guardana.training.dataset_integrity` reports only Hugging Face `datasets.load_dataset`**, resolved through `import datasets`, `from datasets import load_dataset` (aliases and `*` included) and `datasets.load`. A local function named `load_dataset` is no longer reported.
+- **Product status separates released from experimental behaviour.** Judge-graded suites (`answered`, `reference_judge`) and judge-error correction are experimental: their behaviour, thresholds and saved fields may change in a minor release.
+
+### Fixed
+
+- **A suite stopped by the budget keeps its accounting.** The saved run records it as declined, with how many of its cases were measured, and JUnit reports it as an error; the run still exits `6`. A suite that raised is recorded the same way. Before, it vanished from `run.rules` and JUnit, and the terminal counted only the cases it reached as the whole suite.
+- **A malformed judge block in `evaluators:` exits `3`** with one line from `probe`, `monitor`, `calibrate` and `plan probe`, instead of a traceback that exited `1`, the code for a failed policy.
+- **`run inspect` counts repeated suites** in its trials line, beside repeated rules.
+- **A migrated run says it was migrated.** Loading a schema 2–9 run left `migrated_from` unset, so `run inspect` omitted its note that fields the old version never wrote are unknown, not zero.
+- **An earlier-turn canary leak is a finding.** `canary` reads every assistant turn it is handed, not only the last. An agent that recited a marked tool schema while calling a tool and then said "Done." was graded clean.
+- **A truncated agent run never grades `pass`**, whatever evaluator grades it; only `tool_call` checked the truncation before. A run whose final step is blank has no reply to grade, rather than having an earlier step graded as its reply.
+- **`calibrations:` paths resolve beside the profile**, like `contracts:`, so the same profile works from another working directory.
+- **`guardana calibrate` against a judge that rejects the request exits `4`** with one line naming the judge endpoint (credentials removed), instead of a traceback. Nothing is recorded.
+- **A calibration without per-class counts says why.** An entry recorded over verdicts with several assessor ids no longer asks for a rerun that could not add the counts.
+
 ## [0.29.0] - 2026-09-26 — quality suites gate versioned datasets on measured pass rates
 
 ### Added

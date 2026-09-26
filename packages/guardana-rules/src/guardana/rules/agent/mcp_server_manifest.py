@@ -159,6 +159,11 @@ class McpServerManifestRule(Rule):
         """
         return 3
 
+    @property
+    def graded_verdicts(self) -> Mapping[str, int]:
+        """Empty: the manifest is graded in this rule's own code."""
+        return {}
+
     def run(self, target: Target, ctx: RuleContext) -> Iterable[Finding]:
         """Fetch the live manifest, scan every declaration, and compare it with the pin."""
         if not isinstance(target, ToolListing):

@@ -17,6 +17,7 @@ guardana plan probe --url https://api.example.com --model gpt-4o-mini
 14 rule(s) would run, 9 skipped.
 requests: at least 14, at most 47
 trials: 1 attempt(s) per case, counted in the requests above
+judge calls: none — no selected rule grades with a judge
 
 No request was sent to produce this estimate.
 ```
@@ -53,6 +54,7 @@ run they are pricing would use, so both take the same plugin-trust flags
 | `--plugins [all\|builtins\|allowlist\|disabled]` | `all` | Which installed plugins to load — same meaning as on `probe` |
 | `--allow-plugin TEXT` | none | Distribution to trust; repeatable, needs `--plugins allowlist` |
 | `--trials INTEGER` | `1` (or `trials:` in the profile) | `plan probe` only: price the run at this many attempts per case, as `probe --trials` would make them |
+| `--max-requests`, `--max-input-tokens`, `--max-output-tokens`, `--max-duration` | the profile's `budgets:` | `plan probe` only: check the plan against these ceilings, as `probe` would apply them |
 
 `plan scan` also keeps `--no-plugins` as a deprecated alias for `--plugins disabled`,
 exactly like `guardana scan` does.
@@ -106,8 +108,34 @@ trials: 5 attempt(s) per case, counted in the requests above
 ```
 
 `--format json` carries the same facts as `trials.per_case` and `trials.single_attempt`
-(plan schema `2`, [`schemas/plan-v2.schema.json`](../schemas/plan-v2.schema.json)). See
+(plan schema `3`, [`schemas/plan-v3.schema.json`](../schemas/plan-v3.schema.json)). See
 [`usage-probe.md`](usage-probe.md#repeated-trials) for what a trial is.
+
+## Pricing judge calls
+
+A rule graded by a judge configured under `evaluators:` — `llm_judge`,
+`reference_judge` or `guard` — spends judge calls as well as target requests, and
+each judge meter is bounded by `max_requests` on its own. `plan probe` builds those
+judges from the profile, sends them nothing, and prices each meter: the verdicts a
+rule grades (`Rule.graded_verdicts`: prompts × K, cases × K for a suite, graded steps
+× K for a scenario, sessions × K for an agent run) times the calls one verdict costs
+(`Evaluator.judge_calls_per_verdict`: `min_agreement` for `llm_judge` and
+`reference_judge`, which share one meter; `1` for `guard`).
+
+```text
+requests: at least 1, at most 90
+judge calls: at most 270
+  llm_judge, reference_judge (one judge, its own meter): at most 270 call(s) against a budget of 100
+⚠ this plan does not fit its request budget — the run would stop early,
+  and a run that stops early reports no verdict
+```
+
+That is a 30-case suite graded by `reference_judge` at `--trials 3` with
+`min_agreement: 3`. A rule or evaluator that does not declare its judge calls is
+named under the judge line like an unknown-cost rule; while a judge is configured,
+such a plan does not claim to fit. `plan scan` never prices judges, because `scan`
+never builds one. In JSON, `judge_calls` carries `max`, `meters`, `unknown_cost` and
+`complete`, and is `null` for `plan scan`. Judge tokens are not predicted.
 
 ## Plan the run you are going to make
 
@@ -166,14 +194,17 @@ the numbers look like. Its ceiling is not a ceiling.
 
 ## Checking against a budget
 
-If the profile (or a flag) sets `max_requests` and the worst case exceeds it, the
-plan says so and exits `3` — invalid configuration, found before the run rather
-than halfway through it:
+If the profile (or a flag) sets `max_requests` and the worst case — of the target
+or of any judge meter — exceeds it, the plan says so and exits `3` — invalid
+configuration, found before the run rather than halfway through it:
 
 ```text
 ⚠ this plan does not fit its request budget — the run would stop early,
   and a run that stops early reports no verdict
 ```
+
+A token ceiling a judge's transport cannot enforce is refused with `3` too, the same
+way `probe` refuses it.
 
 ## What it cannot tell you
 

@@ -174,9 +174,10 @@ class Runner:
                 errors.append(outcome.error)
             else:
                 ran.append(outcome.rule_id)
-            # Carried from an errored suite too: it concluded that it did not finish, and
-            # that decline is a demand no `fail_on_error` preference may switch off.
-            if outcome.suite is not None and outcome.stopped_by is None:
+            # Carried from an errored or cut-off suite too: it concluded that it did not
+            # finish, over every case it planned, and dropping that decline would leave the
+            # cases it never sent unaccounted for. The rule still stays out of `rules_run`.
+            if outcome.suite is not None:
                 suites[outcome.rule_id] = outcome.suite
         # A file the rules were prevented from reading is a check that did not
         # run, so it joins `errors` rather than disappearing. Collected after the
@@ -327,6 +328,7 @@ class Runner:
                 tuple(findings),
                 tuple(unverified),
                 ctx.recorded(),
+                suite=ctx.concluded(),
                 stopped_by=StopReason.BUDGET_EXHAUSTED,
             )
         except (URLError, EndpointError) as exc:

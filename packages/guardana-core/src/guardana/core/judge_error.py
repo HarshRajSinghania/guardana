@@ -195,9 +195,9 @@ def _usable(
     """Return the calibration's per-class error for `assessor`, or why none can be used."""
     key, evaluator = _resolve(assessor, evaluators)
     calibration = calibrations.get(key) if key is not None else None
-    if calibration is None:
+    if key is None or calibration is None:
         return f"no calibration recorded for {assessor}"
-    lacking = f"{key} calibration lacks per-class counts; rerun guardana calibrate --record"
+    lacking = f"{key} calibration lacks per-class counts"
     if (
         calibration.assessor is None
         or calibration.dataset_digest is None
@@ -206,7 +206,7 @@ def _usable(
         or calibration.positives_inconclusive is None
         or calibration.negatives_inconclusive is None
     ):
-        return lacking
+        return _without_counts(key, calibration) or lacking
     refusal = (
         _refusal(assessor, evaluator, calibration, starter_digest)
         or class_caveat(
@@ -228,6 +228,26 @@ def _usable(
         sensitivity=sensitivity,
         specificity=specificity,
     )
+
+
+def _without_counts(key: str, calibration: CalibrationRecord) -> str | None:
+    """Say why a calibration has no per-class counts, promising a rerun only where it helps.
+
+    `starter_corpus` has been recorded since the counts were, so an entry without it
+    predates them. An entry with it and no assessor was measured over verdicts carrying
+    several assessor ids, which `calibrate --record` never counts per class.
+    """
+    if calibration.starter_corpus is None:
+        return (
+            f"{key} calibration predates per-class counts; rerun guardana calibrate --record, "
+            f"which records them when every verdict carries one assessor id"
+        )
+    if calibration.assessor is None:
+        return (
+            f"{key} calibration has no per-class counts: its verdicts carried several assessor "
+            f"ids, and one sensitivity and specificity cannot describe them together"
+        )
+    return None
 
 
 def _refusal(

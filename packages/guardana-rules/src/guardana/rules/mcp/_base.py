@@ -8,7 +8,7 @@ run has to say so rather than fall into that silence.
 """
 
 from abc import abstractmethod
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable, Iterator, Mapping
 
 from guardana.core.evaluator.base import Verdict
 from guardana.core.report import Evidence, Finding
@@ -29,6 +29,11 @@ class McpReporting(Rule):
 
     claim = "this check could not be made"
     """What this rule would have established, phrased to follow "so …" in a sentence."""
+
+    @property
+    def graded_verdicts(self) -> Mapping[str, int]:
+        """Empty: an MCP rule grades what the server revealed in its own code."""
+        return {}
 
     def finding(
         self, view: McpAuthorizationView, summary: str, *, severity: Severity | None = None

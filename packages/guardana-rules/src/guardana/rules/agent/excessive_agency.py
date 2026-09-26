@@ -1,4 +1,4 @@
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 
 from guardana.core.assessment import case_id_for, from_verdict
 from guardana.core.evaluator.base import Verdict
@@ -79,6 +79,11 @@ class ExcessiveAgencyRule(Rule):
     def estimated_requests(self) -> int:
         """One tool-offering request per trial: the check is what the model reaches for first."""
         return self._trials
+
+    @property
+    def graded_verdicts(self) -> Mapping[str, int]:
+        """Empty: the tool calls the model made are graded in this rule's own code."""
+        return {}
 
     def run(self, target: Target, ctx: RuleContext) -> Iterable[Finding]:
         """Offer a benign and several dangerous tools for a trivial task; grade the calls.

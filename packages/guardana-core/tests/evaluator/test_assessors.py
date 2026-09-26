@@ -13,7 +13,7 @@ from guardana.core.evaluator.contains import ContainsEvaluator
 from guardana.core.evaluator.exact_match import ExactMatchEvaluator
 from guardana.core.evaluator.json_valid import JsonValidEvaluator
 from guardana.core.evaluator.keyword import KeywordEvaluator
-from guardana.core.evaluator.regex import RegexEvaluator
+from guardana.core.evaluator.regex import MAX_REPLY_CHARS, RegexEvaluator
 from guardana.core.exchange import Exchange
 from guardana.core.target import ChatMessage
 
@@ -149,6 +149,33 @@ def test_regex_with_must_match_false_passes_only_a_miss() -> None:
 
 def test_regex_searches_rather_than_anchoring_at_the_start() -> None:
     assert _grade(RegexEvaluator(), "the answer is 42", pattern="42")[0] == "pass"
+
+
+def test_regex_reply_bound_is_64_kib_of_characters() -> None:
+    assert MAX_REPLY_CHARS == 65_536
+
+
+@pytest.mark.parametrize(
+    ("must_match", "tail", "graded"),
+    [(True, "42", "pass"), (True, "", "fail"), (False, "42", "fail"), (False, "", "pass")],
+)
+def test_regex_grades_a_reply_at_its_size_bound(must_match: bool, tail: str, graded: str) -> None:
+    reply = "x" * (MAX_REPLY_CHARS - len(tail)) + tail
+    assert len(reply) == MAX_REPLY_CHARS
+    fields = {"pattern": "42", "must_match": must_match}
+    assert _grade(RegexEvaluator(), reply, **fields) == (graded, 1.0)
+
+
+@pytest.mark.parametrize("must_match", [True, False])
+@pytest.mark.parametrize("tail", ["42", ""])
+def test_regex_declines_a_reply_over_its_size_bound(must_match: bool, tail: str) -> None:
+    # Truncating could drop or keep the match either way, so neither setting may pass.
+    reply = "x" * (MAX_REPLY_CHARS + 1 - len(tail)) + tail
+    verdict = RegexEvaluator().evaluate(
+        Exchange.single_reply(reply), _expect(pattern="42", must_match=must_match)
+    )
+    assert (verdict.outcome, verdict.confidence) == ("inconclusive", 0.0)
+    assert str(MAX_REPLY_CHARS) in verdict.rationale
 
 
 @pytest.mark.parametrize(

@@ -696,7 +696,9 @@ empty model reply — is reported separately as <code>? [UNVERIFIED]</code> (the
 an <code>evaluators:</code> block in <code>guardana.yaml</code> — see
 <a href="profiles.html#config-wired-evaluators-llm_judge-and-guard"><code>profiles.md</code></a>. With
 no block configured, a rule that names one of them is <strong>skipped visibly</strong> in
-the run summary rather than silently passed.</p>
+the run summary rather than silently passed. <code>plan probe</code> prices their calls before
+the run (<a href="usage-plan.html#pricing-judge-calls"><code>usage-plan.md</code></a>), and the saved run
+records what they spent in <code>usage.judge</code> (<a href="usage-run.html#what-a-run-costs"><code>usage-run.md</code></a>).</p>
 <h2 id="exit-codes">Exit codes</h2>
 <p>Same policy gate as <code>scan</code> (see <a href="profiles.html"><code>profiles.md</code></a>): exits <code>1</code> if
 any finding at or above <code>fail_on.severity</code> also meets <code>fail_on.min_confidence</code>,

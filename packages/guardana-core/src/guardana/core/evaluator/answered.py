@@ -1,3 +1,5 @@
+from typing import ClassVar
+
 from guardana.core.evaluator.base import Evaluator, Expectation, Verdict
 from guardana.core.evaluator.keyword import REFUSAL_MARKERS
 from guardana.core.exchange import Exchange
@@ -15,6 +17,7 @@ class AnsweredEvaluator(Evaluator):
     """
 
     id = "answered"
+    judge_calls_per_verdict: ClassVar[int] = 0
 
     @classmethod
     def check_fields(cls, expectation: Expectation) -> str | None:

@@ -26,6 +26,14 @@ so this page is maintained as carefully as the code.
 | Quality suites | **beta** | Gates pass rates on team-supplied versioned datasets, with repeated trials and judge correction. No numeric aggregate gate or statistical comparison between suite runs. |
 | Extension API | **unstable by design** | Frozen at 1.0, and deliberately not before — see below. |
 
+## Released and experimental
+
+**Released (beta):** Quality suites use the deterministic assessors `exact_match`, `contains`, `regex`, `json_valid`, and `length`. They support versioned JSONL datasets (`name@version`), deterministic sampling (`sample: {size, seed}`), repeated trials per case, and a suite gate that passes, fails, or declines with `min_sample`. Runs save a suite summary in the run document and show a Measured block in the human report. JUnit output is available.
+
+**Experimental:** Judge-graded suites use `answered` and `reference_judge`. Judge-error correction adjusts trial and suite rates using Rogan–Gladen and a calibration recorded on the team's own corpus with `guardana calibrate --record`. Without a usable calibration, the suite declines; it never passes on an uncorrected judge rate. Experimental means shipped, but behaviour, thresholds, and saved fields may change in a minor release.
+
+**Not released:** An offline starter, a supported Python result facade, renderer and reporter plugins, recorded-answer grading and regrading, and reproducible team recipes are roadmap items F2–F6 in `ROADMAP.md`. Pages under `docs/design/` describe designs, not shipped behaviour.
+
 ## Known limitations
 
 Stated plainly, because finding these out after adoption is worse than reading
@@ -123,7 +131,7 @@ model](threat-model.md).
 ### Quality suites
 
 Numeric values are recorded and rendered, but suites do not gate on their aggregate.
-`plan probe` prices target requests, not judge calls; repeated trials and `min_agreement` can multiply judge calls.
+The collector receives the target's request count, not what the judge spent; the saved run carries both.
 `guardana diff` pairs suite cases but does not statistically test the pass rate between runs.
 A calibration file holds one calibration per evaluator id.
 

@@ -51,6 +51,10 @@ severity bar: how bad an unmeasured thing is has no answer, so `fail_on_inconclu
 governs all of them or none, and a check that went dark between two runs is a
 regression at any severity. Saved runs carry versions, policy identity,
 target identity, protocol versions, usage, redaction mode, and rule provenance.
+Usage keeps the judges configured under `evaluators:` on their own meters, apart from
+the target. `guardana plan probe` prices those judge calls before the run, names what
+it cannot price, and exits `3` when the target or a judge meter could exceed the
+request budget.
 
 Repeated trials send the same case as independent, fresh requests without shared
 conversation history or agent memory. Any failed attempt fails the case; if a grader
@@ -96,15 +100,15 @@ Every built-in rule id, severity, target, maturity, and framework mapping is in 
 Built-in evaluators are:
 
 - `keyword` for low-confidence refusal matching;
-- `canary` for deterministic planted-marker evidence;
-- `tool_call` for actions and arguments over a trajectory;
+- `canary` for deterministic planted-marker evidence in any assistant turn of the conversation or agent run;
+- `tool_call` for actions and decoded argument values over a trajectory, including an exact allowlist per tool and proof that a payload was delivered;
 - `length` and `amplification` for resource-consumption signals;
 - `llm_judge` for configurable semantic grading;
 - `answered` for judging whether a reply refuses a benign task;
 - `contains` for required or forbidden case-sensitive substrings;
 - `exact_match` for comparison with a reference answer, with optional normalization;
 - `json_valid` for valid JSON and optional required keys;
-- `regex` for matching a reply against a pattern;
+- `regex` for matching a bounded reply against a pattern;
 - `reference_judge` for grading against a reference answer with a versioned rubric;
 - `guard` for an optional external safety classifier.
 
@@ -121,7 +125,7 @@ A quality suite is a declarative rule that grades a versioned JSONL dataset the 
 
 Each case runs for the configured `trials` or `probe --trials`. The suite records an assessment for every trial, including passes, and gates on the mean pass rate over cases.
 
-The gate passes, fails, or declines when it cannot conclude. Judge-graded suites use a qualifying calibration to correct the pass rate; without one, they decline. A failed suite yields at most one finding, about the rate.
+The gate passes, fails, or declines when it cannot conclude. Judge-graded suites use a qualifying calibration to correct the pass rate; without one, they decline. Judge-graded suites and judge-error correction are experimental. A failed suite yields at most one finding, about the rate.
 
 Saved runs retain the suite summary. Human reports show a Measured block, and JUnit emits one testcase per suite. See [Quality suites](docs/usage-suites.md) for the how-to.
 

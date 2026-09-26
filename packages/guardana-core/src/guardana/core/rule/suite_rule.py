@@ -7,7 +7,7 @@ one finding, about the rate rather than a case. Why, and what was rejected:
 """
 
 import hashlib
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from functools import cache
 
@@ -76,6 +76,11 @@ class SuiteRule(Rule):
         """One request per case per trial: every case is sent every time, none is skipped."""
         return len(self.cases) * self.trials_per_case
 
+    @property
+    def graded_verdicts(self) -> Mapping[str, int]:
+        """One verdict per case per trial, all from the suite's evaluator."""
+        return {self.meta.evaluator or "": len(self.cases) * self.trials_per_case}
+
     def with_trials(self, trials: int) -> "Rule | None":
         """Send every case `trials` times: a pass rate over one sampled reply is one draw."""
         return replace(self, trials_per_case=check_trials(trials))
@@ -91,7 +96,8 @@ class SuiteRule(Rule):
         Nothing is yielded when the suite passes: the passes are in the assessment
         channel and in the conclusion handed to `ctx.conclude`. A suite that raises
         before it concludes still concludes, as declined, so an error never leaves its
-        demand unanswered; a spent budget is a stop, and the run says so itself.
+        demand unanswered. A spent budget concludes it declined too, over every planned
+        case, and still propagates: the stop is the run's to report.
         """
         # A context can outlive one run (fixtures share one), so the suite reads only what
         # it recorded itself.
@@ -99,18 +105,19 @@ class SuiteRule(Rule):
         try:
             yield from self._measure(target, ctx, start)
         except BudgetExhausted:
+            ctx.conclude(self._declined(ctx, start, _stopped_reason))
             raise
         except Exception as exc:
-            ctx.conclude(self._unfinished(ctx, start, exc))
+            failure = f"suite did not finish: {type(exc).__name__}: {exc}"
+            ctx.conclude(self._declined(ctx, start, lambda _: failure))
             raise
 
-    def _unfinished(self, ctx: RuleContext, start: int, exc: Exception) -> SuiteSummary:
+    def _declined(
+        self, ctx: RuleContext, start: int, reason: Callable[[SuiteSummary], str]
+    ) -> SuiteSummary:
+        """Summarise what was recorded over every planned case, declined for `reason`."""
         summary = self._summary(ctx, ctx.recorded()[start:])
-        return replace(
-            summary,
-            outcome=SuiteOutcome.INCONCLUSIVE,
-            reason=f"suite did not finish: {type(exc).__name__}: {exc}",
-        )
+        return replace(summary, outcome=SuiteOutcome.INCONCLUSIVE, reason=reason(summary))
 
     def _summary(self, ctx: RuleContext, recorded: Sequence[Assessment]) -> SuiteSummary:
         return measure_suite(
@@ -183,6 +190,13 @@ class SuiteRule(Rule):
                 evaluator_id=assessor,
             ),
         )
+
+
+def _stopped_reason(summary: SuiteSummary) -> str:
+    return (
+        f"the budget ran out before every case was measured: "
+        f"{summary.measured} of {summary.cases} cases measured"
+    )
 
 
 def _failing_cases(failing: dict[str, str]) -> str:

@@ -19,6 +19,7 @@ class ContainsEvaluator(Evaluator):
 
     id = "contains"
     deterministic: ClassVar[bool] = True
+    judge_calls_per_verdict: ClassVar[int] = 0
     expects: ClassVar[Mapping[str, bool]] = dict.fromkeys(_LISTS, False)
 
     @classmethod

@@ -52,7 +52,7 @@ from guardana.core.manifest.settings import (
     ExecutionSettings,
     PrivacyRecord,
 )
-from guardana.core.manifest.usage import RunUsage
+from guardana.core.manifest.usage import JudgeUsage, RunUsage
 from guardana.core.report.shortfall import CoverageShortfall, ShortfallKind
 from guardana.core.report.skipped import SkippedRule, SkipReason
 from guardana.core.target import TargetKind
@@ -116,6 +116,16 @@ def _fully_populated() -> RunManifest:
             requests_missing_token_counts=3,
             estimated_cost=1.25,
             wall_time_seconds=61.5,
+            judge={
+                "llm_judge": JudgeUsage(
+                    requests=30,
+                    input_tokens=9000,
+                    output_tokens=600,
+                    requests_missing_token_counts=2,
+                    budget_exhausted=True,
+                ),
+                "guard": JudgeUsage(requests=12, requests_missing_token_counts=12),
+            },
         ),
         result_summary=ResultSummary(
             findings=3,
@@ -276,6 +286,9 @@ def _leaves(value: object, path: str) -> Iterator[tuple[str, object]]:
     elif isinstance(value, tuple | list):
         for index, item in enumerate(value):
             yield from _leaves(item, f"{path}[{index}]")
+    elif isinstance(value, dict) and value:
+        for key, item in value.items():
+            yield from _leaves(item, f"{path}[{key!r}]")
     else:
         yield path, value
 

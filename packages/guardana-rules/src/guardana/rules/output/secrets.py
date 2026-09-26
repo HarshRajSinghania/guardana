@@ -1,4 +1,4 @@
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import dataclass
 from typing import ClassVar
 
@@ -65,6 +65,11 @@ class OutputSecretsRule(Rule):
     def estimated_requests(self) -> int:
         """One request per probe prompt per trial; every one is sent, none stops the loop."""
         return len(_PROBE_PROMPTS) * self._trials
+
+    @property
+    def graded_verdicts(self) -> Mapping[str, int]:
+        """Empty: every reply is scanned for secrets in this rule's own code."""
+        return {}
 
     def run(self, target: Target, ctx: RuleContext) -> Iterable[Finding]:
         """Send benign prompts and flag any secret the model volunteers in reply.

@@ -33,10 +33,10 @@ and the worked example in [`examples/custom_rule/`](examples/custom_rule/).
 
 Looking for something concrete? Browse issues labelled
 [`good first issue`](https://github.com/guardana/guardana/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22).
-Every rule maps to a standard (OWASP LLM / MITRE ATLAS / NIST) and ships with a
-positive **and** a negative fixture — that fixture pair is non-negotiable,
-because it is what keeps the project honest about the false-positive /
-false-negative failure mode dynamic checks are prone to.
+Built-in security rules map to a public framework (OWASP LLM / OWASP ASI / MITRE
+ATLAS / NIST). Every rule ships with a positive **and** a negative fixture. That
+pair is non-negotiable because dynamic checks are prone to false positives and
+false negatives.
 
 ## Tooling gates
 
@@ -169,8 +169,9 @@ wording and the incidents behind each live in
 3. **Offline, no account, no phone-home.** The only traffic is to the target.
 4. **The engine and every built-in rule stay open source, permanently.** Only
    hosting and curated content may ever be paid.
-5. **Every rule maps to a public framework** (OWASP LLM / OWASP ASI / MITRE
-   ATLAS / NIST). No mapping, no merge.
+5. **Built-in security rules map to a public framework, in edition form**
+   (OWASP LLM / OWASP ASI / MITRE ATLAS / NIST). No mapping, no merge.
+   A team's own quality criteria need no public mapping.
 6. **Adding a dependency needs a justification in the PR** — a security scanner
    with a sprawling dependency tree is its own supply-chain risk.
 7. **No fixture carries real data, secrets, or production prompts.**

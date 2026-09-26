@@ -45,7 +45,7 @@ uv run python scripts/generate_docs.py         # after a rule/evaluator/taxonomy
 2. Cost grows with the target, not the rule count; performance is a security property, pinned by operation-count gates.
 3. Offline, no account, always: the only traffic is to the target under test; the collector is optional in every direction.
 4. The commercial boundary is fixed: engine and built-in rules stay open source; only hosting and curated content may be paid.
-5. Every rule maps to a public framework, in edition form; no mapping, no merge.
+5. Every built-in security rule maps to a public framework, in edition form; no mapping, no merge. A team's own quality criteria (suites, local checks) need no public mapping.
 6. The dependency surface is part of the posture: a new dependency needs a written justification.
 7. Tests are never a leak: no real data, secrets or production prompts; fixtures are built in code.
 8. Company usability before coverage volume.

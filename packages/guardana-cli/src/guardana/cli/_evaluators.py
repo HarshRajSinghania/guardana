@@ -10,26 +10,139 @@ runner — never a silent pass.
 
 import os
 from collections.abc import Callable, Mapping
+from dataclasses import dataclass
+from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 
 from guardana.cli._endpoint import build_endpoint
-from guardana.core.budget import Budgets
+from guardana.cli._errors import JudgeUnavailableError, safe_url
+from guardana.core.budget import BudgetExhausted, Budgets
 from guardana.core.evaluator.guard import GuardEvaluator
 from guardana.core.evaluator.llm_judge import JudgeCalibration, LlmJudgeEvaluator
 from guardana.core.evaluator.reference_judge import ReferenceJudgeEvaluator
 from guardana.core.fingerprint import digest_of
+from guardana.core.manifest.usage import JudgeUsage
 from guardana.core.profile import Profile
 from guardana.core.profile.errors import ProfileError
 from guardana.core.registry import Registry
-from guardana.core.target import ChatMessage
+from guardana.core.target import ChatMessage, EndpointError, EndpointTarget
 
 _DEFAULT_PROMPT_VERSION = "2025.1"
 _DEFAULT_PORTS = {"https": 443, "http": 80}
+_HTTP_RATE_LIMITED = 429
+_HTTP_CLIENT_ERROR = 400
+_HTTP_SERVER_ERROR = 500
+
+
+class JudgeMeter:
+    """One `evaluators:` block's judge endpoint: its own tally, and whether it stopped a run.
+
+    Every failure of a call leaves naming the block and the judge's URL without
+    credentials: the runner reports a transport failure as the run's endpoint being
+    down and a spent budget as a spent budget, so an unnamed one reads as the target's.
+
+    Safe to share across threads: the tally is the endpoint's thread-safe meter, and the
+    stop is written once, with the message a reader is shown.
+    """
+
+    def __init__(self, block: str, target: EndpointTarget, endpoint: str) -> None:
+        self.block = block
+        self.name = f"evaluators.{block}"
+        self.endpoint = safe_url(endpoint)
+        self._raw = (endpoint, endpoint.rstrip("/").removesuffix("/v1"))
+        self._target = target
+        self.stopped: str | None = None
+        """Why this judge's ceiling stopped the run, or None when it never did."""
+
+    def apply(self, budgets: Budgets) -> None:
+        """Bound this judge by `budgets`, refusing a ceiling its transport cannot enforce."""
+        try:
+            self._target.apply_budgets(budgets)
+        except BudgetExhausted as exc:
+            raise BudgetExhausted(f"{self.name} ({self.endpoint}): {self._scrubbed(exc)}") from exc
+
+    def ask(self, prompt: str) -> str:
+        """Send one grading prompt to the judge and return its reply."""
+        try:
+            return self._target.chat([ChatMessage(role="user", content=prompt)])
+        except BudgetExhausted as exc:
+            self.stopped = f"{self.name} ({self.endpoint}) stopped the run: {self._scrubbed(exc)}"
+            raise BudgetExhausted(self.stopped) from exc
+        except HTTPError as exc:
+            raise self._unavailable(self._rejection(exc.code)) from exc
+        except OSError as exc:
+            # `URLError` is the connect failure; a timeout or a reset while the reply is
+            # read arrives as a bare `OSError`.
+            reason = exc.reason if isinstance(exc, URLError) else exc
+            raise self._unavailable(
+                f"could not reach endpoint {self.endpoint} ({self.name}): {self._scrubbed(reason)}"
+            ) from exc
+        except EndpointError as exc:
+            raise self._unavailable(
+                f"endpoint {self.endpoint} ({self.name}) sent a reply guardana cannot use: "
+                f"{self._scrubbed(exc)}"
+            ) from exc
+
+    def usage(self) -> JudgeUsage:
+        """Return what this judge has spent so far, a null token sum meaning none reported."""
+        spent = self._target.usage()
+        return JudgeUsage(
+            requests=spent.requests,
+            input_tokens=spent.input_tokens,
+            output_tokens=spent.output_tokens,
+            requests_missing_token_counts=spent.requests_missing_token_counts,
+            budget_exhausted=self.stopped is not None,
+        )
+
+    def _unavailable(self, problem: str) -> JudgeUnavailableError:
+        return JudgeUnavailableError(self.block, self.endpoint, problem)
+
+    def _scrubbed(self, problem: object) -> str:
+        text = str(problem)
+        for raw in self._raw:
+            if raw:
+                text = text.replace(raw, self.endpoint)
+        return text
+
+    def _rejection(self, status: int) -> str:
+        where = f"endpoint {self.endpoint} ({self.name})"
+        if status == _HTTP_RATE_LIMITED:
+            return (
+                f"{where} kept rate-limiting the judge (HTTP 429) even after retries — "
+                f"wait for its quota to reset"
+            )
+        if _HTTP_CLIENT_ERROR <= status < _HTTP_SERVER_ERROR:
+            return (
+                f"{where} rejected the request (HTTP {status}) — check "
+                f"{self.name}.api_key_env and the key it names"
+            )
+        return f"{where} returned HTTP {status}"
+
+
+@dataclass(frozen=True, slots=True)
+class JudgeMeters:
+    """The meters of every judge built from config, for a command to read once per run.
+
+    Read outside the scan result on purpose: every pass of a probe shares these meters,
+    and a snapshot carried per pass would be summed once per pass when results merge.
+    """
+
+    meters: tuple[JudgeMeter, ...] = ()
+
+    def usage(self) -> dict[str, JudgeUsage] | None:
+        """Return each judge's spend by block, or None when no judge was configured."""
+        if not self.meters:
+            return None
+        return {meter.block: meter.usage() for meter in self.meters}
+
+    def stops(self) -> tuple[str, ...]:
+        """Say which judge ceilings stopped the run, in the words a reader is shown."""
+        return tuple(meter.stopped for meter in self.meters if meter.stopped is not None)
 
 
 def wire_config_evaluators(
     registry: Registry, profile: Profile, budgets: Budgets | None = None
-) -> None:
+) -> JudgeMeters:
     """Register every evaluator that must be built from `guardana.yaml` config.
 
     `llm_judge` and `reference_judge` share one judge model, built from
@@ -40,26 +153,31 @@ def wire_config_evaluators(
     judge-graded run stops at the ceiling like its target instead of spending past it.
     `None` leaves them unbounded. A token ceiling the judge's transport cannot enforce
     raises `BudgetExhausted` here, before anything is sent.
+
+    Returns the judges' meters, fresh on every call, so the command can record what
+    grading spent beside what the target spent.
     """
+    meters: list[JudgeMeter] = []
     judge_cfg = profile.evaluator_config.get("llm_judge")
     if judge_cfg is not None:
-        for evaluator in _build_judges(judge_cfg, budgets):
+        judge, meter = _endpoint_call(judge_cfg, "llm_judge", budgets)
+        for evaluator in _build_judges(judge_cfg, judge):
             registry.register_evaluator(evaluator)
+        meters.append(meter)
     guard_cfg = profile.evaluator_config.get("guard")
     if guard_cfg is not None:
+        guard, meter = _endpoint_call(guard_cfg, "guard", budgets)
         registry.register_evaluator(
-            GuardEvaluator(
-                _endpoint_call(guard_cfg, "guard", budgets),
-                judge_identity=_identity(guard_cfg, "guard"),
-            )
+            GuardEvaluator(guard, judge_identity=_identity(guard_cfg, "guard"))
         )
+        meters.append(meter)
+    return JudgeMeters(tuple(meters))
 
 
 def _build_judges(
-    cfg: Mapping[str, object], budgets: Budgets | None
+    cfg: Mapping[str, object], judge: Callable[[str], str]
 ) -> tuple[LlmJudgeEvaluator, ReferenceJudgeEvaluator]:
     """Build the security judge and the reference judge on one judge model and one meter."""
-    judge = _endpoint_call(cfg, "llm_judge", budgets)
     version = cfg.get("prompt_version", _DEFAULT_PROMPT_VERSION)
     if not isinstance(version, str):
         raise ProfileError("evaluators.llm_judge.prompt_version must be a string")
@@ -117,20 +235,14 @@ def _calibration(cfg: Mapping[str, object]) -> JudgeCalibration | None:
 
 def _endpoint_call(
     cfg: Mapping[str, object], what: str, budgets: Budgets | None
-) -> Callable[[str], str]:
+) -> tuple[Callable[[str], str], JudgeMeter]:
     """Build a `prompt -> reply` callable from an endpoint config block, bounded when asked."""
-    target = build_endpoint(
-        _require_str(cfg, "endpoint", what),
-        _require_str(cfg, "model", what),
-        api_key=_api_key(cfg, what),
-    )
+    endpoint = _require_str(cfg, "endpoint", what)
+    target = build_endpoint(endpoint, _require_str(cfg, "model", what), api_key=_api_key(cfg, what))
+    meter = JudgeMeter(what, target, endpoint)
     if budgets is not None:
-        target.apply_budgets(budgets)
-
-    def call(prompt: str) -> str:
-        return target.chat([ChatMessage(role="user", content=prompt)])
-
-    return call
+        meter.apply(budgets)
+    return meter.ask, meter
 
 
 def _identity(cfg: Mapping[str, object], what: str) -> str:

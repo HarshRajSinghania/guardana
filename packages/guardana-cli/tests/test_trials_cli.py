@@ -46,7 +46,7 @@ def test_a_probe_with_trials_saves_every_trial_and_what_each_rule_did(
 
     document = json.loads(out.read_text(encoding="utf-8"))
     run = document["run"]
-    assert document["schema_version"] == 9
+    assert document["schema_version"] == 10
     assert run["execution"]["trials"] == 3
     repeating = [r for r in run["rules"] if r["trial_summary"] is not None]
     assert repeating, "no rule repeated at --trials 3"
@@ -210,7 +210,7 @@ def test_one_trial_is_not_reported_as_repeating(
 
     result = runner.invoke(app, ["run", "inspect", str(out)])
 
-    assert "trials:    1 per case asked; 0 rule(s) repeated" in result.output
+    assert "trials:    1 per case asked; 0 rule(s) and 0 suite(s) repeated" in result.output
 
 
 def test_a_profile_asking_for_trials_changes_nothing_about_a_file_scan(tmp_path: Path) -> None:

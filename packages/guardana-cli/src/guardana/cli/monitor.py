@@ -7,8 +7,8 @@ from typing import Annotated
 
 import typer
 from guardana.cli._errors import EndpointFlag, run_against_endpoint
-from guardana.cli._evaluators import wire_config_evaluators
-from guardana.cli._exit import refuse_unenforceable_budget
+from guardana.cli._evaluators import JudgeMeters, wire_config_evaluators
+from guardana.cli._exit import refuse_invalid_profile, refuse_unenforceable_budget
 from guardana.cli._plugins import resolve_trust
 from guardana.cli._probe_run import Connection, run_probe, run_target_probe
 from guardana.cli._profile import resolve_profile
@@ -20,7 +20,7 @@ from guardana.core.budget import BudgetExhausted
 from guardana.core.manifest import DeploymentRef
 from guardana.core.manifest.records import CalibrationRecord
 from guardana.core.monitor import Alert, Monitor, MonitorConfig
-from guardana.core.profile import Profile
+from guardana.core.profile import Profile, ProfileError
 from guardana.core.redaction import EvidenceRedactor
 from guardana.core.registry import Registry
 from guardana.core.report import ScanResult
@@ -151,13 +151,14 @@ def run_target_monitor(  # noqa: PLR0913 — mirrors the tested monitor seam
     monitor.run(handler, on_error=on_error, sleep=sleep)
 
 
-def _rearm_judges(registry: Registry, profile: Profile) -> None:
+def _rearm_judges(registry: Registry, profile: Profile) -> JudgeMeters:
     """Rebuild the config-built judges on fresh meters, so the budget bounds each cycle.
 
     A cycle's target starts a fresh bill; a judge meter kept across cycles would run dry
-    after a few and stop every later cycle on a budget no single cycle spent.
+    after a few and stop every later cycle on a budget no single cycle spent, and would
+    report each cycle's grading as the sum of every cycle before it.
     """
-    wire_config_evaluators(registry, profile, profile.budgets)
+    return wire_config_evaluators(registry, profile, profile.budgets)
 
 
 def monitor(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; this is the command's surface
@@ -248,6 +249,8 @@ def monitor(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; this i
         wire_config_evaluators(registry, prof, prof.budgets)
     except BudgetExhausted as exc:
         raise refuse_unenforceable_budget(exc) from exc
+    except ProfileError as exc:
+        raise refuse_invalid_profile(exc) from exc
     load_custom_rules(registry, prof, rules)
     registry.apply_trials(prof.trials)
     records = {key: value.as_record() for key, value in calibrations_or_exit(prof).items()}

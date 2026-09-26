@@ -65,7 +65,7 @@ Opt in only when the verdict depends on a model sampling a reply:
 
 - `with_trials(k)` returns a copy that makes `k` attempts at every case (the default
   returns `None`: the rule does not repeat);
-- `trials_per_case` reports `k`, and `estimated_requests` multiplies by it;
+- `trials_per_case` reports `k`, and `estimated_requests` and `graded_verdicts` multiply by it;
 - each attempt records one assessment with `from_verdict(..., trial=n)`, `n` from 1;
 - a rule that grades one attempt at several checkpoints — a conversation graded per turn —
   returns `True` from `grades_one_case`, so its bound counts one case per attempt;
@@ -186,6 +186,39 @@ class MyEvaluator(Evaluator):
     deterministic = True
     judge_identity = None
 ```
+
+### Declaring what grading costs
+
+`guardana plan probe` prices judge calls from two declarations, and both default to
+`None`, which the plan reports as unknown rather than free:
+
+- `Evaluator.judge_calls_per_verdict` — the model or service calls one `evaluate()`
+  makes. Declare `0` for an evaluator that computes its verdict locally.
+- `Rule.graded_verdicts` — a mapping from evaluator id to the verdicts one run grades
+  with it, multiplied by `trials_per_case`. Declare `{}` for a rule that grades in its
+  own code. YAML rules, suites, scenarios and agent rules declare it for you.
+
+```python
+class MyEvaluator(Evaluator):
+    judge_calls_per_verdict: ClassVar[int] = 0
+```
+
+Both are read-only properties on the base classes, so assigning one on an instance
+(`self.judge_calls_per_verdict = n` in `__init__`) is refused. When the cost depends on
+configuration, override the property:
+
+```python
+class MyJudge(Evaluator):
+    def __init__(self, samples: int) -> None:
+        self.samples = samples
+
+    @property
+    def judge_calls_per_verdict(self) -> int:
+        return self.samples
+```
+
+While a judge is configured under `evaluators:`, a plan that includes a rule of
+unknown judge cost does not claim to fit its budget.
 
 ## Adding a Target
 

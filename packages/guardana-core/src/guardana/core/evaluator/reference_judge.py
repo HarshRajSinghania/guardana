@@ -71,6 +71,11 @@ class ReferenceJudgeEvaluator(Evaluator):
         self._min_agreement = min_agreement
         self._evaluator_id = f"{self.id}@{prompt_version}"
 
+    @property
+    def judge_calls_per_verdict(self) -> int:
+        """`min_agreement`: every verdict asks the judge that many times."""
+        return self._min_agreement
+
     @classmethod
     def check_fields(cls, expectation: Expectation) -> str | None:
         """Return why `reference` is not a non-empty string, or None."""

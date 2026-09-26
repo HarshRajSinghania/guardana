@@ -312,7 +312,7 @@ fixtures:
 </code></pre>
 <p>Fill in the evaluator's expectation before running this example: <code>contains</code> returns <code>inconclusive</code> when every substring list is empty. See <a href="writing-rules.html">writing rules</a> for the rule shape.</p>
 <h2 id="run-and-read-the-suite">Run and read the suite</h2>
-<p>Run the rule with <a href="usage-probe.html"><code>guardana probe</code></a>. The profile's <code>trials</code> or <code>probe --trials</code> sets how many times each case is sent. <code>guardana plan probe</code> prices cases × K target requests; it does not price judge calls.</p>
+<p>Run the rule with <a href="usage-probe.html"><code>guardana probe</code></a>. The profile's <code>trials</code> or <code>probe --trials</code> sets how many times each case is sent. <code>guardana plan probe</code> prices cases × K target requests and, for a judge-graded suite, cases × K × <code>min_agreement</code> judge calls (<a href="usage-plan.html#pricing-judge-calls">pricing judge calls</a>). The saved run records what the judge spent in <code>usage.judge</code>.</p>
 <p>The human report has a Measured block. A passing line can read:</p>
 <pre><code class="language-text">Measured
   acme.quality.support_answers  support-golden@2026.09: 100 of 100 cases measured, 3 trials each · pass rate 98.7% (95% CI 94 to 99.8%) · bar 90% · at or above the bar
@@ -342,11 +342,17 @@ fixtures:
 <td>Fewer than <code>min_sample</code> cases were measured, ungraded trials could put the rate on either side of the bar, a judge's error could not be corrected (below), or the suite raised before it concluded.</td>
 <td><code>2</code></td>
 </tr>
+<tr>
+<td>Stopped</td>
+<td>The run's budget ran out before every case was sent. The saved run keeps the suite's summary, declined, with how many of its cases were measured; the run stops.</td>
+<td><code>6</code></td>
+</tr>
 </tbody>
 </table></div>
 <p>A failed suite produces one finding about the rate, whatever its severity. A declined suite produces one <code>unverified</code> entry and makes the run <code>indeterminate</code>. See <a href="exit-codes.html">exit codes</a>.</p>
 <h2 id="judge-graded-suites">Judge-graded suites</h2>
 <p><code>answered</code> checks whether a reply to a benign task contains a refusal marker. <code>reference_judge</code> grades a reply against a reference answer. Both are judge assessors, so their rates need judge-error correction. A suite without a usable calibration declines with <code>uncorrected — &lt;reason&gt;</code>. Record one with <a href="usage-calibrate.html"><code>guardana calibrate --record</code></a>.</p>
+<p>Judge-graded suites and judge-error correction are experimental: their behaviour, thresholds and saved fields may change in a minor release (<a href="product-status.html#released-and-experimental">product status</a>).</p>
 <p>A usable calibration has the same assessor and judge identity, per-class counts, and no starter corpus. It needs at least 30 graded samples in each class, abstention below half in each class, Youden's J of at least 0.1, and observed failures above the calibrated false-alarm rate. Every corner of its sensitivity/specificity 95% box must have sensitivity plus specificity greater than 1. A corrected rate uses the same gate test; when raw <code>worst</code> is below the bar, a pass also needs the corrected 95% lower limit to clear it.</p>
 <h2 id="sampling-and-fixtures">Sampling and fixtures</h2>
 <p><code>sample: {size, seed}</code> selects a repeatable subset. Both values are whole numbers, and <code>seed</code> is required with <code>size</code>. The same seed selects the same cases across builds and Python versions. A size at or above the case count runs every case.</p>
@@ -355,9 +361,10 @@ fixtures:
 <p>The saved run includes a suite summary; see <a href="usage-run.html#suite-summaries">suite summaries</a> for its fields. Extension authors can see <a href="extending.html">extending Guardana</a>, and the <a href="design/quality-suites.html">suite design</a> gives the design context.</p>
 <ul>
 <li>Numeric measurements are recorded and rendered, but there is no gate on their aggregate.</li>
-<li><code>plan probe</code> does not price judge calls, which K and <code>min_agreement</code> multiply.</li>
+<li>The collector receives the target's request count, not <code>usage.judge</code>.</li>
 <li><code>diff</code> pairs cases across runs but does not test a suite's rate statistically.</li>
 <li>A file holds one calibration per evaluator id.</li>
+<li><code>regex</code> grades a reply of up to 65,536 characters; a longer reply is <code>inconclusive</code>. There is no time bound: a pattern that backtracks can hang on a crafted reply, so avoid nested quantifiers and several <code>.*</code> in a row, or use possessive quantifiers and atomic groups.</li>
 </ul>
 
 </main>

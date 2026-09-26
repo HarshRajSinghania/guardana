@@ -200,6 +200,18 @@ def test_a_changed_suite_level_expectation_changes_every_case_id(tmp_path: Path)
     assert not {c.case_id for c in before.cases} & {c.case_id for c in after.cases}
 
 
+def test_a_teams_own_suite_loads_without_a_framework_mapping(tmp_path: Path) -> None:
+    declared = json.loads(_suite_yaml())
+    del declared["taxonomy"]
+    _dataset(tmp_path / "support.jsonl")
+    (tmp_path / "suite.yaml").write_text(json.dumps(declared), encoding="utf-8")
+
+    rule = load_yaml_rules(tmp_path / "suite.yaml")[0]
+
+    assert isinstance(rule, SuiteRule)
+    assert rule.meta.taxonomy == ()
+
+
 def test_the_digest_follows_the_dataset_file(tmp_path: Path) -> None:
     before = _load(tmp_path).digest()
     _dataset(tmp_path / "support.jsonl", 31)

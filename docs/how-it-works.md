@@ -136,7 +136,7 @@ A `guardana.yaml` or named preset (§5) selects rules with include/exclude globs
 | Moment | Command | Preset | What it's tuned for |
 |---|---|---|---|
 | Dev machine / CI | `guardana scan <path>` | `--preset ci` | Fast static gate; fails on HIGH. Drops into a pipeline like a linter. |
-| Training server (before a run) | `guardana scan <path>` | `--preset pre-training` | Stricter: fails on MEDIUM too, so leads like an unpinned dataset or a provenance gap block a run before it consumes bad data. |
+| Training server (before a run) | `guardana scan <path>` | `--preset pre-training` | Stricter: fails on MEDIUM too, so leads like a dataset loading script or an unpinned model download block a run before it consumes bad data. |
 | Next to a served model | `guardana monitor --url … --model …` | `--preset monitor` | Fails on HIGH *and* on inconclusive, so the monitor going blind (judge down, empty replies) is itself an alert. |
 
 A preset sets policy; the command selects the layer. Use `guardana.yaml` for per-rule config, custom rule directories, or a wired judge. `--profile` and `--preset` are mutually exclusive.

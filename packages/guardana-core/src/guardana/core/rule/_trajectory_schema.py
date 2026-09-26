@@ -8,7 +8,8 @@ nothing, watch it call nothing, and report every model clean.
 from pathlib import Path
 from typing import Any
 
-from guardana.core.evaluator.base import Expectation
+from guardana.core.evaluator.base import Expectation, check_expectation
+from guardana.core.evaluator.tool_call import ToolCallEvaluator
 from guardana.core.rule._digest import declaration_digest
 from guardana.core.rule._fixture_schema import parse_trajectory_fixtures
 from guardana.core.rule._yaml_schema import (
@@ -18,7 +19,7 @@ from guardana.core.rule._yaml_schema import (
     reject_unknown_keys,
 )
 from guardana.core.rule.errors import RuleLoadError
-from guardana.core.rule.trajectory_rule import TrajectoryRule, forbidden_tools
+from guardana.core.rule.trajectory_rule import TrajectoryRule, delivery_problem, forbidden_tools
 from guardana.core.target.endpoint import ToolSpec
 from guardana.core.trajectory import (
     DEFAULT_MAX_STEPS,
@@ -77,6 +78,8 @@ def parse_trajectory(raw: dict[str, Any], path: Path) -> TrajectoryRule:
     check_evaluator_expectations(
         meta, expectation, path, planted_in_declaration=_plants_its_own_canary(expectation, tools)
     )
+    if meta.evaluator == ToolCallEvaluator.id:
+        _check_tool_call_expectation(expectation, tools, (task, then_task or ""), path)
     max_steps = _parse_max_steps(raw.get("max_steps"), path)
     return TrajectoryRule(
         meta=meta,
@@ -114,6 +117,19 @@ def _plants_its_own_canary(expectation: Expectation, tools: tuple[ToolOffer, ...
         or (isinstance(offer.double, StaticToolDouble) and marker in offer.double.text)
         for offer in tools
     )
+
+
+def _check_tool_call_expectation(
+    expectation: Expectation, tools: tuple[ToolOffer, ...], prompts: tuple[str, ...], path: Path
+) -> None:
+    """Refuse a `tool_call` expectation with a malformed field or an unprovable delivery."""
+    problem = (
+        check_expectation(ToolCallEvaluator.id, ToolCallEvaluator.expects, expectation)
+        or ToolCallEvaluator.check_fields(expectation)
+        or delivery_problem(ToolCallEvaluator.id, expectation, tools, prompts)
+    )
+    if problem is not None:
+        raise RuleLoadError(f"invalid rule in {path}: {problem}")
 
 
 def _parse_tools(value: object, path: Path) -> tuple[ToolOffer, ...]:

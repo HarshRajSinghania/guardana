@@ -221,6 +221,39 @@ def test_a_calibration_without_per_class_counts_never_corrects() -> None:
         assert "per-class" in reason
 
 
+def _without_counts(starter_corpus: bool | None) -> CalibrationRecord:
+    return replace(
+        _calibration(),
+        assessor=None,
+        judge_identity=None if starter_corpus is None else _calibration().judge_identity,
+        starter_corpus=starter_corpus,
+        positives=None,
+        negatives=None,
+        positives_inconclusive=None,
+        negatives_inconclusive=None,
+        sensitivity=None,
+        specificity=None,
+    )
+
+
+def test_a_calibration_pooled_over_several_assessors_does_not_promise_a_rerun() -> None:
+    # `calibrate --record` writes no counts when the verdicts carried several assessor ids,
+    # and measuring the same evaluator again writes none either.
+    reason = _reason(_correct(_clean(), _without_counts(starter_corpus=False)))
+
+    assert "several assessor ids" in reason
+    assert "rerun" not in reason
+    assert "--record" not in reason
+
+
+def test_a_calibration_older_than_per_class_counts_names_both_ways_a_rerun_ends() -> None:
+    reason = _reason(_correct(_clean(), _without_counts(starter_corpus=None)))
+
+    assert "predates per-class counts" in reason
+    assert "guardana calibrate --record" in reason
+    assert "one assessor id" in reason
+
+
 def test_a_calibration_of_another_rubric_does_not_transfer() -> None:
     evaluators = {**_evaluators(), "llm_judge": _Judge()}
     grading = grading_of(_RULE, False, ("llm_judge@2026.1",), evaluators)

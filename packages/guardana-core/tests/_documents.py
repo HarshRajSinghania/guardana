@@ -44,7 +44,7 @@ from guardana.core.manifest.settings import (
     ExecutionSettings,
     PrivacyRecord,
 )
-from guardana.core.manifest.usage import RunUsage
+from guardana.core.manifest.usage import JudgeUsage, RunUsage
 from guardana.core.observation import Observation, ObservationKind
 from guardana.core.report.check_error import CheckError
 from guardana.core.report.finding import Evidence, Finding
@@ -158,6 +158,16 @@ def run_manifest() -> RunManifest:
             requests_missing_token_counts=3,
             estimated_cost=1.25,
             wall_time_seconds=61.5,
+            judge={
+                "llm_judge": JudgeUsage(
+                    requests=30,
+                    input_tokens=9000,
+                    output_tokens=600,
+                    requests_missing_token_counts=2,
+                    budget_exhausted=True,
+                ),
+                "guard": JudgeUsage(requests=12, requests_missing_token_counts=12),
+            },
         ),
         result_summary=ResultSummary(
             findings=3,
@@ -352,8 +362,23 @@ def scan_result() -> ScanResult:
     )
 
 
+def saved_run_at_v9(document: dict[str, Any]) -> dict[str, Any]:
+    """Rewrite a document this build wrote into the shape a version-9 build wrote."""
+    run = document["run"]
+    return {
+        **document,
+        "schema_version": 9,
+        "$schema": "https://guardana.dev/schemas/run/v9.schema.json",
+        "run": {
+            **run,
+            "usage": {k: v for k, v in run["usage"].items() if k != "judge"},
+        },
+    }
+
+
 def saved_run_at_v8(document: dict[str, Any]) -> dict[str, Any]:
     """Rewrite a document this build wrote into the shape a version-8 build wrote."""
+    document = saved_run_at_v9(document)
     run = document["run"]
     return {
         **document,

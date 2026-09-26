@@ -7,7 +7,7 @@ status: implemented
 
 # Fixtures for `steps:` and `task:` rules: the same law, two more shapes
 
-**Status:** implemented in 0.25.0 · **Written:** 2026-09-19 · **Roadmap "Now", row 1**
+**Status:** implemented in 0.25.0 · **Written:** 2026-09-19 · **Amended:** 2026-09-26 (three deferred rows resolved) · **Roadmap "Now", row 1**
 
 ## The question
 
@@ -279,9 +279,9 @@ clean. The shipped fixtures are single-turn, which is the case the rule grades.
 | a verbatim string for `arguments` | no built-in needs it; additive later |
 | asserting which turn fired, or why a rule declined | `verify_rule` folds every finding into one of three outcomes, for Python fixtures as much as these; a `rationale` field on `RuleFixture` is additive and is a change to the contract every fixture shares, so it gets its own decision — the shipped scripts leave one reason reachable each, by construction |
 | corpus rows for scenario and agent fixtures | which prefix of a conversation is graded is the rule's knowledge; a `tool_call` verdict is read off a run the corpus has no column for |
-| "the argument is wider than the named file" in `tool_call` | an evaluator criterion, not a fixture; backlog, with the reproduction |
-| `canary` reading every prose turn of a run | an evaluator change; backlog |
-| a load check that the tool named in `delivered_by` returns a payload | a scripted fixture cannot see the payload at all, so the rule file is the only place to check it; a lint of its own |
+| "the argument is wider than the named file" in `tool_call` | resolved: `allowed_argument_values` lists the exact values per tool, argument values are decoded before matching, and `tool_argument_scope` has its clean sample |
+| `canary` reading every prose turn of a run | resolved: `canary` reads every assistant turn it is handed |
+| a load check that the tool named in `delivered_by` returns a payload | resolved: `payload_marker` names the payload, and a `tool_call` rule whose `delivered_by` cannot carry it is refused at load |
 
 ## What review changed
 

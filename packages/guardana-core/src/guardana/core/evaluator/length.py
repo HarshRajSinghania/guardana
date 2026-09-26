@@ -24,6 +24,7 @@ class LengthEvaluator(Evaluator):
 
     id = "length"
     deterministic: ClassVar[bool] = True
+    judge_calls_per_verdict: ClassVar[int] = 0
     expects: ClassVar[Mapping[str, bool]] = {"max_chars": False}
 
     @classmethod

@@ -39,13 +39,48 @@ def _value(raw: object) -> str:
 
 
 def _trials(manifest: RunManifest) -> str:
-    """Say how many attempts per case were asked for, and how many rules made them."""
+    """Say how many attempts per case were asked for, and how many rules and suites made them.
+
+    A suite's trials are summarised in its own summary rather than a trial summary, so
+    counting only the latter would leave every repeated suite out of the line.
+    """
     repeated = sum(
         1
         for rule in manifest.rules
         if rule.trial_summary is not None and rule.trial_summary.trials_per_case > 1
     )
-    return f"{manifest.execution.trials} per case asked; {repeated} rule(s) repeated"
+    suites = sum(
+        1 for rule in manifest.rules if rule.suite is not None and rule.suite.trials_per_case > 1
+    )
+    return (
+        f"{manifest.execution.trials} per case asked; "
+        f"{repeated} rule(s) and {suites} suite(s) repeated"
+    )
+
+
+def _judge_lines(manifest: RunManifest) -> list[str]:
+    """Say what each configured judge spent, or that nobody counted it.
+
+    Printed apart from `requests:`, which is the target's bill: a judge meters its own
+    calls against the same ceilings, and a sum would match neither meter.
+    """
+    judge = manifest.usage.judge
+    if judge is None:
+        return ["  judge:     not counted"]
+    return [
+        f"  judge:     {block} {spent.requests} request(s), tokens in "
+        f"{_value(spent.input_tokens)}, out {_value(spent.output_tokens)}"
+        + (" · its budget stopped the run" if spent.budget_exhausted else "")
+        for block, spent in judge.items()
+    ]
+
+
+def _stopped(manifest: RunManifest) -> str:
+    """Say what stopped the run and which meter, when a judge's ceiling was the one reached."""
+    judges = manifest.usage.judge or {}
+    by = [f"evaluators.{block}" for block, spent in judges.items() if spent.budget_exhausted]
+    meter = f" (by {', '.join(by)})" if by else ""
+    return f"  stopped:   {manifest.result_summary.stopped_by}{meter} — coverage is partial"
 
 
 def _lines(manifest: RunManifest) -> list[str]:
@@ -61,7 +96,7 @@ def _lines(manifest: RunManifest) -> list[str]:
         f"  gate:      {_value(summary.gate)}",
     ]
     if summary.stopped_by is not None:
-        lines.append(f"  stopped:   {summary.stopped_by} — coverage is partial")
+        lines.append(_stopped(manifest))
     lines.extend(
         [
             f"  findings:  {summary.findings} ({summary.unverified} unverified, "
@@ -70,6 +105,7 @@ def _lines(manifest: RunManifest) -> list[str]:
             f"  trials:    {_trials(manifest)}",
             f"  requests:  {_value(usage.requests)}",
             f"  tokens:    in {_value(usage.input_tokens)}, out {_value(usage.output_tokens)}",
+            *_judge_lines(manifest),
             f"  wall time: {_value(usage.wall_time_seconds)}",
             f"  evidence:  {manifest.privacy.evidence_mode}",
         ]

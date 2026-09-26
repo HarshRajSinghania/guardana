@@ -191,6 +191,19 @@ class Rule(ABC):
         """
         return None
 
+    @property
+    def graded_verdicts(self) -> Mapping[str, int] | None:
+        """At most how many verdicts a run grades with each evaluator id, or None if unknown.
+
+        `guardana plan probe` multiplies each count by that evaluator's
+        `judge_calls_per_verdict` to price the judge calls a run adds to its target
+        requests. An empty mapping is a rule that grades in its own code and asks no
+        evaluator. None for the reason `estimated_requests` is: the engine makes no
+        claim about a rule it has never read, and a plan with a judge configured
+        does not claim to fit its budget while such a rule is selected.
+        """
+        return None
+
     def digest(self) -> str:
         """Return a short, stable hash of *what this rule is* — its declaration, not its results.
 

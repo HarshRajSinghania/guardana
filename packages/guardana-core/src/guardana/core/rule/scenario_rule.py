@@ -1,4 +1,4 @@
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import dataclass, replace
 
 from guardana.core.assessment import case_id_for, from_verdict
@@ -71,6 +71,21 @@ class ScenarioRule(Rule):
     def estimated_requests(self) -> int:
         """One request per step per trial: a conversation has to be walked through in order."""
         return len(self.steps) * self.trials_per_case
+
+    @property
+    def graded_verdicts(self) -> Mapping[str, int]:
+        """One verdict per graded step and one for the conversation, per trial, by evaluator.
+
+        Keyed by each scope's own evaluator: a scenario's steps may grade with different
+        evaluators, and its `meta.evaluator` names none of them.
+        """
+        graded = [s.evaluator or "" for s in self.steps if s.expect is not None]
+        if self.conversation_expect is not None:
+            graded.append(self.conversation_evaluator or "")
+        counts: dict[str, int] = {}
+        for evaluator_id in graded:
+            counts[evaluator_id] = counts.get(evaluator_id, 0) + self.trials_per_case
+        return counts
 
     @property
     def grades_one_case(self) -> bool:

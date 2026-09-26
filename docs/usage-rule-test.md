@@ -233,14 +233,11 @@ classified wrongly carries a label one of the two disagrees with.
 
 ## Built-in coverage, stated plainly
 
-51 rules ship and **11 are fully sampled** today. `guardana rule test 'guardana.*'`
+51 rules ship and **12 are fully sampled** today. `guardana rule test 'guardana.*'`
 reports the rest as `indeterminate`, truthfully — that is the command working, not
 the command being unready. A gate pins the number so it can only rise.
 
-YAML rules in the default catalog that are not fully sampled:
-`guardana.agent.tool_argument_scope`. It ships a finding and an inconclusive sample
-and no clean one: the exact path its task names is graded as over-broad today, and
-a clean sample written around that would test nothing.
+Every YAML rule in the default catalog is fully sampled.
 
 Sampling the rest in an afternoon would mean writing fixtures to move a counter,
 and a fixture written for that reason is a test that cannot fail — which this

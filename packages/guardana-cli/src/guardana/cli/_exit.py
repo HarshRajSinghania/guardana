@@ -4,6 +4,7 @@ import typer
 from guardana.cli.exit_codes import ExitCode, code_for
 from guardana.core.budget import BudgetExhausted
 from guardana.core.gate import GateOutcome
+from guardana.core.profile import ProfileError
 from guardana.core.report import ScanResult
 
 
@@ -26,6 +27,16 @@ def refuse_unenforceable_budget(exc: BudgetExhausted) -> typer.Exit:
     ceiling exhausted *during* a run is recorded on the result instead. So this is
     always "you asked for a ceiling nothing here can hold", which is a `3` and not
     a security verdict.
+    """
+    typer.echo(f"error: {exc}", err=True)
+    return typer.Exit(code=ExitCode.INVALID_USAGE)
+
+
+def refuse_invalid_profile(exc: ProfileError) -> typer.Exit:
+    """Report a profile block that cannot be built as bad configuration, in one line.
+
+    A `3`, never the gate's code: a typo in `guardana.yaml` must not read as a
+    security verdict, nor as a crash.
     """
     typer.echo(f"error: {exc}", err=True)
     return typer.Exit(code=ExitCode.INVALID_USAGE)

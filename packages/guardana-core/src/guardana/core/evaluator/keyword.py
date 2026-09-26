@@ -1,3 +1,5 @@
+from typing import ClassVar
+
 from guardana.core.evaluator.base import Evaluator, Expectation, Verdict
 from guardana.core.exchange import Exchange
 
@@ -34,6 +36,7 @@ class KeywordEvaluator(Evaluator):
     """
 
     id = "keyword"
+    judge_calls_per_verdict: ClassVar[int] = 0
 
     def evaluate(self, exchange: Exchange, expectation: Expectation) -> Verdict:
         """Grade a reply by looking for a refusal marker — cheap, fast, low-confidence."""

@@ -43,14 +43,13 @@ status of each item before starting it.
 
 | Order | ID | Deliverable | Done when |
 |---:|---|---|---|
-| 1 | F1 | Verify suite integration and repair verdict defects | Released suites remain covered by integration tests; all attempted cases are accounted for; judge cost is planned or explicitly unknown; docs distinguish released and experimental behavior. Earlier-turn canary leaks and argument-scope false positives have reproductions and fixes or explicit unsupported outcomes. Calibration paths resolve against the profile. Contributor rules state that public-framework mapping covers built-in security checks, not application quality suites. |
-| 2 | F2 | First result and one custom check | A clean-install offline starter demonstrates a failure, a fix and saved evidence, without an account, key, model or collector. A user edits one check and reruns it. Separate paths cover local scan, recorded answers and a real application. Five external users attempt it; publish completion counts and observed times. Target: four finish in ten minutes without maintainer help. |
-| 3 | F3 | Supported Python data workflow | A documented facade composes the existing registry, execution, redaction, gate, manifest and serialization. Typed results are accessible even when a run fails. CLI and Python agree on every result channel and gate. Custom targets, local checks and private evaluators work through both; trust, calibration, budgets and paths are explicit. |
-| 4 | F4 | Renderer and reporter plugins | Implement the output-plugin proposal with common redaction, collision checks, trust modes, pack validation and locks. An independently installed package exports a local table and delivers a team webhook payload without CLI changes. Offline use has no network; delivery status is separately observable. |
-| 5 | F5 | Recorded-answer grading and evidence regrading | Versioned, validated cases with supplied answers can be assessed without target calls. Original execution and new grading identities remain separate. Remote judging declares traffic and budget; unavailable or insufficient evidence stays ungraded. |
-| 6 | F6 | Reproducible team checks | A repository recipe pins profiles, datasets, packs and grading identities; runs the actual application or a clearly labelled model harness; and produces a reviewable CI artifact. Connection settings work across probe, plan, target inspection, monitor and calibration. Two independent teams reproduce a run and consume its data. |
+| 1 | F2 | First result and one custom check | A clean-install offline starter demonstrates a failure, a fix and saved evidence, without an account, key, model or collector. A user edits one check and reruns it. Separate paths cover local scan, recorded answers and a real application. Five external users attempt it; publish completion counts and observed times. Target: four finish in ten minutes without maintainer help. |
+| 2 | F3 | Supported Python data workflow | A documented facade composes the existing registry, execution, redaction, gate, manifest and serialization. Typed results are accessible even when a run fails. CLI and Python agree on every result channel and gate. Custom targets, local checks and private evaluators work through both; trust, calibration, budgets and paths are explicit. |
+| 3 | F4 | Renderer and reporter plugins | Implement the output-plugin proposal with common redaction, collision checks, trust modes, pack validation and locks. An independently installed package exports a local table and delivers a team webhook payload without CLI changes. Offline use has no network; delivery status is separately observable. |
+| 4 | F5 | Recorded-answer grading and evidence regrading | Versioned, validated cases with supplied answers can be assessed without target calls. Original execution and new grading identities remain separate. Remote judging declares traffic and budget; unavailable or insufficient evidence stays ungraded. |
+| 5 | F6 | Reproducible team checks | A repository recipe pins profiles, datasets, packs and grading identities; runs the actual application or a clearly labelled model harness; and produces a reviewable CI artifact. Connection settings work across probe, plan, target inspection, monitor and calibration. Two independent teams reproduce a run and consume its data. |
 
-F2 docs and starter design can proceed while F1 closes. Design F3 and F4 around
+F1 (suite integration and verdict defects) shipped in 0.30.0. Design F3 and F4 around
 the same result boundary. F5 consumes it. Advanced statistics must not block
 inspecting a result, adding a deterministic check or consuming a table;
 statistically proven regression claims must wait for M1.
@@ -117,8 +116,8 @@ Evaluate declarative pack loading before building a public extension-ID service;
 namespaces and local validation already address the immediate author workflow.
 
 Application quality checks need application-owned criteria, rather than invented
-OWASP mappings. F1 must reconcile contributor wording with the existing suite
-direction; security checks retain public-framework mappings.
+OWASP mappings; built-in security checks retain public-framework mappings
+([CONTRIBUTING.md](CONTRIBUTING.md), principle 5).
 
 ## Researched after the foundations
 

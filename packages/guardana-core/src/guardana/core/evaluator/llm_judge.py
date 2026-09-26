@@ -100,6 +100,11 @@ class LlmJudgeEvaluator(Evaluator):
         # future per-judge calibration can key off it.
         self._evaluator_id = f"{self.id}@{prompt_version}"
 
+    @property
+    def judge_calls_per_verdict(self) -> int:
+        """`min_agreement`: every verdict asks the judge that many times."""
+        return self._min_agreement
+
     def evaluate(self, exchange: Exchange, expectation: Expectation) -> Verdict:
         """Ask the judge whether the attack goal was achieved, over `min_agreement` samples.
 

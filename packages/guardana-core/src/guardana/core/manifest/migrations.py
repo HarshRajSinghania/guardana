@@ -260,6 +260,22 @@ def migrate_v8(document: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def migrate_v9(document: Mapping[str, Any]) -> dict[str, Any]:
+    """Rewrite a schema-9 saved run as a schema-10 one, recomputing nothing.
+
+    **`run.usage.judge`** arrives null, overwriting whatever the document holds: no
+    version-9 build counted judge calls, so the judges' spend is unknown, never zero.
+    """
+    run = _mapping(document.get("run"), "run")
+    usage = run.get("usage")
+    return {
+        **document,
+        "schema_version": 10,
+        "$schema": schema_url(10),
+        "run": {**run, "usage": {**(usage if isinstance(usage, dict) else {}), "judge": None}},
+    }
+
+
 _PER_CLASS_CALIBRATION = (
     "assessor",
     "judge_identity",

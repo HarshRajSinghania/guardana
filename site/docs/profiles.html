@@ -303,7 +303,7 @@ contracts:                      # optional; security contracts to load, files or
 trials: 1                       # optional; attempts per case for rules that grade a
                                 # sampled reply — see usage-probe.md#repeated-trials
 
-calibrations: []                # optional; list of calibration file globs
+calibrations: []                # optional; calibration files, beside this profile
 
 evaluators:                     # config-wired evaluators — see the section below
   llm_judge:
@@ -394,15 +394,15 @@ evaluators:                     # config-wired evaluators — see the section be
 </tr>
 <tr>
 <td><code>calibrations</code></td>
-<td>list of strings</td>
+<td>list of paths</td>
 <td><code>[]</code></td>
-<td>Glob patterns for calibration files written by <code>guardana calibrate --record</code>. Paths are read relative to the current working directory. A missing listed path stops the run with exit code <code>3</code> (<code>INVALID_USAGE</code>). A bare string is refused.</td>
+<td>Calibration files written by <code>guardana calibrate --record</code>. A relative path is read beside the profile file, not from the current working directory; globs are not expanded. A missing listed path stops the run with exit code <code>3</code> (<code>INVALID_USAGE</code>), and so do two files that both record the same evaluator. A bare string is refused.</td>
 </tr>
 <tr>
 <td><code>evaluators</code></td>
 <td>mapping</td>
 <td><code>{}</code></td>
-<td>Config blocks for evaluators that need a model of their own, keyed by evaluator id — <code>llm_judge</code> and <code>guard</code> today. <code>probe</code> and <code>monitor</code> build and register them from this block at startup; see the next section. With no block, a rule naming that evaluator is skipped <strong>visibly</strong>, never silently passed.</td>
+<td>Config blocks for evaluators that need a model of their own, keyed by evaluator id — <code>llm_judge</code> and <code>guard</code> today. <code>probe</code> and <code>monitor</code> build and register them from this block at startup, and <code>plan probe</code> builds them to price their calls without sending any; see the next section. With no block, a rule naming that evaluator is skipped <strong>visibly</strong>, never silently passed.</td>
 </tr>
 </tbody>
 </table></div>
@@ -521,7 +521,7 @@ layer runs is already decided by the command (<code>scan</code> runs the build-t
 <tr>
 <td><code>pre-training</code></td>
 <td>MEDIUM</td>
-<td>The training server: stricter, so leads (an unpinned dataset, a provenance gap) block a run before it consumes bad data.</td>
+<td>The training server: stricter, so leads (a dataset loading script, an unpinned model download) block a run before it consumes bad data. An unpinned dataset pull is a LOW lead and does not block.</td>
 </tr>
 <tr>
 <td><code>monitor</code></td>

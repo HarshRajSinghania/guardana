@@ -312,6 +312,8 @@ def load_profile(path: Path) -> Profile:
         contract_paths=_beside_the_profile(
             _as_glob_list(raw.get("contracts"), "contracts", path), path
         ),
-        calibration_paths=_as_glob_list(raw.get("calibrations"), "calibrations", path),
+        calibration_paths=_beside_the_profile(
+            _as_glob_list(raw.get("calibrations"), "calibrations", path), path
+        ),
         trials=_trials(raw.get("trials", 1), path),
     )

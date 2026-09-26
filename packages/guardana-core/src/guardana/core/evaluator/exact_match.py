@@ -31,6 +31,7 @@ class ExactMatchEvaluator(Evaluator):
 
     id = "exact_match"
     deterministic: ClassVar[bool] = True
+    judge_calls_per_verdict: ClassVar[int] = 0
     expects: ClassVar[Mapping[str, bool]] = {"reference": True, "normalize": False}
 
     @classmethod

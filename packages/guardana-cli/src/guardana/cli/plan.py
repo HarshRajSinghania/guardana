@@ -12,7 +12,10 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
+from guardana.cli._budget_flags import override
 from guardana.cli._endpoint import build_endpoint
+from guardana.cli._evaluators import wire_config_evaluators
+from guardana.cli._exit import refuse_invalid_profile, refuse_unenforceable_budget
 from guardana.cli._formats import OutputFormat
 from guardana.cli._mcp_run import plan_target, require_chat_endpoint
 from guardana.cli._plugins import resolve_trust, warn_about_load_errors
@@ -21,13 +24,14 @@ from guardana.cli._rules_loading import load_custom_rules
 from guardana.cli._safety_flags import parse_impact
 from guardana.cli._target_locator import resolve_target
 from guardana.cli.exit_codes import ExitCode
-from guardana.core.plan import RunPlan, build_plan
+from guardana.core.budget import BudgetExhausted, Budgets
+from guardana.core.plan import JudgePlan, RunPlan, build_plan
 from guardana.core.plugins import PluginTrust
-from guardana.core.profile import Profile
+from guardana.core.profile import Profile, ProfileError
 from guardana.core.registry import Registry
 from guardana.core.target import ArtifactTarget, Target, TargetKind
 
-PLAN_SCHEMA_VERSION = 2
+PLAN_SCHEMA_VERSION = 3
 
 plan_app = typer.Typer(
     help="Estimate what a run would cost, without sending a single request.",
@@ -37,7 +41,7 @@ plan_app = typer.Typer(
 
 def _render_human(run_plan: RunPlan, kind: TargetKind) -> str:
     lines = [f"{len(run_plan.rules)} rule(s) would run, {len(run_plan.skipped)} skipped."]
-    if run_plan.is_complete and run_plan.max_requests == 0:
+    if run_plan.requests_complete and run_plan.max_requests == 0:
         if kind is TargetKind.ARTIFACT:
             lines.append("requests: 0 — every selected rule declares it sends nothing")
         else:
@@ -47,7 +51,7 @@ def _render_human(run_plan: RunPlan, kind: TargetKind) -> str:
             f"requests: at least {run_plan.min_requests}, at most {run_plan.max_requests}"
             + (
                 ""
-                if run_plan.is_complete
+                if run_plan.requests_complete
                 else f" — plus {len(run_plan.unknown_cost)} of unknown cost"
             )
         )
@@ -68,6 +72,8 @@ def _render_human(run_plan: RunPlan, kind: TargetKind) -> str:
         )
         lines.extend(f"    • {rule_id}" for rule_id in run_plan.unknown_cost)
     budgets = run_plan.budgets
+    if run_plan.judge is not None:
+        lines.extend(_judge_lines(run_plan.judge, budgets))
     if budgets.max_requests is not None:
         lines.append(f"budget: {budgets.max_requests} request(s)")
     if run_plan.exceeds_budget:
@@ -78,6 +84,52 @@ def _render_human(run_plan: RunPlan, kind: TargetKind) -> str:
     lines.append("")
     lines.append("No request was sent to produce this estimate.")
     return "\n".join(lines)
+
+
+def _judge_lines(judge: JudgePlan, budgets: Budgets) -> list[str]:
+    if judge.is_complete and judge.max_calls == 0:
+        lines = ["judge calls: none — no selected rule grades with a judge"]
+    else:
+        lines = [
+            f"judge calls: at most {judge.max_calls}"
+            + (
+                ""
+                if judge.is_complete
+                else f" — plus {len(judge.unknown_cost)} rule(s) of unknown judge cost"
+            )
+        ]
+        limit = budgets.max_requests
+        for meter in judge.meters:
+            against = "no request budget" if limit is None else f"a budget of {limit}"
+            lines.append(
+                f"  {', '.join(meter.evaluators)} (one judge, its own meter): at most "
+                f"{meter.max_calls} call(s) against {against}"
+            )
+    if judge.unknown_cost:
+        lines.append(
+            "  these rules do not say what they grade, or grade with an evaluator that does "
+            "not say what a verdict costs, so the judge ceiling above is a lower bound:"
+        )
+        lines.extend(f"    • {rule_id}" for rule_id in judge.unknown_cost)
+    if judge.meters and budgets.bounds_tokens:
+        lines.append(
+            "judge tokens are not predicted: each judge holds its own meter to the token "
+            "ceilings, and the run stops when one is reached"
+        )
+    return lines
+
+
+def _judge_json(judge: JudgePlan | None) -> dict[str, object] | None:
+    if judge is None:
+        return None
+    return {
+        "max": judge.max_calls,
+        "meters": [
+            {"evaluators": list(meter.evaluators), "max": meter.max_calls} for meter in judge.meters
+        ],
+        "unknown_cost": list(judge.unknown_cost),
+        "complete": judge.is_complete,
+    }
 
 
 def _render_json(run_plan: RunPlan) -> str:
@@ -102,6 +154,8 @@ def _render_json(run_plan: RunPlan) -> str:
                 "per_case": run_plan.trials,
                 "single_attempt": list(run_plan.single_attempt),
             },
+            # Null when the plan does not price judge calls: a scan wires no judge.
+            "judge_calls": _judge_json(run_plan.judge),
         },
         indent=2,
     )
@@ -230,6 +284,18 @@ def plan_probe(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; thi
             help="Attempts per case for rules that grade a sampled reply; overrides `trials:`.",
         ),
     ] = None,
+    max_requests: Annotated[
+        int | None, typer.Option("--max-requests", min=1, help="Stop after this many requests.")
+    ] = None,
+    max_input_tokens: Annotated[
+        int | None, typer.Option("--max-input-tokens", min=1, help="Input-token ceiling.")
+    ] = None,
+    max_output_tokens: Annotated[
+        int | None, typer.Option("--max-output-tokens", min=1, help="Output-token ceiling.")
+    ] = None,
+    max_duration: Annotated[
+        str | None, typer.Option("--max-duration", help="Wall-clock ceiling, e.g. 15m.")
+    ] = None,
 ) -> None:
     """Report what probing this endpoint or MCP server would cost, without contacting it.
 
@@ -247,9 +313,13 @@ def plan_probe(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; thi
     the one thing it must not do; `guardana target inspect` is where that
     question belongs.
 
-    `--safety` and `--allow-destructive` mirror `guardana probe`, because a plan
-    is only a preview of the run it is a preview of: without them, pricing a
-    `--safety passive` probe listed every active rule it would have refused.
+    `--safety`, `--allow-destructive` and the budget flags mirror `guardana probe`,
+    because a plan is only a preview of the run it is a preview of: without them,
+    pricing a `--safety passive` probe listed every active rule it would have refused.
+
+    Judge calls are priced too. The judges `evaluators:` configures are built, as
+    the probe builds them, and never asked anything; each counts against the
+    request budget on a meter of its own, so each is compared with it on its own.
     """
     trust = resolve_trust(plugins, allow_plugin, no_plugins=False)
     prof = resolve_profile(profile, preset)
@@ -257,6 +327,13 @@ def plan_probe(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; thi
         prof,
         max_impact=parse_impact(safety),
         allow_destructive=allow_destructive,
+        budgets=override(
+            prof.budgets,
+            max_requests=max_requests,
+            max_input_tokens=max_input_tokens,
+            max_output_tokens=max_output_tokens,
+            max_duration=max_duration,
+        ),
         trials=prof.trials if trials is None else trials,
     )
     legacy_target_options = (url, model, mcp, system_prompt_file)
@@ -264,7 +341,10 @@ def plan_probe(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; thi
         raise typer.BadParameter(
             "--target cannot be combined with --url, --model, --mcp, or --system-prompt-file"
         )
-    registry = _registry_for(prof, rules, trust=trust)
+    registry = Registry.discover(trust)
+    judge_meters = _wire_judges(registry, prof)
+    warn_about_load_errors(registry, what="rule")
+    load_custom_rules(registry, prof, rules)
     registry.apply_trials(prof.trials)
     selected = resolve_target(
         registry,
@@ -273,7 +353,31 @@ def plan_probe(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; thi
         kind=TargetKind.ENDPOINT,
         fallback=lambda: _plan_probe_target(url, model, mcp, provider, system_prompt_file),
     )
-    _emit(build_plan(registry, prof, selected), format, selected.kind)
+    _emit(build_plan(registry, prof, selected, judge_meters=judge_meters), format, selected.kind)
+
+
+def _wire_judges(registry: Registry, profile: Profile) -> tuple[frozenset[str], ...]:
+    """Register the judges `profile` configures, and group their ids by the meter they share.
+
+    Wired exactly as `probe` wires them, which builds each judge endpoint and sends
+    nothing. Evaluators wired from one judge state one `judge_identity`, and that
+    judge's calls go through one meter, so the identity is the meter's key.
+    """
+    before = registry.evaluators()
+    try:
+        wire_config_evaluators(registry, profile, profile.budgets)
+    except BudgetExhausted as exc:
+        raise refuse_unenforceable_budget(exc) from exc
+    except ProfileError as exc:
+        raise refuse_invalid_profile(exc) from exc
+    meters: dict[tuple[str, str], set[str]] = {}
+    for evaluator_id, evaluator in registry.evaluators().items():
+        if before.get(evaluator_id) is evaluator:
+            continue
+        identity = evaluator.judge_identity
+        key = ("identity", identity) if identity is not None else ("evaluator", evaluator_id)
+        meters.setdefault(key, set()).add(evaluator_id)
+    return tuple(frozenset(ids) for ids in meters.values())
 
 
 def _plan_scan_path(path: Path | None, excludes: tuple[str, ...]) -> ArtifactTarget:

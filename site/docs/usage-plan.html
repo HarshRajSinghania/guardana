@@ -260,6 +260,7 @@
 <pre><code class="language-text">14 rule(s) would run, 9 skipped.
 requests: at least 14, at most 47
 trials: 1 attempt(s) per case, counted in the requests above
+judge calls: none — no selected rule grades with a judge
 
 No request was sent to produce this estimate.
 </code></pre>
@@ -314,6 +315,11 @@ run they are pricing would use, so both take the same plugin-trust flags
 <td><code>1</code> (or <code>trials:</code> in the profile)</td>
 <td><code>plan probe</code> only: price the run at this many attempts per case, as <code>probe --trials</code> would make them</td>
 </tr>
+<tr>
+<td><code>--max-requests</code>, <code>--max-input-tokens</code>, <code>--max-output-tokens</code>, <code>--max-duration</code></td>
+<td>the profile's <code>budgets:</code></td>
+<td><code>plan probe</code> only: check the plan against these ceilings, as <code>probe</code> would apply them</td>
+</tr>
 </tbody>
 </table></div>
 <p><code>plan scan</code> also keeps <code>--no-plugins</code> as a deprecated alias for <code>--plugins disabled</code>,
@@ -356,8 +362,29 @@ trials: 5 attempt(s) per case, counted in the requests above
     …
 </code></pre>
 <p><code>--format json</code> carries the same facts as <code>trials.per_case</code> and <code>trials.single_attempt</code>
-(plan schema <code>2</code>, <a href="https://github.com/guardana/guardana/blob/main/schemas/plan-v2.schema.json"><code>schemas/plan-v2.schema.json</code></a>). See
+(plan schema <code>3</code>, <a href="https://github.com/guardana/guardana/blob/main/schemas/plan-v3.schema.json"><code>schemas/plan-v3.schema.json</code></a>). See
 <a href="usage-probe.html#repeated-trials"><code>usage-probe.md</code></a> for what a trial is.</p>
+<h2 id="pricing-judge-calls">Pricing judge calls</h2>
+<p>A rule graded by a judge configured under <code>evaluators:</code> — <code>llm_judge</code>,
+<code>reference_judge</code> or <code>guard</code> — spends judge calls as well as target requests, and
+each judge meter is bounded by <code>max_requests</code> on its own. <code>plan probe</code> builds those
+judges from the profile, sends them nothing, and prices each meter: the verdicts a
+rule grades (<code>Rule.graded_verdicts</code>: prompts × K, cases × K for a suite, graded steps
+× K for a scenario, sessions × K for an agent run) times the calls one verdict costs
+(<code>Evaluator.judge_calls_per_verdict</code>: <code>min_agreement</code> for <code>llm_judge</code> and
+<code>reference_judge</code>, which share one meter; <code>1</code> for <code>guard</code>).</p>
+<pre><code class="language-text">requests: at least 1, at most 90
+judge calls: at most 270
+  llm_judge, reference_judge (one judge, its own meter): at most 270 call(s) against a budget of 100
+⚠ this plan does not fit its request budget — the run would stop early,
+  and a run that stops early reports no verdict
+</code></pre>
+<p>That is a 30-case suite graded by <code>reference_judge</code> at <code>--trials 3</code> with
+<code>min_agreement: 3</code>. A rule or evaluator that does not declare its judge calls is
+named under the judge line like an unknown-cost rule; while a judge is configured,
+such a plan does not claim to fit. <code>plan scan</code> never prices judges, because <code>scan</code>
+never builds one. In JSON, <code>judge_calls</code> carries <code>max</code>, <code>meters</code>, <code>unknown_cost</code> and
+<code>complete</code>, and is <code>null</code> for <code>plan scan</code>. Judge tokens are not predicted.</p>
 <h2 id="plan-the-run-you-are-going-to-make">Plan the run you are going to make</h2>
 <p><code>plan probe</code> takes <code>--safety</code> and <code>--allow-destructive</code>, with the same meaning
 they have on <code>probe</code>. They are not decoration: the runner refuses a rule that
@@ -399,12 +426,14 @@ requests: at least 7, at most 22 — plus 2 of unknown cost
 <p>A plan with an unknown-cost rule never reports that it fits a budget, whatever
 the numbers look like. Its ceiling is not a ceiling.</p>
 <h2 id="checking-against-a-budget">Checking against a budget</h2>
-<p>If the profile (or a flag) sets <code>max_requests</code> and the worst case exceeds it, the
-plan says so and exits <code>3</code> — invalid configuration, found before the run rather
-than halfway through it:</p>
+<p>If the profile (or a flag) sets <code>max_requests</code> and the worst case — of the target
+or of any judge meter — exceeds it, the plan says so and exits <code>3</code> — invalid
+configuration, found before the run rather than halfway through it:</p>
 <pre><code class="language-text">⚠ this plan does not fit its request budget — the run would stop early,
   and a run that stops early reports no verdict
 </code></pre>
+<p>A token ceiling a judge's transport cannot enforce is refused with <code>3</code> too, the same
+way <code>probe</code> refuses it.</p>
 <h2 id="what-it-cannot-tell-you">What it cannot tell you</h2>
 <p>Capabilities are read from what the target declares locally, so an endpoint that
 turns out not to support tool calls will skip more rules than the plan predicted.

@@ -24,7 +24,7 @@ from guardana.cli.plan import PLAN_SCHEMA_VERSION, _render_json
 from guardana.core.budget import Budgets
 from guardana.core.diff.measurement import MeasurementDelta
 from guardana.core.diff.model import Change, ChangeKind, CheckState, RunDiff
-from guardana.core.plan import RunPlan
+from guardana.core.plan import JudgeMeterPlan, JudgePlan, RunPlan
 from guardana.core.severity import Severity
 from guardana.report import get_diff_renderer
 from jsonschema import Draft202012Validator
@@ -90,6 +90,12 @@ def _plan() -> RunPlan:
         ),
         trials=5,
         single_attempt=("guardana.mcp.auth.unauthenticated_access",),
+        judge=JudgePlan(
+            max_calls=270,
+            meters=(JudgeMeterPlan(evaluators=("llm_judge", "reference_judge"), max_calls=270),),
+            unknown_cost=("acme.agent.customer_data",),
+            unknown_on_meter=True,
+        ),
     )
 
 
@@ -100,8 +106,15 @@ def _emptied(value: _Document, name: str) -> _Document:
     """The same document with one field cleared, so its absence has to show in the output."""
     current = getattr(value, name)
     # A nested block empties to one where every ceiling is unset, which is the real
-    # "this run declared no budget" case rather than a synthetic blank.
-    blank: Any = cast("Any", type(current))() if is_dataclass(current) else _EMPTY[type(current)]
+    # "this run declared no budget" case rather than a synthetic blank; a block with
+    # no empty form empties to None, which is how a plan says it did not price it.
+    if is_dataclass(current):
+        try:
+            blank: Any = cast("Any", type(current))()
+        except TypeError:
+            blank = None
+    else:
+        blank = _EMPTY[type(current)]
     return replace(value, **{name: blank})
 
 
@@ -154,10 +167,10 @@ def test_the_published_diff_schema_requires_every_key_the_writer_emits() -> None
 def test_the_published_plan_schema_requires_every_key_the_writer_emits() -> None:
     document: Document = json.loads(_render_json(_plan()))
 
-    optional = _unrequired(document, "plan-v2.schema.json")
+    optional = _unrequired(document, "plan-v3.schema.json")
 
     assert not optional, (
-        "keys the plan writes that `plan-v2.schema.json` does not require:\n  "
+        "keys the plan writes that `plan-v3.schema.json` does not require:\n  "
         + "\n  ".join(optional)
     )
 

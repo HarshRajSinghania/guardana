@@ -19,7 +19,7 @@ behaviour.
 | 1 | run completed, policy failed |
 | 2 | result indeterminate, or a comparison could not be made |
 | 3 | invalid configuration or CLI usage |
-| 4 | target unavailable or authentication failed |
+| 4 | target or judge unavailable, or authentication failed |
 | 5 | internal Guardana error |
 | 6 | budget exhausted |
 | 7 | run interrupted, partial evidence written |
@@ -67,7 +67,9 @@ reported as stopped whatever its partial findings say, and `guardana diff` refus
 to read the missing findings as an improvement.
 
 **`4` is separate from `5`.** An unreachable endpoint is the user's environment;
-an internal error is our defect. Conflating them sends bug reports to the wrong
+an internal error is our defect. A judge configured under `evaluators:` that cannot be
+reached or rejects the request is `4` too, and the message names the judge's block
+(`evaluators.llm_judge`), not the target. Conflating them sends bug reports to the wrong
 place and hides real bugs in a category people learn to ignore.
 
 **`3` is usage, not policy.** A malformed `guardana.yaml` must not look like a
@@ -83,7 +85,8 @@ says it is partial.
 unavailable, so `4` never occurs there; it uses `2` both for "these runs cannot be
 compared" — including a rule whose trials per case changed between the two runs — and
 for "one of them never finished". `run inspect`, `run migrate`,
-`trace inspect` and `plan` produce `0` or `3` — `trace inspect` grades nothing, so
+`trace inspect` and `plan` produce `0` or `3` — `plan` exits `3` when the target or a
+judge meter could exceed the request budget — `trace inspect` grades nothing, so
 it has no verdict to report and says what is missing in its output instead.
 `analyze-trace` adds one route to `2` the others do not have: demanded coverage that
 was not available, and a security contract that turned out to be about a different

@@ -1,6 +1,8 @@
 from pathlib import Path
 
+import pytest
 from guardana.core.rule import RuleContext
+from guardana.core.severity import Severity
 from guardana.core.target import ArtifactTarget
 from guardana.rules.training.dataset_integrity import DatasetIntegrityRule
 
@@ -8,6 +10,15 @@ from guardana.rules.training.dataset_integrity import DatasetIntegrityRule
 def _summaries(tmp_path: Path) -> list[str]:
     rule = DatasetIntegrityRule()
     return [f.evidence.summary for f in rule.run(ArtifactTarget(tmp_path), RuleContext())]
+
+
+def _unpinned(tmp_path: Path) -> list[str]:
+    rule = DatasetIntegrityRule()
+    return [
+        f.evidence.detail
+        for f in rule.run(ArtifactTarget(tmp_path), RuleContext())
+        if "without revision" in f.evidence.summary
+    ]
 
 
 def test_flags_a_dataset_loader_script(tmp_path: Path) -> None:
@@ -53,3 +64,77 @@ def test_ordinary_class_is_not_a_loader_script(tmp_path: Path) -> None:
 def test_does_not_crash_on_a_syntax_error(tmp_path: Path) -> None:
     (tmp_path / "broken.py").write_text("class (:\n", encoding="utf-8")
     assert _summaries(tmp_path) == []
+
+
+_PIN = ", revision='e6281661ce1c48d982bc483cf8a173c1bbeb5d31'"
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        "import datasets\nds = datasets.load_dataset('imdb'{pin})\n",
+        "import datasets as hf\nds = hf.load_dataset('imdb'{pin})\n",
+        "from datasets import load_dataset\nds = load_dataset('imdb'{pin})\n",
+        "from datasets import load_dataset as fetch\nds = fetch('imdb'{pin})\n",
+        "from datasets import *\nds = load_dataset('imdb'{pin})\n",
+        "ds = None\nds = datasets.load_dataset('imdb'{pin})\n",
+        "from datasets.load import load_dataset\nds = load_dataset('imdb'{pin})\n",
+        "from datasets.load import load_dataset as fetch\nds = fetch('imdb'{pin})\n",
+        "import datasets\nds = datasets.load.load_dataset('imdb'{pin})\n",
+        "import datasets.load as dl\nds = dl.load_dataset('imdb'{pin})\n",
+        "ds = None\nds = datasets.load.load_dataset('imdb'{pin})\n",
+    ],
+    ids=[
+        "import",
+        "import-as",
+        "from-import",
+        "from-import-as",
+        "star-import",
+        "unresolved",
+        "from-submodule",
+        "from-submodule-as",
+        "submodule-attribute",
+        "submodule-import-as",
+        "submodule-unresolved",
+    ],
+)
+def test_flags_every_form_that_resolves_to_hugging_face_datasets(tmp_path: Path, code: str) -> None:
+    (tmp_path / "train.py").write_text(code.format(pin=""), encoding="utf-8")
+    assert _unpinned(tmp_path) == ["train.py:2"]
+    (tmp_path / "train.py").write_text(code.format(pin=_PIN), encoding="utf-8")
+    assert _unpinned(tmp_path) == []
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        "def load_dataset(name):\n    return name\n\nds = load_dataset('imdb')\n",
+        "from mylib import load_dataset\nds = load_dataset('imdb')\n",
+        "from .datasets import load_dataset\nds = load_dataset('imdb')\n",
+        "import mylib\nds = mylib.load_dataset('imdb')\n",
+        "import mylib as datasets\nds = datasets.load_dataset('imdb')\n",
+        "import datasets\nds = self.load_dataset('imdb')\n",
+        "from datasets import Dataset\nds = load_dataset('imdb')\n",
+    ],
+    ids=[
+        "local-def",
+        "other-library",
+        "relative-import",
+        "other-module",
+        "other-module-aliased-as-datasets",
+        "method-on-other-receiver",
+        "unrelated-datasets-name",
+    ],
+)
+def test_ignores_a_load_dataset_that_is_not_hugging_face(tmp_path: Path, code: str) -> None:
+    (tmp_path / "train.py").write_text(code, encoding="utf-8")
+    assert _unpinned(tmp_path) == []
+
+
+def test_unpinned_lead_stays_low_severity(tmp_path: Path) -> None:
+    (tmp_path / "train.py").write_text(
+        "import datasets\nds = datasets.load_dataset('imdb')\n", encoding="utf-8"
+    )
+    rule = DatasetIntegrityRule()
+    [finding] = rule.run(ArtifactTarget(tmp_path), RuleContext())
+    assert finding.severity is Severity.LOW

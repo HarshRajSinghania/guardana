@@ -16,7 +16,7 @@ from guardana.core.manifest.records import (
     TrialSummary,
 )
 from guardana.core.manifest.settings import ConfigurationRef, ExecutionSettings, PrivacyRecord
-from guardana.core.manifest.usage import RunUsage
+from guardana.core.manifest.usage import JudgeUsage, RunUsage
 
 
 def schema_url(version: int) -> str:
@@ -119,6 +119,19 @@ def _usage(usage: RunUsage) -> dict[str, object]:
         "requests_missing_token_counts": usage.requests_missing_token_counts,
         "estimated_cost": usage.estimated_cost,
         "wall_time_seconds": usage.wall_time_seconds,
+        "judge": None
+        if usage.judge is None
+        else {block: _judge_usage(spent) for block, spent in usage.judge.items()},
+    }
+
+
+def _judge_usage(spent: JudgeUsage) -> dict[str, object]:
+    return {
+        "requests": spent.requests,
+        "input_tokens": spent.input_tokens,
+        "output_tokens": spent.output_tokens,
+        "requests_missing_token_counts": spent.requests_missing_token_counts,
+        "budget_exhausted": spent.budget_exhausted,
     }
 
 

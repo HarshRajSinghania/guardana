@@ -14,6 +14,7 @@ from guardana.core.taxonomy import (
     OWASP_ML02_2023,
 )
 from guardana.rules._base import ArtifactRule
+from guardana.rules.supply_chain._ast_names import import_aliases
 from guardana.rules.supply_chain._leads import lead_verdict
 
 # A dataset "loading script" is a Python class the datasets library imports and
@@ -40,20 +41,47 @@ def _loader_script_lines(source: PythonSource) -> Iterator[int]:
             yield node.lineno
 
 
-def _call_name(node: ast.Call) -> str:
-    func = node.func
-    if isinstance(func, ast.Attribute):
-        return func.attr
-    if isinstance(func, ast.Name):
-        return func.id
-    return ""
+_HF_MODULES = frozenset({"datasets", "datasets.load"})
+_HF_LOADERS = frozenset(f"{module}.load_dataset" for module in _HF_MODULES)
+
+
+def _hf_loader_names(source: PythonSource) -> frozenset[str]:
+    """Return the bare names a `from datasets[.load] import ...` binds to Hugging Face's loader."""
+    names: set[str] = set()
+    for node in source.nodes(ast.ImportFrom):
+        if node.module not in _HF_MODULES or node.level != 0:
+            continue
+        for alias in node.names:
+            if alias.name == "*":
+                names.add("load_dataset")
+            elif alias.name == "load_dataset":
+                names.add(alias.asname or alias.name)
+    return frozenset(names)
+
+
+def _dotted_call_name(node: ast.Call, aliases: dict[str, str]) -> str:
+    """Return a call's dotted name with its leading name resolved through `aliases`, or ""."""
+    parts: list[str] = []
+    func: ast.expr = node.func
+    while isinstance(func, ast.Attribute):
+        parts.append(func.attr)
+        func = func.value
+    if not isinstance(func, ast.Name):
+        return ""
+    parts.append(aliases.get(func.id, func.id))
+    return ".".join(reversed(parts))
 
 
 def _unpinned_load_lines(source: PythonSource) -> Iterator[int]:
+    aliases = import_aliases(source)
+    bare_names = _hf_loader_names(source)
     for node in source.nodes(ast.Call):
-        if _call_name(node) == "load_dataset" and not any(
-            kw.arg == "revision" for kw in node.keywords
-        ):
+        if any(kw.arg == "revision" for kw in node.keywords):
+            continue
+        # A bare name counts only when a `from datasets` import bound it; a receiver
+        # counts when it resolves to `datasets`, or is literally `datasets` unimported.
+        is_bare = isinstance(node.func, ast.Name) and node.func.id in bare_names
+        if is_bare or _dotted_call_name(node, aliases) in _HF_LOADERS:
             yield node.lineno
 
 

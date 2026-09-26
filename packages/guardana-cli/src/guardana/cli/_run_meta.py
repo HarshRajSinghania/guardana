@@ -53,6 +53,7 @@ from guardana.core.manifest.records import (
 )
 from guardana.core.manifest.settings import PrivacyRecord
 from guardana.core.manifest.summary import summarize
+from guardana.core.manifest.usage import JudgeUsage
 from guardana.core.origin import Origin
 from guardana.core.profile import Profile
 from guardana.core.registry import Registry
@@ -196,23 +197,29 @@ def target_identity(target: Target, ref: str) -> TargetIdentity:
     )
 
 
-def _run_usage(spent: TargetUsage | None, started_at: datetime, completed_at: datetime) -> RunUsage:
-    """Turn what the targets metered into the run's usage block.
+def _run_usage(
+    spent: TargetUsage | None,
+    started_at: datetime,
+    completed_at: datetime,
+    judge: Mapping[str, JudgeUsage] | None = None,
+) -> RunUsage:
+    """Turn what the targets and the judges metered into the run's usage block.
 
     Wall time is measured here rather than in the engine, which does not consult a
     clock. Everything else is passed through untouched: `spent is None` means no
-    target counted, and it stays an explicit unknown instead of becoming a zero
-    somewhere between the meter and the file.
+    target counted, and `judge is None` that no judge did, and each stays an explicit
+    unknown instead of becoming a zero somewhere between the meter and the file.
     """
     elapsed = (completed_at - started_at).total_seconds()
     if spent is None:
-        return RunUsage(wall_time_seconds=elapsed)
+        return RunUsage(wall_time_seconds=elapsed, judge=judge)
     return RunUsage(
         requests=spent.requests,
         input_tokens=spent.input_tokens,
         output_tokens=spent.output_tokens,
         requests_missing_token_counts=spent.requests_missing_token_counts,
         wall_time_seconds=elapsed,
+        judge=judge,
     )
 
 
@@ -258,15 +265,32 @@ def _recorded_calibrations(profile: Profile) -> dict[str, RecordedCalibration]:
     would leave every evaluator recorded as unmeasured, which reads as "nobody
     checked this judge" — the opposite of what the operator configured and asked to
     have in their evidence.
+
+    Two files measuring one evaluator are refused too: whichever came last would
+    decide which measurement corrects the run, and nothing would say so. One file
+    listed twice is still one measurement.
     """
     measured: dict[str, RecordedCalibration] = {}
+    source: dict[str, Path] = {}
+    read: set[Path] = set()
     for raw_path in profile.calibration_paths:
         path = Path(raw_path)
         if not path.exists():
             raise CalibrationStoreError(
                 f"{path} does not exist, so the calibrations it names cannot be recorded"
             )
-        measured.update(load_calibrations(path))
+        resolved = path.resolve()
+        if resolved in read:
+            continue
+        read.add(resolved)
+        for evaluator_id, calibration in load_calibrations(path).items():
+            if evaluator_id in source:
+                raise CalibrationStoreError(
+                    f"{evaluator_id} is calibrated in both {source[evaluator_id]} and {path}; "
+                    f"keep one measurement per evaluator, so the run says which it used"
+                )
+            source[evaluator_id] = path
+            measured[evaluator_id] = calibration
     return measured
 
 
@@ -343,16 +367,23 @@ def build_manifest(  # noqa: PLR0913 — a manifest is assembled from independen
     deployment: DeploymentRef | None = None,
     source_kind: SourceKind | None = None,
     calibrations: Mapping[str, RecordedCalibration] | None = None,
+    judge_usage: Mapping[str, JudgeUsage] | None = None,
 ) -> RunManifest:
     """Describe the run that produced `result`, digesting the rules that actually ran.
 
     Only the rules that ran are digested. A rule that was skipped or errored did
     not test anything, and listing it as part of the plan would let a later
-    comparison treat a check that never happened as coverage it had.
+    comparison treat a check that never happened as coverage it had. The one
+    exception is a suite the run cut off: its record carries the declined summary
+    over every case it planned, and it stays out of `rules_run`, the coverage
+    digest and the evaluator records.
 
     `calibrations` are the records the run itself was handed; given, they are used as
     they are, so the run and its record correct with the same measurements. Left out,
     the profile's are read here.
+
+    `judge_usage` is what the judges built from the profile spent, read once by the
+    command after every pass; `None` records that nobody counted judge calls.
     """
     now = datetime.now(UTC)
     ran = tuple(rule for rule in registry.rules() if rule.meta.id in result.rules_run)
@@ -411,8 +442,8 @@ def build_manifest(  # noqa: PLR0913 — a manifest is assembled from independen
             # trace given a profile that says `trials: 5` asked for nothing it could do.
             trials=profile.trials if target_kind is TargetKind.ENDPOINT else 1,
         ),
-        usage=_run_usage(result.usage, started_at, now),
-        rules=rules,
+        usage=_run_usage(result.usage, started_at, now, judge_usage),
+        rules=rules + _unfinished_suites(registry, result),
         evaluators=evaluators,
         coverage=_coverage(
             rules, evaluators, target.capabilities, result.protocols, result.coverage_shortfall
@@ -424,6 +455,19 @@ def build_manifest(  # noqa: PLR0913 — a manifest is assembled from independen
             evidence_mode=profile.privacy.mode,
             redaction_policy_digest=profile.privacy.digest,
         ),
+    )
+
+
+def _unfinished_suites(registry: Registry, result: ScanResult) -> tuple[RuleRecord, ...]:
+    """Record each suite that concluded without finishing, so its unsent cases stay counted.
+
+    `run.rules` is the only place a saved run keeps a suite summary; leaving a cut-off
+    suite out would lose the cases it planned and never sent.
+    """
+    return tuple(
+        _rule_record(rule, registry.origin_of(rule.meta.id), None, result.suites[rule.meta.id])
+        for rule in registry.rules()
+        if rule.meta.id in result.suites and rule.meta.id not in result.rules_run
     )
 
 

@@ -310,6 +310,10 @@ so this page is maintained as carefully as the code.</p>
 </tr>
 </tbody>
 </table></div>
+<h2 id="released-and-experimental">Released and experimental</h2>
+<p><strong>Released (beta):</strong> Quality suites use the deterministic assessors <code>exact_match</code>, <code>contains</code>, <code>regex</code>, <code>json_valid</code>, and <code>length</code>. They support versioned JSONL datasets (<code>name@version</code>), deterministic sampling (<code>sample: {size, seed}</code>), repeated trials per case, and a suite gate that passes, fails, or declines with <code>min_sample</code>. Runs save a suite summary in the run document and show a Measured block in the human report. JUnit output is available.</p>
+<p><strong>Experimental:</strong> Judge-graded suites use <code>answered</code> and <code>reference_judge</code>. Judge-error correction adjusts trial and suite rates using Rogan–Gladen and a calibration recorded on the team's own corpus with <code>guardana calibrate --record</code>. Without a usable calibration, the suite declines; it never passes on an uncorrected judge rate. Experimental means shipped, but behaviour, thresholds, and saved fields may change in a minor release.</p>
+<p><strong>Not released:</strong> An offline starter, a supported Python result facade, renderer and reporter plugins, recorded-answer grading and regrading, and reproducible team recipes are roadmap items F2–F6 in <code>ROADMAP.md</code>. Pages under <code>docs/design/</code> describe designs, not shipped behaviour.</p>
 <h2 id="known-limitations">Known limitations</h2>
 <p>Stated plainly, because finding these out after adoption is worse than reading
 them now.</p>
@@ -385,7 +389,7 @@ format that executes no Python has no scheduled release. See the <a href="threat
 model</a>.</p>
 <h3 id="quality-suites">Quality suites</h3>
 <p>Numeric values are recorded and rendered, but suites do not gate on their aggregate.
-<code>plan probe</code> prices target requests, not judge calls; repeated trials and <code>min_agreement</code> can multiply judge calls.
+The collector receives the target's request count, not what the judge spent; the saved run carries both.
 <code>guardana diff</code> pairs suite cases but does not statistically test the pass rate between runs.
 A calibration file holds one calibration per evaluator id.</p>
 <h3 id="cost-is-bounded-not-predicted">Cost is bounded, not predicted</h3>

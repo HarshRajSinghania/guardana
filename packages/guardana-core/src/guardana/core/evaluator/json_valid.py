@@ -22,6 +22,7 @@ class JsonValidEvaluator(Evaluator):
 
     id = "json_valid"
     deterministic: ClassVar[bool] = True
+    judge_calls_per_verdict: ClassVar[int] = 0
     expects: ClassVar[Mapping[str, bool]] = {"required_keys": False}
 
     @classmethod

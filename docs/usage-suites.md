@@ -60,7 +60,7 @@ Fill in the evaluator's expectation before running this example: `contains` retu
 
 ## Run and read the suite
 
-Run the rule with [`guardana probe`](usage-probe.md). The profile's `trials` or `probe --trials` sets how many times each case is sent. `guardana plan probe` prices cases × K target requests; it does not price judge calls.
+Run the rule with [`guardana probe`](usage-probe.md). The profile's `trials` or `probe --trials` sets how many times each case is sent. `guardana plan probe` prices cases × K target requests and, for a judge-graded suite, cases × K × `min_agreement` judge calls ([pricing judge calls](usage-plan.md#pricing-judge-calls)). The saved run records what the judge spent in `usage.judge`.
 
 The human report has a Measured block. A passing line can read:
 
@@ -76,12 +76,15 @@ A case is measured when all its planned trials were graded. Each case contribute
 | Pass | `worst` meets `min_pass_rate`. | `0` |
 | Fail | `best` is below `min_pass_rate`. | `1` |
 | Decline | Fewer than `min_sample` cases were measured, ungraded trials could put the rate on either side of the bar, a judge's error could not be corrected (below), or the suite raised before it concluded. | `2` |
+| Stopped | The run's budget ran out before every case was sent. The saved run keeps the suite's summary, declined, with how many of its cases were measured; the run stops. | `6` |
 
 A failed suite produces one finding about the rate, whatever its severity. A declined suite produces one `unverified` entry and makes the run `indeterminate`. See [exit codes](exit-codes.md).
 
 ## Judge-graded suites
 
 `answered` checks whether a reply to a benign task contains a refusal marker. `reference_judge` grades a reply against a reference answer. Both are judge assessors, so their rates need judge-error correction. A suite without a usable calibration declines with `uncorrected — <reason>`. Record one with [`guardana calibrate --record`](usage-calibrate.md).
+
+Judge-graded suites and judge-error correction are experimental: their behaviour, thresholds and saved fields may change in a minor release ([product status](product-status.md#released-and-experimental)).
 
 A usable calibration has the same assessor and judge identity, per-class counts, and no starter corpus. It needs at least 30 graded samples in each class, abstention below half in each class, Youden's J of at least 0.1, and observed failures above the calibrated false-alarm rate. Every corner of its sensitivity/specificity 95% box must have sensitivity plus specificity greater than 1. A corrected rate uses the same gate test; when raw `worst` is below the bar, a pass also needs the corrected 95% lower limit to clear it.
 
@@ -96,6 +99,7 @@ A `reply:` fixture answers every case with one reply. A fixture can use its own 
 The saved run includes a suite summary; see [suite summaries](usage-run.md#suite-summaries) for its fields. Extension authors can see [extending Guardana](extending.md), and the [suite design](design/quality-suites.md) gives the design context.
 
 - Numeric measurements are recorded and rendered, but there is no gate on their aggregate.
-- `plan probe` does not price judge calls, which K and `min_agreement` multiply.
+- The collector receives the target's request count, not `usage.judge`.
 - `diff` pairs cases across runs but does not test a suite's rate statistically.
 - A file holds one calibration per evaluator id.
+- `regex` grades a reply of up to 65,536 characters; a longer reply is `inconclusive`. There is no time bound: a pattern that backtracks can hang on a crafted reply, so avoid nested quantifiers and several `.*` in a row, or use possessive quantifiers and atomic groups.

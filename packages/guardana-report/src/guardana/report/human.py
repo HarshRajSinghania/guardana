@@ -309,10 +309,20 @@ def _summary(result: ScanResult) -> str:
 
 
 def _case_counts(result: ScanResult) -> tuple[int, int, int]:
-    """Count cases, cases whose every trial was measured, and cases with an ungraded trial."""
+    """Count cases, cases whose every trial was measured, and cases with an ungraded trial.
+
+    A suite is counted from its own summary, over every case it planned: a suite the
+    budget cut off recorded nothing for the cases it never sent.
+    """
     statuses: dict[tuple[str, str], list[AssessmentStatus]] = {}
     for a in result.assessments:
-        statuses.setdefault((a.rule_id, a.case_id), []).append(a.status)
+        if a.rule_id not in result.suites:
+            statuses.setdefault((a.rule_id, a.case_id), []).append(a.status)
+    suites = result.suites.values()
     measured = sum(all(s is AssessmentStatus.MEASURED for s in v) for v in statuses.values())
     ungraded = sum(AssessmentStatus.INCONCLUSIVE in v for v in statuses.values())
-    return len(statuses), measured, ungraded
+    return (
+        len(statuses) + sum(s.cases for s in suites),
+        measured + sum(s.measured for s in suites),
+        ungraded + sum(s.ungraded for s in suites),
+    )

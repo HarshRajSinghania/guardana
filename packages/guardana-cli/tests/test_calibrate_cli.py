@@ -8,28 +8,36 @@ measurement that did not happen, a rubric inheriting someone else's accuracy.
 import json
 import re
 from pathlib import Path
+from urllib.error import HTTPError, URLError
 
+import guardana.cli._endpoint as endpoint_module
+import guardana.cli.calibrate as calibrate_module
 import pytest
 from guardana.cli._evaluators import wire_config_evaluators
 from guardana.cli.calibrate import _record
 from guardana.cli.exit_codes import ExitCode
 from guardana.cli.main import app
+from guardana.core import judge_error
 from guardana.core.calibration import CalibrationReport
 from guardana.core.calibration.corpus import CorpusError, bundled_corpus, dump_corpus, load_corpus
 from guardana.core.calibration.report import MIN_RELIABLE_SAMPLES
 from guardana.core.calibration.store import load_calibrations
-from guardana.core.evaluator.base import Expectation
+from guardana.core.evaluator.base import Evaluator, Expectation, Verdict
 from guardana.core.evaluator.keyword import KeywordEvaluator
 from guardana.core.evaluator.llm_judge import JudgeCalibration, LlmJudgeEvaluator
 from guardana.core.exchange import Exchange
+from guardana.core.manifest.records import TrialSummary
 from guardana.core.profile import Profile
 from guardana.core.profile.errors import ProfileError
 from guardana.core.profile.model import Policy
 from guardana.core.registry import Registry
-from typer.testing import CliRunner
+from guardana.core.testing import FailingTransport
+from guardana.core.trials import clean_bound
+from typer.testing import CliRunner, Result
 
 runner = CliRunner()
 _ANSI = re.compile(r"\x1b\[[0-9;]*m")
+_JUDGE = "http://judge.test:8080/v1"
 
 
 def plain(output: str) -> str:
@@ -373,3 +381,150 @@ def test_counts_pooled_over_several_assessors_are_not_recorded_as_one_judge(
     assert entry.positives is None
     assert entry.sensitivity is None
     assert entry.starter_corpus is True
+    reason = judge_error.correct(
+        TrialSummary(
+            trials_per_case=1,
+            cases=12,
+            cases_failed=0,
+            cases_incomplete=0,
+            bound=clean_bound(12),
+            mean_success_rate=0.0,
+        ),
+        judge_error.Grading(assessors=("acme_judge@1",), judges=("acme_judge@1",)),
+        {"acme_judge": KeywordEvaluator()},
+        {"acme_judge": entry.as_record()},
+    ).reason
+    assert reason is not None
+    assert "several assessor ids" in reason, "a rerun cannot add counts this writer never keeps"
+    assert "rerun" not in reason
+
+
+def _judge_profile(tmp_path: Path, block: str = "llm_judge", endpoint: str = _JUDGE) -> Path:
+    path = tmp_path / "guardana.yaml"
+    path.write_text(
+        f"name: t\nevaluators:\n  {block}:\n    endpoint: '{endpoint}'\n    model: judge\n",
+        encoding="utf-8",
+    )
+    return path
+
+
+def _judge_fails_with(monkeypatch: pytest.MonkeyPatch, error: Exception) -> None:
+    monkeypatch.setattr(endpoint_module, "transport_factory", lambda: FailingTransport(error))
+
+
+def _rejected() -> HTTPError:
+    return HTTPError(_JUDGE, 401, "Unauthorized", {}, None)  # type: ignore[arg-type]
+
+
+def _one_error_line(result: Result) -> str:
+    """The single line a failed command owes its reader, with no traceback behind it."""
+    assert isinstance(result.exception, SystemExit), result.exception
+    assert "Traceback" not in result.output
+    errors = [line for line in result.stderr.splitlines() if not line.startswith("warning: ")]
+    assert len(errors) == 1, result.stderr
+    assert errors[0].startswith("error: "), result.stderr
+    return errors[0]
+
+
+@pytest.mark.parametrize(
+    ("error", "said"),
+    [
+        (_rejected(), f"endpoint {_JUDGE} (evaluators.llm_judge) rejected the request (HTTP 401)"),
+        (
+            URLError("connection refused"),
+            f"could not reach endpoint {_JUDGE} (evaluators.llm_judge)",
+        ),
+    ],
+)
+def test_a_judge_that_cannot_be_used_is_an_unavailable_endpoint_in_one_line(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, error: Exception, said: str
+) -> None:
+    _judge_fails_with(monkeypatch, error)
+
+    result = runner.invoke(app, ["calibrate", "--profile", str(_judge_profile(tmp_path))])
+
+    assert result.exit_code == ExitCode.TARGET_UNAVAILABLE, result.output
+    assert said in _one_error_line(result)
+
+
+def test_advice_for_a_rejected_judge_names_no_flag_calibrate_lacks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _judge_fails_with(monkeypatch, _rejected())
+
+    result = runner.invoke(app, ["calibrate", "--profile", str(_judge_profile(tmp_path))])
+
+    line = _one_error_line(result)
+    assert "--adapter" not in line
+    assert "--api-key-env" not in line
+    assert "--concurrency" not in line
+
+
+def test_a_failed_judge_leaves_the_calibration_file_untouched(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _judge_fails_with(monkeypatch, _rejected())
+    fresh = tmp_path / "fresh.json"
+    kept = tmp_path / "kept.json"
+    kept.write_text("recorded earlier\n", encoding="utf-8")
+    profile = str(_judge_profile(tmp_path))
+
+    for destination in (fresh, kept):
+        result = runner.invoke(
+            app, ["calibrate", "--profile", profile, "--record", str(destination)]
+        )
+        assert result.exit_code == ExitCode.TARGET_UNAVAILABLE, result.output
+
+    assert not fresh.exists()
+    assert kept.read_text(encoding="utf-8") == "recorded earlier\n"
+
+
+def test_the_guard_is_named_by_its_own_block(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _judge_fails_with(monkeypatch, _rejected())
+
+    result = runner.invoke(
+        app,
+        ["calibrate", "--evaluator", "guard", "--profile", str(_judge_profile(tmp_path, "guard"))],
+    )
+
+    assert result.exit_code == ExitCode.TARGET_UNAVAILABLE, result.output
+    assert f"endpoint {_JUDGE} (evaluators.guard) rejected" in _one_error_line(result)
+
+
+def test_a_judge_endpoint_is_named_without_its_credentials(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _judge_fails_with(monkeypatch, _rejected())
+    profile = _judge_profile(tmp_path, endpoint="http://user:hunter2@judge.test:8080/v1?key=s3cr3t")
+
+    result = runner.invoke(app, ["calibrate", "--profile", str(profile)])
+
+    line = _one_error_line(result)
+    assert f"endpoint {_JUDGE} (evaluators.llm_judge)" in line
+    assert "hunter2" not in line
+    assert "s3cr3t" not in line
+
+
+class _NetworkedPlugin(Evaluator):
+    """A third-party grader that calls a model of its own, configured where Guardana cannot see."""
+
+    id = "acme.remote_judge"
+
+    def evaluate(self, exchange: Exchange, expectation: Expectation) -> Verdict:
+        raise URLError("connection refused")
+
+
+def test_a_plugin_judge_that_cannot_be_reached_is_named_by_its_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def wire(registry: Registry, profile: Profile) -> None:
+        registry.register_evaluator(_NetworkedPlugin())
+
+    monkeypatch.setattr(calibrate_module, "wire_config_evaluators", wire)
+
+    result = runner.invoke(app, ["calibrate", "--evaluator", "acme.remote_judge"])
+
+    assert result.exit_code == ExitCode.TARGET_UNAVAILABLE, result.output
+    assert "could not reach endpoint of evaluator 'acme.remote_judge'" in _one_error_line(result)

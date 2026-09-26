@@ -9,8 +9,8 @@ import typer
 from guardana.cli._adapter import load_adapter_config
 from guardana.cli._budget_flags import override
 from guardana.cli._errors import EndpointFlag, run_against_endpoint
-from guardana.cli._evaluators import wire_config_evaluators
-from guardana.cli._exit import exit_with, refuse_unenforceable_budget
+from guardana.cli._evaluators import JudgeMeters, wire_config_evaluators
+from guardana.cli._exit import exit_with, refuse_invalid_profile, refuse_unenforceable_budget
 from guardana.cli._formats import OutputFormat
 from guardana.cli._mcp_run import (
     McpConnection,
@@ -36,7 +36,7 @@ from guardana.core.budget import BudgetExhausted
 from guardana.core.calibration.store import RecordedCalibration
 from guardana.core.gate import gate_outcome
 from guardana.core.manifest import DeploymentRef
-from guardana.core.profile import Profile
+from guardana.core.profile import Profile, ProfileError
 from guardana.core.redaction import EvidenceRedactor
 from guardana.core.registry import Registry
 from guardana.core.target import (
@@ -222,9 +222,11 @@ def probe(  # noqa: C901, PLR0912, PLR0913, PLR0915, PLR0917 — Typer surface, 
     )
     registry = Registry.discover(resolve_trust(plugins, allow_plugin, no_plugins=False))
     try:
-        wire_config_evaluators(registry, prof, prof.budgets)
+        judges = wire_config_evaluators(registry, prof, prof.budgets)
     except BudgetExhausted as exc:
         raise refuse_unenforceable_budget(exc) from exc
+    except ProfileError as exc:
+        raise refuse_invalid_profile(exc) from exc
     load_custom_rules(registry, prof, rules)
     registry.apply_trials(prof.trials)
     # Read before anything is sent, and once: the rules correct with these while they
@@ -281,6 +283,7 @@ def probe(  # noqa: C901, PLR0912, PLR0913, PLR0915, PLR0917 — Typer surface, 
             output=output,
             reporter=reporter,
             calibrations=calibrations,
+            judges=judges,
         )
         return
 
@@ -319,7 +322,9 @@ def probe(  # noqa: C901, PLR0912, PLR0913, PLR0915, PLR0917 — Typer surface, 
             concurrency=concurrency,
             deployment=deployment,
             calibrations=calibrations,
+            judge_usage=judges.usage(),
         )
+        _say_which_judge_stopped(judges)
         emit(get_renderer(format.value, run=run).render(result), output, format.value)
         if reporter:
             submit_safely(reporter, result, source=mcp, deployment=deployment, run=run)
@@ -375,7 +380,18 @@ def probe(  # noqa: C901, PLR0912, PLR0913, PLR0915, PLR0917 — Typer surface, 
         output=output,
         reporter=reporter,
         calibrations=calibrations,
+        judges=judges,
     )
+
+
+def _say_which_judge_stopped(judges: JudgeMeters) -> None:
+    """Name a judge whose own ceiling stopped the run, which the exit code alone cannot.
+
+    A judge meters its calls apart from the target's, so a run cut short by grading
+    would otherwise read as the target's budget running out.
+    """
+    for stop in judges.stops():
+        typer.echo(f"warning: {stop}", err=True)
 
 
 def _missing_target() -> Target:
@@ -396,8 +412,12 @@ def _finish_probe(  # noqa: PLR0913 — one value per persisted execution fact
     output: Path | None,
     reporter: str | None,
     calibrations: Mapping[str, RecordedCalibration],
+    judges: JudgeMeters,
 ) -> None:
-    """Redact, persist, emit and gate one endpoint probe result."""
+    """Redact, persist, emit and gate one endpoint probe result.
+
+    The judges' meters are read here, once, after every pass has finished.
+    """
     result = EvidenceRedactor(profile.privacy).redact_result(probed.result)
     outcome = gate_outcome(result, profile.policy)
     run = build_manifest(
@@ -412,7 +432,9 @@ def _finish_probe(  # noqa: PLR0913 — one value per persisted execution fact
         concurrency=concurrency,
         deployment=deployment,
         calibrations=calibrations,
+        judge_usage=judges.usage(),
     )
+    _say_which_judge_stopped(judges)
     emit(get_renderer(format.value, run=run).render(result), output, format.value)
     if reporter:
         submit_safely(reporter, result, source=target.ref, deployment=deployment, run=run)

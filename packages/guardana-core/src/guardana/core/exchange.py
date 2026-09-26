@@ -87,11 +87,16 @@ class Exchange:
         `messages` keeps the model's prose so a text evaluator has something to
         read; the structured run travels alongside for the evaluators that grade
         tool calls.
+
+        The final step is kept even when it carried no text: dropping it would make
+        an earlier prose step the run's reply, and a text evaluator would grade that
+        as the model's final answer instead of reading `reply_text` as None.
         """
+        last = len(trajectory.steps) - 1
         replies = tuple(
-            ChatMessage(role="assistant", content=step.text)
-            for step in trajectory.steps
-            if step.text
+            ChatMessage(role="assistant", content=step.text or "")
+            for index, step in enumerate(trajectory.steps)
+            if step.text or index == last
         )
         return cls(messages=replies, trajectory=trajectory)
 

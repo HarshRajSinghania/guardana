@@ -25,7 +25,7 @@ from guardana.core.manifest.settings import (
     ExecutionSettings,
     PrivacyRecord,
 )
-from guardana.core.manifest.usage import RunUsage
+from guardana.core.manifest.usage import JudgeUsage, RunUsage
 from guardana.core.usage import TargetUsage, TokenUsage
 
 __all__ = [
@@ -38,6 +38,7 @@ __all__ = [
     "EvidenceMode",
     "ExecutionSettings",
     "JudgeCorrection",
+    "JudgeUsage",
     "PrivacyRecord",
     "ResultSummary",
     "RuleRecord",

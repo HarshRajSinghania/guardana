@@ -301,7 +301,7 @@ Opt in only when the verdict depends on a model sampling a reply:</p>
 <ul>
 <li><code>with_trials(k)</code> returns a copy that makes <code>k</code> attempts at every case (the default
 returns <code>None</code>: the rule does not repeat);</li>
-<li><code>trials_per_case</code> reports <code>k</code>, and <code>estimated_requests</code> multiplies by it;</li>
+<li><code>trials_per_case</code> reports <code>k</code>, and <code>estimated_requests</code> and <code>graded_verdicts</code> multiply by it;</li>
 <li>each attempt records one assessment with <code>from_verdict(..., trial=n)</code>, <code>n</code> from 1;</li>
 <li>a rule that grades one attempt at several checkpoints — a conversation graded per turn —
 returns <code>True</code> from <code>grades_one_case</code>, so its bound counts one case per attempt;</li>
@@ -421,6 +421,32 @@ grader configuration the evaluator id does not name; matching compares it verbat
     deterministic = True
     judge_identity = None
 </code></pre>
+<h3 id="declaring-what-grading-costs">Declaring what grading costs</h3>
+<p><code>guardana plan probe</code> prices judge calls from two declarations, and both default to
+<code>None</code>, which the plan reports as unknown rather than free:</p>
+<ul>
+<li><code>Evaluator.judge_calls_per_verdict</code> — the model or service calls one <code>evaluate()</code>
+makes. Declare <code>0</code> for an evaluator that computes its verdict locally.</li>
+<li><code>Rule.graded_verdicts</code> — a mapping from evaluator id to the verdicts one run grades
+with it, multiplied by <code>trials_per_case</code>. Declare <code>{}</code> for a rule that grades in its
+own code. YAML rules, suites, scenarios and agent rules declare it for you.</li>
+</ul>
+<pre><code class="language-python">class MyEvaluator(Evaluator):
+    judge_calls_per_verdict: ClassVar[int] = 0
+</code></pre>
+<p>Both are read-only properties on the base classes, so assigning one on an instance
+(<code>self.judge_calls_per_verdict = n</code> in <code>__init__</code>) is refused. When the cost depends on
+configuration, override the property:</p>
+<pre><code class="language-python">class MyJudge(Evaluator):
+    def __init__(self, samples: int) -&gt; None:
+        self.samples = samples
+
+    @property
+    def judge_calls_per_verdict(self) -&gt; int:
+        return self.samples
+</code></pre>
+<p>While a judge is configured under <code>evaluators:</code>, a plan that includes a rule of
+unknown judge cost does not claim to fit its budget.</p>
 <h2 id="adding-a-target">Adding a Target</h2>
 <p>A <code>Target</code> is a uniform interface over the thing under test
 (<code>guardana.core.target.Target</code>), so a rule never hard-codes whether it

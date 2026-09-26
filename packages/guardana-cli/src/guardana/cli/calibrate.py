@@ -1,10 +1,13 @@
+from collections.abc import Mapping
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated
 
 import typer
+from guardana.cli._errors import run_against_endpoint, safe_url
 from guardana.cli._evaluators import wire_config_evaluators
+from guardana.cli._exit import refuse_invalid_profile
 from guardana.cli._plugins import resolve_trust, warn_about_load_errors
 from guardana.cli._profile import resolve_profile
 from guardana.cli.exit_codes import ExitCode
@@ -17,9 +20,12 @@ from guardana.core.calibration.store import (
     load_calibrations,
     write_calibrations,
 )
+from guardana.core.profile import Profile, ProfileError
 from guardana.core.registry import Registry
 
 _UNMEASURED = "—"
+_CONFIG_BLOCK = {"llm_judge": "llm_judge", "reference_judge": "llm_judge", "guard": "guard"}
+"""The `evaluators:` block each config-wired evaluator sends its grading calls to."""
 
 
 def calibrate_command(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; this is the command's surface
@@ -62,7 +68,10 @@ def calibrate_command(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI fl
     prof = resolve_profile(profile, None)
     registry = Registry.discover(trust)
     warn_about_load_errors(registry, what="evaluator")
-    wire_config_evaluators(registry, prof)
+    try:
+        wire_config_evaluators(registry, prof)
+    except ProfileError as exc:
+        raise refuse_invalid_profile(exc) from exc
     graders = registry.evaluators()
     grader = graders.get(evaluator)
     if grader is None:
@@ -75,7 +84,11 @@ def calibrate_command(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI fl
     except CorpusError as exc:
         raise typer.BadParameter(str(exc)) from exc
 
-    report = calibrate(grader, samples)
+    # No `accepts`: the judge's credentials live in the profile, and calibrate takes none of
+    # the endpoint flags the shared advice would otherwise name.
+    report = run_against_endpoint(
+        _judge_endpoint(evaluator, prof), lambda: calibrate(grader, samples)
+    )
     typer.echo(_render(report, len(samples), starter=corpus is None))
     if record is not None:
         _record(report, corpus, record)
@@ -88,6 +101,16 @@ def calibrate_command(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI fl
     if max_ece is not None and measured_ece is not None and measured_ece > max_ece:
         # This one *is* a verdict: it measured, and the result is over the bar.
         raise typer.Exit(code=ExitCode.POLICY_FAILED)
+
+
+def _judge_endpoint(evaluator: str, profile: Profile) -> str:
+    """Name where a failed grading call went, without the credentials a URL can carry."""
+    block = _CONFIG_BLOCK.get(evaluator)
+    config = profile.evaluator_config.get(block) if block is not None else None
+    url = config.get("endpoint") if isinstance(config, Mapping) else None
+    if not isinstance(url, str) or not url:
+        return f"of evaluator {evaluator!r}"
+    return f"{safe_url(url)} (evaluators.{block})"
 
 
 def _record(report: CalibrationReport, corpus: Path | None, destination: Path) -> None:

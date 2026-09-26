@@ -21,7 +21,7 @@ from guardana.core.rule import RuleContext
 from guardana.core.rule.verify import verify_rule
 from guardana.rules import provide_rules
 
-_FULLY_SAMPLED = 11
+_FULLY_SAMPLED = 12
 """Built-in rules declaring a finding, a clean *and* an inconclusive fixture.
 
 Raise this when you sample another rule. Never lower it: a rule whose samples were

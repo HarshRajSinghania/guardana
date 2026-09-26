@@ -529,13 +529,10 @@ graded on a part of the conversation only the rule knows, and an agent run is
 graded on its tool calls, which a corpus row has no place for. A fixture the rule
 classified wrongly carries a label one of the two disagrees with.</p>
 <h2 id="built-in-coverage-stated-plainly">Built-in coverage, stated plainly</h2>
-<p>51 rules ship and <strong>11 are fully sampled</strong> today. <code>guardana rule test 'guardana.*'</code>
+<p>51 rules ship and <strong>12 are fully sampled</strong> today. <code>guardana rule test 'guardana.*'</code>
 reports the rest as <code>indeterminate</code>, truthfully — that is the command working, not
 the command being unready. A gate pins the number so it can only rise.</p>
-<p>YAML rules in the default catalog that are not fully sampled:
-<code>guardana.agent.tool_argument_scope</code>. It ships a finding and an inconclusive sample
-and no clean one: the exact path its task names is graded as over-broad today, and
-a clean sample written around that would test nothing.</p>
+<p>Every YAML rule in the default catalog is fully sampled.</p>
 <p>Sampling the rest in an afternoon would mean writing fixtures to move a counter,
 and a fixture written for that reason is a test that cannot fail — which this
 project treats as worse than no test at all.</p>
