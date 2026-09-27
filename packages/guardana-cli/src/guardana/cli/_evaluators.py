@@ -15,7 +15,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 
 from guardana.cli._endpoint import build_endpoint
-from guardana.cli._errors import JudgeUnavailableError, safe_url
+from guardana.cli._errors import JudgeUnavailableError, http_status_problem, safe_url
 from guardana.core.budget import BudgetExhausted, Budgets
 from guardana.core.evaluator.guard import GuardEvaluator
 from guardana.core.evaluator.llm_judge import JudgeCalibration, LlmJudgeEvaluator
@@ -29,9 +29,6 @@ from guardana.core.target import ChatMessage, EndpointError, EndpointTarget
 
 _DEFAULT_PROMPT_VERSION = "2025.1"
 _DEFAULT_PORTS = {"https": 443, "http": 80}
-_HTTP_RATE_LIMITED = 429
-_HTTP_CLIENT_ERROR = 400
-_HTTP_SERVER_ERROR = 500
 
 
 class JudgeMeter:
@@ -45,9 +42,13 @@ class JudgeMeter:
     stop is written once, with the message a reader is shown.
     """
 
-    def __init__(self, block: str, target: EndpointTarget, endpoint: str) -> None:
+    def __init__(
+        self, block: str, target: EndpointTarget, endpoint: str, serves: tuple[str, ...]
+    ) -> None:
         self.block = block
         self.name = f"evaluators.{block}"
+        self.evaluators = serves
+        """The ids of the evaluators whose grading calls this meter counts."""
         self.endpoint = safe_url(endpoint)
         self._raw = (endpoint, endpoint.rstrip("/").removesuffix("/v1"))
         self._target = target
@@ -105,18 +106,13 @@ class JudgeMeter:
         return text
 
     def _rejection(self, status: int) -> str:
-        where = f"endpoint {self.endpoint} ({self.name})"
-        if status == _HTTP_RATE_LIMITED:
-            return (
-                f"{where} kept rate-limiting the judge (HTTP 429) even after retries — "
-                f"wait for its quota to reset"
-            )
-        if _HTTP_CLIENT_ERROR <= status < _HTTP_SERVER_ERROR:
-            return (
-                f"{where} rejected the request (HTTP {status}) — check "
-                f"{self.name}.api_key_env and the key it names"
-            )
-        return f"{where} returned HTTP {status}"
+        return http_status_problem(
+            status,
+            where=f"endpoint {self.endpoint} ({self.name})",
+            sender="the judge",
+            rate_limited_remedy="wait for its quota to reset",
+            rejected_remedy=f"check {self.name}.api_key_env and the key it names",
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -155,18 +151,21 @@ def wire_config_evaluators(
     raises `BudgetExhausted` here, before anything is sent.
 
     Returns the judges' meters, fresh on every call, so the command can record what
-    grading spent beside what the target spent.
+    grading spent beside what the target spent, and each meter names the evaluators it
+    counts for.
     """
     meters: list[JudgeMeter] = []
     judge_cfg = profile.evaluator_config.get("llm_judge")
     if judge_cfg is not None:
-        judge, meter = _endpoint_call(judge_cfg, "llm_judge", budgets)
+        judge, meter = _endpoint_call(
+            judge_cfg, "llm_judge", budgets, (LlmJudgeEvaluator.id, ReferenceJudgeEvaluator.id)
+        )
         for evaluator in _build_judges(judge_cfg, judge):
             registry.register_evaluator(evaluator)
         meters.append(meter)
     guard_cfg = profile.evaluator_config.get("guard")
     if guard_cfg is not None:
-        guard, meter = _endpoint_call(guard_cfg, "guard", budgets)
+        guard, meter = _endpoint_call(guard_cfg, "guard", budgets, (GuardEvaluator.id,))
         registry.register_evaluator(
             GuardEvaluator(guard, judge_identity=_identity(guard_cfg, "guard"))
         )
@@ -234,12 +233,24 @@ def _calibration(cfg: Mapping[str, object]) -> JudgeCalibration | None:
 
 
 def _endpoint_call(
-    cfg: Mapping[str, object], what: str, budgets: Budgets | None
+    cfg: Mapping[str, object], what: str, budgets: Budgets | None, serves: tuple[str, ...]
 ) -> tuple[Callable[[str], str], JudgeMeter]:
-    """Build a `prompt -> reply` callable from an endpoint config block, bounded when asked."""
+    """Build a `prompt -> reply` callable from an endpoint config block, bounded when asked.
+
+    `serves` names the evaluators that will grade through it, so its meter can say whose
+    calls it counts.
+    """
     endpoint = _require_str(cfg, "endpoint", what)
-    target = build_endpoint(endpoint, _require_str(cfg, "model", what), api_key=_api_key(cfg, what))
-    meter = JudgeMeter(what, target, endpoint)
+    model = _require_str(cfg, "model", what)
+    try:
+        target = build_endpoint(endpoint, model, api_key=_api_key(cfg, what))
+    except EndpointError:
+        # Neither the builder's message nor the URL is repeated: a value that did not
+        # parse as a URL can hold its credential where no scrubber looks for one.
+        raise ProfileError(
+            f"evaluators.{what}.endpoint must be an http or https URL with a host"
+        ) from None
+    meter = JudgeMeter(what, target, endpoint, serves)
     if budgets is not None:
         meter.apply(budgets)
     return meter.ask, meter

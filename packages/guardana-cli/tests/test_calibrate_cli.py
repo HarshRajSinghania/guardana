@@ -431,6 +431,15 @@ def _one_error_line(result: Result) -> str:
     [
         (_rejected(), f"endpoint {_JUDGE} (evaluators.llm_judge) rejected the request (HTTP 401)"),
         (
+            HTTPError(_JUDGE, 429, "Too Many Requests", {}, None),  # type: ignore[arg-type]
+            f"endpoint {_JUDGE} (evaluators.llm_judge) kept rate-limiting the judge (HTTP 429) "
+            "even after retries — wait for its quota to reset",
+        ),
+        (
+            HTTPError(_JUDGE, 503, "Unavailable", {}, None),  # type: ignore[arg-type]
+            f"endpoint {_JUDGE} (evaluators.llm_judge) returned HTTP 503",
+        ),
+        (
             URLError("connection refused"),
             f"could not reach endpoint {_JUDGE} (evaluators.llm_judge)",
         ),

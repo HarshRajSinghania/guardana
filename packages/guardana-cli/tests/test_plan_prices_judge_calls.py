@@ -10,9 +10,12 @@ from collections.abc import Sequence
 from pathlib import Path
 
 import guardana.cli._endpoint as endpoint_module
+import guardana.cli._evaluators as evaluators_module
 import pytest
 from guardana.cli.exit_codes import ExitCode
 from guardana.cli.main import app
+from guardana.core.evaluator.llm_judge import LlmJudgeEvaluator
+from guardana.core.evaluator.reference_judge import ReferenceJudgeEvaluator
 from guardana.core.target import ChatMessage
 from guardana.core.target.endpoint import ChatReply
 from jsonschema import Draft202012Validator
@@ -60,9 +63,17 @@ def _rules(tmp_path: Path, *, cases: int, evaluator: str, expect: dict[str, obje
     """A rules directory holding one suite of `cases` cases graded by `evaluator`."""
     rules = tmp_path / "rules"
     rules.mkdir()
-    header = {"guardana_dataset": 1, "name": "answers", "version": "1"}
+    _suite(rules, "answers", cases=cases, evaluator=evaluator, expect=expect)
+    return rules
+
+
+def _suite(
+    rules: Path, name: str, *, cases: int, evaluator: str, expect: dict[str, object]
+) -> None:
+    """Write suite `acme.quality.<name>` of `cases` cases graded by `evaluator` into `rules`."""
+    header = {"guardana_dataset": 1, "name": name, "version": "1"}
     lines = [json.dumps(header)] + [json.dumps({"input": f"Q{n}?"}) for n in range(cases)]
-    (rules / "answers.jsonl").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    (rules / f"{name}.jsonl").write_text("\n".join(lines) + "\n", encoding="utf-8")
     common = {
         "severity": "high",
         "target_kind": "endpoint",
@@ -73,13 +84,12 @@ def _rules(tmp_path: Path, *, cases: int, evaluator: str, expect: dict[str, obje
     }
     suite = {
         **common,
-        "id": "acme.quality.answers",
-        "title": "The assistant still answers",
-        "dataset": "./answers.jsonl",
+        "id": f"acme.quality.{name}",
+        "title": f"The assistant still answers {name}",
+        "dataset": f"./{name}.jsonl",
         "gate": {"min_pass_rate": 0.9, "min_sample": 1},
     }
-    (rules / "answers.yaml").write_text(json.dumps(suite), encoding="utf-8")
-    return rules
+    (rules / f"{name}.yaml").write_text(json.dumps(suite), encoding="utf-8")
 
 
 def _profile(tmp_path: Path, *extra: str) -> Path:
@@ -131,6 +141,55 @@ def test_a_judged_suite_is_priced_at_cases_times_trials_times_samples(
         {"evaluators": ["llm_judge", "reference_judge"], "max": 270}
     ]
     assert document["judge_calls"]["complete"] is True
+
+
+def _judge_and_guard(tmp_path: Path) -> tuple[Path, Path]:
+    """Suites graded by each config-built evaluator, under a profile with a judge and a guard."""
+    rules = tmp_path / "rules"
+    rules.mkdir()
+    _suite(rules, "goals", cases=4, evaluator="llm_judge", expect={"goal": "g"})
+    _suite(rules, "answers", cases=5, evaluator="reference_judge", expect={"reference": "42"})
+    _suite(rules, "safety", cases=6, evaluator="guard", expect={})
+    guard = "  guard: {endpoint: 'http://guard.test/v1', model: g}"
+    return rules, _profile(tmp_path, "evaluators:", _JUDGE, guard)
+
+
+def _meters(monkeypatch: pytest.MonkeyPatch, rules: Path, profile: Path) -> object:
+    code, output = _plan(
+        monkeypatch, "--rules", str(rules), "--profile", str(profile), "--format", "json"
+    )
+    assert code == ExitCode.OK, output
+    return json.loads(output)["judge_calls"]["meters"]
+
+
+def test_the_judge_and_the_guard_are_priced_on_the_meters_the_run_uses(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    rules, profile = _judge_and_guard(tmp_path)
+
+    assert _meters(monkeypatch, rules, profile) == [
+        {"evaluators": ["llm_judge", "reference_judge"], "max": (4 + 5) * 3},
+        {"evaluators": ["guard"], "max": 6},
+    ]
+
+
+def test_judges_on_one_meter_share_it_in_the_plan_whatever_identity_they_state(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    build = evaluators_module._build_judges
+
+    def drifted(cfg: object, judge: object) -> tuple[LlmJudgeEvaluator, ReferenceJudgeEvaluator]:
+        security, reference = build(cfg, judge)  # type: ignore[arg-type]
+        reference.judge_identity = "model=elsewhere; endpoint=000000000000"
+        return security, reference
+
+    monkeypatch.setattr(evaluators_module, "_build_judges", drifted)
+    rules, profile = _judge_and_guard(tmp_path)
+
+    assert _meters(monkeypatch, rules, profile) == [
+        {"evaluators": ["llm_judge", "reference_judge"], "max": (4 + 5) * 3},
+        {"evaluators": ["guard"], "max": 6},
+    ]
 
 
 def test_a_judge_over_the_request_budget_does_not_fit_though_the_target_does(

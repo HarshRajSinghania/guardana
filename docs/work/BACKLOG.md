@@ -144,6 +144,10 @@ Found on 2026-09-26 while building and reviewing the suites
   and "0 rule(s) would run" with exit 0.
 - **`dataset_integrity` misses indirect calls** (`loader = datasets.load_dataset; loader(...)`,
   `getattr(datasets, "load_dataset")(...)`), besides re-exports through the user's own module.
+- **`dataset_integrity` treats any `revision=` as pinned**: `revision="main"`, a branch name,
+  `None` or a variable suppress the lead, though only a commit SHA pins the data.
+- **A suite that never started because an earlier rule spent the budget leaves no record**,
+  like any unstarted rule; the run exits `6`, but its planned cases appear nowhere.
 - **A repeating rule stopped by the budget keeps no `trial_summary`, and the terminal counts
   only the cases it reached**: a 10-prompt rule at K=3 with `--max-requests 14` prints
   "5/5 case(s) measured". The run exits `6`; a suite in the same position now keeps its

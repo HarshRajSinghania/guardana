@@ -356,28 +356,20 @@ def plan_probe(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; thi
     _emit(build_plan(registry, prof, selected, judge_meters=judge_meters), format, selected.kind)
 
 
-def _wire_judges(registry: Registry, profile: Profile) -> tuple[frozenset[str], ...]:
+def _wire_judges(registry: Registry, profile: Profile) -> tuple[tuple[str, ...], ...]:
     """Register the judges `profile` configures, and group their ids by the meter they share.
 
     Wired exactly as `probe` wires them, which builds each judge endpoint and sends
-    nothing. Evaluators wired from one judge state one `judge_identity`, and that
-    judge's calls go through one meter, so the identity is the meter's key.
+    nothing. The groups are read off the meters the wiring built, so the plan prices
+    the calls on the meters a run would actually count them on.
     """
-    before = registry.evaluators()
     try:
-        wire_config_evaluators(registry, profile, profile.budgets)
+        meters = wire_config_evaluators(registry, profile, profile.budgets)
     except BudgetExhausted as exc:
         raise refuse_unenforceable_budget(exc) from exc
     except ProfileError as exc:
         raise refuse_invalid_profile(exc) from exc
-    meters: dict[tuple[str, str], set[str]] = {}
-    for evaluator_id, evaluator in registry.evaluators().items():
-        if before.get(evaluator_id) is evaluator:
-            continue
-        identity = evaluator.judge_identity
-        key = ("identity", identity) if identity is not None else ("evaluator", evaluator_id)
-        meters.setdefault(key, set()).add(evaluator_id)
-    return tuple(frozenset(ids) for ids in meters.values())
+    return tuple(meter.evaluators for meter in meters.meters)
 
 
 def _plan_scan_path(path: Path | None, excludes: tuple[str, ...]) -> ArtifactTarget:

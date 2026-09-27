@@ -73,6 +73,29 @@ def _rate_limit_advice(accepts: Collection[EndpointFlag]) -> str:
     return "wait for the quota to reset"
 
 
+def http_status_problem(
+    status: int, *, where: str, sender: str, rate_limited_remedy: str, rejected_remedy: str
+) -> str:
+    """Say what an HTTP error status from `where` means, with the remedy for its class.
+
+    `sender` names who was sending (the probe, the judge). A 4xx reads apart from a
+    5xx because a rejected request usually means a wrong key or body, not a down
+    endpoint.
+    """
+    if status == _HTTP_RATE_LIMITED:
+        # Reaching here means the retries were already exhausted, so this is a
+        # sustained limit rather than a blip. Naming the knob beats the generic
+        # 4xx advice, which would send someone to check an auth header that is
+        # working fine.
+        return (
+            f"{where} kept rate-limiting {sender} (HTTP 429) even after retries — "
+            f"{rate_limited_remedy}"
+        )
+    if _HTTP_CLIENT_ERROR <= status < _HTTP_SERVER_ERROR:
+        return f"{where} rejected the request (HTTP {status}) — {rejected_remedy}"
+    return f"{where} returned HTTP {status}"
+
+
 def run_against_endpoint(
     url: str,
     action: Callable[[], T],
@@ -99,22 +122,13 @@ def run_against_endpoint(
         typer.echo(f"error: {exc}", err=True)
         raise typer.Exit(code=ExitCode.TARGET_UNAVAILABLE) from exc
     except HTTPError as exc:
-        if exc.code == _HTTP_RATE_LIMITED:
-            # Reaching here means the retries were already exhausted, so this is a
-            # sustained limit rather than a blip. Naming the knob beats the generic
-            # 4xx advice, which would send someone to check an auth header that is
-            # working fine.
-            message = (
-                f"endpoint {url} kept rate-limiting the probe (HTTP 429) even after retries — "
-                f"{_rate_limit_advice(accepts)}"
-            )
-        elif _HTTP_CLIENT_ERROR <= exc.code < _HTTP_SERVER_ERROR:
-            message = (
-                f"endpoint {url} rejected the request (HTTP {exc.code}) — "
-                f"check the auth header / body{_auth_advice(accepts)}"
-            )
-        else:
-            message = f"endpoint {url} returned HTTP {exc.code}"
+        message = http_status_problem(
+            exc.code,
+            where=f"endpoint {url}",
+            sender="the probe",
+            rate_limited_remedy=_rate_limit_advice(accepts),
+            rejected_remedy=f"check the auth header / body{_auth_advice(accepts)}",
+        )
         typer.echo(f"error: {message}", err=True)
         raise typer.Exit(code=ExitCode.TARGET_UNAVAILABLE) from exc
     except (URLError, OSError, EndpointError) as exc:

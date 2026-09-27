@@ -16,14 +16,17 @@ from typing import Annotated
 
 import typer
 from guardana.cli._evaluators import wire_config_evaluators
+from guardana.cli._exit import refuse_invalid_profile, refuse_unenforceable_budget
 from guardana.cli._plugins import resolve_trust, warn_about_load_errors
 from guardana.cli._profile import resolve_profile
 from guardana.cli._rules_loading import load_custom_rules
 from guardana.cli._run_meta import calibrations_or_exit
 from guardana.cli.exit_codes import ExitCode
+from guardana.core.budget import BudgetExhausted
 from guardana.core.calibration.corpus import dump_corpus
 from guardana.core.calibration.sample import CalibrationSample
 from guardana.core.exchange import Exchange
+from guardana.core.profile import ProfileError
 from guardana.core.registry import Registry
 from guardana.core.report import CheckError
 from guardana.core.rule import FixtureOutcome, Rule, RuleContext, RuleFixture
@@ -76,7 +79,12 @@ def run_fixtures(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; t
     prof = resolve_profile(profile, None)
     registry = Registry.discover(resolve_trust(plugins, allow_plugin, no_plugins=False))
     load_custom_rules(registry, prof, rules)
-    wire_config_evaluators(registry, prof, budgets=prof.budgets)
+    try:
+        wire_config_evaluators(registry, prof, budgets=prof.budgets)
+    except BudgetExhausted as exc:
+        raise refuse_unenforceable_budget(exc) from exc
+    except ProfileError as exc:
+        raise refuse_invalid_profile(exc) from exc
     warn_about_load_errors(registry, what="rule")
     calibrations = {key: value.as_record() for key, value in calibrations_or_exit(prof).items()}
 
