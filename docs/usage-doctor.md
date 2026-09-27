@@ -18,10 +18,10 @@ guardana config explain
 ## `doctor` — what this installation is
 
 ```text
-✓ guardana-core: 0.29.0
-✓ guardana-rules: 0.29.0
-✓ guardana-cli: 0.29.0
-✓ guardana-report: 0.29.0
+✓ guardana-core: 0.30.0
+✓ guardana-rules: 0.30.0
+✓ guardana-cli: 0.30.0
+✓ guardana-report: 0.30.0
 ✓ rules discovered: 51
 ✓ evaluators discovered: 10
 ✓ target schemes: none (installed targets are Python-only)

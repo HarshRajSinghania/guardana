@@ -127,7 +127,7 @@ jobs:
       security-events: write   # to upload SARIF
     steps:
       - uses: actions/checkout@v4
-      - uses: guardana/guardana@v0.29   # moving tag → latest 0.29.x
+      - uses: guardana/guardana@v0.30   # moving tag → latest 0.30.x
         # with:
         #   args: --preset ci --baseline guardana-baseline.yaml
 ```

@@ -24,16 +24,9 @@ explains this order.
 7. Results explain their source, coverage, execution cost and comparability.
 8. The collector is optional; local files and Python deliver independent value.
 
-## What ships today (0.29.0)
+## What ships today (0.30.0)
 
-The current release is beta. It provides offline artifact scanning, controlled endpoint
-and MCP probing with repeated trials, recorded-trace analysis, regression comparison,
-policy and baseline gates, extension APIs with scaffolding for a new pack, and an
-optional authenticated PostgreSQL-backed collector. Quality suites grade versioned
-datasets supplied by the team and gate their pass rates. Judge-graded trials and suite
-pass rates are corrected for the judge's measured error when a matching calibration
-exists; otherwise the report says so. See [FEATURES.md](FEATURES.md) for the concise
-overview and [Product status](docs/product-status.md) for limitations.
+This beta provides offline artifact scanning, repeated controlled endpoint and MCP probes, recorded-trace analysis, regression diffs, policy and baseline gates, extension APIs and pack scaffolding, and an optional authenticated PostgreSQL collector. Quality suites grade versioned team datasets and gate pass rates; stopped or raised suites retain total and measured case counts, appearing as JUnit errors. Plans price judge calls against budgets; saved runs log judge usage and budget stops. Agent checks catch canary leaks across turns, require payload proof and argument allowlists, and never pass a truncated run. Judge-graded suites and judge-error correction are experimental; matching calibrations correct trial/suite rates; reports flag their absence. See [FEATURES.md](FEATURES.md) and [Product status](docs/product-status.md).
 
 ## Now: first value and an extensible data workflow
 
