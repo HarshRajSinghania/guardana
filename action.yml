@@ -46,7 +46,7 @@ runs:
       # this one calls is a moving tag inside every workflow that calls *this* one:
       # a compromised `v7` would run in other people's pipelines under Guardana's
       # name, which is the supply-chain risk this project scans for.
-      uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+      uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
 
     - name: Run Guardana scan
       id: scan
@@ -90,7 +90,7 @@ runs:
 
     - name: Upload SARIF to code scanning
       if: ${{ inputs.upload-sarif == 'true' && always() }}
-      uses: github/codeql-action/upload-sarif@b96794f015dfd88f77b49b1c93e0fa7110f94c63 # v4
+      uses: github/codeql-action/upload-sarif@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4
       with:
         sarif_file: ${{ inputs.sarif-file }}
 
