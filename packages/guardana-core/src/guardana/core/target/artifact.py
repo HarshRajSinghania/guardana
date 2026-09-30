@@ -168,9 +168,13 @@ class ArtifactTarget(Target):
         it for the target's lifetime also makes the scan self-consistent: every rule
         sees the same tree, rather than whichever files existed when it happened to
         run.
+
+        Suffixes compare case-insensitively, as the inventory classifies them: a
+        loader opens `model.PKL` exactly as it opens `model.pkl`.
         """
+        wanted = None if suffixes is None else {suffix.lower() for suffix in suffixes}
         for path in self._listing():
-            if suffixes is None or path.suffix in suffixes:
+            if wanted is None or path.suffix.lower() in wanted:
                 yield path
 
     def _listing(self) -> tuple[Path, ...]:

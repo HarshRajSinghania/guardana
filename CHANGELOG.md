@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **A model file with a capitalised extension scanned clean.** Artifact rules selected files by a case-sensitive suffix while the inventory lowercased it, so `model.PKL`, `.Pt` or `.CKPT` holding a pickle that calls `os.system` was listed as an observed component, read by no rule, and passed with exit `0`; a corrupt `.ONNX` printed "No findings" instead of UNVERIFIED. Every rule's suffix selection now ignores case, and a test runs each built-in artifact rule over a capitalised copy of a file it flags. A `.pth` file, which the inventory lists as a PyTorch model, was read by no rule either; `guardana.supply_chain.pickle_opcode` now reads it like `.pt`.
+
 ### Added
 
 - **guardana.dev answers the icon and `security.txt` requests browsers and scanners make.** `/favicon.ico` (16, 32 and 48 px), `/apple-touch-icon.png` and `/apple-touch-icon-precomposed.png` (180 px, square corners because iOS masks the icon itself) are rendered from `site/favicon.svg` by `scripts/generate_well_known.py` with the standard library only. `/.well-known/security.txt` (RFC 9116) takes its contacts from the "Reporting a vulnerability" section of `SECURITY.md`. Its `Expires` is generated: a release refreshes it to 180 days ahead once it is under 90 days away, and `--check` fails under 30 days or beyond a year. The check compares icons by pixels, so another zlib build does not make them stale.

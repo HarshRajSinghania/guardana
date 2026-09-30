@@ -147,11 +147,11 @@ class ModelFormatRule(ArtifactRule):
             yield from self._scan(path)
 
     def _scan(self, path: Path) -> Iterator[Finding]:
-        whole_file_detector = _WHOLE_FILE_DETECTORS.get(path.suffix)
+        whole_file_detector = _WHOLE_FILE_DETECTORS.get(path.suffix.lower())
         if whole_file_detector is not None:
             yield from whole_file_detector(path)
             return
         prefix = read_bytes_bounded(path)
         if prefix is None:
             return
-        yield from _CONTENT_DETECTORS[path.suffix](path, prefix[0])
+        yield from _CONTENT_DETECTORS[path.suffix.lower()](path, prefix[0])

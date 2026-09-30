@@ -24,7 +24,7 @@ from guardana.rules._base import ArtifactRule
 from guardana.rules.supply_chain._leads import unscanned_verdict
 from guardana.rules.supply_chain._reading import read_bytes_bounded
 
-_SUFFIXES = (".pkl", ".pickle", ".pt", ".ckpt", ".joblib", ".dill")
+_SUFFIXES = (".pkl", ".pickle", ".pt", ".pth", ".ckpt", ".joblib", ".dill")
 _ALLOWED_MODULES = frozenset({"torch", "numpy", "collections"})
 _BUILTIN_MODULES = frozenset({"builtins", "__builtin__"})
 _SAFE_BUILTINS = frozenset(

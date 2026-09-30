@@ -46,7 +46,7 @@ _PAYLOAD_RUN = 8
 
 
 def _is_instruction_file(path: Path) -> bool:
-    return path.suffix in _DOC_SUFFIXES or path.name.lower() in _RULE_FILE_NAMES
+    return path.suffix.lower() in _DOC_SUFFIXES or path.name.lower() in _RULE_FILE_NAMES
 
 
 def _longest_zero_width_run(text: str) -> int:

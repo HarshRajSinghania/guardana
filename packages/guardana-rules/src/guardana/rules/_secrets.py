@@ -162,4 +162,4 @@ _ENV_DOTFILE = re.compile(r"^\.env(\..+)?$")
 
 def is_scannable_text(path: Path) -> bool:
     """Whether a path is a text-like source/config file worth a secret scan."""
-    return path.suffix in TEXT_SUFFIXES or bool(_ENV_DOTFILE.match(path.name))
+    return path.suffix.lower() in TEXT_SUFFIXES or bool(_ENV_DOTFILE.match(path.name))

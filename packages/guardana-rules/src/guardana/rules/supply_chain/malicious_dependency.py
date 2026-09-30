@@ -50,7 +50,7 @@ _LOCK_VERSION = re.compile(r"""^\s*version\s*=\s*["']([^"']+)["']""")
 
 
 def _is_manifest(path: Path) -> bool:
-    return path.suffix in _MANIFEST_SUFFIXES or path.name in _MANIFEST_NAMES
+    return path.suffix.lower() in _MANIFEST_SUFFIXES or path.name in _MANIFEST_NAMES
 
 
 def _exact_pins(text: str) -> set[tuple[str, str]]:

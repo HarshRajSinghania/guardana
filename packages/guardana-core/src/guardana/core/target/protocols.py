@@ -36,7 +36,7 @@ class FileReader(Protocol):
     """
 
     def iter_files(self, suffixes: tuple[str, ...] | None = None) -> Iterator[Path]:
-        """Walk this target's files in a stable order, optionally filtered by suffix."""
+        """Walk this target's files in a stable order, optionally filtered by suffix, any case."""
         raise NotImplementedError
 
     def python_source(self, path: Path) -> "PythonSource | None":
