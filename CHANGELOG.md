@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.31.0] - 2026-09-30 — reply grading, redacted target URLs, and plans that catch run errors
+
 ### Added
 
 - **`Exchange.graded_from` and `Exchange.graded_replies`.** An evaluator can distinguish replies under grade from earlier conversation. `graded_from` gives the index in `messages` where graded turns begin (default `0`, every reply); an index outside the conversation raises. `graded_replies` returns every assistant reply from that point, including blank ones, so turn numbers in a rationale match the conversation.

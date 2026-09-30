@@ -24,7 +24,7 @@ explains this order.
 7. Results explain their source, coverage, execution cost and comparability.
 8. The collector is optional; local files and Python deliver independent value.
 
-## What ships today (0.30.0)
+## What ships today (0.31.0)
 
 This beta provides offline artifact scanning, repeated controlled endpoint and MCP probes, recorded-trace analysis, regression diffs, policy and baseline gates, extension APIs and pack scaffolding, and an optional authenticated PostgreSQL collector. Quality suites grade versioned team datasets and gate pass rates; stopped or raised suites retain total and measured case counts, appearing as JUnit errors. Plans price judge calls against budgets; saved runs log judge usage and budget stops. Agent checks catch canary leaks across turns, require payload proof and argument allowlists, and never pass a truncated run. Judge-graded suites and judge-error correction are experimental; matching calibrations correct trial/suite rates; reports flag their absence. Text checks read every reply of an agent run, and a scenario step grades the replies since the previous graded step. A credential in a target URL never reaches a saved run, a report or a message. A plan refuses a run that could not pass, and a crash or an interrupt exits with its documented code. See [FEATURES.md](FEATURES.md) and [Product status](docs/product-status.md).
 
