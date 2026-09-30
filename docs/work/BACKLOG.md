@@ -57,6 +57,39 @@ Found by the pre-ship review and the false-green hunt on 2026-09-30; each was re
 - **Observation dialect detection reads the document a second time**, bounded like the
   first read.
 
+## Found while preparing the OpenSSF badge (after 0.32.0)
+
+A code sweep for the `know_common_errors` attestation on 2026-09-30. The first three were
+reproduced; the rest are the sweep's reading with its anchors, not yet reproduced.
+
+- **`pack validate` and `pack lock` import packs that plugin trust refused.** Both read
+  manifests through `importlib.resources.files(module)` (`core/pack/discover.py:195-205`),
+  which imports the module, before they look at `registry.load_errors`
+  (`cli/pack.py:103`, `:184`). `--plugins builtins` still runs a third-party pack's
+  `__init__`, which `SECURITY.md` says never happens. On F2's path: read manifests through
+  `importlib.metadata` without importing, as B12's data-only packs will.
+- **`gh attestation verify oci://ghcr.io/guardana/guardana:0.32` answers 404.** The image
+  job holds `id-token` and `attestations` permissions but no `attest-build-provenance`
+  step; buildx's SBOM and provenance attestations are unsigned. `SECURITY.md` documents the
+  command. Add the step with `push-to-registry`, then check it on the first release.
+- **The dashboard sends no Content-Security-Policy and nothing tests its escaping** against a
+  crafted payload (`server/dashboard.py:179`); `docs/threat-model.md` T7 now says so.
+- The CLI prints model output and file names verbatim, so ANSI and other control
+  characters reach the terminal (`report/human.py:37`).
+- The endpoint, adapter and reporter HTTP clients follow redirects without the private-address
+  guard the MCP discovery client applies (`core/target/endpoint.py:231`).
+- `analyze-trace --write-trace` writes the trace unredacted (`cli/analyze_trace.py:208`).
+- A stdio MCP server's `readline()` has no size cap or timeout
+  (`core/target/_mcp_client.py:251`), and a zip's member count is uncapped
+  (`rules/supply_chain/pickle_opcode.py:294`).
+- A symlinked file inside a scanned directory is read even when it points outside the root
+  (bounded by the reader caps).
+- The dashboard cookie is `Secure` only when the app itself sees `https`
+  (`server/app.py:394`), and an unknown key prefix returns before hashing
+  (`server/auth.py:200`), which tells a caller whether a prefix exists.
+- `llm_judge` places the transcript into its prompt unfenced (`core/evaluator/llm_judge.py:26`).
+- Container base images are pinned by tag, not by digest (`deploy/docker/cli.Dockerfile:12`).
+
 ## Accepted designs the roadmap does not carry
 
 `proposed`, written as cycle 5 of the extensibility program (`docs/design/audit-0.22.md`),
