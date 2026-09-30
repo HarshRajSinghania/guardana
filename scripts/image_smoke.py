@@ -17,6 +17,7 @@ collector started exactly the way the image's `CMD` starts it.
 Needs Docker. CI runs it on every push.
 """
 
+import argparse
 import json
 import os
 import re
@@ -191,10 +192,19 @@ def _serves_http() -> str | None:
         _run(["docker", "rm", "--force", _CONTAINER])
 
 
-def main() -> int:
+def _parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument("--no-build", action="store_true", help="reuse the images already built")
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
     """Build both images, run every check, and report what failed."""
+    no_build: bool = _parser().parse_args(argv).no_build
     version = _version()
-    if "--no-build" not in sys.argv[1:]:
+    if not no_build:
         _build("cli.Dockerfile", _CLI_IMAGE, version)
         _build("collector.Dockerfile", _COLLECTOR_IMAGE, version)
 

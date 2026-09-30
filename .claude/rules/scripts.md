@@ -9,10 +9,9 @@ Catalogue: `docs/maintainers/ops-catalogue.md`. Why: `docs/maintainers/lessons.m
 - **Every script has a row in the catalogue** (what it writes, its safe mode, what it needs);
   `scripts/check_ops_catalogue.py` fails the gate otherwise. Add, rename or delete the row in the
   same change as the script.
-- **A script that writes has `--check` or `--dry-run`.** Four do not have an argument parser and
-  run for real when handed `--help`: `release.py` (fetches from origin, runs the gate),
-  `clean_install_check.py`, `generate_sbom.py`, `image_smoke.py`. Read their docstring; give
-  them `argparse` when you next touch them.
+- **A script that writes has `--check` or `--dry-run`, and `--help` that does nothing.** Every
+  script that writes, fetches, builds or installs parses its arguments with `argparse`;
+  `scripts/tests/test_script_parsers.py` proves `--help` has no side effect for those four.
 - **Generated files are never edited by hand**: `docs/generated/`, the built-in pack manifest,
   `site/docs/`, `site/llms.txt`, the counts in `site/index.html`. Every generator has `--check`
   and each is a CI gate.

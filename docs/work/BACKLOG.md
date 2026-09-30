@@ -91,14 +91,7 @@ Each was noticed by the lane working next to it and left alone rather than folde
 
 ## Tooling debt
 
-- Four scripts have no argument parser and run for real when handed `--help`:
-  `scripts/release.py` (fetches from origin, runs the whole gate), `scripts/clean_install_check.py`,
-  `scripts/generate_sbom.py`, `scripts/image_smoke.py`. A few lines of `argparse` each; the
-  `guard_hook.py` `ask` on `release.py` is the interim guard.
 - `site/og.png` is rendered by hand from `scripts/og_card.html` and nothing checks the two agree.
-- `.github/workflows/ci.yml` has no job for `scripts/check_claude_setup.py` and
-  `scripts/check_ops_catalogue.py`; they run locally through `scripts/ci_local.sh` only. Adding
-  them to the `test` job is a two-line change, deferred so the setup lands without touching CI.
 
 ## Judge-error correction (found shipping `docs/design/judge-error-correction.md`)
 

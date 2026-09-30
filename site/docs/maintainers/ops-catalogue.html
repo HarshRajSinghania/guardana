@@ -265,9 +265,6 @@ writing (<code>-</code> = nothing to guard, <code>NONE</code> = no such flag, th
 thing). <strong>Net</strong> = network it uses. <strong>Needs</strong> = tools or state it requires.</p>
 <p>⚠ prefixes a purpose that pushes, tags, publishes, deletes a tree, or reaches
 the network with no safe mode.</p>
-<p>Four scripts have no argument parser and run for real when handed <code>--help</code>:
-<code>release.py</code>, <code>clean_install_check.py</code>, <code>generate_sbom.py</code>, <code>image_smoke.py</code>.
-Read their docstring instead of asking them.</p>
 <h2 id="scripts--scripts">Scripts — <code>scripts/</code></h2>
 <h3 id="the-gate">The gate</h3>
 <p>Run through <code>scripts/ci_local.sh --quiet</code>; the gates below are what it runs, every one of
@@ -304,7 +301,7 @@ them on every CI push as well.</p>
 <td><code>clean_install_check.py</code></td>
 <td>install the five distributions into an empty venv and run the documented commands</td>
 <td><code>local</code> (temp venv outside the repo)</td>
-<td><code>NONE</code> (no <code>--help</code>)</td>
+<td><code>NONE</code> (<code>--help</code> only; <code>--keep</code> leaves the venv)</td>
 <td>package resolution</td>
 <td>~40 s</td>
 </tr>
@@ -320,7 +317,7 @@ them on every CI push as well.</p>
 <td><code>generate_sbom.py</code></td>
 <td>one CycloneDX SBOM per distribution, verified against its metadata</td>
 <td><code>local</code> (<code>sbom/</code>, gitignored)</td>
-<td><code>--check</code> (writes to a temp dir)</td>
+<td><code>--check</code> (writes to a temp dir), <code>--help</code></td>
 <td><code>uv export</code></td>
 <td>—</td>
 </tr>
@@ -328,7 +325,7 @@ them on every CI push as well.</p>
 <td><code>image_smoke.py</code></td>
 <td>⚠ build both container images and run them against the documented behaviour</td>
 <td><code>docker</code></td>
-<td><code>NONE</code> (no <code>--help</code>; <code>--no-build</code> reuses images)</td>
+<td><code>NONE</code> (<code>--help</code> only; <code>--no-build</code> reuses images)</td>
 <td>base-image pull</td>
 <td>docker running</td>
 </tr>
@@ -426,7 +423,7 @@ wrong before.</p>
 <td><code>release.py</code></td>
 <td>⚠ gate → bump → changelog roll → commit → push <code>main</code> → wait for green CI → push the tag (PyPI publish) → move the marketplace tag</td>
 <td><code>git</code> + <code>repo</code></td>
-<td><code>--dry-run</code> (no <code>--help</code>)</td>
+<td><code>--dry-run</code>, <code>--help</code></td>
 <td><code>git</code>, <code>gh</code>, PyPI via CI</td>
 <td><code>gh</code> authenticated, push rights</td>
 </tr>
@@ -498,10 +495,6 @@ wrong before.</p>
 </table></div>
 <h2 id="for-decision">For decision</h2>
 <ul>
-<li>The four scripts without an argument parser run for real on <code>--help</code>.
-<code>release.py</code> fetches from <code>origin</code> and runs the whole gate before it notices
-that <code>--help</code> is not a version. A five-line <code>argparse</code> in each would close
-this; it is a change to release tooling, so it waits for a maintainer's yes.</li>
 <li><code>og_card.html</code> is rendered by hand and <code>site/og.png</code> is committed; nothing
 checks that the two still agree.</li>
 </ul>

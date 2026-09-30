@@ -21,10 +21,6 @@ thing). **Net** = network it uses. **Needs** = tools or state it requires.
 ⚠ prefixes a purpose that pushes, tags, publishes, deletes a tree, or reaches
 the network with no safe mode.
 
-Four scripts have no argument parser and run for real when handed `--help`:
-`release.py`, `clean_install_check.py`, `generate_sbom.py`, `image_smoke.py`.
-Read their docstring instead of asking them.
-
 ## Scripts — `scripts/`
 
 ### The gate
@@ -36,10 +32,10 @@ them on every CI push as well.
 |---|---|---|---|---|---|
 | `ci_local.sh` | mirror every CI job, one verdict line per gate; `--fast` reports the slow jobs as NOT RUN | `local` (`cache/ci/`, `.coverage*`, `sbom/`) | `-` | `uv audit`, `uv sync --locked` | docker for PostgreSQL and the images |
 | `critical_coverage.py` | per-area coverage floors over a coverage JSON report | `-` | `-` | `-` | `.coverage.json` from pytest |
-| `clean_install_check.py` | install the five distributions into an empty venv and run the documented commands | `local` (temp venv outside the repo) | `NONE` (no `--help`) | package resolution | ~40 s |
+| `clean_install_check.py` | install the five distributions into an empty venv and run the documented commands | `local` (temp venv outside the repo) | `NONE` (`--help` only; `--keep` leaves the venv) | package resolution | ~40 s |
 | `new_pack_check.py` | gate: scaffold a pack, install it isolated, and prove it validates, grades its samples and would notice a manifest that lies | `local` (a temp venv and tree outside the repo) | `--help` | package resolution | `uv`, ~15 s |
-| `generate_sbom.py` | one CycloneDX SBOM per distribution, verified against its metadata | `local` (`sbom/`, gitignored) | `--check` (writes to a temp dir) | `uv export` | — |
-| `image_smoke.py` | ⚠ build both container images and run them against the documented behaviour | `docker` | `NONE` (no `--help`; `--no-build` reuses images) | base-image pull | docker running |
+| `generate_sbom.py` | one CycloneDX SBOM per distribution, verified against its metadata | `local` (`sbom/`, gitignored) | `--check` (writes to a temp dir), `--help` | `uv export` | — |
+| `image_smoke.py` | ⚠ build both container images and run them against the documented behaviour | `docker` | `NONE` (`--help` only; `--no-build` reuses images) | base-image pull | docker running |
 
 ### Documentation and the site
 
@@ -63,7 +59,7 @@ wrong before.
 | script | purpose | Writes | Safe mode | Net | Needs |
 |---|---|---|---|---|---|
 | `bump_version.py` | set all five versions, every inter-package pin, the Action and image pins, then `uv lock` | `repo` | `--dry-run` | `uv lock` | — |
-| `release.py` | ⚠ gate → bump → changelog roll → commit → push `main` → wait for green CI → push the tag (PyPI publish) → move the marketplace tag | `git` + `repo` | `--dry-run` (no `--help`) | `git`, `gh`, PyPI via CI | `gh` authenticated, push rights |
+| `release.py` | ⚠ gate → bump → changelog roll → commit → push `main` → wait for green CI → push the tag (PyPI publish) → move the marketplace tag | `git` + `repo` | `--dry-run`, `--help` | `git`, `gh`, PyPI via CI | `gh` authenticated, push rights |
 
 ### Agent tooling
 
@@ -80,9 +76,5 @@ Wired in `.claude/settings.json`; never invoked by hand except the checks.
 
 ## For decision
 
-- The four scripts without an argument parser run for real on `--help`.
-  `release.py` fetches from `origin` and runs the whole gate before it notices
-  that `--help` is not a version. A five-line `argparse` in each would close
-  this; it is a change to release tooling, so it waits for a maintainer's yes.
 - `og_card.html` is rendered by hand and `site/og.png` is committed; nothing
   checks that the two still agree.

@@ -18,6 +18,7 @@ Run it from a clean `main`. Only a maintainer (repo admin) can push the resultin
 `v*` tag — enforced by a tag protection ruleset — so a release is a deliberate act.
 """
 
+import argparse
 import datetime
 import re
 import subprocess
@@ -109,15 +110,27 @@ def _fail(message: str) -> NoReturn:
     sys.exit(f"release: {message}")
 
 
+def _parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument(
+        "part",
+        metavar="patch|minor|major|X.Y.Z",
+        help="the part to bump, or an explicit version (the current one for a first release)",
+    )
+    parser.add_argument("--dry-run", action="store_true", help="show the plan, change nothing")
+    return parser
+
+
 def main(argv: list[str]) -> None:
     """Parse the version argument and cut the release (or preview it with --dry-run)."""
-    args = [a for a in argv if a != "--dry-run"]
-    dry_run = "--dry-run" in argv
-    if len(args) != 1:
-        _fail("usage: release.py <patch|minor|major|X.Y.Z> [--dry-run]")
+    args = _parser().parse_args(argv)
+    dry_run: bool = args.dry_run
+    part: str = args.part
 
     current = _current_version()
-    version = _target_version(args[0], current)
+    version = _target_version(part, current)
     tag = f"v{version}"
     print(f"releasing {tag} (current {current}){' [dry run]' if dry_run else ''}")
 
@@ -125,7 +138,7 @@ def main(argv: list[str]) -> None:
     _gate()
 
     if version != current:
-        bump = ["uv", "run", "python", "scripts/bump_version.py", args[0]]
+        bump = ["uv", "run", "python", "scripts/bump_version.py", part]
         _run([*bump, "--dry-run"] if dry_run else bump)
     else:
         print("  version already at target — no bump (first release)")

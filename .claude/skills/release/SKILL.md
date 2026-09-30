@@ -27,8 +27,8 @@ So:
 5. only then push `vX.Y.Z` and the moving `vX.Y` (the hook asks before any tag push).
 
 `scripts/release.py <part>` does 1–5 in that order and refuses to push the tag when it cannot
-check CI — "could not tell" is treated as "no". It has **no `--help`**: `--help` is read as a
-version, it fetches from `origin` and runs the whole gate. Preview with `--dry-run`.
+check CI — "could not tell" is treated as "no". `--help` prints its usage and does nothing
+else. Preview with `--dry-run`.
 
 ## Before the bump
 

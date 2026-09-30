@@ -19,6 +19,7 @@ prevent, and it exits `0` while doing it.
 Run it before every tag. CI runs it on every push (`clean-install` job).
 """
 
+import argparse
 import os
 import re
 import shutil
@@ -631,9 +632,19 @@ def _report(check: Check, result: subprocess.CompletedProcess[str]) -> str | Non
     return None
 
 
-def main() -> int:
+def _parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument(
+        "--keep", action="store_true", help="leave the environment in place to inspect"
+    )
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
     """Install into an empty environment, run every check, and report what failed."""
-    keep = "--keep" in sys.argv[1:]
+    keep: bool = _parser().parse_args(argv).keep
     workspace = Path(tempfile.mkdtemp(prefix="guardana-clean-install-"))
     try:
         venv = workspace / ".venv"

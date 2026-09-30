@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Maintainer scripts parse their arguments.** `release.py`, `clean_install_check.py`, `generate_sbom.py` and `image_smoke.py` print usage on `--help` and do nothing else. Before, `release.py --help` fetched from origin and ran the whole gate. CI's `test` job now runs `check_ops_catalogue.py` and `check_claude_setup.py`, which only `scripts/ci_local.sh` ran.
+
 ## [0.30.0] - 2026-09-26 — a run accounts for every suite case and every judge call
 
 ### Added
