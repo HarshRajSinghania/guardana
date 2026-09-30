@@ -59,10 +59,15 @@ def test_the_published_files_are_the_ones_the_source_renders() -> None:
 def test_a_fresh_site_is_stale_until_written_and_current_after(tmp_path: Path) -> None:
     site, security_md = _site(tmp_path)
 
-    assert len(well_known.stale(site, security_md, _NOW)) == 4
-    assert len(well_known.write(site, security_md, _NOW)) == 4
-    assert well_known.stale(site, security_md, _NOW) == []
-    assert well_known.write(site, security_md, _NOW) == []
+    before = well_known.stale(site, security_md, _NOW)
+    first = well_known.write(site, security_md, _NOW)
+    after = well_known.stale(site, security_md, _NOW)
+    second = well_known.write(site, security_md, _NOW)
+
+    assert len(before) == 4
+    assert len(first) == 4
+    assert after == []
+    assert second == []
 
 
 def test_a_redrawn_icon_makes_every_rendered_file_stale(tmp_path: Path) -> None:
@@ -85,8 +90,10 @@ def test_a_file_with_the_same_pixels_but_other_bytes_is_left_alone(tmp_path: Pat
     original = touch.read_bytes()
     touch.write_bytes(_recompressed(original))
 
+    written = well_known.write(site, security_md, _NOW)
+
     assert touch.read_bytes() != original
-    assert well_known.write(site, security_md, _NOW) == []
+    assert written == []
     assert well_known.stale(site, security_md, _NOW) == []
 
 
@@ -116,11 +123,13 @@ def test_expires_is_kept_while_far_away_and_refreshed_when_close(tmp_path: Path)
     target = site / ".well-known" / "security.txt"
     first = target.read_text(encoding="utf-8")
 
-    assert well_known.write(site, security_md, _NOW + timedelta(days=80)) == []
-    assert target.read_text(encoding="utf-8") == first
-    assert well_known.write(site, security_md, _NOW + timedelta(days=100)) == [
-        ".well-known/security.txt"
-    ]
+    kept = well_known.write(site, security_md, _NOW + timedelta(days=80))
+    kept_text = target.read_text(encoding="utf-8")
+    refreshed = well_known.write(site, security_md, _NOW + timedelta(days=100))
+
+    assert kept == []
+    assert kept_text == first
+    assert refreshed == [".well-known/security.txt"]
     assert "Expires: 2027-07-07T00:00:00Z" in target.read_text(encoding="utf-8")
 
 
