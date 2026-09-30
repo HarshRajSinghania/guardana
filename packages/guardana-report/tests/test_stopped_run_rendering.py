@@ -15,7 +15,7 @@ from dataclasses import replace
 
 from guardana.core.assessment import Assessment
 from guardana.core.report import ScanResult, StopReason
-from guardana.report import HumanRenderer
+from guardana.report import HumanRenderer, get_renderer
 
 _STOPPED = ScanResult(
     findings=(),
@@ -90,3 +90,26 @@ def test_a_complete_run_states_its_case_count_plainly() -> None:
 
     assert "5/5 case(s) measured." in summary
     assert "before the run stopped" not in summary
+
+
+def test_a_stopped_run_is_an_error_in_junit_not_a_clean_suite() -> None:
+    # Dashboards read `errors="0" failures="0"` as a pass; the exit code alone is not
+    # what a JUnit consumer sees.
+    xml = get_renderer("junit").render(_STOPPED)
+
+    assert 'errors="1"' in xml
+    assert 'message="run stopped early"' in xml
+    assert "budget_exhausted" in xml
+
+
+def test_an_interrupted_run_is_an_error_in_junit_too() -> None:
+    interrupted = replace(_STOPPED, stopped_by=StopReason.INTERRUPTED)
+
+    assert 'message="run stopped early"' in get_renderer("junit").render(interrupted)
+
+
+def test_a_complete_run_has_no_stop_error_in_junit() -> None:
+    xml = get_renderer("junit").render(_COMPLETE)
+
+    assert 'errors="0"' in xml
+    assert "run stopped early" not in xml

@@ -110,6 +110,18 @@ class JUnitRenderer:
                 f'      <error message="some checks reached no verdict">{escape(detail)}</error>\n'
                 "    </testcase>"
             )
+        # A run the budget or an interrupt cut short did not finish its plan, whatever the
+        # checks that ran concluded; `errors="0"` over it reads as a complete pass.
+        if result.stopped_by is not None:
+            detail = (
+                f"the run stopped early ({result.stopped_by.value}) before finishing its plan; "
+                f"checks it never reached are not in this report"
+            )
+            cases.append(
+                '    <testcase name="guardana.stopped" classname="guardana.run">\n'
+                f'      <error message="run stopped early">{escape(detail)}</error>\n'
+                "    </testcase>"
+            )
         body = "\n".join(cases)
         skipped = len(unverified) + len(result.waived)
         errors = (
@@ -118,6 +130,7 @@ class JUnitRenderer:
             + declined
             + (1 if result.verified_nothing else 0)
             + (1 if unverified and not result.verified_nothing else 0)
+            + (1 if result.stopped_by is not None else 0)
         )
         return (
             '<?xml version="1.0" encoding="UTF-8"?>\n'
