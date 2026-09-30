@@ -23,18 +23,39 @@ No remote issues were created; the GitHub open-issue query returned zero.
 | B11 | Collector measurement envelope and storage | M3 | Independent envelope migration carries measurements, denominator, trials, uncertainty and missingness, with tenant isolation. |
 | B12 | Non-executing declarative packs | parallel lane, decided before F2 | Keep local ID validation. Decide whether a pack can ship checks that execute no Python. The public extension-ID service is dropped (direction audit). |
 | B13 | Public contributor tasks and adoption checks | F2/F6 | Prepare small issue descriptions from B04/B06/B08; record five developer sessions and two team integrations with consent. Publishing issues is separate maintainer work. |
-| B15 | Result-state matrix across renderers | Q1 | One shared test renders stopped, interrupted, verified-nothing, unverified, errored and shortfall runs through human, JSON, SARIF and JUnit and asserts they agree; JUnit's stopped run shipped in 0.31.0. |
-| B16 | Trace document digest over content | Q1 | `core/trace/load.py::_size_and_name` replaced by a digest of the bytes read in the one bounded pass; the saved run says which kind it carries; a same-size edit changes it. |
-| B17 | Strict release-gate preset | Q1 | A named preset fails on a skipped or unverified selected check (`fail_on_skipped`, `fail_on_inconclusive`); documented beside the existing presets; `plan` agrees with it. |
-| B18 | Detection limits per rule family | Q1 | A generated page separates tested invariants, heuristic leads and framework mappings per rule family, from rule metadata, never hand-written. |
 | B19 | MCP and A2A conformance fixtures | F7 | Both MCP revisions against independent server fixtures (authorization, task identity, cache scope, registry metadata, version change) and one A2A v1 fixture; unsupported capability recorded as missing coverage. |
 | B20 | Live retrieval pilot | F6 | One retrieval target catches a poisoned document and a tenant-filter failure without an uncontrolled side effect. |
 | B21 | Three-outcome fixtures for every built-in | 1.0 | The ratchet in `test_builtin_fixture_coverage.py` (12 of 51 at 0.31.0) reaches every rule that can decline. |
 | B22 | A time bound for `regex` | Later | A crafted reply can make an author's backtracking pattern run for a very long time; the 65,536-character bound limits input, not time. Any fix that adds a dependency needs principle 6's justification. |
 
-B01, B02, B03, B09 and B14 shipped in 0.30.0 (ROADMAP F1). The lockfile/gitleaks and
+B15, B16, B17 and B18 shipped in 0.32.0 (ROADMAP Q1). B01, B02, B03, B09 and B14 shipped in 0.30.0 (ROADMAP F1). The lockfile/gitleaks and
 script-parser items shipped in 0.31.0; ONNX metadata grading, ATLAS provenance and the other
 items remain open below. Before closing any item, rerun its reproduction.
+
+## Found while building Q1 (0.32.0)
+
+Found by the pre-ship review and the false-green hunt on 2026-09-30; each was reproduced.
+
+- **`scan` of an empty directory passes under every preset, `release` included.** Every
+  artifact rule runs over no file and concludes: exit `0`, JUnit `tests="19" errors="0"`,
+  SARIF `executionSuccessful: true`, and `plan scan` agrees. `docs/profiles.md` says so.
+  Recording a target that holds no file as a coverage shortfall changes the exit code of
+  every scan of an empty path, so it needs a decision, and a new shortfall kind is a run
+  schema change.
+- **A protocol the target does not speak is a capability skip.** A chat endpoint skips the
+  nine MCP rules, so `probe --preset release` is `indeterminate` against any single endpoint
+  unless a profile selects the rules it serves (documented). Decide whether an MCP rule
+  against a chat endpoint, or a chat rule against an MCP server, is `not_applicable`.
+- **`ConfigurationRef.profile_digest` is written by nothing**, so every saved run records
+  `null`; a narrowed profile named like a preset reads the same as the preset in a saved
+  run. Record the profile digest, or at least the `fail_on` switches.
+- **A trace reads as `content_prefix` when `MAX_SPANS` stops a read of a file the buffer
+  already held whole.** Conservative: `content` is claimed only after the raw read returned
+  end of file.
+- **Every Python built-in declared `invariant` is "invariant, not sampled"** on the
+  detection-limits page until it ships samples (B21).
+- **Observation dialect detection reads the document a second time**, bounded like the
+  first read.
 
 ## Accepted designs the roadmap does not carry
 
@@ -154,9 +175,9 @@ Found on 2026-09-26 while building and reviewing the suites
 An independent review (codex, read-only, 2026-09-30) found these; each was checked in the code.
 Its JUnit finding shipped in 0.31.0, and its two documentation findings were corrected.
 
-- **A trace's `document_digest` identifies name and size, not content** — B16, in Q1.
+- **A trace's `document_digest` identifies name and size, not content** — B16, shipped in 0.32.0.
 - **Built-in three-outcome fixtures are a ratchet at 12 of 51 rules** — B21, a 1.0 criterion.
-- **A strict CI policy is one profile away, not a preset** — B17, in Q1.
+- **A strict CI policy is one profile away, not a preset** — B17, shipped in 0.32.0.
 - Its claim that generated-documentation checks run only locally was refuted: pytest runs
   every generator's `--check`, and CI runs pytest.
 

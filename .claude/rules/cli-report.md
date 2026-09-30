@@ -32,3 +32,7 @@ Why: `docs/maintainers/lessons.md` § CLI and outputs. Contract: `docs/exit-code
 - `probe`, `monitor`, `target inspect` and `calibrate` contact whatever endpoint the user names;
   `plan probe` never does. A budget bounds requests before the first one is sent, and sending
   more than `--max-requests` is a defect that has shipped once.
+- **What makes a run not clean is decided once**, by `core.gate.open_questions` and the
+  recorded gate (`report/_refusal.py`). A renderer, `plan` or a new output reads those; a
+  condition list written in a renderer drifts from the gate. Pass `gate=` when there is no
+  manifest (`monitor`).

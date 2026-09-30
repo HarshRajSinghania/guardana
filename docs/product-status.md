@@ -32,7 +32,7 @@ so this page is maintained as carefully as the code.
 
 **Experimental:** Judge-graded suites use `answered` and `reference_judge`. Judge-error correction adjusts trial and suite rates using Rogan–Gladen and a calibration recorded on the team's own corpus with `guardana calibrate --record`. Without a usable calibration, the suite declines; it never passes on an uncorrected judge rate. Experimental means shipped, but behaviour, thresholds, and saved fields may change in a minor release.
 
-**Not released:** A strict release-gate preset and content digests for traces (Q1), an offline starter (F2), a supported Python result facade (F3), recorded-answer grading and regrading (F5), reproducible team checks on the real application (F6), protocol conformance fixtures (F7), and one redacted export with a webhook (F4) are roadmap items in `ROADMAP.md`. Pages under `docs/design/` describe designs, not shipped behaviour.
+**Not released:** An offline starter (F2), a supported Python result facade (F3), recorded-answer grading and regrading (F5), reproducible team checks on the real application (F6), protocol conformance fixtures (F7), and one redacted export with a webhook (F4) are roadmap items in `ROADMAP.md`. Pages under `docs/design/` describe designs, not shipped behaviour.
 
 ## Known limitations
 
@@ -48,6 +48,14 @@ test of *your* agent, with your framework, your prompts and your tool
 implementations.
 
 `guardana analyze-trace` grades a recorded trace exported from a running agent.
+
+### A release gate cannot see a target that holds nothing
+
+`--preset release` fails when a selected check is skipped or reaches no verdict, and a
+preset cannot narrow which rules run: a chat endpoint skips every MCP rule, so
+`probe --preset release` needs a profile that selects the rules the endpoint serves
+([profiles](profiles.md#release-complete-coverage-or-no-pass)). `scan` of an empty
+directory runs every artifact rule over no file and passes under every preset.
 
 ### `monitor` is scheduled, not passive
 

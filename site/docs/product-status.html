@@ -317,7 +317,7 @@ so this page is maintained as carefully as the code.</p>
 <h2 id="released-and-experimental">Released and experimental</h2>
 <p><strong>Released (beta):</strong> Quality suites use the deterministic assessors <code>exact_match</code>, <code>contains</code>, <code>regex</code>, <code>json_valid</code>, and <code>length</code>. They support versioned JSONL datasets (<code>name@version</code>), deterministic sampling (<code>sample: {size, seed}</code>), repeated trials per case, and a suite gate that passes, fails, or declines with <code>min_sample</code>. Runs save a suite summary in the run document and show a Measured block in the human report. JUnit output is available.</p>
 <p><strong>Experimental:</strong> Judge-graded suites use <code>answered</code> and <code>reference_judge</code>. Judge-error correction adjusts trial and suite rates using Rogan–Gladen and a calibration recorded on the team's own corpus with <code>guardana calibrate --record</code>. Without a usable calibration, the suite declines; it never passes on an uncorrected judge rate. Experimental means shipped, but behaviour, thresholds, and saved fields may change in a minor release.</p>
-<p><strong>Not released:</strong> A strict release-gate preset and content digests for traces (Q1), an offline starter (F2), a supported Python result facade (F3), recorded-answer grading and regrading (F5), reproducible team checks on the real application (F6), protocol conformance fixtures (F7), and one redacted export with a webhook (F4) are roadmap items in <code>ROADMAP.md</code>. Pages under <code>docs/design/</code> describe designs, not shipped behaviour.</p>
+<p><strong>Not released:</strong> An offline starter (F2), a supported Python result facade (F3), recorded-answer grading and regrading (F5), reproducible team checks on the real application (F6), protocol conformance fixtures (F7), and one redacted export with a webhook (F4) are roadmap items in <code>ROADMAP.md</code>. Pages under <code>docs/design/</code> describe designs, not shipped behaviour.</p>
 <h2 id="known-limitations">Known limitations</h2>
 <p>Stated plainly, because finding these out after adoption is worse than reading
 them now.</p>
@@ -328,6 +328,12 @@ anything. That is a genuine test of the model's judgement — and it is <strong>
 test of <em>your</em> agent, with your framework, your prompts and your tool
 implementations.</p>
 <p><code>guardana analyze-trace</code> grades a recorded trace exported from a running agent.</p>
+<h3 id="a-release-gate-cannot-see-a-target-that-holds-nothing">A release gate cannot see a target that holds nothing</h3>
+<p><code>--preset release</code> fails when a selected check is skipped or reaches no verdict, and a
+preset cannot narrow which rules run: a chat endpoint skips every MCP rule, so
+<code>probe --preset release</code> needs a profile that selects the rules the endpoint serves
+(<a href="profiles.html#release-complete-coverage-or-no-pass">profiles</a>). <code>scan</code> of an empty
+directory runs every artifact rule over no file and passes under every preset.</p>
 <h3 id="monitor-is-scheduled-not-passive"><code>monitor</code> is scheduled, not passive</h3>
 <p>It re-runs checks on an interval. It does not observe production traffic, cannot
 see what your real users are doing, and is not an inline control. Watching live
@@ -462,7 +468,7 @@ clean. It has told you it could not look.</p>
 </main>
 </div>
 <footer class="foot"><div class="bar">
-<span class="who">Guardana 0.31.0 · Apache-2.0 ·
+<span class="who">Guardana 0.32.0 · Apache-2.0 ·
 maintained by Konrad Karauda</span>
 <a href="https://github.com/guardana/guardana/blob/main/docs/product-status.md">Edit this page on GitHub</a>
 <a href="https://github.com/guardana/guardana">github.com/guardana</a>
