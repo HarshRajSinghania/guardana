@@ -126,7 +126,7 @@ def test_a_plan_does_not_price_a_rule_the_safety_ceiling_would_refuse() -> None:
 
     assert active.rules, "the fixture selected no rules at all"
     assert not passive.rules, "a passive run would refuse these, so a plan must not price them"
-    assert set(active.rules) <= set(passive.skipped)
+    assert set(active.rules) <= set(passive.skipped_rule_ids)
 
 
 @pytest.mark.parametrize("impact", list(Impact))

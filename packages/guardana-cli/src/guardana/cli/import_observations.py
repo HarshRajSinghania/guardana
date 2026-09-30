@@ -15,7 +15,7 @@ import typer
 from guardana.cli._formats import OutputFormat
 from guardana.cli._output import emit
 from guardana.cli._plugins import resolve_trust
-from guardana.cli._profile import resolve_profile
+from guardana.cli._profile import PRESET_HELP, resolve_profile
 from guardana.cli._reporting import check_reporter_url, submit_safely
 from guardana.cli._run_meta import build_manifest, detect_deployment
 from guardana.cli.exit_codes import ExitCode
@@ -51,9 +51,7 @@ def import_observations(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI 
         typer.Option("--target", help="What the other tool was pointed at, if the file omits it."),
     ] = None,
     profile: Annotated[Path | None, typer.Option(help="guardana.yaml path")] = None,
-    preset: Annotated[
-        str | None, typer.Option(help="Named policy preset: ci|pre-training|monitor")
-    ] = None,
+    preset: Annotated[str | None, typer.Option(help=PRESET_HELP)] = None,
     format: Annotated[
         OutputFormat, typer.Option(help="human|json|sarif|junit")
     ] = OutputFormat.human,

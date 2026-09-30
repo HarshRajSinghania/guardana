@@ -269,7 +269,7 @@ def test_the_repository_ships_no_dangerous_artifact():
 <p><strong>A target.</strong> Either a path to scan — the static, offline half — or a <code>Target</code>
 object for something live: an <code>EndpointTarget</code>, an <code>McpServerTarget</code>, or one of
 the <a href="#a-langchain-model">framework adapters</a> below.</p>
-<p><strong>A policy.</strong> <code>preset=&quot;ci&quot;</code> (or <code>&quot;pre-training&quot;</code>, <code>&quot;monitor&quot;</code>), or
+<p><strong>A policy.</strong> <code>preset=&quot;ci&quot;</code> (or <code>&quot;pre-training&quot;</code>, <code>&quot;monitor&quot;</code>, <code>&quot;release&quot;</code>), or
 <code>profile=Path(&quot;guardana.yaml&quot;)</code>, or a <code>Profile</code> built in code. Passing both a
 profile and a preset is a <code>ValueError</code>, exactly as <code>--profile</code> with <code>--preset</code> is
 a usage error on the command line. With neither, the default applies: every rule,

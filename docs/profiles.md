@@ -52,6 +52,7 @@ fail_on:
   min_confidence: 0.7           # 0.0-1.0; defaults to 0.0
   fail_on_inconclusive: false   # true: unverified checks also fail the gate
   fail_on_error: true           # false: a check that could not run stops blocking
+  fail_on_skipped: false        # true: a selected rule the target cannot run is a gap
 
 trace:                          # only ever governs `analyze-trace` / `trace inspect`
   require: [identity, approval, effects]   # optional; evidence this run demands. A
@@ -89,6 +90,7 @@ evaluators:                     # config-wired evaluators — see the section be
 | `fail_on.min_confidence` | float `0.0`–`1.0` | `0.0` | For findings that carry a `Verdict` (dynamic checks), the minimum confidence required to count toward the gate. Static findings have no verdict and always count once their severity threshold is met. |
 | `fail_on.fail_on_inconclusive` | bool | `false` | When `true`, a check that ran but could not reach a verdict (reported on the `unverified` channel) also fails the gate — the strict posture for a hard CI gate. **`severity` does not apply to it.** A severity answers how bad a problem is, and an unverified result is the absence of an answer, so any of them fails the gate once this is on. This is what makes "an artifact I could not read does not get promoted" expressible in one key. |
 | `fail_on.fail_on_error` | bool | **`true`** | A check that could not run *at all* — a plugin that failed to import, a custom rule file that would not load, a rule that raised — fails the gate. Note the default is the opposite of `fail_on_inconclusive`, and deliberately so: `inconclusive` is a verdict (the check ran and honestly could not tell), while an error means the check never happened while the result looked as though it had. Set `false` only if you would rather ship than fix the broken check. |
+| `fail_on.fail_on_skipped` | bool | `false` | When `true`, a selected rule that did not run because the target lacks a capability it needs, or because the safety mode refuses it, leaves the run `indeterminate`. A rule the policy excludes is not skipped, it is not selected; a security contract about another system is recorded as not applicable and does not count. |
 | `trace.require` | list of dimension names | `[]` | Evidence a trace run demands: `messages`, `tools`, `retrieval`, `memory`, `identity`, `delegation`, `consent`, `policy`, `approval`, `effects`, `handoff`. A producer that does not record one makes the run **`indeterminate`, unconditionally** — no `fail_on_*` governs it, because you asked for this coverage by name. An unknown dimension raises at load. Governs traces only: a shared config carrying it does not affect `scan` or `probe`. See [`usage-trace-inspect.md`](usage-trace-inspect.md). |
 | `contracts` | list of paths | `[]` | Security contracts to load — files, or directories of `.yaml`/`.yml`. Added to anything passed via the repeatable `--contract PATH` flag. Unlike a malformed *rule* file, a contract that will not load is a hard error: it is your own threat model, and a silently absent one is a gate you think you have. See [`usage-contracts.md`](usage-contracts.md). |
 | `trials` | integer ≥ 1 | `1` | How many independent attempts `probe`, `monitor` and `plan probe` make at each case of a rule that grades a sampled model reply. `--trials N` wins over it. A rule that does not repeat (a protocol check, a `stateful` scenario) makes one attempt whatever this says, and the run records that. Anything other than a whole number of at least 1 is refused at load. See [`usage-probe.md`](usage-probe.md#repeated-trials). |
@@ -180,12 +182,49 @@ layer runs is already decided by the command (`scan` runs the build-time rules,
 | `ci` | HIGH | The dev machine and CI — the standard gate. |
 | `pre-training` | MEDIUM | The training server: stricter, so leads (a dataset loading script, an unpinned model download) block a run before it consumes bad data. An unpinned dataset pull is a LOW lead and does not block. |
 | `monitor` | HIGH **and** inconclusive | A live monitor, so its own checks going dark (a downed judge, empty replies) is itself an alert. |
+| `release` | HIGH, **and** a selected check that was skipped or reached no verdict | A release gate: it passes only when every selected check ran and decided. |
 
 ```bash
 guardana scan .          --preset ci            # linter-style gate in CI
 guardana scan ./data     --preset pre-training  # strict pre-run gate on the training box
 guardana monitor --url … --model … --preset monitor
+guardana scan .          --preset release       # every selected check ran and decided
 ```
+
+A check that could not run at all (a rule file or plugin that did not load, a rule that
+raised) leaves the run `indeterminate` under every preset, because `fail_on_error` is on
+in all of them.
+
+### `release`: complete coverage or no pass
+
+`--preset release` fails on a HIGH finding, as `ci` does, and also leaves the run
+`indeterminate` (exit `2`) when a selected rule was skipped or a check reached no verdict.
+A preset cannot narrow which rules run. A chat endpoint skips every MCP rule and an MCP
+server every chat rule, an endpoint that does not call tools skips every tool rule, and a
+trace skips every rule needing a dimension its producer does not record. So
+`probe --preset release` is `indeterminate` against any single endpoint, and `plan probe`
+says so before sending anything. To gate a release on the rules your target can serve, write the same bar
+into a `guardana.yaml` and select those rules:
+
+```yaml
+name: release-chat-endpoint
+rules:
+  include: ["guardana.prompt.*", "guardana.output.*"]
+fail_on:
+  severity: high
+  fail_on_skipped: true
+  fail_on_inconclusive: true
+```
+
+`guardana plan scan` and `guardana plan probe` refuse such a run with exit `3` before it
+sends anything when a rule would be skipped, a rule file or plugin did not load, or no rule
+would run. Whether a check reaches a verdict is known only when it runs, so a plan that
+passes can still end `indeterminate`; an endpoint can also turn out not to support a
+capability it declared, and skip more than the plan listed.
+
+Coverage the target never offered is not a skip. `scan` of an empty directory runs every
+artifact rule over no file and passes under every preset, `release` included, so check
+that the path a build produced exists and holds what you meant to scan.
 
 Every preset makes **one attempt per case** (`trials: 1`), so choosing a preset never
 multiplies what a gate costs. Raise it with `--trials` or `trials:` where you mean to pay

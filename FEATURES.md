@@ -136,8 +136,9 @@ Saved runs retain the suite summary. Human reports show a Measured block, and JU
 ## Policy and repeatability
 
 `guardana.yaml` selects rules, severity thresholds, evaluator settings, budgets,
-required evidence, and redaction. Built-in presets cover CI, pre-training, and
-monitoring. Baselines are explicit, fingerprinted, and can expire; comparisons
+required evidence, and redaction. Built-in presets cover CI, pre-training,
+monitoring and release gates; `release` also fails when a selected check is skipped or
+reaches no verdict. Baselines are explicit, fingerprinted, and can expire; comparisons
 refuse changes that make the evidence incomparable.
 
 Rules map to versioned OWASP LLM, OWASP Agentic, OWASP MCP, OWASP ML, MITRE ATLAS,

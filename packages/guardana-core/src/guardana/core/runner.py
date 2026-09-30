@@ -1,5 +1,5 @@
 import threading
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Collection, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from urllib.error import URLError
 
@@ -16,7 +16,7 @@ from guardana.core.report.skipped import SkippedRule, SkipReason
 from guardana.core.rule.base import Rule, RuleContext
 from guardana.core.safety import permits
 from guardana.core.source import UnreadSource
-from guardana.core.target import EndpointError, Target, TargetKind
+from guardana.core.target import Capability, EndpointError, Target, TargetKind
 from guardana.core.target.protocols import FileReader, TraceReader, unmet_surfaces
 
 DEFAULT_ENDPOINT_CONCURRENCY = 1
@@ -122,34 +122,7 @@ class Runner:
         # the target that has to hold it. A target that cannot enforce it refuses
         # here rather than letting the run proceed under a ceiling nothing watches.
         target.apply_budgets(self.profile.budgets)
-        skipped: list[SkippedRule] = []
-        plan: list[Rule] = []
-        for rule in self.registry.rules():
-            meta = rule.meta
-            if meta.target_kind != target.kind or not self.profile.policy.matches(meta.id):
-                continue
-            refusal = safety_refusal(self.profile, rule)
-            if refusal is not None:
-                skipped.append(refusal)
-                continue
-            missing = meta.required_capabilities - target.capabilities()
-            if missing:
-                # The reason is recorded here because here is where it is known.
-                # Reconstructing it later, from a bare id, is guesswork.
-                names = tuple(sorted(str(c) for c in missing))
-                skipped.append(
-                    SkippedRule(
-                        rule_id=meta.id,
-                        reason=SkipReason.MISSING_CAPABILITY,
-                        missing=names,
-                        detail=(
-                            f"{target.ref} does not support {', '.join(names)}, "
-                            f"which {meta.id} needs"
-                        ),
-                    )
-                )
-                continue
-            plan.append(rule)
+        plan, skipped = select_rules(self.registry, self.profile, target)
 
         findings: list[Finding] = []
         unverified: list[Finding] = []
@@ -366,6 +339,32 @@ class Runner:
         )
 
 
+def select_rules(
+    registry: Registry, profile: Profile, target: Target
+) -> tuple[tuple[Rule, ...], tuple[SkippedRule, ...]]:
+    """Choose the rules a run of `profile` against `target` executes, and the ones it skips.
+
+    The one selection `Runner.run` and `guardana plan` both make: a filter added here
+    reaches the plan too, so the plan never describes a run that selects differently.
+    A rule of another target kind, or one the policy does not match, is neither.
+    """
+    capabilities = target.capabilities()
+    selected: list[Rule] = []
+    skipped: list[SkippedRule] = []
+    for rule in registry.rules():
+        meta = rule.meta
+        if meta.target_kind != target.kind or not profile.policy.matches(meta.id):
+            continue
+        refusal = safety_refusal(profile, rule) or capability_refusal(
+            rule, target.ref, capabilities
+        )
+        if refusal is not None:
+            skipped.append(refusal)
+            continue
+        selected.append(rule)
+    return tuple(selected), tuple(skipped)
+
+
 def safety_refusal(profile: Profile, rule: Rule) -> SkippedRule | None:
     """Refuse a rule that reaches further than `profile` permits, and say so.
 
@@ -399,6 +398,26 @@ def safety_refusal(profile: Profile, rule: Rule) -> SkippedRule | None:
             ),
         )
     return None
+
+
+def capability_refusal(
+    rule: Rule, target_ref: str, capabilities: Collection[Capability]
+) -> SkippedRule | None:
+    """Skip a rule whose required capabilities the target does not declare, and say which.
+
+    Shared with `guardana plan` for the reason `safety_refusal` is: the reason is recorded
+    where it is known, and a plan that words the same skip differently describes another run.
+    """
+    missing = rule.meta.required_capabilities - set(capabilities)
+    if not missing:
+        return None
+    names = tuple(sorted(str(c) for c in missing))
+    return SkippedRule(
+        rule_id=rule.meta.id,
+        reason=SkipReason.MISSING_CAPABILITY,
+        missing=names,
+        detail=f"{target_ref} does not support {', '.join(names)}, which {rule.meta.id} needs",
+    )
 
 
 def refused_by_this_run(profile: Profile, rule: Rule) -> bool:

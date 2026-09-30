@@ -305,3 +305,24 @@ def test_no_page_promises_a_milestone_that_has_already_shipped(pattern: re.Patte
         f"pages promising a milestone at or below the released {__version__}:\n  "
         + "\n  ".join(stale)
     )
+
+
+def test_every_list_of_presets_names_every_preset() -> None:
+    """A page listing the presets on one line lists all of them.
+
+    Keyed on the two names no other word collides with, so a sentence about CI or
+    monitoring is not mistaken for a list. `docs/work/` is work in flight and quotes
+    the old list on purpose.
+    """
+    from guardana.core.profile import PRESET_NAMES  # noqa: PLC0415 — the one test that needs it
+
+    stale = [
+        f"{path.relative_to(_repo())}:{number}"
+        for path in _product_prose()
+        if "work" not in path.relative_to(_repo()).parts
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1)
+        if "pre-training" in line
+        and "monitor" in line
+        and not all(name in line for name in PRESET_NAMES)
+    ]
+    assert not stale, f"preset lists missing one of {PRESET_NAMES}:\n  " + "\n  ".join(stale)

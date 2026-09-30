@@ -227,12 +227,34 @@ With `fail_on.fail_on_error: false` the errors are printed as a warning and the 
 keeps its exit code, as the run would pass them. The JSON document on stdout is the
 same either way.
 
+The plan decides with the gate's own list of what leaves a run unanswered, applied to the
+rules it would run, the rules it would skip and the errors it would record, so the plan and
+the run cannot disagree about a skip, an error or an empty selection. The
+[`release` preset](profiles.md#release-complete-coverage-or-no-pass) turns
+`fail_on_skipped` on.
+
 ## What it cannot tell you
 
 Capabilities are read from what the target declares locally, so an endpoint that
 turns out not to support tool calls will skip more rules than the plan predicted.
 Asking the endpoint would make this command cost money, which is the one thing it
 must not do. `guardana target inspect` is where that question belongs.
+
+Whether a check reaches a verdict is known only when it runs. With
+`fail_on_inconclusive` or `fail_on_skipped` on, as in `--preset release`, the plan says so
+on stderr, whether or not it refuses:
+
+```text
+note: fail_on_inconclusive is on — only the run can tell whether a check declines to reach a verdict, so this plan cannot promise a pass
+note: fail_on_skipped is on — an endpoint may turn out not to support what it declares, and the run would then skip more rules than this plan lists
+```
+
+The second note appears for `plan probe` only.
+
+A selected rule that grades with an evaluator nobody configured is refused by the plan in
+the words the run would record. The plan finds the evaluator through the rule's declared
+expectations, so a Python rule that reads an evaluator it does not declare is caught only
+when it runs.
 
 Tokens and wall time are not predicted. Nothing can know what a request will cost
 before it is answered, and a guessed figure is one a team would budget against.

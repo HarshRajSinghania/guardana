@@ -227,3 +227,58 @@ def test_a_plan_refuses_a_calibration_file_the_run_would_refuse(
 
     assert result.exit_code == ExitCode.INVALID_USAGE, result.output
     assert "missing-calibration.json" in _plain(result.output)
+
+
+_DECLINES_NOTE = "only the run can tell whether a check declines to reach a verdict"
+_ENDPOINT_NOTE = "an endpoint may turn out not to support what it declares"
+
+
+def test_the_release_preset_refuses_a_scan_plan_whose_rule_file_does_not_load(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    result = _plan(
+        monkeypatch, "scan", tmp_path, "--preset", "release", "--rules", str(_broken_rule(tmp_path))
+    )
+
+    assert result.exit_code == ExitCode.INVALID_USAGE, result.output
+    stderr = _plain(result.stderr)
+    assert "broken.yaml" in stderr
+    assert _DECLINES_NOTE in stderr
+
+
+def test_the_release_preset_passes_a_clean_scan_plan_and_still_says_what_it_cannot_promise(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    result = _plan(monkeypatch, "scan", tmp_path, "--preset", "release")
+
+    assert result.exit_code == ExitCode.OK, result.output
+    stderr = _plain(result.stderr)
+    assert _DECLINES_NOTE in stderr
+    assert _ENDPOINT_NOTE not in stderr, "a directory declares nothing it could fail to support"
+
+
+def test_the_release_preset_refuses_a_probe_plan_the_endpoint_cannot_cover(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # A chat endpoint declares no MCP surface, so every MCP rule is a skip the release
+    # gate refuses; the endpoint may still skip more at run time, which the note says.
+    result = _plan(monkeypatch, "probe", tmp_path, "--preset", "release")
+
+    assert result.exit_code == ExitCode.INVALID_USAGE, result.output
+    stderr = _plain(result.stderr)
+    assert "fail_on_skipped is on" in stderr
+    assert "guardana.mcp.cache_scope" in stderr
+    assert _ENDPOINT_NOTE in stderr
+    assert _DECLINES_NOTE in stderr
+
+
+@pytest.mark.parametrize("command", ["scan", "probe"])
+def test_a_preset_without_those_switches_prints_neither_note(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, command: str
+) -> None:
+    result = _plan(monkeypatch, command, tmp_path, "--preset", "ci")
+
+    assert result.exit_code == ExitCode.OK, result.output
+    stderr = _plain(result.stderr)
+    assert _DECLINES_NOTE not in stderr
+    assert _ENDPOINT_NOTE not in stderr

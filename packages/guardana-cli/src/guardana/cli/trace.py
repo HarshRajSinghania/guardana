@@ -14,7 +14,7 @@ from typing import Annotated
 
 import typer
 from guardana.cli._plugins import resolve_trust, warn_about_load_errors
-from guardana.cli._profile import resolve_profile
+from guardana.cli._profile import PRESET_HELP, resolve_profile
 from guardana.cli._rules_loading import load_custom_rules
 from guardana.cli._trace_input import load_trace_or_exit, trace_source
 from guardana.core.registry import Registry
@@ -43,9 +43,7 @@ def inspect(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; the co
         ),
     ] = None,
     profile: Annotated[Path | None, typer.Option(help="guardana.yaml path")] = None,
-    preset: Annotated[
-        str | None, typer.Option(help="Named policy preset: ci|pre-training|monitor")
-    ] = None,
+    preset: Annotated[str | None, typer.Option(help=PRESET_HELP)] = None,
     format: Annotated[InspectFormat, typer.Option(help="human|json")] = InspectFormat.human,
     plugins: Annotated[
         str,

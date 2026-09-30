@@ -7,7 +7,7 @@ from typing import Annotated
 
 import typer
 from guardana.cli._plugins import resolve_trust
-from guardana.cli._profile import resolve_profile
+from guardana.cli._profile import PRESET_HELP, resolve_profile
 from guardana.cli._rules_loading import load_custom_rules
 from guardana.cli._target_locator import resolve_target
 from guardana.cli.exit_codes import ExitCode
@@ -91,7 +91,7 @@ def create(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; this is
     path: Annotated[Path | None, typer.Argument(help="Directory to scan")] = None,
     output: Annotated[Path, typer.Option("--output", help="Where to write it")] = _DEFAULT,
     profile: Annotated[Path | None, typer.Option(help="guardana.yaml path")] = None,
-    preset: Annotated[str | None, typer.Option(help="Named policy preset")] = None,
+    preset: Annotated[str | None, typer.Option(help=PRESET_HELP)] = None,
     plugins: Annotated[
         str,
         typer.Option(help="Which installed plugins to load: all|builtins|allowlist|disabled"),
@@ -160,7 +160,7 @@ def update(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; this is
     path: Annotated[Path | None, typer.Argument(help="Directory to scan")] = None,
     file: Annotated[Path, typer.Option("--file", help="Baseline to refresh")] = _DEFAULT,
     profile: Annotated[Path | None, typer.Option(help="guardana.yaml path")] = None,
-    preset: Annotated[str | None, typer.Option(help="Named policy preset")] = None,
+    preset: Annotated[str | None, typer.Option(help=PRESET_HELP)] = None,
     plugins: Annotated[
         str,
         typer.Option(help="Which installed plugins to load: all|builtins|allowlist|disabled"),

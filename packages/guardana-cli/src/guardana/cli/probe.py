@@ -21,7 +21,7 @@ from guardana.cli._mcp_run import (
 from guardana.cli._output import emit, refuse_incomparable_output
 from guardana.cli._plugins import resolve_trust
 from guardana.cli._probe_run import Connection, run_probe, run_target_probe
-from guardana.cli._profile import resolve_profile
+from guardana.cli._profile import PRESET_HELP, resolve_profile
 from guardana.cli._reporting import check_reporter_url, submit_safely
 from guardana.cli._rules_loading import load_custom_rules
 from guardana.cli._run_meta import (
@@ -84,9 +84,7 @@ def probe(  # noqa: C901, PLR0912, PLR0913, PLR0915, PLR0917 — Typer surface, 
         Path | None, typer.Option("--system-prompt-file", help="File containing a system prompt")
     ] = None,
     profile: Annotated[Path | None, typer.Option(help="guardana.yaml path")] = None,
-    preset: Annotated[
-        str | None, typer.Option(help="Named policy preset: ci|pre-training|monitor")
-    ] = None,
+    preset: Annotated[str | None, typer.Option(help=PRESET_HELP)] = None,
     format: Annotated[
         OutputFormat, typer.Option(help="human|json|sarif|junit")
     ] = OutputFormat.human,

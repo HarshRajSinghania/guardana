@@ -10,10 +10,11 @@ from dataclasses import dataclass, field
 
 from guardana.core.budget import Budgets
 from guardana.core.evaluator.base import Evaluator
-from guardana.core.profile.model import Profile
+from guardana.core.gate import OpenQuestion, open_questions, refused_by
+from guardana.core.profile.model import FailOn, Profile
 from guardana.core.registry import Registry
-from guardana.core.report import CheckError
-from guardana.core.rule import Rule
+from guardana.core.report import CheckError, ScanResult, SkippedRule
+from guardana.core.rule import Rule, RuleLoadError
 from guardana.core.target import Target, TargetKind
 
 
@@ -67,7 +68,9 @@ class RunPlan:
     """
 
     rules: tuple[str, ...]
-    skipped: tuple[str, ...]
+    skipped: tuple[SkippedRule, ...]
+    """Each rule the run would skip, with the reason and detail the run would record."""
+
     unknown_cost: tuple[str, ...]
     min_requests: int
     max_requests: int
@@ -86,12 +89,31 @@ class RunPlan:
     """The judge calls the run would add, or None when this plan does not price them."""
 
     errors: tuple[CheckError, ...] = field(default=(), metadata={"in_document": False})
-    """The errors the run would record before its first rule, from `pre_run_errors`.
+    """The errors the run would record: those before its first rule, from `pre_run_errors`,
+    and one for each selected rule that grades with an evaluator nobody registered.
 
     Each is a check that would not grade what it claims to, so a run carrying one
     cannot pass while `fail_on_error` is on. Left out of the plan document: a command
     reports them through its exit code and its error stream.
     """
+
+    @property
+    def skipped_rule_ids(self) -> tuple[str, ...]:
+        """Just the ids of the rules the run would skip, as the plan document lists them."""
+        return tuple(skip.rule_id for skip in self.skipped)
+
+    def blockers(self, fail_on: FailOn) -> tuple[OpenQuestion, ...]:
+        """Return the open questions that refuse a pass under `fail_on` before any rule runs.
+
+        Read off a result of the planned rules with no finding, through the gate's own
+        `open_questions` and `refused_by`, so the plan and the gate cannot disagree about
+        a skip, an error or an empty selection. What only the run can reveal — a check
+        that declines, an endpoint that skips more than it declared — is not here.
+        """
+        foreseen = ScanResult(
+            findings=(), rules_run=self.rules, rules_skipped=self.skipped, errors=self.errors
+        )
+        return refused_by(open_questions(foreseen), fail_on)
 
     @property
     def requests_complete(self) -> bool:
@@ -133,43 +155,34 @@ def build_plan(
     budgeted judge meter, empty when no judge is configured. None leaves judge calls
     unpriced, for a run that wires no judge.
 
-    Selects exactly the way `Runner` does — same kind, same policy globs, same
-    safety ceiling, same capability check — so the plan describes the run that
-    would actually happen rather than an idealised one. The safety check and the
-    errors recorded before the first rule share the runner's implementation rather
-    than repeating it, because a plan that prices rules the run then refuses, or
-    lists errors the run does not record, is a plan for a different run. It differs in
+    Selects with the runner's own `select_rules` and reads the runner's own
+    `pre_run_errors`, so the plan describes the run that would actually happen rather
+    than an idealised one: a plan that prices rules the run then refuses, or lists
+    errors the run does not record, is a plan for a different run. It differs in
     one way, and the difference is stated rather than hidden: capabilities come
     from what the target *declares* without being asked, so an endpoint that turns
     out not to support tool calls will skip more rules than this predicted.
     """
     from guardana.core.runner import (  # noqa: PLC0415 — runner is downstream
         pre_run_errors,
-        safety_refusal,
+        select_rules,
     )
 
-    capabilities = target.capabilities()
     # Only an endpoint run samples a reply; a file plan given `trials: 5` in a shared
     # profile would otherwise list every artifact rule as declining something it
     # was never asked to do.
     repeats = target.kind is TargetKind.ENDPOINT
     selected: list[str] = []
     single_attempt: list[str] = []
-    skipped: list[str] = []
+    skipped: list[SkippedRule] = []
     unknown: list[str] = []
     graded: list[Rule] = []
     ceiling = 0
     floor = 0
-    for rule in registry.rules():
+    chosen, refused = select_rules(registry, profile, target)
+    skipped.extend(refused)
+    for rule in chosen:
         meta = rule.meta
-        if meta.target_kind != target.kind or not profile.policy.matches(meta.id):
-            continue
-        if safety_refusal(profile, rule) is not None:
-            skipped.append(meta.id)
-            continue
-        if meta.required_capabilities - capabilities:
-            skipped.append(meta.id)
-            continue
         selected.append(meta.id)
         graded.append(rule)
         if repeats and rule.trials_per_case < profile.trials:
@@ -196,8 +209,26 @@ def build_plan(
         judge=None
         if judge_meters is None
         else _price_judges(graded, registry.evaluators(), judge_meters),
-        errors=pre_run_errors(registry, target),
+        errors=(*pre_run_errors(registry, target), *_unknown_evaluators(graded, registry)),
     )
+
+
+def _unknown_evaluators(rules: Sequence[Rule], registry: Registry) -> tuple[CheckError, ...]:
+    """Predict the error each rule records when it starts and finds its evaluator missing.
+
+    The run records it only once the rule runs, so `pre_run_errors` cannot list it; worded
+    as the runner records it, so the plan names the error the saved run will carry.
+    """
+    registered = registry.evaluators()
+    errors: list[CheckError] = []
+    for rule in rules:
+        missing = next(
+            (eid for eid, _ in rule.declared_expectations() if eid not in registered), None
+        )
+        if missing is not None:
+            unknown = RuleLoadError(f"unknown evaluator: {missing!r}")
+            errors.append(CheckError.from_exception(rule.meta.id, "run", unknown))
+    return tuple(errors)
 
 
 def _price_judges(

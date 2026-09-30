@@ -226,7 +226,7 @@ class Profile:
 ```
 
 Loaded from a `guardana.yaml` file by `load_profile`, or from a named preset
-(`ci`/`pre-training`/`monitor`) via `--preset`. See
+(`ci`/`pre-training`/`monitor`/`release`) via `--preset`. See
 [`profiles.md`](profiles.md) for the full field-by-field schema and the presets.
 
 ## The Registry — uniform discovery

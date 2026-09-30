@@ -455,11 +455,27 @@ same function the run does, so the two never list different errors.</li>
 <p>With <code>fail_on.fail_on_error: false</code> the errors are printed as a warning and the plan
 keeps its exit code, as the run would pass them. The JSON document on stdout is the
 same either way.</p>
+<p>The plan decides with the gate's own list of what leaves a run unanswered, applied to the
+rules it would run, the rules it would skip and the errors it would record, so the plan and
+the run cannot disagree about a skip, an error or an empty selection. The
+<a href="profiles.html#release-complete-coverage-or-no-pass"><code>release</code> preset</a> turns
+<code>fail_on_skipped</code> on.</p>
 <h2 id="what-it-cannot-tell-you">What it cannot tell you</h2>
 <p>Capabilities are read from what the target declares locally, so an endpoint that
 turns out not to support tool calls will skip more rules than the plan predicted.
 Asking the endpoint would make this command cost money, which is the one thing it
 must not do. <code>guardana target inspect</code> is where that question belongs.</p>
+<p>Whether a check reaches a verdict is known only when it runs. With
+<code>fail_on_inconclusive</code> or <code>fail_on_skipped</code> on, as in <code>--preset release</code>, the plan says so
+on stderr, whether or not it refuses:</p>
+<pre><code class="language-text">note: fail_on_inconclusive is on — only the run can tell whether a check declines to reach a verdict, so this plan cannot promise a pass
+note: fail_on_skipped is on — an endpoint may turn out not to support what it declares, and the run would then skip more rules than this plan lists
+</code></pre>
+<p>The second note appears for <code>plan probe</code> only.</p>
+<p>A selected rule that grades with an evaluator nobody configured is refused by the plan in
+the words the run would record. The plan finds the evaluator through the rule's declared
+expectations, so a Python rule that reads an evaluator it does not declare is caught only
+when it runs.</p>
 <p>Tokens and wall time are not predicted. Nothing can know what a request will cost
 before it is answered, and a guessed figure is one a team would budget against.</p>
 <h2 id="see-also">See also</h2>

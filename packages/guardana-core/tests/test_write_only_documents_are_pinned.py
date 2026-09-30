@@ -25,6 +25,7 @@ from guardana.core.budget import Budgets
 from guardana.core.diff.measurement import MeasurementDelta
 from guardana.core.diff.model import Change, ChangeKind, CheckState, RunDiff
 from guardana.core.plan import JudgeMeterPlan, JudgePlan, RunPlan
+from guardana.core.report import SkippedRule, SkipReason
 from guardana.core.severity import Severity
 from guardana.report import get_diff_renderer
 from jsonschema import Draft202012Validator
@@ -78,7 +79,15 @@ def _plan() -> RunPlan:
     """A plan with every field carrying something, including the one that keeps it honest."""
     return RunPlan(
         rules=("guardana.prompt.system_prompt_leak.canary",),
-        skipped=("guardana.mcp.tool_poisoning",),
+        skipped=(
+            SkippedRule(
+                rule_id="guardana.mcp.tool_poisoning",
+                reason=SkipReason.MISSING_CAPABILITY,
+                missing=("mcp",),
+                detail="http://model.test does not support mcp, which "
+                "guardana.mcp.tool_poisoning needs",
+            ),
+        ),
         unknown_cost=("acme.agent.customer_data",),
         min_requests=4,
         max_requests=12,

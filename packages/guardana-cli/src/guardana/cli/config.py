@@ -6,7 +6,7 @@ from typing import Annotated
 
 import typer
 from guardana.cli._formats import OutputFormat
-from guardana.cli._profile import resolve_profile
+from guardana.cli._profile import PRESET_HELP, resolve_profile
 from guardana.cli.exit_codes import ExitCode
 from guardana.core.profile import Profile
 
@@ -66,7 +66,7 @@ def _resolved(profile: Profile) -> dict[str, object]:
 
 def validate(
     profile: Annotated[Path | None, typer.Option(help="guardana.yaml path")] = None,
-    preset: Annotated[str | None, typer.Option(help="Named policy preset")] = None,
+    preset: Annotated[str | None, typer.Option(help=PRESET_HELP)] = None,
 ) -> None:
     """Parse a profile and report the first thing wrong with it.
 
@@ -80,7 +80,7 @@ def validate(
 
 def explain(
     profile: Annotated[Path | None, typer.Option(help="guardana.yaml path")] = None,
-    preset: Annotated[str | None, typer.Option(help="Named policy preset")] = None,
+    preset: Annotated[str | None, typer.Option(help=PRESET_HELP)] = None,
     format: Annotated[OutputFormat, typer.Option(help="human|json")] = OutputFormat.human,
 ) -> None:
     """Print the settings actually in force, defaults included."""

@@ -27,7 +27,7 @@ def test_the_repository_ships_no_dangerous_artifact():
 object for something live: an `EndpointTarget`, an `McpServerTarget`, or one of
 the [framework adapters](#a-langchain-model) below.
 
-**A policy.** `preset="ci"` (or `"pre-training"`, `"monitor"`), or
+**A policy.** `preset="ci"` (or `"pre-training"`, `"monitor"`, `"release"`), or
 `profile=Path("guardana.yaml")`, or a `Profile` built in code. Passing both a
 profile and a preset is a `ValueError`, exactly as `--profile` with `--preset` is
 a usage error on the command line. With neither, the default applies: every rule,

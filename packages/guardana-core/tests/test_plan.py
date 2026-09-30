@@ -128,7 +128,7 @@ def test_a_plan_without_a_request_budget_never_reports_a_breach() -> None:
 def test_a_rule_the_target_cannot_satisfy_is_listed_as_skipped() -> None:
     plan = _plan(_Priced(), _NeedsChat())
 
-    assert plan.skipped == ("guardana.test.chat",)
+    assert plan.skipped_rule_ids == ("guardana.test.chat",)
     assert plan.max_requests == 4, "a skipped rule contributes nothing to the ceiling"
 
 

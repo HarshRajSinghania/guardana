@@ -19,13 +19,14 @@ from guardana.cli._exit import refuse_invalid_profile, refuse_unenforceable_budg
 from guardana.cli._formats import OutputFormat
 from guardana.cli._mcp_run import plan_target, require_chat_endpoint
 from guardana.cli._plugins import resolve_trust, warn_about_load_errors
-from guardana.cli._profile import resolve_profile
+from guardana.cli._profile import PRESET_HELP, resolve_profile
 from guardana.cli._rules_loading import load_custom_rules
 from guardana.cli._run_meta import calibrations_or_exit
 from guardana.cli._safety_flags import parse_impact
 from guardana.cli._target_locator import resolve_target
 from guardana.cli.exit_codes import ExitCode
 from guardana.core.budget import BudgetExhausted, Budgets
+from guardana.core.gate import OpenQuestion
 from guardana.core.plan import JudgePlan, RunPlan, build_plan
 from guardana.core.plugins import PluginTrust
 from guardana.core.profile import Profile, ProfileError
@@ -138,7 +139,7 @@ def _render_json(run_plan: RunPlan) -> str:
         {
             "schema_version": PLAN_SCHEMA_VERSION,
             "rules": list(run_plan.rules),
-            "skipped": list(run_plan.skipped),
+            "skipped": list(run_plan.skipped_rule_ids),
             "unknown_cost": list(run_plan.unknown_cost),
             "requests": {"min": run_plan.min_requests, "max": run_plan.max_requests},
             # Stated rather than inferred from an empty `unknown_cost`: a consumer
@@ -175,6 +176,7 @@ def _emit(
     else:
         typer.echo(_render_human(run_plan, kind))
     cannot_pass = _explain_what_the_run_cannot_pass(run_plan, profile, trust)
+    _note_what_only_the_run_can_tell(run_plan, profile, kind)
     if run_plan.exceeds_budget or cannot_pass:
         # Invalid configuration, not a failed run: nothing ran. Raising it here
         # means a pipeline finds out before it pays, which is the whole point.
@@ -186,15 +188,13 @@ def _explain_what_the_run_cannot_pass(
 ) -> bool:
     """Print one stderr line per reason the planned run would not pass; return whether it cannot.
 
-    Mirrors the run's gate: a run that selects no rule verified nothing, a rule it
-    would skip leaves it indeterminate while `fail_on_skipped` is on, and so does an
-    error recorded before its first rule while `fail_on_error` is on. With that switch
-    off the errors are still named, as a warning, and do not refuse.
+    Decided by `RunPlan.blockers`, which asks the gate itself: a run that selects no rule
+    verified nothing, a rule it would skip leaves it indeterminate while `fail_on_skipped`
+    is on, and so does an error recorded before its first rule while `fail_on_error` is on.
+    With that switch off the errors are still named, as a warning, and do not refuse.
     """
-    fail_on_error = profile.policy.fail_on.fail_on_error
-    no_rules = not run_plan.rules
-    skipped_gap = bool(run_plan.skipped) and profile.policy.fail_on.fail_on_skipped
-    cannot_pass = no_rules or skipped_gap or (bool(run_plan.errors) and fail_on_error)
+    blockers = run_plan.blockers(profile.policy.fail_on)
+    cannot_pass = bool(blockers)
     if not (cannot_pass or run_plan.errors):
         return False
     if cannot_pass:
@@ -205,15 +205,15 @@ def _explain_what_the_run_cannot_pass(
             f"fail_on_error is off, so the run would not fail on them:"
         )
     causes: list[str] = []
-    if no_rules:
+    if OpenQuestion.NOTHING_VERIFIED in blockers:
         causes.append(
             "  • no rule would run — the profile, the flags and the target select none, "
             "and a run that verifies nothing reports no verdict"
         )
-    if skipped_gap:
+    if OpenQuestion.SKIPPED in blockers:
+        gaps = [skip.rule_id for skip in run_plan.skipped if skip.is_coverage_gap]
         causes.append(
-            f"  • {len(run_plan.skipped)} rule(s) would be skipped and fail_on_skipped is on: "
-            f"{', '.join(run_plan.skipped)}"
+            f"  • {len(gaps)} rule(s) would be skipped and fail_on_skipped is on: {', '.join(gaps)}"
         )
     refusal = f"plugin trust is {trust.describe()}"
     for error in run_plan.errors:
@@ -229,13 +229,35 @@ def _explain_what_the_run_cannot_pass(
             causes.append(f"  • would not run — {where}")
     # One distribution refused in two entry-point groups is one cause.
     lines = [header, *dict.fromkeys(causes)]
-    if run_plan.errors and fail_on_error:
+    if OpenQuestion.ERRORS in blockers:
         lines.append(
             "  fail_on_error is on, so these errors leave the run indeterminate; "
             "fix them, or set fail_on.fail_on_error: false to accept them"
         )
     typer.echo("\n".join(lines), err=True)
     return cannot_pass
+
+
+def _note_what_only_the_run_can_tell(run_plan: RunPlan, profile: Profile, kind: TargetKind) -> None:
+    """Name each switch that can still refuse a run this plan found nothing against.
+
+    Printed whether or not the plan refuses: a plan that exits 0 under these switches
+    has checked what can be known before the run, not promised the run a pass.
+    """
+    fail_on = profile.policy.fail_on
+    notes: list[str] = []
+    if fail_on.fail_on_inconclusive and run_plan.rules:
+        notes.append(
+            "note: fail_on_inconclusive is on — only the run can tell whether a check "
+            "declines to reach a verdict, so this plan cannot promise a pass"
+        )
+    if fail_on.fail_on_skipped and kind is TargetKind.ENDPOINT:
+        notes.append(
+            "note: fail_on_skipped is on — an endpoint may turn out not to support what it "
+            "declares, and the run would then skip more rules than this plan lists"
+        )
+    if notes:
+        typer.echo("\n".join(notes), err=True)
 
 
 def _registry_for(profile: Profile, rules: list[Path], *, trust: PluginTrust) -> Registry:
@@ -249,9 +271,7 @@ def _registry_for(profile: Profile, rules: list[Path], *, trust: PluginTrust) ->
 def plan_scan(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; this is the command's surface
     path: Annotated[Path | None, typer.Argument(help="Directory that would be scanned")] = None,
     profile: Annotated[Path | None, typer.Option(help="guardana.yaml path")] = None,
-    preset: Annotated[
-        str | None, typer.Option(help="Named policy preset: ci|pre-training|monitor")
-    ] = None,
+    preset: Annotated[str | None, typer.Option(help=PRESET_HELP)] = None,
     format: Annotated[OutputFormat, typer.Option(help="human|json")] = OutputFormat.human,
     no_plugins: Annotated[
         bool, typer.Option("--no-plugins", help="Deprecated alias for --plugins disabled.")
@@ -310,9 +330,7 @@ def plan_probe(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; thi
         Path | None, typer.Option("--system-prompt-file", help="File containing a system prompt")
     ] = None,
     profile: Annotated[Path | None, typer.Option(help="guardana.yaml path")] = None,
-    preset: Annotated[
-        str | None, typer.Option(help="Named policy preset: ci|pre-training|monitor")
-    ] = None,
+    preset: Annotated[str | None, typer.Option(help=PRESET_HELP)] = None,
     format: Annotated[OutputFormat, typer.Option(help="human|json")] = OutputFormat.human,
     rules: Annotated[
         list[Path], typer.Option("--rules", help="Directory or file of custom YAML rules.")

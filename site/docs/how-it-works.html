@@ -319,7 +319,7 @@
 </ul>
 <p><code>scan</code> selects build rules. <code>probe</code> and <code>monitor</code> select runtime rules for live systems; <code>analyze-trace</code> selects runtime rules that read a recording.</p>
 <hr />
-<h2 id="5-the-three-moments-you-run-it--and-presets">5. The three moments you run it — and presets</h2>
+<h2 id="5-the-moments-you-run-it--and-presets">5. The moments you run it — and presets</h2>
 <div class="table-wrap"><table>
 <thead>
 <tr>
@@ -347,6 +347,12 @@
 <td><code>guardana monitor --url … --model …</code></td>
 <td><code>--preset monitor</code></td>
 <td>Fails on HIGH <em>and</em> on inconclusive, so the monitor going blind (judge down, empty replies) is itself an alert.</td>
+</tr>
+<tr>
+<td>Before a release</td>
+<td><code>guardana scan</code>, <code>probe</code> or <code>analyze-trace</code></td>
+<td><code>--preset release</code></td>
+<td>Fails on HIGH, on a selected check that was skipped and on one that reached no verdict, so a release is not approved on coverage the run did not get.</td>
 </tr>
 </tbody>
 </table></div>

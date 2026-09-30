@@ -18,7 +18,7 @@ from typing import Annotated
 
 import typer
 from guardana.cli._plugins import resolve_trust
-from guardana.cli._profile import resolve_profile
+from guardana.cli._profile import PRESET_HELP, resolve_profile
 from guardana.cli.exit_codes import ExitCode
 from guardana.core.profile import Profile
 from guardana.core.redaction import EvidenceMode
@@ -154,7 +154,7 @@ def _policy(profile: Profile) -> list[Check]:
 
 def doctor(
     profile: Annotated[Path | None, typer.Option(help="guardana.yaml path")] = None,
-    preset: Annotated[str | None, typer.Option(help="Named policy preset")] = None,
+    preset: Annotated[str | None, typer.Option(help=PRESET_HELP)] = None,
     plugins: Annotated[
         str, typer.Option(help="Which installed plugins to load: all|builtins|allowlist|disabled")
     ] = "all",

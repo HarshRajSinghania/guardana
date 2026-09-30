@@ -38,7 +38,7 @@ guardana probe (--url <base-url> --model <name> | --target <scheme://locator>) [
 | `--adapter PATH` | none | Adapter file mapping a **guarded product endpoint**'s custom request/response schema — see [Probing a guarded endpoint](#probing-a-guarded-endpoint). Overrides `--provider`. |
 | `--system-prompt-file PATH` | none | File containing the system prompt already deployed in front of the model, so non-canary rules probe the real configuration |
 | `--profile PATH` | none (built-in default profile) | Path to a `guardana.yaml` policy file |
-| `--preset [ci\|pre-training\|monitor]` | none | Named policy preset (mutually exclusive with `--profile`) — see [`profiles.md`](profiles.md#named-presets---preset) |
+| `--preset [ci\|pre-training\|monitor\|release]` | none | Named policy preset (mutually exclusive with `--profile`) — see [`profiles.md`](profiles.md#named-presets---preset) |
 | `--format [human\|json\|sarif\|junit]` | `human` | Output format |
 | `--rules PATH` | none | Directory or file of custom YAML rules; repeatable. Combined with the profile's `rules.paths` — see [`writing-rules.md`](writing-rules.md). A malformed rule file is a warning, never an abort. |
 | `--trials INTEGER` | `1` (or `trials:` in the profile) | Independent attempts per case for rules that grade a sampled reply — see [Repeated trials](#repeated-trials). Every preset uses `1`; we recommend `5` for a release gate, which is also garak's default number of generations per prompt |
