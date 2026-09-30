@@ -114,8 +114,10 @@ def test_side_by_side_groups_with_long_titles_still_fit_the_narrow_drawing() -> 
     [
         "<!-- diagram: docs/how-it-works.md 0 -->stale<!-- /diagram -->",
         "<!-- diagram: docs/how-it-works.md 1 -->stale<!-- /diagram-->",
-        "<!-- diagram: docs/how-it-works.md 1 -->a<!-- diagram: docs/how-it-works.md 1 -->"
-        "b<!-- /diagram -->",
+        (
+            "<!-- diagram: docs/how-it-works.md 1 -->a<!-- diagram: docs/how-it-works.md 1 -->"
+            "b<!-- /diagram -->"
+        ),
     ],
 )
 def test_a_malformed_diagram_marker_stops_the_landing_page_sync(page: str) -> None:
