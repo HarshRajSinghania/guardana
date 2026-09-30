@@ -46,7 +46,7 @@ A run keeps separate channels for:
 
 Unknown counts and costs remain unknown rather than becoming zero. Exhausted
 budgets, incomplete runs, unreadable artifacts, and incomparable baselines produce
-explicit non-success exit codes. An unverified result is never weighed against a
+explicit non-success exit codes; a crash exits `5` and an interrupt `7`. An unverified result is never weighed against a
 severity bar: how bad an unmeasured thing is has no answer, so `fail_on_inconclusive`
 governs all of them or none, and a check that went dark between two runs is a
 regression at any severity. Saved runs carry versions, policy identity,
@@ -54,7 +54,8 @@ target identity, protocol versions, usage, redaction mode, and rule provenance.
 Usage keeps the judges configured under `evaluators:` on their own meters, apart from
 the target. `guardana plan probe` prices those judge calls before the run, names what
 it cannot price, and exits `3` when the target or a judge meter could exceed the
-request budget.
+request budget, when no rule would run, when a rule it would skip or a calibration
+file would stop the run, or when the run would record an error before its first rule.
 
 Repeated trials send the same case as independent, fresh requests without shared
 conversation history or agent memory. Any failed attempt fails the case; if a grader
@@ -99,18 +100,18 @@ Every built-in rule id, severity, target, maturity, and framework mapping is in 
 
 Built-in evaluators are:
 
-- `keyword` for low-confidence refusal matching;
-- `canary` for deterministic planted-marker evidence in any assistant turn of the conversation or agent run;
+- `keyword` for low-confidence refusal matching; in an agent run a final refusal after a reply without one is `inconclusive`;
+- `canary` for deterministic planted-marker evidence in any reply under grade: every reply of an agent run or a whole conversation, and the replies a scenario step's grader has not read yet;
 - `tool_call` for actions and decoded argument values over a trajectory, including an exact allowlist per tool and proof that a payload was delivered;
 - `length` and `amplification` for resource-consumption signals;
 - `llm_judge` for configurable semantic grading;
 - `answered` for judging whether a reply refuses a benign task;
-- `contains` for required or forbidden case-sensitive substrings;
+- `contains` for required or forbidden case-sensitive substrings; a forbidden one fails in any reply under grade;
 - `exact_match` for comparison with a reference answer, with optional normalization;
 - `json_valid` for valid JSON and optional required keys;
-- `regex` for matching a bounded reply against a pattern;
+- `regex` for matching a bounded reply against a pattern; `must_match: false` fails in any reply under grade;
 - `reference_judge` for grading against a reference answer with a versioned rubric;
-- `guard` for an optional external safety classifier.
+- `guard` for an optional external safety classifier, given every reply under grade in one call.
 
 `guardana calibrate` measures evaluator confidence against labelled samples, including
 per-class sensitivity and specificity. A run can carry a corrected trials rate when its

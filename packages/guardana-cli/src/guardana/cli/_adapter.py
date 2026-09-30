@@ -4,7 +4,7 @@ from pathlib import Path
 
 import typer
 import yaml
-from guardana.core.target import AdapterConfig
+from guardana.core.target import AdapterConfig, private_url_parts
 
 _ENV_REF = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
 _ALLOWED_KEYS = frozenset({"url", "method", "headers", "body", "response_path"})
@@ -49,8 +49,16 @@ def load_adapter_config(path: Path, fallback_url: str) -> AdapterConfig:
     if not isinstance(raw_headers, dict):
         raise typer.BadParameter(f"invalid adapter {path}: 'headers' must be a mapping")
     headers = {str(key): _expand_env(str(value)) for key, value in raw_headers.items()}
+    url = str(raw.get("url") or fallback_url)
+    if "userinfo" in private_url_parts(url):
+        # urllib fails on userinfo rather than sending it, and the error it raises
+        # repeats the part of the address that holds the password.
+        raise typer.BadParameter(
+            f"invalid adapter {path}: its URL carries userinfo, which cannot be sent; "
+            f"put the credential in a header, e.g. one reading ${{VAR}} from the environment"
+        )
     return AdapterConfig(
-        url=str(raw.get("url") or fallback_url),
+        url=url,
         body=raw["body"],
         response_path=response_path,
         headers=headers,

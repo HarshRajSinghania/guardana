@@ -150,7 +150,7 @@ def test_a_proper_list_still_loads(tmp_path: Path) -> None:
 
     assert prof.policy.include == ("guardana.*",)
     assert prof.policy.exclude == ("*.experimental",)
-    assert prof.rule_paths == ("./my-rules",)
+    assert prof.rule_paths == (str(tmp_path / "my-rules"),)
 
 
 def test_fail_on_error_can_be_turned_off(tmp_path: Path) -> None:

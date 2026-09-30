@@ -21,6 +21,7 @@ from guardana.cli._mcp_run import plan_target, require_chat_endpoint
 from guardana.cli._plugins import resolve_trust, warn_about_load_errors
 from guardana.cli._profile import resolve_profile
 from guardana.cli._rules_loading import load_custom_rules
+from guardana.cli._run_meta import calibrations_or_exit
 from guardana.cli._safety_flags import parse_impact
 from guardana.cli._target_locator import resolve_target
 from guardana.cli.exit_codes import ExitCode
@@ -161,15 +162,80 @@ def _render_json(run_plan: RunPlan) -> str:
     )
 
 
-def _emit(run_plan: RunPlan, output_format: OutputFormat, kind: TargetKind) -> None:
+def _emit(
+    run_plan: RunPlan,
+    output_format: OutputFormat,
+    kind: TargetKind,
+    *,
+    profile: Profile,
+    trust: PluginTrust,
+) -> None:
     if output_format is OutputFormat.json:
         typer.echo(_render_json(run_plan))
     else:
         typer.echo(_render_human(run_plan, kind))
-    if run_plan.exceeds_budget:
+    cannot_pass = _explain_what_the_run_cannot_pass(run_plan, profile, trust)
+    if run_plan.exceeds_budget or cannot_pass:
         # Invalid configuration, not a failed run: nothing ran. Raising it here
         # means a pipeline finds out before it pays, which is the whole point.
         raise typer.Exit(code=ExitCode.INVALID_USAGE)
+
+
+def _explain_what_the_run_cannot_pass(
+    run_plan: RunPlan, profile: Profile, trust: PluginTrust
+) -> bool:
+    """Print one stderr line per reason the planned run would not pass; return whether it cannot.
+
+    Mirrors the run's gate: a run that selects no rule verified nothing, a rule it
+    would skip leaves it indeterminate while `fail_on_skipped` is on, and so does an
+    error recorded before its first rule while `fail_on_error` is on. With that switch
+    off the errors are still named, as a warning, and do not refuse.
+    """
+    fail_on_error = profile.policy.fail_on.fail_on_error
+    no_rules = not run_plan.rules
+    skipped_gap = bool(run_plan.skipped) and profile.policy.fail_on.fail_on_skipped
+    cannot_pass = no_rules or skipped_gap or (bool(run_plan.errors) and fail_on_error)
+    if not (cannot_pass or run_plan.errors):
+        return False
+    if cannot_pass:
+        header = "error: the run this plan describes cannot pass:"
+    else:
+        header = (
+            f"warning: {len(run_plan.errors)} check(s) would not run; "
+            f"fail_on_error is off, so the run would not fail on them:"
+        )
+    causes: list[str] = []
+    if no_rules:
+        causes.append(
+            "  • no rule would run — the profile, the flags and the target select none, "
+            "and a run that verifies nothing reports no verdict"
+        )
+    if skipped_gap:
+        causes.append(
+            f"  • {len(run_plan.skipped)} rule(s) would be skipped and fail_on_skipped is on: "
+            f"{', '.join(run_plan.skipped)}"
+        )
+    refusal = f"plugin trust is {trust.describe()}"
+    for error in run_plan.errors:
+        # A reason can span lines (a YAML parser's excerpt); the warning above keeps
+        # it whole, and a cause stays one line.
+        where = f"{error.source} ({error.stage}): {' '.join(error.reason.split())}"
+        if error.stage == "discovery" and error.reason.endswith(refusal):
+            causes.append(
+                f"  • plugin refused — {where}; load it with --plugins all, "
+                f"or --plugins allowlist --allow-plugin <distribution>"
+            )
+        else:
+            causes.append(f"  • would not run — {where}")
+    # One distribution refused in two entry-point groups is one cause.
+    lines = [header, *dict.fromkeys(causes)]
+    if run_plan.errors and fail_on_error:
+        lines.append(
+            "  fail_on_error is on, so these errors leave the run indeterminate; "
+            "fix them, or set fail_on.fail_on_error: false to accept them"
+        )
+    typer.echo("\n".join(lines), err=True)
+    return cannot_pass
 
 
 def _registry_for(profile: Profile, rules: list[Path], *, trust: PluginTrust) -> Registry:
@@ -213,6 +279,8 @@ def plan_scan(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; this
     """Report which rules a scan would run. A file scan sends no requests at all."""
     trust = resolve_trust(plugins, allow_plugin, no_plugins=no_plugins)
     prof = resolve_profile(profile, preset)
+    # Read as the run reads them: a calibration file that would stop the run stops the plan.
+    calibrations_or_exit(prof)
     if target is not None and path is not None:
         raise typer.BadParameter("pass either a path or --target, not both")
     registry = _registry_for(prof, rules, trust=trust)
@@ -223,7 +291,7 @@ def plan_scan(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; this
         kind=TargetKind.ARTIFACT,
         fallback=lambda: _plan_scan_path(path, prof.path_excludes),
     )
-    _emit(build_plan(registry, prof, selected), format, selected.kind)
+    _emit(build_plan(registry, prof, selected), format, selected.kind, profile=prof, trust=trust)
 
 
 def plan_probe(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; this is the command's surface
@@ -323,6 +391,7 @@ def plan_probe(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; thi
     """
     trust = resolve_trust(plugins, allow_plugin, no_plugins=False)
     prof = resolve_profile(profile, preset)
+    calibrations_or_exit(prof)
     prof = replace(
         prof,
         max_impact=parse_impact(safety),
@@ -353,7 +422,13 @@ def plan_probe(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; thi
         kind=TargetKind.ENDPOINT,
         fallback=lambda: _plan_probe_target(url, model, mcp, provider, system_prompt_file),
     )
-    _emit(build_plan(registry, prof, selected, judge_meters=judge_meters), format, selected.kind)
+    _emit(
+        build_plan(registry, prof, selected, judge_meters=judge_meters),
+        format,
+        selected.kind,
+        profile=prof,
+        trust=trust,
+    )
 
 
 def _wire_judges(registry: Registry, profile: Profile) -> tuple[tuple[str, ...], ...]:

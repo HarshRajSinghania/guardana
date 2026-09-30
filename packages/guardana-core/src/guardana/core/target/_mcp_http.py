@@ -25,6 +25,8 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import SplitResult, urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
+from guardana.core.target._url import display_url
+
 TIMEOUT_SECONDS = 30
 MAX_RESPONSE_BYTES = 4 * 1024 * 1024
 
@@ -91,7 +93,7 @@ class RedirectRefusedError(McpError):
     """Raised when a redirect points somewhere a client must not follow."""
 
     def __init__(self, url: str, reason: str) -> None:
-        super().__init__(f"refused to follow a redirect to {url}: {reason}")
+        super().__init__(f"refused to follow a redirect to {display_url(url)}: {reason}")
         self.url = url
         self.reason = reason
 
@@ -227,7 +229,7 @@ def send(
     """
     scheme = urlsplit(url).scheme
     if scheme not in _SAFE_SCHEMES:
-        raise McpError(f"unsupported URL scheme {scheme!r} in {url!r}: expected http(s)")
+        raise McpError("the MCP URL needs an http or https scheme")
     request = Request(url, data=body, headers=dict(headers or {}), method=method)  # noqa: S310
     opener = build_opener(_GuardedRedirect(alongside if alongside is not None else url))
     try:
@@ -246,7 +248,7 @@ def send(
             payload = b""
         return RawReply(status=error.code, headers=dict(error.headers.items()), body=payload)
     except (URLError, OSError) as exc:
-        raise McpError(f"could not reach {url}: {exc}") from exc
+        raise McpError(f"could not reach {display_url(url)}: {exc}") from exc
 
 
 def refusal_for(url: str, *, alongside: str) -> str | None:

@@ -206,6 +206,27 @@ configuration, found before the run rather than halfway through it:
 A token ceiling a judge's transport cannot enforce is refused with `3` too, the same
 way `probe` refuses it.
 
+## A run that could not pass
+
+The plan exits `3` as well when the run it describes could not pass, and says why
+on stderr, one line per cause:
+
+- **no rule would run** — the profile, the flags and the target select none, and a
+  run that verifies nothing reports no verdict;
+- **a rule it would skip while `fail_on.fail_on_skipped` is on** — a capability the
+  target does not declare, or a safety mode that refuses the rule;
+- **a file under `calibrations:` that would stop the run** — missing, unreadable, or
+  measuring an evaluator another file measures too;
+- **an error the run would record before its first rule** — a rule file that does not
+  load, a plugin the trust mode refuses (the line names `--plugins all` or
+  `--allow-plugin`), a rule whose `expect:` block its evaluator cannot grade, or a
+  capability the target declares without implementing. The plan reads these from the
+  same function the run does, so the two never list different errors.
+
+With `fail_on.fail_on_error: false` the errors are printed as a warning and the plan
+keeps its exit code, as the run would pass them. The JSON document on stdout is the
+same either way.
+
 ## What it cannot tell you
 
 Capabilities are read from what the target declares locally, so an endpoint that

@@ -297,7 +297,7 @@ behaviour.</p>
 </tr>
 <tr>
 <td>7</td>
-<td>run interrupted, partial evidence written</td>
+<td>run interrupted before it finished</td>
 </tr>
 </tbody>
 </table></div>
@@ -337,15 +337,17 @@ fix a red gate by lowering the budget until the run stops early. A stopped run i
 reported as stopped whatever its partial findings say, and <code>guardana diff</code> refuses
 to read the missing findings as an improvement.</p>
 <p><strong><code>4</code> is separate from <code>5</code>.</strong> An unreachable endpoint is the user's environment;
-an internal error is our defect. A judge configured under <code>evaluators:</code> that cannot be
+an internal error is our defect. A crash prints one line naming the exception type
+and exits <code>5</code>; the traceback is printed only with <code>GUARDANA_DEBUG=1</code>, because it can
+carry a URL or a payload from the run. A judge configured under <code>evaluators:</code> that cannot be
 reached or rejects the request is <code>4</code> too, and the message names the judge's block
 (<code>evaluators.llm_judge</code>), not the target. Conflating them sends bug reports to the wrong
 place and hides real bugs in a category people learn to ignore.</p>
 <p><strong><code>3</code> is usage, not policy.</strong> A malformed <code>guardana.yaml</code> must not look like a
 policy failure, or a typo in a config file reads as a security finding.</p>
-<p><strong><code>7</code> is honest partiality.</strong> Ctrl-C, or a timeout with evidence already written,
-is neither a pass nor a completed failure. The partial run is kept and the code
-says it is partial.</p>
+<p><strong><code>7</code> is honest partiality.</strong> Ctrl-C is neither a pass nor a completed failure.
+Nothing the command had not yet written is written afterwards, and the code says
+the run did not finish. Stopping <code>guardana monitor</code> with Ctrl-C exits <code>7</code> too.</p>
 <h2 id="which-commands-produce-which">Which commands produce which</h2>
 <p><code>scan</code>, <code>probe</code> and <code>monitor</code> can produce any of them. <code>diff</code> has no target to be
 unavailable, so <code>4</code> never occurs there; it uses <code>2</code> both for &quot;these runs cannot be

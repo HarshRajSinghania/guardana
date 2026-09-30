@@ -363,6 +363,8 @@ class MyEvaluator(Evaluator):
         # A blank reply is None too: a provider that answers with an empty string
         # (a content filter, a tool-call-only turn) said nothing to grade, and the
         # seam decides that once so every evaluator agrees;
+        # exchange.graded_replies is every assistant reply under grade, for a
+        # check of something that must never be said in any of them;
         # exchange.transcript is the whole conversation, for multi-turn goals.
         # expectation carries whatever the rule declared under `expect:`.
         if exchange.reply_text is None:
@@ -378,6 +380,14 @@ class MyEvaluator(Evaluator):
 <p>The fail-closed convention above is project law, not a style choice: an
 evaluator that cannot actually grade returns <code>&quot;inconclusive&quot;</code> (surfaced on
 the run's <code>unverified</code> channel), never a confident all-clear.</p>
+<p><code>Exchange.graded_from</code> is the index into <code>messages</code> where the turns under grade
+begin; the messages before it are context. It defaults to <code>0</code>, so an agent run
+or a whole conversation puts every reply under grade. A scenario step starts it
+after the last reply its grader read (the same evaluator and expectation), and a suite
+case or a calibration row after the turns it scripted, so text the model never said is
+never graded as its reply.
+A rule that builds an <code>Exchange</code> for part of a longer conversation sets it the same
+way; an index outside the conversation raises.</p>
 <p>Register it the same way as a rule:</p>
 <pre><code class="language-toml">[project.entry-points.&quot;guardana.evaluators&quot;]
 my_evaluators = &quot;acme_rules:provide_evaluators&quot;
@@ -516,6 +526,12 @@ class MyTarget(Target):
         # the runner turns these into `errors`: a check that did not run.
         return tuple(self._unread)
 </code></pre>
+<p><code>ref</code> is printed in messages and saved in the run document, SARIF and the collector
+envelope as it is. Guardana cleans the refs of its own targets and cannot clean yours:
+when a ref contains a URL, build it with <code>guardana.core.target.display_url</code>, which
+drops userinfo and the fragment and replaces a query with a digest placeholder, and
+never put a credential in it any other way. The digest keeps two targets that differ
+only by a query apart; it does not hide a short or guessable value.</p>
 <div class="table-wrap"><table>
 <thead>
 <tr>

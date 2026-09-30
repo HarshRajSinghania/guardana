@@ -156,6 +156,21 @@ ungraded scenario would drive turns and pass everything, so the loader
 rejects it. Scenarios load through every path single-turn YAML rules do
 (`--rules`, `rules.paths`, `provide_rules()`).
 
+#### Which replies a grade reads
+
+A step's `expect` grades the replies its grader has not read yet: the replies since
+the last step graded by the same evaluator against the same expectation — its own
+reply, and any earlier one that grader has not read. A leak is reported once, and a
+reply another evaluator already graded is still read by this one. A top-level `expect` and an agent run grade every reply the
+model gave. Within those replies, a check for something that must never be said fails
+on any of them — `canary`, `contains` with `contains_none`, `regex` with
+`must_match: false` — and `guard` classifies them together in one call. A check of the
+answer reads the final reply: `contains_all`, `contains_any`, `regex` with
+`must_match: true`, and the answer evaluators. `keyword` grades the final reply; in an
+agent run, where every reply answers the same task, it passes a final refusal only
+when every earlier reply refuses too, and is `inconclusive` otherwise. Replies after
+the last graded step are read only by a top-level `expect`.
+
 ### Agent runs: `task:` and `tools:` instead of `prompts:`
 
 A rule with a `task:` key is a **trajectory rule**: Guardana plays the agent

@@ -15,13 +15,15 @@ from pathlib import Path
 
 import typer
 from guardana.cli._run_meta import ProbeOutcome, target_identity
+from guardana.cli.exit_codes import ExitCode
 from guardana.core.profile import Profile
 from guardana.core.registry import Registry
 from guardana.core.runner import DEFAULT_ENDPOINT_CONCURRENCY, Runner
-from guardana.core.target import McpError, McpServerTarget
+from guardana.core.target import McpError, McpServerTarget, private_url_parts
 from guardana.rules.agent.mcp_server_manifest import pin_document
 
 _PIN_RULE_ID = "guardana.agent.mcp_server_manifest"
+_HTTP_PREFIXES = ("http://", "https://")
 
 
 @dataclass(frozen=True, slots=True)
@@ -83,6 +85,21 @@ def credential_from(variable: str | None) -> str | None:
     return value
 
 
+def refuse_userinfo(address: str) -> None:
+    """Refuse an MCP server URL that carries userinfo, before anything is sent.
+
+    urllib fails on userinfo instead of sending it, and its error repeats the part
+    of the address that holds the password. A query is legitimate here and is only
+    redacted wherever the address is shown.
+    """
+    if address.startswith(_HTTP_PREFIXES) and "userinfo" in private_url_parts(address):
+        raise typer.BadParameter(
+            "the MCP server URL carries userinfo, which cannot be sent; pass a bearer "
+            "token through --mcp-token-env instead",
+            param_hint="'--mcp'",
+        )
+
+
 def plan_target(address: str) -> McpServerTarget:
     """Build a target for *pricing* an MCP server, which must not start one.
 
@@ -91,12 +108,13 @@ def plan_target(address: str) -> McpServerTarget:
     execute the thing under examination to answer. `guardana probe --mcp …
     --allow-exec` is where that intent is stated.
     """
-    if not address.startswith(("http://", "https://")):
+    if not address.startswith(_HTTP_PREFIXES):
         raise typer.BadParameter(
             "pricing an stdio MCP server would mean starting it, and this command sends "
             "nothing and starts nothing. Price a streamable-HTTP server, or run "
             "`guardana probe --mcp … --allow-exec` when you mean to execute it."
         )
+    refuse_userinfo(address)
     return McpServerTarget(address)
 
 
@@ -107,7 +125,7 @@ def build_mcp_target(connection: McpConnection) -> McpServerTarget:
     command, and running it is executing the thing under examination — the only
     place the engine ever does, so it takes an explicit flag.
     """
-    if connection.address.startswith(("http://", "https://")):
+    if connection.address.startswith(_HTTP_PREFIXES):
         return McpServerTarget(connection.address, credential=connection.credential)
     return McpServerTarget(
         command=shlex.split(connection.address), allow_exec=connection.allow_exec
@@ -115,10 +133,18 @@ def build_mcp_target(connection: McpConnection) -> McpServerTarget:
 
 
 def write_pin(connection: McpConnection, path: Path) -> int:
-    """Write the server's current manifest as the approved one; return how many tools."""
+    """Write the server's current manifest as the approved one; return how many tools.
+
+    A server that cannot be read exits `TARGET_UNAVAILABLE` with one line, and no
+    pin is written: an approval of a manifest nobody received is not an approval.
+    """
     target = build_mcp_target(connection)
     try:
-        tools = target.list_tools()
+        try:
+            tools = target.list_tools()
+        except McpError as exc:
+            typer.echo(f"error: could not read the manifest of {target.ref}: {exc}", err=True)
+            raise typer.Exit(code=ExitCode.TARGET_UNAVAILABLE) from exc
         path.write_text(
             json.dumps(pin_document(target.ref, tools), indent=2) + "\n", encoding="utf-8"
         )
@@ -147,6 +173,7 @@ def run_mcp_probe(
     execution setting the run did not have. The shared observation is bought under
     a lock, so overlapping rules cost the server no more than sequential ones.
     """
+    refuse_userinfo(connection.address)
     if write_to is not None:
         count = write_pin(connection, write_to)
         print(f"Wrote {count} approved tool description(s) to {write_to}")  # noqa: T201 — CLI output
@@ -178,6 +205,7 @@ __all__ = [
     "build_mcp_target",
     "credential_from",
     "plan_target",
+    "refuse_userinfo",
     "require_chat_endpoint",
     "run_mcp_probe",
     "write_pin",

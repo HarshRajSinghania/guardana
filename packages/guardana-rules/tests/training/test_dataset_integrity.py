@@ -13,11 +13,15 @@ def _summaries(tmp_path: Path) -> list[str]:
 
 
 def _unpinned(tmp_path: Path) -> list[str]:
+    return [detail for detail, _ in _unpinned_leads(tmp_path)]
+
+
+def _unpinned_leads(tmp_path: Path) -> list[tuple[str, str]]:
     rule = DatasetIntegrityRule()
     return [
-        f.evidence.detail
+        (f.evidence.detail, f.evidence.summary)
         for f in rule.run(ArtifactTarget(tmp_path), RuleContext())
-        if "without revision" in f.evidence.summary
+        if "loading script" not in f.evidence.summary
     ]
 
 
@@ -83,6 +87,13 @@ _PIN = ", revision='e6281661ce1c48d982bc483cf8a173c1bbeb5d31'"
         "import datasets\nds = datasets.load.load_dataset('imdb'{pin})\n",
         "import datasets.load as dl\nds = dl.load_dataset('imdb'{pin})\n",
         "ds = None\nds = datasets.load.load_dataset('imdb'{pin})\n",
+        "import datasets\nloader = datasets.load_dataset; ds = loader('imdb'{pin})\n",
+        "from datasets import load_dataset\nld = load_dataset; ds = ld('imdb'{pin})\n",
+        "import datasets as hf\na = b = hf.load_dataset; ds = b('imdb'{pin})\n",
+        "import datasets\nds = getattr(datasets, 'load_dataset')('imdb'{pin})\n",
+        "import datasets as hf\nds = getattr(hf, 'load_dataset')('imdb'{pin})\n",
+        "import datasets\nf = getattr(datasets.load, 'load_dataset'); ds = f('imdb'{pin})\n",
+        "import datasets\nloader: object = datasets.load_dataset; ds = loader('imdb'{pin})\n",
     ],
     ids=[
         "import",
@@ -96,6 +107,13 @@ _PIN = ", revision='e6281661ce1c48d982bc483cf8a173c1bbeb5d31'"
         "submodule-attribute",
         "submodule-import-as",
         "submodule-unresolved",
+        "attribute-alias",
+        "from-import-alias",
+        "chained-alias",
+        "getattr",
+        "getattr-on-import-as",
+        "getattr-alias",
+        "annotated-alias",
     ],
 )
 def test_flags_every_form_that_resolves_to_hugging_face_datasets(tmp_path: Path, code: str) -> None:
@@ -115,6 +133,10 @@ def test_flags_every_form_that_resolves_to_hugging_face_datasets(tmp_path: Path,
         "import mylib as datasets\nds = datasets.load_dataset('imdb')\n",
         "import datasets\nds = self.load_dataset('imdb')\n",
         "from datasets import Dataset\nds = load_dataset('imdb')\n",
+        "def load_dataset(name):\n    return name\n\nloader = load_dataset; ds = loader('imdb')\n",
+        "import mylib\nds = getattr(mylib, 'load_dataset')('imdb')\n",
+        "import datasets\nds = getattr(datasets, 'load_from_disk')('imdb')\n",
+        "import datasets\nloader = datasets.Dataset; ds = loader('imdb')\n",
     ],
     ids=[
         "local-def",
@@ -124,6 +146,10 @@ def test_flags_every_form_that_resolves_to_hugging_face_datasets(tmp_path: Path,
         "other-module-aliased-as-datasets",
         "method-on-other-receiver",
         "unrelated-datasets-name",
+        "alias-of-local-def",
+        "getattr-on-other-module",
+        "getattr-other-attribute",
+        "alias-of-other-attribute",
     ],
 )
 def test_ignores_a_load_dataset_that_is_not_hugging_face(tmp_path: Path, code: str) -> None:
@@ -138,3 +164,64 @@ def test_unpinned_lead_stays_low_severity(tmp_path: Path) -> None:
     rule = DatasetIntegrityRule()
     [finding] = rule.run(ArtifactTarget(tmp_path), RuleContext())
     assert finding.severity is Severity.LOW
+
+
+@pytest.mark.parametrize(
+    ("revision", "expected"),
+    [
+        ("'main'", "revision='main' names a branch or tag that can move"),
+        ("'v1.0'", "revision='v1.0' names a branch or tag that can move"),
+        ("'e6281661ce1c48d982bc483cf8a173c1bbeb5d3'", "names a branch or tag that can move"),
+        ("None", "revision=None"),
+        ("rev", "not a literal commit SHA"),
+        ("cfg.revision", "not a literal commit SHA"),
+        ("f'{rev}'", "not a literal commit SHA"),
+        ("40", "not a literal commit SHA"),
+    ],
+    ids=["branch", "tag", "short-sha", "none", "variable", "attribute", "f-string", "number"],
+)
+def test_a_revision_that_is_not_a_literal_commit_sha_stays_a_lead(
+    tmp_path: Path, revision: str, expected: str
+) -> None:
+    (tmp_path / "train.py").write_text(
+        f"import datasets\nrev = 'main'\nds = datasets.load_dataset('imdb', revision={revision})\n",
+        encoding="utf-8",
+    )
+    [(detail, summary)] = _unpinned_leads(tmp_path)
+    assert detail == "train.py:3"
+    assert expected in summary
+    assert "without revision" not in summary
+
+
+def test_revision_hidden_in_keyword_unpacking_cannot_be_checked(tmp_path: Path) -> None:
+    (tmp_path / "train.py").write_text(
+        "import datasets\nkw = {}\nds = datasets.load_dataset('imdb', **kw)\n", encoding="utf-8"
+    )
+    [(detail, summary)] = _unpinned_leads(tmp_path)
+    assert detail == "train.py:3"
+    assert "**kwargs" in summary
+
+
+def test_a_missing_revision_keeps_its_summary(tmp_path: Path) -> None:
+    (tmp_path / "train.py").write_text(
+        "import datasets\nds = datasets.load_dataset('imdb')\n", encoding="utf-8"
+    )
+    assert _unpinned_leads(tmp_path) == [
+        ("train.py:2", "load_dataset() without revision= — training data source can be swapped")
+    ]
+
+
+@pytest.mark.parametrize(
+    "revision",
+    ["e6281661ce1c48d982bc483cf8a173c1bbeb5d31", "E6281661CE1C48D982BC483CF8A173C1BBEB5D31"],
+    ids=["lowercase", "uppercase"],
+)
+def test_a_literal_commit_sha_pins_even_beside_keyword_unpacking(
+    tmp_path: Path, revision: str
+) -> None:
+    (tmp_path / "train.py").write_text(
+        "import datasets\nkw = {}\n"
+        f"ds = datasets.load_dataset('imdb', revision='{revision}', **kw)\n",
+        encoding="utf-8",
+    )
+    assert _unpinned_leads(tmp_path) == []

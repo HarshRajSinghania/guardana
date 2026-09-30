@@ -13,6 +13,7 @@ from guardana.core.redaction import EvidenceRedactor
 from guardana.core.report import Finding
 from guardana.core.report.result import ScanResult
 from guardana.core.report.serialize import finding_to_dict
+from guardana.core.target import private_url_parts
 
 _TIMEOUT_SECONDS = 30
 
@@ -97,10 +98,23 @@ def check_collector_url(url: str) -> None:
         # own hostname was an unsupported scheme and sent them after the wrong
         # thing entirely.
         raise ValueError(
-            f"reporter URL {url!r} does not name a collector: it needs a scheme, "
-            f"http:// or https:// — for example https://collector.example.com or "
+            f"reporter URL {_typed_address(url)!r} does not name a collector: it needs a "
+            f"scheme, http:// or https:// — for example https://collector.example.com or "
             f"http://127.0.0.1:8000. Without one, a bare host:port reads as a scheme."
         )
+    if "userinfo" in private_url_parts(url):
+        # urllib cannot send userinfo; it fails on the host after the run has finished.
+        raise ValueError(
+            "the reporter URL carries userinfo, which cannot be sent; the collector's key "
+            "is read from GUARDANA_COLLECTOR_TOKEN"
+        )
+
+
+def _typed_address(url: str) -> str:
+    """Return what was typed as the address, without a query, a fragment or userinfo."""
+    for mark in ("?", "#"):
+        url = url.partition(mark)[0]
+    return url.rpartition("@")[2]
 
 
 class Reporter(Protocol):

@@ -26,7 +26,7 @@ explains this order.
 
 ## What ships today (0.30.0)
 
-This beta provides offline artifact scanning, repeated controlled endpoint and MCP probes, recorded-trace analysis, regression diffs, policy and baseline gates, extension APIs and pack scaffolding, and an optional authenticated PostgreSQL collector. Quality suites grade versioned team datasets and gate pass rates; stopped or raised suites retain total and measured case counts, appearing as JUnit errors. Plans price judge calls against budgets; saved runs log judge usage and budget stops. Agent checks catch canary leaks across turns, require payload proof and argument allowlists, and never pass a truncated run. Judge-graded suites and judge-error correction are experimental; matching calibrations correct trial/suite rates; reports flag their absence. See [FEATURES.md](FEATURES.md) and [Product status](docs/product-status.md).
+This beta provides offline artifact scanning, repeated controlled endpoint and MCP probes, recorded-trace analysis, regression diffs, policy and baseline gates, extension APIs and pack scaffolding, and an optional authenticated PostgreSQL collector. Quality suites grade versioned team datasets and gate pass rates; stopped or raised suites retain total and measured case counts, appearing as JUnit errors. Plans price judge calls against budgets; saved runs log judge usage and budget stops. Agent checks catch canary leaks across turns, require payload proof and argument allowlists, and never pass a truncated run. Judge-graded suites and judge-error correction are experimental; matching calibrations correct trial/suite rates; reports flag their absence. Text checks read every reply of an agent run, and a scenario step grades the replies since the previous graded step. A credential in a target URL never reaches a saved run, a report or a message. A plan refuses a run that could not pass, and a crash or an interrupt exits with its documented code. See [FEATURES.md](FEATURES.md) and [Product status](docs/product-status.md).
 
 ## Now: first value and an extensible data workflow
 
@@ -42,7 +42,8 @@ status of each item before starting it.
 | 4 | F5 | Recorded-answer grading and evidence regrading | Versioned, validated cases with supplied answers can be assessed without target calls. Original execution and new grading identities remain separate. Remote judging declares traffic and budget; unavailable or insufficient evidence stays ungraded. |
 | 5 | F6 | Reproducible team checks | A repository recipe pins profiles, datasets, packs and grading identities; runs the actual application or a clearly labelled model harness; and produces a reviewable CI artifact. Connection settings work across probe, plan, target inspection, monitor and calibration. Two independent teams reproduce a run and consume its data. |
 
-F1 (suite integration and verdict defects) shipped in 0.30.0. Design F3 and F4 around
+F1 (suite integration and verdict defects) shipped in 0.30.0; the verdict, leak and
+accounting defects found while building it shipped in 0.31.0. Design F3 and F4 around
 the same result boundary. F5 consumes it. Advanced statistics must not block
 inspecting a result, adding a deterministic check or consuming a table;
 statistically proven regression claims must wait for M1.

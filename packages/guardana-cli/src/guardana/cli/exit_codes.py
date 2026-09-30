@@ -49,7 +49,7 @@ class ExitCode(IntEnum):
     """
 
     INTERNAL_ERROR = 5
-    """Guardana itself failed. This one is a bug report."""
+    """Guardana itself failed. This one is a bug report; `GUARDANA_DEBUG=1` prints the traceback."""
 
     BUDGET_EXHAUSTED = 6
     """A budget ran out and the run stopped early.
@@ -61,7 +61,7 @@ class ExitCode(IntEnum):
     """
 
     INTERRUPTED = 7
-    """The run was cut short and partial evidence was written."""
+    """The command was interrupted before it finished; nothing it had not yet written exists."""
 
 
 def code_for(outcome: GateOutcome, stopped_by: StopReason | None = None) -> ExitCode:

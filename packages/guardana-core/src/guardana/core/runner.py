@@ -56,6 +56,29 @@ class _RuleOutcome:
         return self.error is None and self.stopped_by is None
 
 
+def pre_run_errors(registry: Registry, target: Target) -> tuple[CheckError, ...]:
+    """Return every error a run of `registry` against `target` records before its first rule.
+
+    A capability `target` declares without implementing it, an entry point or rule file
+    that did not load, and a rule whose `expect:` block does not satisfy its evaluator's
+    contract: each is a check that will not grade what it claims to. `Runner.run` and
+    `build_plan` both read this, so a plan never lists a different set than the run records.
+    """
+    # One error naming the missing protocol beats every rule that needs it declining.
+    contract_errors = tuple(
+        CheckError(
+            source=target.ref,
+            stage="capability",
+            reason=(
+                f"{target.ref} declares {unmet} but does not implement it — "
+                f"see guardana.core.target.protocols"
+            ),
+        )
+        for unmet in unmet_surfaces(target)
+    )
+    return (*contract_errors, *registry.load_errors, *registry.expectation_errors())
+
+
 @dataclass(frozen=True, slots=True)
 class Runner:
     """Runs the rules a profile selects against one target."""
@@ -99,19 +122,6 @@ class Runner:
         # the target that has to hold it. A target that cannot enforce it refuses
         # here rather than letting the run proceed under a ceiling nothing watches.
         target.apply_budgets(self.profile.budgets)
-        # Asked once, before anything is planned: a capability is a claim, and one
-        # error naming the missing protocol beats nineteen rules each declining.
-        contract_errors = [
-            CheckError(
-                source=target.ref,
-                stage="capability",
-                reason=(
-                    f"{target.ref} declares {unmet} but does not implement it — "
-                    f"see guardana.core.target.protocols"
-                ),
-            )
-            for unmet in unmet_surfaces(target)
-        ]
         skipped: list[SkippedRule] = []
         plan: list[Rule] = []
         for rule in self.registry.rules():
@@ -143,14 +153,7 @@ class Runner:
 
         findings: list[Finding] = []
         unverified: list[Finding] = []
-        # Both are "this check will not grade what it claims to", collected before
-        # a single rule runs: a plugin that failed to import, and a rule whose
-        # `expect:` block does not satisfy its evaluator's declared contract.
-        errors: list[CheckError] = [
-            *contract_errors,
-            *self.registry.load_errors,
-            *self.registry.expectation_errors(),
-        ]
+        errors: list[CheckError] = list(pre_run_errors(self.registry, target))
         # Names, not a count: the outcome carries its own rule id rather than being
         # paired back up with the plan by position, because a run aborted by an
         # unreachable endpoint yields fewer outcomes than it planned rules — and

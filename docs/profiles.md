@@ -84,7 +84,7 @@ evaluators:                     # config-wired evaluators — see the section be
 | `name` | string | `"custom"` | A label for the profile (informational only) |
 | `rules.include` | list of glob patterns | `["*"]` | A rule's `id` must match at least one pattern here to run |
 | `rules.exclude` | list of glob patterns | `[]` | A rule's `id` matching any of these is dropped, even if included |
-| `rules.paths` | list of paths | `[]` | Directories (or single files) of custom declarative YAML rules to load, in addition to anything passed via the repeatable `--rules PATH` flag on `scan`/`probe`/`monitor`. A malformed rule file is reported as a warning and skipped — it never aborts the run. See [`writing-rules.md`](writing-rules.md). |
+| `rules.paths` | list of paths | `[]` | Directories (or single files) of custom declarative YAML rules to load, in addition to anything passed via the repeatable `--rules PATH` flag on `scan`/`probe`/`monitor`. A relative path is read beside the profile file, not from the current working directory, like `contracts` and `calibrations`; when it only exists in the working directory, the warning names both paths. A rule file that does not load never aborts the run: it is recorded in `errors`, which leaves the run indeterminate unless `fail_on.fail_on_error` is `false`. So is a directory that holds no `.yaml` or `.yml` file at its top level; rule files in its subdirectories are not read. See [`writing-rules.md`](writing-rules.md). |
 | `fail_on.severity` | `info\|low\|medium\|high\|critical` | `high` | The minimum severity a finding needs to be eligible to fail the gate |
 | `fail_on.min_confidence` | float `0.0`–`1.0` | `0.0` | For findings that carry a `Verdict` (dynamic checks), the minimum confidence required to count toward the gate. Static findings have no verdict and always count once their severity threshold is met. |
 | `fail_on.fail_on_inconclusive` | bool | `false` | When `true`, a check that ran but could not reach a verdict (reported on the `unverified` channel) also fails the gate — the strict posture for a hard CI gate. **`severity` does not apply to it.** A severity answers how bad a problem is, and an unverified result is the absence of an answer, so any of them fails the gate once this is on. This is what makes "an artifact I could not read does not get promoted" expressible in one key. |
@@ -150,7 +150,10 @@ Both blocks share the endpoint keys:
 `guard` — an external safety classifier (Llama Guard / Granite Guardian
 style) — takes only the endpoint keys. It is **opt-in on purpose** and grades
 at conservative confidence: open-weight guards miss a large share of unsafe
-content, so Guardana never uses one as an always-on all-clear.
+content, so Guardana never uses one as an always-on all-clear. Over an agent run
+or a whole conversation it classifies every reply joined into one text, in one
+call; a calibration recorded on single replies measured it on shorter input than
+that.
 
 A typo in any of these keys is a `ProfileError` at load time, and a rule that
 names an unconfigured evaluator is skipped visibly in the run summary — the

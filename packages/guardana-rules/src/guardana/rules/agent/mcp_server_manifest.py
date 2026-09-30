@@ -10,7 +10,7 @@ from guardana.core.report import Evidence, Finding
 from guardana.core.rule import Rule, RuleContext, RuleMeta
 from guardana.core.safety import Impact
 from guardana.core.severity import Severity
-from guardana.core.target import Capability, McpTool, Target, TargetKind
+from guardana.core.target import Capability, McpTool, Target, TargetKind, display_url
 from guardana.core.target.protocols import ToolListing
 from guardana.core.taxonomy import (
     ATLAS_T0084_001,
@@ -47,10 +47,13 @@ def pin_document(server: str, tools: Iterable[McpTool]) -> dict[str, object]:
     The digest covers the whole declaration — schemas and annotations included —
     because a tool whose prose is untouched while its input schema gains a
     parameter is a tool that can now be asked to do something nobody approved.
+
+    The server is recorded the way a `ref` shows it, so a key in its URL is never
+    committed alongside the pin.
     """
     return {
         "schema_version": PIN_SCHEMA_VERSION,
-        "server": server,
+        "server": display_url(server),
         "tools": {tool.name: declaration_digest(tool) for tool in sorted(tools, key=_name)},
     }
 
@@ -96,10 +99,11 @@ class _Pin:
                 "it cannot be told apart from another server's pin — re-approve with "
                 "`guardana probe --mcp … --write-mcp-pin`"
             )
-        if self.server != ref:
+        approved, probed = display_url(self.server), display_url(ref)
+        if approved != probed:
             return (
-                f"the pinned manifest was approved for {self.server!r} and this run "
-                f"probed {ref!r}, so drift cannot be compared — point --mcp-pin at this "
+                f"the pinned manifest was approved for {approved!r} and this run "
+                f"probed {probed!r}, so drift cannot be compared — point --mcp-pin at this "
                 f"server's approved manifest"
             )
         return None

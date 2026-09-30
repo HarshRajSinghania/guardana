@@ -9,6 +9,7 @@ from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
 from guardana.core.budget import BudgetExhausted, Budgets
+from guardana.core.target._url import display_url
 from guardana.core.target.base import Capability, Target, TargetKind
 from guardana.core.usage import TargetUsage, TokenUsage, UsageMeter
 
@@ -239,6 +240,11 @@ def _read_with_retry(request: Request, ref: str) -> bytes:
     raise EndpointError(f"exhausted retries for {ref}")  # unreachable: the loop returns or raises
 
 
+def endpoint_ref(base_url: str, model: str) -> str:
+    """Name a model at an endpoint the way findings and messages show it."""
+    return f"{display_url(base_url)}#{model}"
+
+
 def post_json(url: str, payload: dict[str, object], api_key: str | None, ref: str) -> object:
     """POST a JSON payload and return the parsed JSON reply — bounded and fail-closed.
 
@@ -271,7 +277,7 @@ class UrllibTransport:
         api_key: str | None,
     ) -> str:
         """POST an OpenAI-compatible chat completion and return the reply text."""
-        ref = f"{base_url}#{model}"
+        ref = endpoint_ref(base_url, model)
         payload = post_json(
             f"{base_url}/v1/chat/completions",
             {
@@ -291,7 +297,7 @@ class UrllibTransport:
         api_key: str | None,
     ) -> ChatReply:
         """POST a chat completion and return the reply with the token counts the server sent."""
-        ref = f"{base_url}#{model}"
+        ref = endpoint_ref(base_url, model)
         payload = post_json(
             f"{base_url}/v1/chat/completions",
             {"model": model, "messages": [wire_message(m) for m in messages]},
@@ -311,7 +317,7 @@ class UrllibTransport:
         tools: Sequence[ToolSpec],
     ) -> ToolCallReply:
         """POST an OpenAI-compatible chat completion offering `tools`; report the tool calls."""
-        ref = f"{base_url}#{model}"
+        ref = endpoint_ref(base_url, model)
         payload = post_json(
             f"{base_url}/v1/chat/completions",
             {
@@ -446,9 +452,8 @@ class EndpointTarget(Target):
     ) -> None:
         scheme = urlsplit(base_url).scheme
         if scheme not in _ALLOWED_SCHEMES:
-            raise EndpointError(
-                f"unsupported URL scheme {scheme!r} in {base_url!r}: expected http or https"
-            )
+            # Never repeated: in `user:pw@host:8000` the "scheme" is the user name.
+            raise EndpointError("the endpoint URL needs an http or https scheme")
         # `send` re-appends `/v1/chat/completions`, so strip a trailing `/v1` the
         # user included (the conventional OpenAI base) to avoid `/v1/v1/...`. Other
         # base paths (e.g. `/api`) are left intact.
@@ -505,7 +510,7 @@ class EndpointTarget(Target):
     @property
     def ref(self) -> str:
         """The endpoint and model under test, as it appears in findings."""
-        return f"{self._base_url}#{self._model}"
+        return endpoint_ref(self._base_url, self._model)
 
     def planting(self, system_prompt: str) -> "EndpointTarget":
         """Return this endpoint with an additional prompt and the same run meter.

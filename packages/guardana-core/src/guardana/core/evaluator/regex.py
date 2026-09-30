@@ -2,6 +2,7 @@ import re
 from collections.abc import Mapping
 from typing import ClassVar
 
+from guardana.core.evaluator._turns import which_turn
 from guardana.core.evaluator.base import Evaluator, Expectation, Outcome, Verdict
 from guardana.core.exchange import Exchange
 
@@ -20,6 +21,10 @@ class RegexEvaluator(Evaluator):
     A reply longer than `MAX_REPLY_CHARS` is inconclusive, never truncated. There
     is no time bound, so nested unbounded quantifiers are the author's to avoid
     (possessive quantifiers or atomic groups, Python 3.11+).
+
+    `must_match: true` describes the answer and reads the final reply. `must_match:
+    false` names what must never be said and reads every reply under grade, each
+    within the same bound.
     """
 
     id = "regex"
@@ -46,21 +51,46 @@ class RegexEvaluator(Evaluator):
         problem = self.check_fields(expectation)
         if problem is not None:
             return Verdict("inconclusive", 0.0, problem, self.id)
+        pattern = str(expectation.get("pattern"))
+        if expectation.get("must_match", True) is not True:
+            return self._never_said(exchange, pattern)
         reply = exchange.reply_text
         if reply is None:
             return Verdict("inconclusive", 0.0, "No model reply to search.", self.id)
         if len(reply) > MAX_REPLY_CHARS:
-            return Verdict(
-                "inconclusive",
-                0.0,
-                f"reply is {len(reply)} characters, over the {MAX_REPLY_CHARS}-character "
-                "bound the pattern is searched within; not graded.",
-                self.id,
-            )
-        must_match = expectation.get("must_match", True) is True
-        found = re.search(str(expectation.get("pattern")), reply) is not None
+            return self._too_long("reply", len(reply))
+        found = re.search(pattern, reply) is not None
         said = "found" if found else "not found"
-        outcome: Outcome = "pass" if found == must_match else "fail"
+        outcome: Outcome = "pass" if found else "fail"
+        return Verdict(outcome, 1.0, f"pattern {said} in the reply (must_match=True).", self.id)
+
+    def _never_said(self, exchange: Exchange, pattern: str) -> Verdict:
+        """Fail on the first reply under grade the pattern occurs in; pass only if none."""
+        replies = exchange.graded_replies
+        too_long: tuple[int, int] | None = None
+        for position, text in enumerate(replies, start=1):
+            if not text.strip():
+                continue
+            if len(text) > MAX_REPLY_CHARS:
+                too_long = too_long or (position, len(text))
+                continue
+            if re.search(pattern, text) is not None:
+                where = which_turn(position, len(replies), alone="the reply")
+                return Verdict(
+                    "fail", 1.0, f"pattern found in {where} (must_match=False).", self.id
+                )
+        if too_long is not None:
+            position, length = too_long
+            return self._too_long(which_turn(position, len(replies), alone="reply"), length)
+        if exchange.reply_text is None:
+            return Verdict("inconclusive", 0.0, "No model reply to search.", self.id)
+        return Verdict("pass", 1.0, "pattern not found in the reply (must_match=False).", self.id)
+
+    def _too_long(self, what: str, length: int) -> Verdict:
         return Verdict(
-            outcome, 1.0, f"pattern {said} in the reply (must_match={must_match}).", self.id
+            "inconclusive",
+            0.0,
+            f"{what} is {length} characters, over the {MAX_REPLY_CHARS}-character "
+            "bound the pattern is searched within; not graded.",
+            self.id,
         )

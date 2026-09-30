@@ -6,7 +6,7 @@ from urllib.parse import urlsplit, urlunsplit
 
 import typer
 from guardana.cli.exit_codes import ExitCode
-from guardana.core.target import EndpointError
+from guardana.core.target import EndpointError, display_url
 
 _HTTP_CLIENT_ERROR = 400
 _HTTP_RATE_LIMITED = 429
@@ -114,8 +114,9 @@ def run_against_endpoint(
 
     `accepts` is the set of flags the calling command actually takes; the message
     names no other one, because advice that the command would reject costs the
-    reader a second failed run.
+    reader a second failed run. `url` is shown without its userinfo, query or fragment.
     """
+    shown = display_url(url)
     try:
         return action()
     except JudgeUnavailableError as exc:
@@ -124,7 +125,7 @@ def run_against_endpoint(
     except HTTPError as exc:
         message = http_status_problem(
             exc.code,
-            where=f"endpoint {url}",
+            where=f"endpoint {shown}",
             sender="the probe",
             rate_limited_remedy=_rate_limit_advice(accepts),
             rejected_remedy=f"check the auth header / body{_auth_advice(accepts)}",
@@ -132,5 +133,5 @@ def run_against_endpoint(
         typer.echo(f"error: {message}", err=True)
         raise typer.Exit(code=ExitCode.TARGET_UNAVAILABLE) from exc
     except (URLError, OSError, EndpointError) as exc:
-        typer.echo(f"error: could not reach endpoint {url}: {exc}", err=True)
+        typer.echo(f"error: could not reach endpoint {shown}: {exc}", err=True)
         raise typer.Exit(code=ExitCode.TARGET_UNAVAILABLE) from exc

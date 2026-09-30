@@ -348,7 +348,7 @@ evaluators:                     # config-wired evaluators — see the section be
 <td><code>rules.paths</code></td>
 <td>list of paths</td>
 <td><code>[]</code></td>
-<td>Directories (or single files) of custom declarative YAML rules to load, in addition to anything passed via the repeatable <code>--rules PATH</code> flag on <code>scan</code>/<code>probe</code>/<code>monitor</code>. A malformed rule file is reported as a warning and skipped — it never aborts the run. See <a href="writing-rules.html"><code>writing-rules.md</code></a>.</td>
+<td>Directories (or single files) of custom declarative YAML rules to load, in addition to anything passed via the repeatable <code>--rules PATH</code> flag on <code>scan</code>/<code>probe</code>/<code>monitor</code>. A relative path is read beside the profile file, not from the current working directory, like <code>contracts</code> and <code>calibrations</code>; when it only exists in the working directory, the warning names both paths. A rule file that does not load never aborts the run: it is recorded in <code>errors</code>, which leaves the run indeterminate unless <code>fail_on.fail_on_error</code> is <code>false</code>. So is a directory that holds no <code>.yaml</code> or <code>.yml</code> file at its top level; rule files in its subdirectories are not read. See <a href="writing-rules.html"><code>writing-rules.md</code></a>.</td>
 </tr>
 <tr>
 <td><code>fail_on.severity</code></td>
@@ -488,7 +488,10 @@ alongside the always-available <code>keyword</code>, <code>canary</code>, and <c
 <p><code>guard</code> — an external safety classifier (Llama Guard / Granite Guardian
 style) — takes only the endpoint keys. It is <strong>opt-in on purpose</strong> and grades
 at conservative confidence: open-weight guards miss a large share of unsafe
-content, so Guardana never uses one as an always-on all-clear.</p>
+content, so Guardana never uses one as an always-on all-clear. Over an agent run
+or a whole conversation it classifies every reply joined into one text, in one
+call; a calibration recorded on single replies measured it on shorter input than
+that.</p>
 <p>A typo in any of these keys is a <code>ProfileError</code> at load time, and a rule that
 names an unconfigured evaluator is skipped visibly in the run summary — the
 gate never quietly weakens.</p>

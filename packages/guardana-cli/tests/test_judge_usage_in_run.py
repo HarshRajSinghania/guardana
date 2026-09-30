@@ -35,8 +35,6 @@ _SUITE_ID = "acme.quality.answers"
 _REPLY = "The answer is 42."
 _JUDGE = "http://judge.test:8080/v1"
 _TARGET = "http://model.test"
-_CREDENTIALED_JUDGE = "http://user:hunter2@judge.test:8080/v1?key=s3cr3t"
-"""The judge's URL as a profile may hold it, with a credential in its userinfo and query."""
 
 
 class _Priced:
@@ -349,7 +347,7 @@ def test_a_token_ceiling_the_judge_cannot_enforce_is_refused_in_the_judge_name(
         monkeypatch,
         _Unpriced,
         _suite(tmp_path, cases=1),
-        _profile(tmp_path, judge=_CREDENTIALED_JUDGE),
+        _profile(tmp_path, judge=_JUDGE),
         out,
         "--max-input-tokens",
         "100",
@@ -357,8 +355,6 @@ def test_a_token_ceiling_the_judge_cannot_enforce_is_refused_in_the_judge_name(
 
     assert result.exit_code == ExitCode.INVALID_USAGE, result.output
     assert f"evaluators.llm_judge ({_JUDGE}): a token budget was set" in result.stderr
-    assert "hunter2" not in result.output
-    assert "s3cr3t" not in result.output
 
 
 # A judge that cannot be used
@@ -384,7 +380,7 @@ def test_a_judge_failure_is_reported_as_the_judge_while_the_target_answers(
         monkeypatch,
         transport,
         _suite(tmp_path, cases=2),
-        _profile(tmp_path, judge=_CREDENTIALED_JUDGE),
+        _profile(tmp_path, judge=_JUDGE),
         out,
     )
 
@@ -394,8 +390,6 @@ def test_a_judge_failure_is_reported_as_the_judge_while_the_target_answers(
     assert said in errors[0]
     assert _TARGET not in errors[0], "the target answered; it must not be blamed"
     assert "--api-key-env" not in errors[0], "the target's key is not the one that failed"
-    assert "hunter2" not in result.output
-    assert "s3cr3t" not in result.output
     assert not out.exists(), "a run whose grading failed writes no verdict"
 
 

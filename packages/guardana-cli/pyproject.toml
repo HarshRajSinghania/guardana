@@ -57,7 +57,7 @@ Issues = "https://github.com/guardana/guardana/issues"
 Changelog = "https://github.com/guardana/guardana/blob/main/CHANGELOG.md"
 
 [project.scripts]
-guardana = "guardana.cli.main:app"
+guardana = "guardana.cli.main:main"
 
 [build-system]
 requires = ["hatchling"]

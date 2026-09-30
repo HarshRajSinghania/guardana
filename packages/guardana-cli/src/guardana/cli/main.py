@@ -1,3 +1,9 @@
+import os
+import sys
+import traceback
+from collections.abc import Sequence
+from typing import NoReturn
+
 import typer
 from guardana.cli.analyze_trace import analyze_trace
 from guardana.cli.baseline import baseline_app
@@ -105,3 +111,42 @@ app.add_typer(trace_app, name="trace")
 app.add_typer(rule_app, name="rule")
 app.add_typer(pack_app, name="pack")
 app.command()(doctor)
+
+
+_TYPER_INTERRUPT_EXIT = 130
+
+
+def main(argv: Sequence[str] | None = None) -> None:
+    """Run the `guardana` command and end with a code from the documented exit table.
+
+    Ctrl-C becomes `INTERRUPTED` and an uncaught exception becomes `INTERNAL_ERROR`;
+    every other exit code passes through. A crash prints one line naming the
+    exception type; the traceback is printed only with `GUARDANA_DEBUG=1`, because
+    it can carry a URL or a payload from the run.
+    """
+    try:
+        app(args=None if argv is None else list(argv))
+    except SystemExit as stopped:
+        if stopped.code == _TYPER_INTERRUPT_EXIT:
+            _exit_interrupted()
+        raise
+    except KeyboardInterrupt:
+        _exit_interrupted()
+    except Exception as error:
+        _exit_internal_error(error)
+
+
+def _exit_interrupted() -> NoReturn:
+    typer.echo("guardana: interrupted before the command finished.", err=True)
+    raise SystemExit(int(ExitCode.INTERRUPTED))
+
+
+def _exit_internal_error(error: Exception) -> NoReturn:
+    if os.environ.get("GUARDANA_DEBUG") == "1":
+        traceback.print_exception(error, file=sys.stderr)
+    typer.echo(
+        f"guardana: internal error ({type(error).__name__}); this is a Guardana defect, "
+        "please report it. Set GUARDANA_DEBUG=1 to print the traceback.",
+        err=True,
+    )
+    raise SystemExit(int(ExitCode.INTERNAL_ERROR))

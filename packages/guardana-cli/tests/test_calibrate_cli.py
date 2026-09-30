@@ -13,7 +13,7 @@ from urllib.error import HTTPError, URLError
 import guardana.cli._endpoint as endpoint_module
 import guardana.cli.calibrate as calibrate_module
 import pytest
-from guardana.cli._evaluators import wire_config_evaluators
+from guardana.cli._evaluators import _identity, wire_config_evaluators
 from guardana.cli.calibrate import _record
 from guardana.cli.exit_codes import ExitCode
 from guardana.cli.main import app
@@ -322,8 +322,11 @@ def test_two_spellings_of_one_endpoint_are_one_judge() -> None:
 
 
 def test_a_judge_identity_never_carries_credentials_or_a_query() -> None:
-    plain_url = _judge_identity(endpoint="https://judge.example/v1")
-    secret = _judge_identity(endpoint="https://user:hunter2@judge.example/v1?key=s3cr3t#frag")
+    plain_url = _identity({"model": "j", "endpoint": "https://judge.example/v1"}, "llm_judge")
+    secret = _identity(
+        {"model": "j", "endpoint": "https://user:hunter2@judge.example/v1?key=s3cr3t#frag"},
+        "llm_judge",
+    )
 
     assert secret == plain_url
     assert secret is not None
@@ -502,7 +505,7 @@ def test_the_guard_is_named_by_its_own_block(
     assert f"endpoint {_JUDGE} (evaluators.guard) rejected" in _one_error_line(result)
 
 
-def test_a_judge_endpoint_is_named_without_its_credentials(
+def test_a_judge_endpoint_carrying_credentials_is_refused_without_them(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _judge_fails_with(monkeypatch, _rejected())
@@ -510,10 +513,11 @@ def test_a_judge_endpoint_is_named_without_its_credentials(
 
     result = runner.invoke(app, ["calibrate", "--profile", str(profile)])
 
+    assert result.exit_code == ExitCode.INVALID_USAGE, result.output
     line = _one_error_line(result)
-    assert f"endpoint {_JUDGE} (evaluators.llm_judge)" in line
-    assert "hunter2" not in line
-    assert "s3cr3t" not in line
+    assert line.startswith("error: evaluators.llm_judge.endpoint "), line
+    assert "hunter2" not in result.output
+    assert "s3cr3t" not in result.output
 
 
 class _NetworkedPlugin(Evaluator):

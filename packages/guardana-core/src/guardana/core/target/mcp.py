@@ -18,6 +18,7 @@ from guardana.core.target._mcp_client import (
 )
 from guardana.core.target._mcp_http import McpError, Sender, send
 from guardana.core.target._mcp_wire import Era
+from guardana.core.target._url import display_url
 from guardana.core.target.base import Capability, Target, TargetKind
 from guardana.core.usage import TargetUsage, UsageMeter
 
@@ -99,7 +100,7 @@ class McpServerTarget(Target):
         transport: McpTransport | None,
     ) -> McpTransport:
         if transport is not None:
-            self._ref = url or "mcp://injected"
+            self._ref = display_url(url) if url else "mcp://injected"
             # Only when a sender was supplied too. A caller that injects a transport
             # has replaced the JSON-RPC half and not the HTTP half, and claiming
             # INSPECT_AUTHORIZATION anyway sent the authorization probe to the real
@@ -117,7 +118,7 @@ class McpServerTarget(Target):
             self._ref = f"mcp+stdio://{command[0]}"
             return StdioMcpTransport(command)
         if url is not None:
-            self._ref = url
+            self._ref = display_url(url)
             self._url = url
             return HttpMcpTransport(url, credential=self._credential, send=self._sender)
         raise McpError("an MCP target needs a URL or a command")

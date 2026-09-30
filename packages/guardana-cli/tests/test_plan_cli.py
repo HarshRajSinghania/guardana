@@ -62,11 +62,11 @@ def test_a_restrictive_plugin_mode_says_so_in_the_plan(tmp_path: Path) -> None:
     "0 rule(s) would run" and, thanks to the zero-request sentence, "requests: 0 —
     every selected rule declares it sends nothing" — which together read as a scan
     that is free and fine, about a scan where nothing loaded at all. Loading
-    nothing must say so.
+    nothing must say so, and a plan for a run that loads nothing is refused.
     """
     result = runner.invoke(app, ["plan", "scan", str(tmp_path), "--plugins", "disabled"])
 
-    assert result.exit_code == ExitCode.OK, result.output
+    assert result.exit_code == ExitCode.INVALID_USAGE, result.output
     assert "could not load rule" in result.output
     assert "plugin trust is disabled" in result.output
 

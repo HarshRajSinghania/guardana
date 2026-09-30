@@ -1,6 +1,7 @@
 from collections.abc import Mapping
 from typing import ClassVar
 
+from guardana.core.evaluator._turns import first_matching, which_turn
 from guardana.core.evaluator.base import Evaluator, Expectation, Verdict
 from guardana.core.exchange import Exchange
 
@@ -15,6 +16,10 @@ class ContainsEvaluator(Evaluator):
     With every list absent or empty there is nothing to look for, and a check that
     has not looked is `inconclusive`, never a pass. Confidence 1.0: a substring is
     either there or not.
+
+    `contains_all` and `contains_any` describe the answer, so they read the final
+    reply. `contains_none` names what must never be said, so it reads every reply
+    under grade: an agent run that said it in step one and ended cleanly still said it.
     """
 
     id = "contains"
@@ -47,11 +52,18 @@ class ContainsEvaluator(Evaluator):
                 self.id,
             )
         reply = exchange.reply_text
+        if reply is not None:
+            why = _why_not(reply, every, some, none_of)
+            if why is not None:
+                return Verdict("fail", 1.0, why, self.id)
+        replies = exchange.graded_replies
+        said = first_matching(replies, lambda text: any(s in text for s in none_of))
+        if said is not None:
+            forbidden = next(s for s in none_of if s in replies[said - 1])
+            where = which_turn(said, len(replies), alone="reply")
+            return Verdict("fail", 1.0, f"{where} carries {forbidden!r}.", self.id)
         if reply is None:
             return Verdict("inconclusive", 0.0, "No model reply to search.", self.id)
-        why = _why_not(reply, every, some, none_of)
-        if why is not None:
-            return Verdict("fail", 1.0, why, self.id)
         return Verdict("pass", 1.0, "reply carries what it must and nothing it must not.", self.id)
 
 

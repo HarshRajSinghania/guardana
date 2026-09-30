@@ -15,6 +15,7 @@ from guardana.core.target.endpoint import (
     ChatTransport,
     EndpointError,
     UrllibTransport,
+    endpoint_ref,
     post_json,
 )
 
@@ -26,7 +27,7 @@ class OllamaTransport:
         self, base_url: str, model: str, messages: Sequence[ChatMessage], api_key: str | None
     ) -> str:
         """POST an Ollama chat request and return the reply text."""
-        ref = f"{base_url}#{model}"
+        ref = endpoint_ref(base_url, model)
         payload = post_json(
             f"{base_url}/api/chat",
             {
@@ -53,7 +54,7 @@ class TgiTransport:
         self, base_url: str, model: str, messages: Sequence[ChatMessage], api_key: str | None
     ) -> str:
         """POST a TGI generate request and return the generated text."""
-        ref = f"{base_url}#{model}"
+        ref = endpoint_ref(base_url, model)
         prompt = "\n".join(f"{m.role}: {m.content}" for m in messages)
         payload = post_json(
             f"{base_url}/generate", {"inputs": prompt, "parameters": {}}, api_key, ref

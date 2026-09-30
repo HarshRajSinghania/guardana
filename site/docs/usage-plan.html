@@ -434,6 +434,25 @@ configuration, found before the run rather than halfway through it:</p>
 </code></pre>
 <p>A token ceiling a judge's transport cannot enforce is refused with <code>3</code> too, the same
 way <code>probe</code> refuses it.</p>
+<h2 id="a-run-that-could-not-pass">A run that could not pass</h2>
+<p>The plan exits <code>3</code> as well when the run it describes could not pass, and says why
+on stderr, one line per cause:</p>
+<ul>
+<li><strong>no rule would run</strong> — the profile, the flags and the target select none, and a
+run that verifies nothing reports no verdict;</li>
+<li><strong>a rule it would skip while <code>fail_on.fail_on_skipped</code> is on</strong> — a capability the
+target does not declare, or a safety mode that refuses the rule;</li>
+<li><strong>a file under <code>calibrations:</code> that would stop the run</strong> — missing, unreadable, or
+measuring an evaluator another file measures too;</li>
+<li><strong>an error the run would record before its first rule</strong> — a rule file that does not
+load, a plugin the trust mode refuses (the line names <code>--plugins all</code> or
+<code>--allow-plugin</code>), a rule whose <code>expect:</code> block its evaluator cannot grade, or a
+capability the target declares without implementing. The plan reads these from the
+same function the run does, so the two never list different errors.</li>
+</ul>
+<p>With <code>fail_on.fail_on_error: false</code> the errors are printed as a warning and the plan
+keeps its exit code, as the run would pass them. The JSON document on stdout is the
+same either way.</p>
 <h2 id="what-it-cannot-tell-you">What it cannot tell you</h2>
 <p>Capabilities are read from what the target declares locally, so an endpoint that
 turns out not to support tool calls will skip more rules than the plan predicted.

@@ -302,7 +302,9 @@ def load_profile(path: Path) -> Profile:
         policy=policy,
         rule_config=_as_mapping(raw.get("rule_config"), "rule_config", path),
         evaluator_config=_as_mapping(raw.get("evaluators"), "evaluators", path),
-        rule_paths=_as_glob_list(rules.get("paths"), "rules.paths", path),
+        rule_paths=_beside_the_profile(
+            _as_glob_list(rules.get("paths"), "rules.paths", path), path
+        ),
         path_excludes=_as_glob_list(rules.get("paths_exclude"), "rules.paths_exclude", path),
         budgets=_budgets(_as_mapping(raw.get("budgets"), "budgets", path), path),
         privacy=_privacy(_as_mapping(raw.get("privacy"), "privacy", path), path),
@@ -316,4 +318,5 @@ def load_profile(path: Path) -> Profile:
             _as_glob_list(raw.get("calibrations"), "calibrations", path), path
         ),
         trials=_trials(raw.get("trials", 1), path),
+        source=path,
     )

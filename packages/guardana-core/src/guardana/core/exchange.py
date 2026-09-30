@@ -24,8 +24,9 @@ class Exchange:
     """One conversation under evaluation: the messages sent and the replies received.
 
     Replaces the old single-string observation so a rule can grade a whole
-    multi-turn conversation, not just the last reply. Single-turn checks read
-    `reply_text`; conversation-aware ones walk `messages`.
+    multi-turn conversation, not just the last reply. A check of the answer reads
+    `reply_text`; a check for something that must never be said reads
+    `graded_replies`; conversation-aware ones walk `messages`.
     """
 
     messages: tuple[ChatMessage, ...]
@@ -41,12 +42,43 @@ class Exchange:
     evidence of good behaviour.
     """
 
+    graded_from: int = 0
+    """Index into `messages` where the turns under grade begin.
+
+    The messages before it are context a grader may read and must not grade: a
+    scenario step grades its own reply, and the replies before it were each graded
+    by their own step. `0` puts every turn under grade, as a whole conversation and
+    an agent run do.
+    """
+
+    def __post_init__(self) -> None:
+        """Refuse a `graded_from` that points outside the conversation."""
+        start = self.graded_from
+        if isinstance(start, bool) or not isinstance(start, int):
+            raise TypeError(f"graded_from must be an int, got {start!r}")
+        if not 0 <= start <= len(self.messages):
+            raise ValueError(
+                f"graded_from must lie in [0, {len(self.messages)}] for this conversation, "
+                f"got {start}"
+            )
+
+    @property
+    def graded_replies(self) -> tuple[str, ...]:
+        """Every assistant turn under grade, in order, blank ones included.
+
+        What a check for something that must never be said reads: a forbidden string
+        in any of them has been said, whatever the final reply says. Blank turns stay
+        in so that turn numbers in a rationale match the conversation.
+        """
+        return tuple(m.content for m in self.messages[self.graded_from :] if m.role == "assistant")
+
     @property
     def reply_text(self) -> str | None:
-        """The reply to grade — the final assistant turn — or None when there is none.
+        """The reply to grade — the final assistant turn — or None when none is under grade.
 
-        A conversation left on a user turn (or empty) has no reply, so this is None,
-        which an evaluator must read as inconclusive: silence is never a pass.
+        A conversation left on a user turn (or empty, or with nothing under grade) has
+        no reply, so this is None, which an evaluator must read as inconclusive:
+        silence is never a pass.
 
         **A turn whose content is blank is silence too.** The transport already
         refuses `content: null`, because `str(None)` would be graded as the word
@@ -57,7 +89,7 @@ class Exchange:
         in either direction. This is the seam where that decision belongs: one
         answer, and every evaluator inherits it.
         """
-        if not self.messages or self.messages[-1].role != "assistant":
+        if len(self.messages) <= self.graded_from or self.messages[-1].role != "assistant":
             return None
         content = self.messages[-1].content
         return content if content.strip() else None

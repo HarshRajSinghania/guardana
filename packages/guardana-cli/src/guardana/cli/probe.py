@@ -46,6 +46,7 @@ from guardana.core.target import (
     HttpAdapterTransport,
     Target,
     TargetKind,
+    display_url,
 )
 from guardana.report import get_renderer
 
@@ -310,12 +311,13 @@ def probe(  # noqa: C901, PLR0912, PLR0913, PLR0915, PLR0917 — Typer surface, 
             return
         result = EvidenceRedactor(prof.privacy).redact_result(mcp_probed.result)
         outcome = gate_outcome(result, prof.policy)
+        shown = display_url(mcp)
         run = build_manifest(
             registry,
             prof,
             result,
             target_kind=TargetKind.ENDPOINT,
-            target_ref=mcp,
+            target_ref=shown,
             gate=outcome,
             started_at=started_at,
             identity=mcp_probed.identity,
@@ -327,7 +329,7 @@ def probe(  # noqa: C901, PLR0912, PLR0913, PLR0915, PLR0917 — Typer surface, 
         _say_which_judge_stopped(judges)
         emit(get_renderer(format.value, run=run).render(result), output, format.value)
         if reporter:
-            submit_safely(reporter, result, source=mcp, deployment=deployment, run=run)
+            submit_safely(reporter, result, source=shown, deployment=deployment, run=run)
         exit_with(outcome, result)
         return
 

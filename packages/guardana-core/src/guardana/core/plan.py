@@ -6,12 +6,13 @@ declare and what the target says about itself.
 """
 
 from collections.abc import Collection, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from guardana.core.budget import Budgets
 from guardana.core.evaluator.base import Evaluator
 from guardana.core.profile.model import Profile
 from guardana.core.registry import Registry
+from guardana.core.report import CheckError
 from guardana.core.rule import Rule
 from guardana.core.target import Target, TargetKind
 
@@ -84,6 +85,14 @@ class RunPlan:
     judge: JudgePlan | None = None
     """The judge calls the run would add, or None when this plan does not price them."""
 
+    errors: tuple[CheckError, ...] = field(default=(), metadata={"in_document": False})
+    """The errors the run would record before its first rule, from `pre_run_errors`.
+
+    Each is a check that would not grade what it claims to, so a run carrying one
+    cannot pass while `fail_on_error` is on. Left out of the plan document: a command
+    reports them through its exit code and its error stream.
+    """
+
     @property
     def requests_complete(self) -> bool:
         """Whether every selected rule declared the target requests it would send."""
@@ -126,14 +135,18 @@ def build_plan(
 
     Selects exactly the way `Runner` does — same kind, same policy globs, same
     safety ceiling, same capability check — so the plan describes the run that
-    would actually happen rather than an idealised one. The safety check shares
-    the runner's implementation rather than repeating it, because a plan that
-    prices rules the run then refuses is a plan for a different run. It differs in
+    would actually happen rather than an idealised one. The safety check and the
+    errors recorded before the first rule share the runner's implementation rather
+    than repeating it, because a plan that prices rules the run then refuses, or
+    lists errors the run does not record, is a plan for a different run. It differs in
     one way, and the difference is stated rather than hidden: capabilities come
     from what the target *declares* without being asked, so an endpoint that turns
     out not to support tool calls will skip more rules than this predicted.
     """
-    from guardana.core.runner import safety_refusal  # noqa: PLC0415 — runner is downstream
+    from guardana.core.runner import (  # noqa: PLC0415 — runner is downstream
+        pre_run_errors,
+        safety_refusal,
+    )
 
     capabilities = target.capabilities()
     # Only an endpoint run samples a reply; a file plan given `trials: 5` in a shared
@@ -183,6 +196,7 @@ def build_plan(
         judge=None
         if judge_meters is None
         else _price_judges(graded, registry.evaluators(), judge_meters),
+        errors=pre_run_errors(registry, target),
     )
 
 

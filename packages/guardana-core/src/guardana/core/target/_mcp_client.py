@@ -36,6 +36,7 @@ from guardana.core.target._mcp_wire import (
     result_of,
     server_info_in,
 )
+from guardana.core.target._url import display_url
 from guardana.core.usage import UsageMeter
 
 _HTTP_ERROR = 400
@@ -173,6 +174,7 @@ class HttpMcpTransport:
 
     def __init__(self, url: str, *, credential: str | None = None, send: Sender = send) -> None:
         self._url = url
+        self._ref = display_url(url)
         self._credential = credential
         self._send = send
         self._session: str | None = None
@@ -208,8 +210,8 @@ class HttpMcpTransport:
         if issued and self._wire.era is Era.LEGACY:
             self._session = issued
         if reply.status >= _HTTP_ERROR:
-            raise _http_failure(reply, self._url)
-        return result_of(reply.body, self._url)
+            raise _http_failure(reply, self._ref)
+        return result_of(reply.body, self._ref)
 
     def close(self) -> None:
         """Nothing to release: every call is its own request."""
@@ -540,7 +542,7 @@ def _http_failure(reply: RawReply, ref: str) -> McpError:
 def _reject_unusable_scheme(url: str) -> None:
     scheme = urlsplit(url).scheme
     if scheme not in ("http", "https"):
-        raise McpError(f"unsupported MCP URL scheme {scheme!r} in {url!r}: expected http(s)")
+        raise McpError("the MCP server URL needs an http or https scheme")
 
 
 def _text(entry: Mapping[str, object], key: str) -> str:

@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 
-from guardana.cli._endpoint import build_endpoint
+from guardana.cli._endpoint import build_endpoint, unusable_url
 from guardana.cli._errors import JudgeUnavailableError, http_status_problem, safe_url
 from guardana.core.budget import BudgetExhausted, Budgets
 from guardana.core.evaluator.guard import GuardEvaluator
@@ -25,7 +25,7 @@ from guardana.core.manifest.usage import JudgeUsage
 from guardana.core.profile import Profile
 from guardana.core.profile.errors import ProfileError
 from guardana.core.registry import Registry
-from guardana.core.target import ChatMessage, EndpointError, EndpointTarget
+from guardana.core.target import ChatMessage, EndpointError, EndpointTarget, private_url_parts
 
 _DEFAULT_PROMPT_VERSION = "2025.1"
 _DEFAULT_PORTS = {"https": 443, "http": 80}
@@ -242,6 +242,16 @@ def _endpoint_call(
     """
     endpoint = _require_str(cfg, "endpoint", what)
     model = _require_str(cfg, "model", what)
+    carried = private_url_parts(endpoint)
+    if urlsplit(endpoint).scheme in ("http", "https") and carried:
+        raise ProfileError(
+            f"evaluators.{what}.endpoint carries a part a credential hides in "
+            f"({', '.join(carried)}), which a judge endpoint cannot send; name the variable "
+            f"holding its key in evaluators.{what}.api_key_env instead"
+        )
+    problem = unusable_url(endpoint)
+    if problem is not None:
+        raise ProfileError(f"evaluators.{what}.endpoint {problem}")
     try:
         target = build_endpoint(endpoint, model, api_key=_api_key(cfg, what))
     except EndpointError:

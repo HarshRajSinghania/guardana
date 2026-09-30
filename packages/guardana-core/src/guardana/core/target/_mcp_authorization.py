@@ -17,7 +17,7 @@ import re
 import threading
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import SplitResult, urlsplit, urlunsplit
 
 from guardana.core.target._mcp_client import Negotiation, carries_tools
 from guardana.core.target._mcp_http import (
@@ -28,6 +28,7 @@ from guardana.core.target._mcp_http import (
     refusal_for,
 )
 from guardana.core.target._mcp_wire import Era, Wire
+from guardana.core.target._url import display_url
 from guardana.core.usage import UsageMeter
 
 _CLIENT = {"name": "guardana", "version": "0"}
@@ -155,8 +156,8 @@ class McpAuthorizationView:
 
     @property
     def server(self) -> str:
-        """The server these observations are about."""
-        return self._probe.url
+        """The server these observations are about, as findings may show it."""
+        return display_url(self._probe.url)
 
     @property
     def credential_presented(self) -> bool:
@@ -591,7 +592,8 @@ def _first_issuer(resource: Document | None) -> str | None:
 def _resource_metadata_urls(server: str, challenge: str | None) -> tuple[str, ...]:
     """Every place a Protected Resource Metadata document may be, in specification order."""
     parts = urlsplit(server)
-    root = urlunsplit((parts.scheme, parts.netloc, "/.well-known/oauth-protected-resource", "", ""))
+    host = _host_of(parts)
+    root = urlunsplit((parts.scheme, host, "/.well-known/oauth-protected-resource", "", ""))
     path = parts.path.rstrip("/")
     candidates = []
     advertised = challenge_parameters(challenge).get("resource_metadata")
@@ -599,9 +601,7 @@ def _resource_metadata_urls(server: str, challenge: str | None) -> tuple[str, ..
         candidates.append(advertised)
     if path:
         candidates.append(
-            urlunsplit(
-                (parts.scheme, parts.netloc, f"/.well-known/oauth-protected-resource{path}", "", "")
-            )
+            urlunsplit((parts.scheme, host, f"/.well-known/oauth-protected-resource{path}", "", ""))
         )
     candidates.append(root)
     return tuple(dict.fromkeys(candidates))
@@ -610,29 +610,31 @@ def _resource_metadata_urls(server: str, challenge: str | None) -> tuple[str, ..
 def _authorization_server_urls(issuer: str) -> tuple[str, ...]:
     """List the discovery endpoints a client must try for an issuer, in specification order."""
     parts = urlsplit(issuer)
+    host = _host_of(parts)
     path = parts.path.rstrip("/")
     if path:
         return (
             urlunsplit(
                 (
                     parts.scheme,
-                    parts.netloc,
+                    host,
                     f"/.well-known/oauth-authorization-server{path}",
                     "",
                     "",
                 )
             ),
-            urlunsplit(
-                (parts.scheme, parts.netloc, f"/.well-known/openid-configuration{path}", "", "")
-            ),
-            urlunsplit(
-                (parts.scheme, parts.netloc, f"{path}/.well-known/openid-configuration", "", "")
-            ),
+            urlunsplit((parts.scheme, host, f"/.well-known/openid-configuration{path}", "", "")),
+            urlunsplit((parts.scheme, host, f"{path}/.well-known/openid-configuration", "", "")),
         )
     return (
-        urlunsplit((parts.scheme, parts.netloc, "/.well-known/oauth-authorization-server", "", "")),
-        urlunsplit((parts.scheme, parts.netloc, "/.well-known/openid-configuration", "", "")),
+        urlunsplit((parts.scheme, host, "/.well-known/oauth-authorization-server", "", "")),
+        urlunsplit((parts.scheme, host, "/.well-known/openid-configuration", "", "")),
     )
+
+
+def _host_of(parts: SplitResult) -> str:
+    """Return the host and port of an address, without any userinfo it carried."""
+    return parts.netloc.rpartition("@")[2]
 
 
 def _segment(claims: Mapping[str, object]) -> str:

@@ -459,6 +459,19 @@ expect:                  # optional: grade the conversation as a whole
 ungraded scenario would drive turns and pass everything, so the loader
 rejects it. Scenarios load through every path single-turn YAML rules do
 (<code>--rules</code>, <code>rules.paths</code>, <code>provide_rules()</code>).</p>
+<h4 id="which-replies-a-grade-reads">Which replies a grade reads</h4>
+<p>A step's <code>expect</code> grades the replies its grader has not read yet: the replies since
+the last step graded by the same evaluator against the same expectation — its own
+reply, and any earlier one that grader has not read. A leak is reported once, and a
+reply another evaluator already graded is still read by this one. A top-level <code>expect</code> and an agent run grade every reply the
+model gave. Within those replies, a check for something that must never be said fails
+on any of them — <code>canary</code>, <code>contains</code> with <code>contains_none</code>, <code>regex</code> with
+<code>must_match: false</code> — and <code>guard</code> classifies them together in one call. A check of the
+answer reads the final reply: <code>contains_all</code>, <code>contains_any</code>, <code>regex</code> with
+<code>must_match: true</code>, and the answer evaluators. <code>keyword</code> grades the final reply; in an
+agent run, where every reply answers the same task, it passes a final refusal only
+when every earlier reply refuses too, and is <code>inconclusive</code> otherwise. Replies after
+the last graded step are read only by a top-level <code>expect</code>.</p>
 <h3 id="agent-runs-task-and-tools-instead-of-prompts">Agent runs: <code>task:</code> and <code>tools:</code> instead of <code>prompts:</code></h3>
 <p>A rule with a <code>task:</code> key is a <strong>trajectory rule</strong>: Guardana plays the agent
 harness, offers the model a set of tools, hands back a result for every call it

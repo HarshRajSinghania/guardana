@@ -25,7 +25,7 @@ from guardana.core.redaction import EvidenceRedactor
 from guardana.core.registry import Registry
 from guardana.core.report import ScanResult
 from guardana.core.runner import DEFAULT_ENDPOINT_CONCURRENCY
-from guardana.core.target import Target, TargetKind
+from guardana.core.target import Target, TargetKind, display_url
 from guardana.report import get_renderer
 
 _DEFAULT_INTERVAL_SECONDS = 60.0
@@ -95,7 +95,7 @@ def run_monitor(  # noqa: PLR0913 — the test seam needs every hook injectable
     handler = (
         on_alert
         if on_alert is not None
-        else alert_handler(EvidenceRedactor(profile.privacy), None, connection.url)
+        else alert_handler(EvidenceRedactor(profile.privacy), None, display_url(connection.url))
     )
 
     def scan() -> ScanResult:
@@ -322,7 +322,7 @@ def monitor(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; this i
     on_alert = alert_handler(
         EvidenceRedactor(prof.privacy),
         reporter,
-        source=f"{url}#{model}",
+        source=f"{display_url(url)}#{model}",
         deployment=deployment,
     )
     run_against_endpoint(

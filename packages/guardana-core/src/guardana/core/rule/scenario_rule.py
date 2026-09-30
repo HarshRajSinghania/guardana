@@ -193,13 +193,26 @@ class ScenarioRule(Rule):
     ) -> Iterator[tuple["_GradedScope", Verdict, str]]:
         """Walk the turns from an empty history once, grading every scope as it comes."""
         messages: list[ChatMessage] = []
+        # Where each grader stopped reading. A step grades the replies since the last
+        # step graded by the same evaluator against the same expectation: that grader
+        # reads each reply once, and a reply another grader checked is still read by it.
+        read_until: list[tuple[str | None, Expectation, int]] = []
         for step in self.steps:
             messages.append(ChatMessage(role="user", content=step.send))
             to_send = [messages[-1]] if self.stateful else list(messages)
             messages.append(ChatMessage(role="assistant", content=target.chat(to_send)))
             if step.expect is not None:
                 scope = _GradedScope(_resolve(ctx, step.evaluator), step.expect, "turn", step.send)
-                exchange = Exchange(tuple(messages))
+                start = next(
+                    (
+                        end
+                        for evaluator, expect, end in reversed(read_until)
+                        if evaluator == step.evaluator and expect == step.expect
+                    ),
+                    0,
+                )
+                read_until.append((step.evaluator, step.expect, len(messages)))
+                exchange = Exchange(tuple(messages), graded_from=start)
                 verdict = scope.evaluator.evaluate(exchange, scope.expectation)
                 yield scope, verdict, exchange.transcript
         if self.conversation_expect is not None:

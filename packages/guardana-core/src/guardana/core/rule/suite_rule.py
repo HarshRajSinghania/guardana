@@ -145,7 +145,11 @@ class SuiteRule(Rule):
         for case in self.cases:
             for trial in range(1, self.trials_per_case + 1):
                 reply = target.chat(list(case.messages))
-                exchange = Exchange((*case.messages, ChatMessage(role="assistant", content=reply)))
+                # A case may script assistant turns; only the model's reply is graded.
+                exchange = Exchange(
+                    (*case.messages, ChatMessage(role="assistant", content=reply)),
+                    graded_from=len(case.messages),
+                )
                 verdict = evaluator.evaluate(exchange, case.expectation)
                 ctx.record(
                     from_verdict(

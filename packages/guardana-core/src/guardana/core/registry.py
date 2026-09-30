@@ -217,7 +217,21 @@ class Registry:
         loaded: list[str] = []
         errors: list[CheckError] = []
         for path in paths:
-            for file in _yaml_files(path):
+            files = _yaml_files(path)
+            if not files:
+                # A directory someone configured that holds no rule file loads nothing,
+                # and a run without the checks it was told to add must not look complete.
+                errors.append(
+                    CheckError(
+                        source=str(path),
+                        stage="load",
+                        reason=(
+                            "the directory holds no .yaml or .yml rule file; files in its "
+                            "subdirectories are not read"
+                        ),
+                    )
+                )
+            for file in files:
                 # Resolved, not as written: `rules.paths: [my-rules]` and
                 # `--rules ./my-rules/` name one file, and two spellings of it must
                 # not read as two origins.
@@ -410,4 +424,6 @@ def _resolved(path: Path) -> Path:
 def _yaml_files(path: Path) -> list[Path]:
     if not path.is_dir():
         return [path]
-    return sorted(p for p in path.iterdir() if p.suffix in (".yaml", ".yml"))
+    return sorted(
+        p for p in path.iterdir() if p.is_file() and p.suffix.lower() in (".yaml", ".yml")
+    )

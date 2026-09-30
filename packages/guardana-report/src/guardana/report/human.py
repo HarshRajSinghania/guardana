@@ -293,8 +293,12 @@ def _summary(result: ScanResult) -> str:
         # reading like a pass rate over all of them. Counted in cases, so K trials
         # of one prompt read as one case.
         cases, measured, ungraded = _case_counts(result)
+        # A rule the stop cut short counts only the cases it reached, so without
+        # this a stopped run's "5/5" reads as every planned case measured.
+        stopped = " before the run stopped" if result.stopped_by is not None else ""
         summary += (
-            f" {measured}/{cases} case(s) measured{f', {ungraded} ungraded' if ungraded else ''}."
+            f" {measured}/{cases} case(s) measured{stopped}"
+            f"{f', {ungraded} ungraded' if ungraded else ''}."
         )
     if result.observations:
         # Says what the run actually looked at, so "no findings" reads as "nothing

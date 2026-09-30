@@ -129,7 +129,9 @@ def test_every_field_of_a_comparison_reaches_the_document(name: str) -> None:
     )
 
 
-@pytest.mark.parametrize("name", [f.name for f in fields(RunPlan)])
+@pytest.mark.parametrize(
+    "name", [f.name for f in fields(RunPlan) if f.metadata.get("in_document", True)]
+)
 def test_every_field_of_a_plan_reaches_the_document(name: str) -> None:
     assert _render_json(_plan()) != _render_json(_emptied(_plan(), name)), (
         f"clearing RunPlan.{name} changes nothing in the rendered plan, so the field "

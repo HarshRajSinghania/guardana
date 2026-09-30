@@ -1,6 +1,7 @@
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field, replace
 from fnmatch import fnmatch
+from pathlib import Path
 
 from guardana.core.budget import Budgets
 from guardana.core.redaction import RedactionPolicy
@@ -120,6 +121,13 @@ class Profile:
 
     Beside `rule_paths` and read the same way, so a team that keeps one config for a
     pipeline does not have to repeat `--contract` in every job.
+    """
+
+    source: Path | None = None
+    """The `guardana.yaml` this profile was read from; None for a preset or one built in code.
+
+    Relative entries in `rules.paths`, `contracts:` and `calibrations:` are read beside
+    this file, and a command names it when an entry only exists somewhere else.
     """
 
     def demanding(self, dimensions: Iterable[Dimension]) -> "Profile":

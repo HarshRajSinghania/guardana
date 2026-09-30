@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
+from guardana.core.target._url import display_url
 from guardana.core.target.endpoint import ChatMessage, EndpointError
 
 _TIMEOUT_SECONDS = 30
@@ -112,11 +113,13 @@ def _default_fetch(url: str, data: bytes, headers: Mapping[str, str]) -> object:
     with urlopen(request, timeout=_TIMEOUT_SECONDS) as response:  # noqa: S310
         raw = response.read(_MAX_RESPONSE_BYTES + 1)
     if len(raw) > _MAX_RESPONSE_BYTES:
-        raise EndpointError(f"response from {url} exceeds {_MAX_RESPONSE_BYTES} bytes; refusing it")
+        raise EndpointError(
+            f"response from {display_url(url)} exceeds {_MAX_RESPONSE_BYTES} bytes; refusing it"
+        )
     try:
         return json.loads(raw)
     except json.JSONDecodeError as exc:
-        raise EndpointError(f"non-JSON response from {url}: {raw[:120]!r}") from exc
+        raise EndpointError(f"non-JSON response from {display_url(url)}: {raw[:120]!r}") from exc
 
 
 class HttpAdapterTransport:
@@ -125,9 +128,8 @@ class HttpAdapterTransport:
     def __init__(self, config: AdapterConfig, *, fetch: Fetch | None = None) -> None:
         scheme = urlsplit(config.url).scheme
         if scheme not in _ALLOWED_SCHEMES:
-            raise EndpointError(
-                f"unsupported URL scheme {scheme!r} in {config.url!r}: expected http or https"
-            )
+            # Never repeated: in `user:pw@host:8000` the "scheme" is the user name.
+            raise EndpointError("the adapter URL needs an http or https scheme")
         # A body with neither a prompt nor a messages slot would send the same
         # static request for every probe — every rule would test nothing and pass.
         # Refuse it at build time.
@@ -167,4 +169,4 @@ class HttpAdapterTransport:
             body = _put_messages(body, cfg.messages_token, conversation)
         body = _fill(body, {cfg.prompt_token: prompt, cfg.system_token: system or ""})
         payload = self._fetch(cfg.url, json.dumps(body).encode("utf-8"), cfg.headers)
-        return extract_path(payload, cfg.response_path, ref=cfg.url)
+        return extract_path(payload, cfg.response_path, ref=display_url(cfg.url))

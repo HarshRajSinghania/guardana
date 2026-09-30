@@ -205,7 +205,9 @@ class _RecordingCanary(CanaryEvaluator):
         return verdict
 
 
-def test_a_scenario_leak_at_step_one_fails_every_later_canary_grade_and_names_turn_one() -> None:
+def test_a_scenario_leak_at_step_one_is_reported_by_that_step_and_the_conversation_once() -> None:
+    # A step grades its own reply: the leak in turn one fails step one, step two's
+    # clean reply passes, and the whole-conversation grade still sees turn one.
     canary = _RecordingCanary()
     expect = Expectation(canary="CANARY_9Z")
     scenario = ScenarioRule(
@@ -223,6 +225,6 @@ def test_a_scenario_leak_at_step_one_fails_every_later_canary_grade_and_names_tu
     transport = ScriptedTransport("The token is CANARY_9Z.", "Nothing more to add.")
     target = EndpointTarget("http://x", "m", transport=transport)
     list(scenario.run(target, RuleContext(evaluators={"canary": canary})))
-    assert [v.outcome for v in canary.verdicts] == ["fail", "fail", "fail"]
+    assert [v.outcome for v in canary.verdicts] == ["fail", "pass", "fail"]
     assert "response" in canary.verdicts[0].rationale
-    assert all("assistant turn 1 of 2" in v.rationale for v in canary.verdicts[1:])
+    assert "assistant turn 1 of 2" in canary.verdicts[2].rationale

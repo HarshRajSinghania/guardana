@@ -22,7 +22,7 @@ behaviour.
 | 4 | target or judge unavailable, or authentication failed |
 | 5 | internal Guardana error |
 | 6 | budget exhausted |
-| 7 | run interrupted, partial evidence written |
+| 7 | run interrupted before it finished |
 
 ## The reasoning
 
@@ -67,7 +67,9 @@ reported as stopped whatever its partial findings say, and `guardana diff` refus
 to read the missing findings as an improvement.
 
 **`4` is separate from `5`.** An unreachable endpoint is the user's environment;
-an internal error is our defect. A judge configured under `evaluators:` that cannot be
+an internal error is our defect. A crash prints one line naming the exception type
+and exits `5`; the traceback is printed only with `GUARDANA_DEBUG=1`, because it can
+carry a URL or a payload from the run. A judge configured under `evaluators:` that cannot be
 reached or rejects the request is `4` too, and the message names the judge's block
 (`evaluators.llm_judge`), not the target. Conflating them sends bug reports to the wrong
 place and hides real bugs in a category people learn to ignore.
@@ -75,9 +77,9 @@ place and hides real bugs in a category people learn to ignore.
 **`3` is usage, not policy.** A malformed `guardana.yaml` must not look like a
 policy failure, or a typo in a config file reads as a security finding.
 
-**`7` is honest partiality.** Ctrl-C, or a timeout with evidence already written,
-is neither a pass nor a completed failure. The partial run is kept and the code
-says it is partial.
+**`7` is honest partiality.** Ctrl-C is neither a pass nor a completed failure.
+Nothing the command had not yet written is written afterwards, and the code says
+the run did not finish. Stopping `guardana monitor` with Ctrl-C exits `7` too.
 
 ## Which commands produce which
 

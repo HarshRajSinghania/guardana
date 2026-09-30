@@ -292,7 +292,7 @@ def test_a_suite_stopped_by_the_budget_reads_as_declined_in_the_terminal(
 
     assert code == ExitCode.BUDGET_EXHAUSTED, output
     assert "14/14 case(s) measured" not in output
-    assert " 13/32 case(s) measured, 19 ungraded." in output
+    assert " 13/32 case(s) measured before the run stopped, 19 ungraded." in output
     measured = output.split("Measured\n", 1)[1].splitlines()[0]
     assert measured.startswith(f"  {_SUITE_ID}  answers@1: 13 of 32 cases measured, 3 trials each")
     assert measured.endswith(f"declined: {_STOPPED}")

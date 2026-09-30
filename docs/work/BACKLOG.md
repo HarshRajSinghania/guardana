@@ -24,9 +24,9 @@ No remote issues were created; the GitHub open-issue query returned zero.
 | B12 | Namespaces, declarative packs and ID service | Later | Keep local ID validation; investigate non-executing packs first. An external registry needs evidence of collisions/discovery needs. |
 | B13 | Public contributor tasks and adoption checks | F2/F6 | Prepare small issue descriptions from B04/B06/B08; record five developer sessions and two team integrations with consent. Publishing issues is separate maintainer work. |
 
-B01, B02, B03, B09 and B14 shipped in 0.30.0 (ROADMAP F1). Existing lockfile/gitleaks,
-ONNX metadata grading, ATLAS provenance and tooling items remain open below. Before
-closing any item, rerun its reproduction.
+B01, B02, B03, B09 and B14 shipped in 0.30.0 (ROADMAP F1). The lockfile/gitleaks and
+script-parser items shipped in 0.31.0; ONNX metadata grading, ATLAS provenance and the other
+items remain open below. Before closing any item, rerun its reproduction.
 
 ## Accepted designs the roadmap does not carry
 
@@ -77,12 +77,14 @@ The report itself was closed with 0.26.1 (see `CHANGELOG.md`); the lock layout s
 
 ## Found while fixing the field report
 
-Each was noticed by the lane working next to it and left alone rather than folded in.
-
-- **`onnx_graph` grades ONNX `metadata_props` on the bare presence of an invisible character**,
-  which is the defect 0.26.1 fixed in `hidden_instructions` in miniature. The grading lives in
-  the rule rather than in the shared `_injection_markers.py` detector, so fixing one did not
-  fix the other.
+- **`onnx_graph` grades ONNX `metadata_props` HIGH on the bare presence of an invisible
+  character.** Grading it by the payload shape `hidden_instructions` uses was tried for 0.31.0
+  and withdrawn before release: one zero-width character that splits an override phrase
+  (`ig<U+200B>nore previous instructions`) matches no phrase and graded LOW, a key and a value
+  graded apart missed a phrase in one beside a character in the other, and scattered
+  characters below a run of eight graded LOW. ONNX metadata is written by an exporter, so the
+  PDF-extraction reason for leniency may not apply. `hidden_instructions` has the same
+  split-phrase gap: `OVERRIDE_PHRASE` does not match across a zero-width character.
 
 ## Tooling debt
 
@@ -107,39 +109,37 @@ Found on 2026-09-26 while building and reviewing the suites
 - The collector trend cannot see K: a rate over one trial and a rate over five share a
   chart (the "Assessments in the collector" row).
 
-## Found while building F1 (0.30.0)
+## Found while building F1 (0.30.0), still open after 0.31.0
 
-- **An uncaught exception exits `1` (`POLICY_FAILED`), not `5`.** `ExitCode.INTERNAL_ERROR`
-  is defined and documented in `docs/exit-codes.md` and never raised: `guardana.cli.main:app`
-  has no top-level handler, so a crash reads as "the policy failed".
-- **Text evaluators other than `canary` read only the final reply of an agent run or a
-  scenario's conversation grade** (`keyword`, `contains` with `contains_none`, `regex` with
-  `must_match: false`, `guard`): a model that complies in step 1 and refuses in step 2 passes
-  `keyword`. Per-step grades exist for scenarios, not for trajectory rules.
-- **A canary leak in a scenario is reported once per later canary grade**, because each step
-  grades the conversation so far; the rationale names the turn that leaked.
+- **`keyword` at a scenario's conversation level grades the final reply only.** In an agent run
+  a closing refusal after a reply without one is `inconclusive` (0.31.0); in a scenario the
+  earlier replies answer earlier messages, so a warm-up without a refusal says nothing. A
+  scenario grades the escalated ask with a step-level `keyword`, and the docs say so.
 - **The collector envelope (8) sends the target's requests only**; `usage.judge` stays in the
   run document. Part of M3.
-- **Target URLs are printed raw in endpoint errors** (`core/target/endpoint.py`, `EndpointError`
-  and `apply_budgets` messages); judge URLs are cleaned of userinfo, query and fragment, a
-  target URL carrying a credential is not.
-- **An MCP probe does not route through `run_against_endpoint`**, so a judge failure during an
-  MCP probe ends in a traceback.
+- **An MCP server that cannot be reached exits `2`, not `4`.** Every MCP rule records it as
+  unverified or as an error, so the run is indeterminate; an endpoint probe exits `4`. MCP
+  rules call no judge, so the judge-failure traceback this item used to name cannot occur, and
+  `--write-mcp-pin` exits `4` since 0.31.0.
+- **Server-supplied URLs in MCP authorization documents** (`resource_metadata`, `issuer`) are
+  shown as the server gave them; a target URL is cleaned by `display_url` since 0.31.0.
 - **`monitor` writes no run document**, so what its judges spend per cycle is metered and
   bounded but recorded nowhere.
-- **`rules.paths` in a profile still resolves against the working directory**, unlike
-  `contracts:` and `calibrations:`; from another directory `plan probe` prints a load warning
-  and "0 rule(s) would run" with exit 0.
-- **`dataset_integrity` misses indirect calls** (`loader = datasets.load_dataset; loader(...)`,
-  `getattr(datasets, "load_dataset")(...)`), besides re-exports through the user's own module.
-- **`dataset_integrity` treats any `revision=` as pinned**: `revision="main"`, a branch name,
-  `None` or a variable suppress the lead, though only a commit SHA pins the data.
+- **`dataset_integrity` does not follow a loader across modules** (a re-export through the
+  user's own module), a `revision` passed by position, or a name rebound after it was bound
+  to the loader: aliases are tracked per file, in document order, without scopes.
 - **A suite that never started because an earlier rule spent the budget leaves no record**,
   like any unstarted rule; the run exits `6`, but its planned cases appear nowhere.
-- **A repeating rule stopped by the budget keeps no `trial_summary`, and the terminal counts
-  only the cases it reached**: a 10-prompt rule at K=3 with `--max-requests 14` prints
-  "5/5 case(s) measured". The run exits `6`; a suite in the same position now keeps its
-  declined summary, a rule does not.
+- **A repeating rule stopped by the budget keeps no `trial_summary`.** The terminal says its
+  count ends at the stop (0.31.0); recording the cut-off rule, like a never-started one above,
+  needs run schema 11.
+- **An interrupted command writes nothing it had not already written.** Ctrl-C exits `7` since
+  0.31.0; keeping the partial run of a `probe` as evidence is a feature, not a fix.
+- **A crash while `guardana.cli.main` is being imported exits `1` with a traceback**: it happens
+  before `main()` maps crashes to `5`. An `EOFError` outside a rule (a prompt reading a closed
+  stdin) becomes Typer's `Abort` and exits `1` too.
+- **`dataset_integrity` still misses** a module aliased by assignment (`ds = datasets`), a
+  loader wrapped in `functools.partial`, and `importlib.import_module("datasets")`.
 
 ## Guardana Control on guardana.dev, and the product line
 

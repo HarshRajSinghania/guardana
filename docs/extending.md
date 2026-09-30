@@ -112,6 +112,8 @@ class MyEvaluator(Evaluator):
         # A blank reply is None too: a provider that answers with an empty string
         # (a content filter, a tool-call-only turn) said nothing to grade, and the
         # seam decides that once so every evaluator agrees;
+        # exchange.graded_replies is every assistant reply under grade, for a
+        # check of something that must never be said in any of them;
         # exchange.transcript is the whole conversation, for multi-turn goals.
         # expectation carries whatever the rule declared under `expect:`.
         if exchange.reply_text is None:
@@ -128,6 +130,15 @@ class MyEvaluator(Evaluator):
 The fail-closed convention above is project law, not a style choice: an
 evaluator that cannot actually grade returns `"inconclusive"` (surfaced on
 the run's `unverified` channel), never a confident all-clear.
+
+`Exchange.graded_from` is the index into `messages` where the turns under grade
+begin; the messages before it are context. It defaults to `0`, so an agent run
+or a whole conversation puts every reply under grade. A scenario step starts it
+after the last reply its grader read (the same evaluator and expectation), and a suite
+case or a calibration row after the turns it scripted, so text the model never said is
+never graded as its reply.
+A rule that builds an `Exchange` for part of a longer conversation sets it the same
+way; an index outside the conversation raises.
 
 Register it the same way as a rule:
 
@@ -293,6 +304,13 @@ class MyTarget(Target):
         # the runner turns these into `errors`: a check that did not run.
         return tuple(self._unread)
 ```
+
+`ref` is printed in messages and saved in the run document, SARIF and the collector
+envelope as it is. Guardana cleans the refs of its own targets and cannot clean yours:
+when a ref contains a URL, build it with `guardana.core.target.display_url`, which
+drops userinfo and the fragment and replaces a query with a digest placeholder, and
+never put a credential in it any other way. The digest keeps two targets that differ
+only by a query apart; it does not hide a short or guessable value.
 
 | Protocol | Capability | Methods |
 |---|---|---|
