@@ -399,20 +399,29 @@ comparison would blame the model for it.</p>
 <pre><code class="language-bash">guardana pack lock                # write ./guardana-lock.yaml
 guardana pack lock --check        # in CI: fail if the build has drifted
 </code></pre>
-<pre><code class="language-yaml">schema_version: 1
+<pre><code class="language-yaml">schema_version: 2
 extension_api: 2
 packs:
   - name: acme-guardana-rules
     distribution: acme-guardana-rules
     version: 0.3.1
     rules:
-      acme.agent.customer_data: 7ac9df6f3a247391
+      acme.agent.customer_data:
+        digest: 7ac9df6f3a247391
     evaluators: [acme.strict_refusal]
     targets: [AcmeWarehouseTarget]
     taxonomies:
-      ACME-CONTROLS: &quot;sha256:1c4f…&quot;
+      ACME-CONTROLS:
+        digest: &quot;sha256:1c4f…&quot;
 unlocked: []
 </code></pre>
+<p>Every digest sits under a <code>digest:</code> key of its own. An id can contain <code>secret</code>,
+<code>key</code> or <code>token</code>, and an id beside a hex value on one line is what a secret scanner
+such as gitleaks reports as a credential. A schema 1 lock, which wrote
+<code>&lt;id&gt;: &lt;digest&gt;</code>, is still read and checked; <code>--check</code> then says to rewrite it with
+<code>guardana pack lock</code>. A lock with a schema newer than the build is refused with the
+advice to upgrade Guardana, never to regenerate the file, which would rewrite a
+teammate's lock in the older layout.</p>
 <p><strong>Three things are pinned three different ways, and the file says which is which:</strong></p>
 <div class="table-wrap"><table>
 <thead>

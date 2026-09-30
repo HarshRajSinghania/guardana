@@ -146,20 +146,30 @@ guardana pack lock --check        # in CI: fail if the build has drifted
 ```
 
 ```yaml
-schema_version: 1
+schema_version: 2
 extension_api: 2
 packs:
   - name: acme-guardana-rules
     distribution: acme-guardana-rules
     version: 0.3.1
     rules:
-      acme.agent.customer_data: 7ac9df6f3a247391
+      acme.agent.customer_data:
+        digest: 7ac9df6f3a247391
     evaluators: [acme.strict_refusal]
     targets: [AcmeWarehouseTarget]
     taxonomies:
-      ACME-CONTROLS: "sha256:1c4f…"
+      ACME-CONTROLS:
+        digest: "sha256:1c4f…"
 unlocked: []
 ```
+
+Every digest sits under a `digest:` key of its own. An id can contain `secret`,
+`key` or `token`, and an id beside a hex value on one line is what a secret scanner
+such as gitleaks reports as a credential. A schema 1 lock, which wrote
+`<id>: <digest>`, is still read and checked; `--check` then says to rewrite it with
+`guardana pack lock`. A lock with a schema newer than the build is refused with the
+advice to upgrade Guardana, never to regenerate the file, which would rewrite a
+teammate's lock in the older layout.
 
 **Three things are pinned three different ways, and the file says which is which:**
 

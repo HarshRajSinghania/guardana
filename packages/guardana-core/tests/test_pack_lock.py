@@ -205,7 +205,8 @@ def test_no_key_of_a_lock_can_be_deleted_without_the_reader_noticing() -> None:
 
 
 def test_the_fixture_occupies_every_field_a_lock_has() -> None:
-    empty = undemonstrative_fields(_lock(), "lock")
+    """`migrated_from` describes the file that was read and is never written, so it is exempt."""
+    empty = undemonstrative_fields(_lock(), "lock", exempt=frozenset({"lock.migrated_from"}))
 
     assert not empty, f"fields the lock fixture leaves empty, so nothing is proved: {empty}"
 

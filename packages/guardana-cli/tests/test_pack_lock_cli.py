@@ -10,6 +10,7 @@ looked entirely fine until somebody read the file.
 So these tests write a lock from the live registry and read the file.
 """
 
+import re
 from pathlib import Path
 
 import yaml
@@ -46,8 +47,66 @@ def test_a_lock_pins_the_built_in_rules_by_digest(tmp_path: Path) -> None:
     document = yaml.safe_load(_lock(tmp_path).read_text(encoding="utf-8"))
 
     (builtin,) = [pack for pack in document["packs"] if pack["name"] == "guardana-rules"]
-    assert builtin["rules"]["guardana.prompt.system_prompt_leak.canary"]
+    assert builtin["rules"]["guardana.prompt.system_prompt_leak.canary"]["digest"]
     assert document["schema_version"] == LOCK_SCHEMA_VERSION
+
+
+_ID_BESIDE_A_DIGEST = re.compile(
+    r"^\s*(?!digest:)[^\s:]+:\s+['\"]?(sha256:)?[0-9a-f]{12,}['\"]?\s*$"
+)
+
+
+def test_a_lock_written_here_puts_no_id_on_the_same_line_as_a_digest(tmp_path: Path) -> None:
+    """Built-in ids say `secret` and `token`; beside a hex value a secret scanner fires."""
+    text = _lock(tmp_path).read_text(encoding="utf-8")
+
+    offending = [line for line in text.splitlines() if _ID_BESIDE_A_DIGEST.match(line)]
+
+    assert re.search(r"secret|token", text), "the live build pins no id the scanner keys on"
+    assert not offending, "lines a secret scanner reads as a credential:\n" + "\n".join(offending)
+
+
+def _as_schema_1(path: Path) -> None:
+    document = yaml.safe_load(path.read_text(encoding="utf-8"))
+    document["schema_version"] = 1
+    for pack in document["packs"]:
+        for group in ("rules", "taxonomies"):
+            pack[group] = {name: entry["digest"] for name, entry in pack[group].items()}
+    path.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
+
+
+def test_a_schema_1_lock_still_verifies_and_says_to_rewrite_it(tmp_path: Path) -> None:
+    """A teammate's older lock keeps gating; the hint is the only change it sees."""
+    path = _lock(tmp_path)
+    _as_schema_1(path)
+
+    result = runner.invoke(app, ["pack", "lock", str(path), "--check"])
+
+    assert result.exit_code == 0, result.output
+    assert "match" in result.stdout
+    assert "lock schema 1" in result.stderr
+    assert "guardana pack lock" in result.stderr
+    assert yaml.safe_load(path.read_text(encoding="utf-8"))["schema_version"] == 1
+
+
+def test_a_schema_1_lock_that_drifted_still_fails_the_check(tmp_path: Path) -> None:
+    path = _lock(tmp_path)
+    _as_schema_1(path)
+    document = yaml.safe_load(path.read_text(encoding="utf-8"))
+    document["packs"][0]["rules"]["guardana.prompt.system_prompt_leak.canary"] = "0000000000000000"
+    path.write_text(yaml.safe_dump(document), encoding="utf-8")
+
+    result = runner.invoke(app, ["pack", "lock", str(path), "--check"])
+
+    assert result.exit_code == 1, result.output
+    assert "not the same check any more" in result.output
+
+
+def test_a_current_lock_gets_no_rewrite_hint(tmp_path: Path) -> None:
+    result = runner.invoke(app, ["pack", "lock", str(_lock(tmp_path)), "--check"])
+
+    assert result.exit_code == 0, result.output
+    assert "lock schema 1" not in result.output
 
 
 def test_an_unchanged_build_checks_clean(tmp_path: Path) -> None:
@@ -68,7 +127,9 @@ def test_a_rule_whose_digest_moved_fails_the_check(tmp_path: Path) -> None:
     """
     path = _lock(tmp_path)
     document = yaml.safe_load(path.read_text(encoding="utf-8"))
-    document["packs"][0]["rules"]["guardana.prompt.system_prompt_leak.canary"] = "0000000000000000"
+    document["packs"][0]["rules"]["guardana.prompt.system_prompt_leak.canary"] = {
+        "digest": "0000000000000000"
+    }
     path.write_text(yaml.safe_dump(document), encoding="utf-8")
 
     result = runner.invoke(app, ["pack", "lock", str(path), "--check"])
@@ -130,12 +191,27 @@ def test_an_unreadable_lock_is_refused_rather_than_treated_as_empty(tmp_path: Pa
     """An empty lock would match nothing and report every pack as unlocked — or, worse
     for a build with no packs, match everything. Refused with its own code instead."""
     path = tmp_path / "guardana-lock.yaml"
-    path.write_text("schema_version: 99\npacks: []\n", encoding="utf-8")
+    path.write_text("schema_version: 0\npacks: []\n", encoding="utf-8")
 
     result = runner.invoke(app, ["pack", "lock", str(path), "--check"])
 
     assert result.exit_code == 3, result.output
     assert "regenerate it" in result.output
+
+
+def test_a_lock_from_a_newer_guardana_is_refused_with_upgrade_not_regenerate(
+    tmp_path: Path,
+) -> None:
+    """Regenerating would overwrite a teammate's newer lock with this build's older layout."""
+    path = tmp_path / "guardana-lock.yaml"
+    path.write_text(f"schema_version: {LOCK_SCHEMA_VERSION + 1}\npacks: []\n", encoding="utf-8")
+
+    result = runner.invoke(app, ["pack", "lock", str(path), "--check"])
+
+    assert result.exit_code == 3, result.output
+    assert "newer Guardana" in result.output
+    assert "upgrade" in result.output
+    assert "regenerate" not in result.output
 
 
 def test_a_missing_lock_is_refused_rather_than_written_silently(tmp_path: Path) -> None:

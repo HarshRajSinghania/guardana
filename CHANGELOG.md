@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Lock schema 2: `guardana pack lock` nests every digest under `digest:`.** Schema 1 wrote `<rule id>: <16 hex>`. Gitleaks' `generic-api-key` rule reports that shape when the id contains "secret" (`guardana.output.secrets`), turning a blocking secret-scan gate red on a file Guardana wrote. Rules and catalogues both nest now. A schema 1 lock is still read and checked; `pack lock --check` says to rewrite it. A lock newer than the build is refused with advice to upgrade, never to regenerate. Upgrade every Guardana that reads the lock together: 0.30 and older refuse a schema 2 lock and suggest regenerating it, which would write schema 1 again.
 - **Maintainer scripts parse their arguments.** `release.py`, `clean_install_check.py`, `generate_sbom.py` and `image_smoke.py` print usage on `--help` and do nothing else. Before, `release.py --help` fetched from origin and ran the whole gate. CI's `test` job now runs `check_ops_catalogue.py` and `check_claude_setup.py`, which only `scripts/ci_local.sh` ran.
 
 ## [0.30.0] - 2026-09-26 — a run accounts for every suite case and every judge call

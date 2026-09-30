@@ -222,6 +222,13 @@ def lock(
     if refusal is not None:
         typer.echo(f"error: {refusal}", err=True)
         raise typer.Exit(code=ExitCode.INVALID_USAGE)
+    if locked.migrated_from is not None:
+        typer.echo(
+            f"note: {path} is lock schema {locked.migrated_from}, whose `<id>: <digest>` "
+            f"lines trip secret scanners — rewrite it with `guardana pack lock` once this "
+            f"check is clean",
+            err=True,
+        )
 
     drift = compare(locked, present)
     for entry in drift:

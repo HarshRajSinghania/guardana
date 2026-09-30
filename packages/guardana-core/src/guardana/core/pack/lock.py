@@ -33,12 +33,16 @@ from typing import Any
 from guardana.core.fingerprint import digest_of
 from guardana.core.pack.model import EXTENSION_API_VERSION, PackError
 
-LOCK_SCHEMA_VERSION = 1
+LOCK_SCHEMA_VERSION = 2
 """Version of `guardana-lock.yaml`, moved independently of everything it pins.
 
 A lock is a document a team keeps in their repository and reads on every CI run, so
-principle 11 applies to it exactly as it does to a saved run.
+principle 11 applies to it exactly as it does to a saved run. Schema 2 nests every
+digest as `<id>: {digest: <hex>}`: an id may contain `secret`, `key` or `token`, and
+schema 1's `<id>: <hex>` line reads to a secret scanner as a credential.
 """
+
+_READABLE_LOCK_SCHEMAS = frozenset({1, LOCK_SCHEMA_VERSION})
 
 LOCK_NAME = "guardana-lock.yaml"
 """The conventional filename, at the root of the repository being gated."""
@@ -102,6 +106,12 @@ class Lock:
 
     schema_version: int = LOCK_SCHEMA_VERSION
     extension_api: int = EXTENSION_API_VERSION
+    migrated_from: int | None = None
+    """The schema the file declared, when it was older than the one this build writes.
+
+    Never written: it describes the file that was read, so `pack lock --check` can
+    tell the user to rewrite it rather than leave the migration invisible.
+    """
 
 
 def catalogue_digest(refs: Iterable[Any]) -> str:
@@ -174,10 +184,10 @@ def lock_to_dict(lock: Lock) -> dict[str, Any]:
                 "name": pack.name,
                 "distribution": pack.distribution,
                 "version": pack.version,
-                "rules": dict(sorted(pack.rules.items())),
+                "rules": _nested(pack.rules),
                 "evaluators": list(pack.evaluators),
                 "targets": list(pack.targets),
-                "taxonomies": dict(sorted(pack.taxonomies.items())),
+                "taxonomies": _nested(pack.taxonomies),
             }
             for pack in sorted(lock.packs, key=lambda p: p.name)
         ],
@@ -197,19 +207,28 @@ def lock_from_dict(raw: object, source: str) -> Lock:
     version = raw.get("schema_version")
     if not isinstance(version, int) or isinstance(version, bool):
         raise PackError(f"invalid lock {source}: schema_version is required and must be an integer")
-    if version != LOCK_SCHEMA_VERSION:
+    if version > LOCK_SCHEMA_VERSION:
+        # Regenerating here would overwrite a teammate's lock with an older layout.
         raise PackError(
-            f"invalid lock {source}: schema_version {version} is not the version this "
-            f"build reads ({LOCK_SCHEMA_VERSION}) — regenerate it with `guardana pack lock`"
+            f"invalid lock {source}: schema_version {version} was written by a newer "
+            f"Guardana than this build, which reads up to {LOCK_SCHEMA_VERSION} — upgrade "
+            f"Guardana to check it"
+        )
+    if version not in _READABLE_LOCK_SCHEMAS:
+        readable = " or ".join(str(v) for v in sorted(_READABLE_LOCK_SCHEMAS))
+        raise PackError(
+            f"invalid lock {source}: schema_version {version} is not a version this "
+            f"build reads ({readable}) — regenerate it with `guardana pack lock`"
         )
     packs = raw.get("packs")
     if not isinstance(packs, list):
         raise PackError(f"invalid lock {source}: 'packs' must be a list")
     return Lock(
-        packs=tuple(_pack(entry, source) for entry in packs),
+        packs=tuple(_pack(entry, source, version) for entry in packs),
         unlocked=_strings(raw.get("unlocked"), "unlocked", source),
-        schema_version=version,
+        schema_version=LOCK_SCHEMA_VERSION,
         extension_api=_api(raw.get("extension_api"), source),
+        migrated_from=version if version != LOCK_SCHEMA_VERSION else None,
     )
 
 
@@ -326,28 +345,43 @@ def _membership(
     ]
 
 
-def _pack(raw: object, source: str) -> LockedPack:
+def _nested(digests: Mapping[str, str]) -> dict[str, dict[str, str]]:
+    return {name: {"digest": digest} for name, digest in sorted(digests.items())}
+
+
+def _pack(raw: object, source: str, schema: int) -> LockedPack:
     if not isinstance(raw, dict):
         raise PackError(f"invalid lock {source}: every entry in 'packs' must be a mapping")
     return LockedPack(
         name=_text(raw, "name", source),
         distribution=_text(raw, "distribution", source),
         version=_text(raw, "version", source),
-        rules=_digest_map(raw.get("rules"), "rules", source),
+        rules=_digest_map(raw.get("rules"), "rules", source, schema),
         evaluators=_strings(raw.get("evaluators"), "evaluators", source),
         targets=_strings(raw.get("targets"), "targets", source),
-        taxonomies=_digest_map(raw.get("taxonomies"), "taxonomies", source),
+        taxonomies=_digest_map(raw.get("taxonomies"), "taxonomies", source, schema),
     )
 
 
-def _digest_map(raw: object, key: str, source: str) -> dict[str, str]:
+def _digest_map(raw: object, key: str, source: str, schema: int) -> dict[str, str]:
     if raw is None:
         return {}
-    if not isinstance(raw, dict) or not all(
-        isinstance(name, str) and isinstance(value, str) for name, value in raw.items()
+    if not isinstance(raw, dict) or not all(isinstance(name, str) for name in raw):
+        raise PackError(f"invalid lock {source}: '{key}' must map every id to a digest")
+    if schema == 1:
+        if not all(isinstance(value, str) for value in raw.values()):
+            raise PackError(
+                f"invalid lock {source}: schema 1 '{key}' must map every id to a digest string"
+            )
+        return dict(raw)
+    if not all(
+        isinstance(value, dict) and set(value) == {"digest"} and isinstance(value["digest"], str)
+        for value in raw.values()
     ):
-        raise PackError(f"invalid lock {source}: '{key}' must map every id to a digest string")
-    return dict(raw)
+        raise PackError(
+            f"invalid lock {source}: '{key}' must map every id to exactly {{digest: <string>}}"
+        )
+    return {name: value["digest"] for name, value in raw.items()}
 
 
 def _strings(raw: object, key: str, source: str) -> tuple[str, ...]:

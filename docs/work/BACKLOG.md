@@ -66,19 +66,14 @@ scheduled nor rejected — a decision, then either a roadmap row or a `supersede
 
 ## From the first field report (0.26.0), still open
 
-The report itself was closed with 0.26.1 (see `CHANGELOG.md`). These two are its remaining
-items, held back because each adds surface a patch may not add.
+The report itself was closed with 0.26.1 (see `CHANGELOG.md`); the lock layout shipped in
+0.31.0. This one remains, held back because it adds surface a patch may not add.
 
 - **`--adapter` exists on `probe` and on nothing else.** `plan probe`, `target inspect`,
   `monitor` and `calibrate` all open a connection and none accepts it, so a guarded endpoint
   — the one most worth pre-flighting, watching and calibrating against — can only be probed
   once, by hand. 0.26.1 stopped the error message naming a flag the command rejects; hoisting
   the flag itself is a new argument on four commands.
-- **`guardana pack lock` writes `<rule id>: <16 hex>`**, which is the shape gitleaks'
-  `generic-api-key` rule fires on — a key containing "secret" beside a high-entropy value.
-  It turned a blocking secret-scan gate red on a file Guardana itself wrote. Nesting the
-  digest under `{digest: …}` is the clean fix and costs a lock `schema_version` bump and a
-  migration.
 
 ## Found while fixing the field report
 
