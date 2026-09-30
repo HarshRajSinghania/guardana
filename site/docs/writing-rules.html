@@ -807,8 +807,9 @@ default, because a check that did not run must never read as a check that passed
 Findings you already yielded before raising are kept.</p>
 <p>Two exceptions to that. <code>KeyboardInterrupt</code> and <code>SystemExit</code> are deliberately not
 caught, so Ctrl-C still works. And raising <code>RuleLoadError</code> means &quot;I could not be
-resolved for this run&quot; — a missing evaluator, say — which is a configuration
-state rather than a defect, so it is recorded as a <em>skip</em>.</p>
+resolved for this run&quot; — a missing evaluator, say. That is a configuration state
+rather than a defect in your code, and it is still recorded in <code>errors</code>: a check
+that could not be resolved did not run.</p>
 <p>The practical consequence for you: do not swallow your own errors to be polite.
 Letting an exception out is now the honest thing to do — it is reported, it is
 attributed to your rule, and it stops a build from going green on a check that
@@ -899,8 +900,9 @@ default, because a check that did not run must never read as a check that passed
 Findings you already yielded before raising are kept.</p>
 <p>Two exceptions to that. <code>KeyboardInterrupt</code> and <code>SystemExit</code> are deliberately not
 caught, so Ctrl-C still works. And raising <code>RuleLoadError</code> means &quot;I could not be
-resolved for this run&quot; — a missing evaluator, say — which is a configuration
-state rather than a defect, so it is recorded as a <em>skip</em>.</p>
+resolved for this run&quot; — a missing evaluator, say. That is a configuration state
+rather than a defect in your code, and it is still recorded in <code>errors</code>: a check
+that could not be resolved did not run.</p>
 <p>The practical consequence for you: do not swallow your own errors to be polite.
 Letting an exception out is now the honest thing to do — it is reported, it is
 attributed to your rule, and it stops a build from going green on a check that

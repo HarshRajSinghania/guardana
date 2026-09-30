@@ -500,8 +500,9 @@ Findings you already yielded before raising are kept.
 
 Two exceptions to that. `KeyboardInterrupt` and `SystemExit` are deliberately not
 caught, so Ctrl-C still works. And raising `RuleLoadError` means "I could not be
-resolved for this run" — a missing evaluator, say — which is a configuration
-state rather than a defect, so it is recorded as a *skip*.
+resolved for this run" — a missing evaluator, say. That is a configuration state
+rather than a defect in your code, and it is still recorded in `errors`: a check
+that could not be resolved did not run.
 
 The practical consequence for you: do not swallow your own errors to be polite.
 Letting an exception out is now the honest thing to do — it is reported, it is
@@ -577,8 +578,9 @@ Findings you already yielded before raising are kept.
 
 Two exceptions to that. `KeyboardInterrupt` and `SystemExit` are deliberately not
 caught, so Ctrl-C still works. And raising `RuleLoadError` means "I could not be
-resolved for this run" — a missing evaluator, say — which is a configuration
-state rather than a defect, so it is recorded as a *skip*.
+resolved for this run" — a missing evaluator, say. That is a configuration state
+rather than a defect in your code, and it is still recorded in `errors`: a check
+that could not be resolved did not run.
 
 The practical consequence for you: do not swallow your own errors to be polite.
 Letting an exception out is now the honest thing to do — it is reported, it is

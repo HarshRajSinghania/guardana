@@ -56,6 +56,7 @@ model:
 class TargetKind(StrEnum):
     ARTIFACT = "artifact"
     ENDPOINT = "endpoint"
+    TRACE = "trace"
 
 class Capability(StrEnum):
     READ_FILES = "read_files"

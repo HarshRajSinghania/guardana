@@ -141,6 +141,21 @@ Found on 2026-09-26 while building and reviewing the suites
 - **`dataset_integrity` still misses** a module aliased by assignment (`ds = datasets`), a
   loader wrapped in `functools.partial`, and `importlib.import_module("datasets")`.
 
+## From the quality and extensibility review (0.31.0)
+
+An independent review (codex, read-only, 2026-09-30) found these; each was checked in the code.
+Its JUnit finding shipped in 0.31.0, and its two documentation findings were corrected.
+
+- **A trace's `document_digest` identifies name and size, not content**
+  (`core/trace/load.py::_size_and_name`): a changed trace of the same size keeps its digest,
+  so a finding cannot be tied to the exact evidence reviewed. Hash the bytes during the
+  bounded read (one pass), or rename the field to say what it is.
+- **Built-in three-outcome fixtures are a ratchet at 12 of 51 rules**
+  (`packages/guardana-rules/tests/test_builtin_fixture_coverage.py`).
+- **A strict CI policy is one profile away, not a preset**: `fail_on_inconclusive` and
+  `fail_on_skipped` default to off, so a run with a declined or skipped check can exit `0`.
+  A named strict preset for release gates is the proposal.
+
 ## Guardana Control on guardana.dev, and the product line
 
 Left open when the site shipped on 2026-09-25 with Control in coming-soon mode
