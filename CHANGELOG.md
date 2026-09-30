@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **The OpenSSF Best Practices badge, passing level.** The README links [the project's entry](https://www.bestpractices.dev/projects/15119), which publishes the answer and the evidence for every criterion.
+
 ## [0.33.0] - 2026-09-30 — plugin trust, offline first runs, artifact checks, and signed image provenance
 
 ### Changed — breaking

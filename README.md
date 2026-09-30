@@ -7,6 +7,7 @@ Guardana is an open-source AI security verification tool for security and platfo
 It probes live endpoints and MCP servers, analyzes recorded agent traces, and returns reproducible evidence and a verdict, including "could not tell". Compare each run with an accepted baseline.
 
 [![CI](https://github.com/guardana/guardana/actions/workflows/ci.yml/badge.svg)](https://github.com/guardana/guardana/actions/workflows/ci.yml)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/15119/badge)](https://www.bestpractices.dev/projects/15119)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org)
 [![Status: beta](https://img.shields.io/badge/status-beta-yellow.svg)](docs/product-status.md)

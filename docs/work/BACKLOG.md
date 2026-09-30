@@ -62,10 +62,6 @@ Found by the pre-ship review and the false-green hunt on 2026-09-30; each was re
 A code sweep for the `know_common_errors` attestation on 2026-09-30. The first three were
 reproduced; the rest are the sweep's reading with its anchors, not yet reproduced.
 
-- **Check signed image provenance on the 0.33.0 release run.** 0.32 images answer 404 to
-  `gh attestation verify oci://…` because buildx's attestations are unsigned; the release
-  workflow now signs each image digest with `attest-build-provenance` and `push-to-registry`.
-  Only a release run proves it.
 - **The dashboard sends no Content-Security-Policy and nothing tests its escaping** against a
   crafted payload (`server/dashboard.py:179`); `docs/threat-model.md` T7 now says so.
 - The CLI prints model output and file names verbatim, so ANSI and other control
