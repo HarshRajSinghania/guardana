@@ -24,9 +24,9 @@ explains this order.
 7. Results explain their source, coverage, execution cost and comparability.
 8. The collector is optional; local files and Python deliver independent value.
 
-## What ships today (0.32.0)
+## What ships today (0.33.0)
 
-This beta scans offline artifacts, runs repeated controlled endpoint and MCP probes, analyzes recorded traces, diffs regressions, gates on policy and baselines, supports extension APIs and pack scaffolding, and offers an optional authenticated PostgreSQL collector. Quality suites grade versioned team datasets and gate pass rates; stopped or raised suites retain total and measured case counts and appear as JUnit errors. Plans price judge calls against budgets; saved runs log judge usage and budget stops. Agent checks catch canary leaks across turns, require payload proof and argument allowlists, and never pass a truncated run. Judge-graded suites and judge-error correction are experimental; matching calibrations correct trial/suite rates, and reports flag their absence. Text checks read every agent reply; a scenario step grades replies since the previous graded step. Target URL credentials stay out of saved runs, reports and messages. Plans refuse runs that cannot pass; crashes and interrupts exit with documented codes. Human, JSON, SARIF and JUnit outputs and `plan` agree on every run that does not pass; none renders clean a run the gate refused. Saved trace and imported-document runs record the SHA-256 of bytes read and whether the read covered the whole file (`run.target.document`). `--preset release` fails when a selected check is skipped or has no verdict, and `plan` refuses such a run before sending anything. A generated page identifies tested invariants, heuristic leads and framework entries only mapped for each rule family. See [FEATURES.md](FEATURES.md) and [Product status](docs/product-status.md).
+This beta scans offline artifacts, runs repeated controlled endpoint and MCP probes, analyzes recorded traces, diffs regressions, gates on policy and baselines, supports extension APIs and pack scaffolding, and offers an optional authenticated PostgreSQL collector. Quality suites grade versioned team datasets and gate pass rates; stopped or raised suites retain total and measured case counts and appear as JUnit errors. Plans price judge calls against budgets; saved runs log judge usage and budget stops. Agent checks catch canary leaks across turns, require payload proof and argument allowlists, and never pass a truncated run. Judge-graded suites and judge-error correction are experimental; matching calibrations correct trial/suite rates, and reports flag their absence. Text checks read every agent reply; a scenario step grades replies since the previous graded step. Target URL credentials stay out of saved runs, reports and messages. Plans refuse runs that cannot pass; crashes and interrupts exit with documented codes. Human, JSON, SARIF and JUnit outputs and `plan` agree on every run that does not pass; none renders clean a run the gate refused. Saved trace and imported-document runs record the SHA-256 of bytes read and whether the read covered the whole file (`run.target.document`). `--preset release` fails when a selected check is skipped or has no verdict, and `plan` refuses such a run before sending anything. A generated page identifies tested invariants, heuristic leads and framework entries only mapped for each rule family. Every command starts with built-in plugin trust: an installed pack is refused before it is imported until it is admitted by name, and `guardana doctor` lists what it would execute. `guardana init --starter` writes an offline first run that fails, is fixed, keeps its evidence and edits one local check. See [FEATURES.md](FEATURES.md) and [Product status](docs/product-status.md).
 
 ## First goal: 1.0
 
@@ -35,11 +35,10 @@ rule, evaluator and target contracts, the output contracts, the CLI flags and ex
 profile schema and the collector envelope. From 1.0 on, a breaking change needs a major
 version ([RELEASING.md](RELEASING.md)).
 
-It follows the six remaining "Now" items, one readiness release and two release candidates:
+It follows the five remaining "Now" items, with F2's five-user study alongside, one readiness release and two release candidates:
 
 | Target | Delivers |
 |---|---|
-| **v0.33** | F2 first result and one custom check, after the decision on non-executing packs |
 | **v0.34** | F3 supported Python data workflow |
 | **v0.35** | F5 recorded-answer grading and regrading |
 | **v0.36**, **v0.37** | F6 on the real application: the recipe, connection settings and provider conformance, then the team regression loop and the live retrieval pilot |
@@ -89,7 +88,7 @@ status of each item before starting it.
 | 5 | F7 | Protocol and evidence conformance | MCP `2025-11-25` and `2026-07-28` are tested against independent server fixtures for authorization, task identity, cache scope, registry metadata and version changes. One A2A v1 fixture covers the agent card, caller identity and task visibility. A capability a server does not support is recorded as missing coverage, never as a pass. |
 | 6 | F4 | One redacted export and one webhook | One redacted local export and one webhook that reports its delivery status go through the common redaction boundary, collision checks, trust modes and pack locks, from an independently installed package, without CLI changes. Offline use sends nothing. The general renderer and reporter plugin contract waits for a team that needs more. |
 
-F1 shipped in 0.30.0 and the defects found while building it in 0.31.0; Q1 shipped in 0.32.0. M2 (provider and
+F1 shipped in 0.30.0 and the defects found while building it in 0.31.0; Q1 shipped in 0.32.0; F2's starter, recipes and study kit shipped in 0.33.0, and its five-user study is pending. M2 (provider and
 application conformance) and M4 (evidence to regression) are part of F6 now. Design F3, F5
 and F4 around the same result boundary. Advanced statistics must not block inspecting a
 result, adding a deterministic check or consuming a table; statistically proven regression
