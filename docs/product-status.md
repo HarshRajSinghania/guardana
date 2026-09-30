@@ -24,7 +24,7 @@ so this page is maintained as carefully as the code.
 | `guardana diff` | **beta** | Compares two saved runs. The saved-run format is versioned and migratable — `guardana run migrate` reads every earlier schema. |
 | Collector (`guardana-server`) | **beta** | PostgreSQL with reversible migrations, a scoped API key on every route carrying a finding, project isolation on every query, and a record of what each run verified and where. Findings have a lifecycle and expiring waivers; actions are audited; retention and deletion are commands. What it does not yet hold is a quality trend — it aggregates findings, not measurements. |
 | Quality suites | **beta** | Gates pass rates on team-supplied versioned datasets, with repeated trials and judge correction. No numeric aggregate gate or statistical comparison between suite runs. |
-| Extension API | **unstable by design** | Frozen at 1.0, and deliberately not before — see below. |
+| Extension API | **unstable by design** | Frozen at 1.0, and deliberately not before. `ROADMAP.md` states what 1.0 requires. |
 
 ## Released and experimental
 

@@ -6,7 +6,7 @@ tools without forking the engine. The product is an offline-first verification
 framework with a usable CLI and optional collection, outside the production
 request path.
 
-This is the ordered plan, not a release promise. [FEATURES.md](FEATURES.md)
+This is the ordered plan toward 1.0, not a release promise. [FEATURES.md](FEATURES.md)
 describes shipped behavior; [the generated rule summary](docs/generated/rule-summary.md)
 and [rule catalog](docs/generated/rule-catalog.md) are the coverage source of truth;
 [Product status](docs/product-status.md) states limits; [CHANGELOG.md](CHANGELOG.md)
@@ -27,6 +27,53 @@ explains this order.
 ## What ships today (0.31.0)
 
 This beta provides offline artifact scanning, repeated controlled endpoint and MCP probes, recorded-trace analysis, regression diffs, policy and baseline gates, extension APIs and pack scaffolding, and an optional authenticated PostgreSQL collector. Quality suites grade versioned team datasets and gate pass rates; stopped or raised suites retain total and measured case counts, appearing as JUnit errors. Plans price judge calls against budgets; saved runs log judge usage and budget stops. Agent checks catch canary leaks across turns, require payload proof and argument allowlists, and never pass a truncated run. Judge-graded suites and judge-error correction are experimental; matching calibrations correct trial/suite rates; reports flag their absence. Text checks read every reply of an agent run, and a scenario step grades the replies since the previous graded step. A credential in a target URL never reaches a saved run, a report or a message. A plan refuses a run that could not pass, and a crash or an interrupt exits with its documented code. See [FEATURES.md](FEATURES.md) and [Product status](docs/product-status.md).
+
+## First goal: 1.0
+
+1.0 is the first release whose public surface stays stable: the supported Python facade, the
+rule, evaluator and target contracts, the output contracts, the CLI flags and exit codes, the
+profile schema and the collector envelope. From 1.0 on, a breaking change needs a major
+version ([RELEASING.md](RELEASING.md)).
+
+It follows the seven "Now" items, one readiness release and two release candidates:
+
+| Target | Delivers |
+|---|---|
+| **v0.32** | Q1 evidence and gate integrity |
+| **v0.33** | F2 first result and one custom check, after the decision on non-executing packs |
+| **v0.34** | F3 supported Python data workflow |
+| **v0.35** | F5 recorded-answer grading and regrading |
+| **v0.36**, **v0.37** | F6 on the real application: the recipe, connection settings and provider conformance, then the team regression loop and the live retrieval pilot |
+| **v0.38** | F7 protocol and evidence conformance |
+| **v0.39** | F4 one redacted export and one webhook |
+| **v0.40** | 1.0 readiness: every criterion below that an earlier release did not meet |
+| **v1.0.0rc1**, **v1.0.0rc2** | the frozen surface with fixes only, at least two weeks apart so the pilot teams can run each one |
+| **v1.0.0** | the first stable release |
+
+The target is the first quarter of 2027. External evidence sets that date more than the code
+does: five first-run users after F2, two independent teams in F6 and a recorded third-party
+customization. A missed criterion moves the date, never the bar. Every release re-reads the
+targets; the documentation tests refuse a target that has already shipped.
+
+1.0 is reached when:
+
+- the "Now" milestone exit criteria hold, including the three published measures;
+- the supported Python facade, extension protocols and output contracts are published with a
+  compatibility matrix and a deprecation policy;
+- the conformance kit built during F6 and F7 and an independently installed reference pack
+  are published;
+- every built-in rule that can decline carries finding, clean and inconclusive fixtures;
+- the collector envelope is versioned independently from the run schema, with clients and
+  storage migrated together, because 1.0 keeps the envelope stable;
+- migrations are exercised with older run, dataset, profile, pack and collector documents;
+- successful third-party customization and team reproduction are recorded, with consent;
+- security and recovery runbooks are exercised;
+- two release candidates ship without unplanned public API changes.
+
+1.0 does not wait for M1, the M3 measurement queries or anything under "Later": each extends a
+versioned contract in a 1.x release. Until 1.0, beta does not require an API freeze. It
+requires an explicit supported surface, tested examples and migration guidance when that
+surface changes.
 
 ## Now: honest evidence, first value and the real application
 
@@ -62,12 +109,12 @@ claims wait for M1.
   comparable evidence.
 - User research is recorded with consent, without telemetry or invented adoption claims.
 
-## Next: trustworthy comparison and shared measurements
+## Next, after 1.0: trustworthy comparison and shared measurements
 
 | ID | Deliverable | Done when |
 |---|---|---|
 | M1 | Paired statistical diff | Pair compatible cases and grading identities; handle repeated trials at the case level; refuse insufficient coverage or power; report effect size and uncertainty; gate on a declared effect; control multiple gated suites. Label existing descriptive diff accurately. It follows the F5–F6 evidence workflow. |
-| M3 | Collector measurements | Version the envelope independently from run schema; migrate clients and storage together. Query by system, deployment, dataset and assessor; carry sample counts, unknowns and uncertainty. Show coverage gaps beside trends. It starts after two teams reproduce and consume local results. |
+| M3 | Collector measurements | Query by system, deployment, dataset and assessor; carry sample counts, unknowns and uncertainty. Show coverage gaps beside trends. It starts after two teams reproduce and consume local results. Versioning the envelope independently from the run schema is a 1.0 criterion. |
 
 Keep the earlier designs for [suites](docs/design/quality-suites.md),
 [trials](docs/design/repeated-trials.md) and
@@ -92,19 +139,6 @@ An exported recording remains an explicit supported subset behind an adapter.
 OpenTelemetry conventions are input formats, not Guardana's storage contract.
 Live production intake and supervision belong to
 [Guardana Control](docs/design/guardana-and-control.md).
-
-## 1.0: dependable extension contracts
-
-- Publish the supported Python facade, extension protocols and output contracts, with a compatibility matrix and deprecation policy.
-- Publish the conformance kit built during F6 and F7, and an independently installed reference pack.
-- Every built-in rule that can decline carries finding, clean and inconclusive fixtures.
-- Exercise migrations with older run, dataset, profile, pack and collector documents.
-- Ship two release candidates without unplanned public API changes.
-- Record successful third-party customization and team reproduction, with consent.
-- Exercise security and recovery runbooks.
-
-Beta does not require an API freeze. It requires an explicit supported surface,
-tested examples and migration guidance when that surface changes.
 
 ## Parallel contributor lane
 

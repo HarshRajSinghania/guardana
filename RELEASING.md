@@ -53,7 +53,8 @@ target contracts, the CLI flags, the profile schema, the collector envelope) is
 one you're willing to keep stable — i.e. the next breaking change would be rare
 and deliberate. 1.0 is a promise, not a maturity badge; don't rush it, but don't
 hide behind 0.x forever either. Everything from 1.0 on follows the right-hand
-column above.
+column above. The criteria, the release plan and the target are the first goal in
+[ROADMAP.md](ROADMAP.md).
 
 ## Why lockstep, and the one command that keeps it honest
 
