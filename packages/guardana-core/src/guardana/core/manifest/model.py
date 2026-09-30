@@ -7,7 +7,7 @@ from guardana.core.manifest.records import EvaluatorRecord, ResultSummary, RuleR
 from guardana.core.manifest.settings import ConfigurationRef, ExecutionSettings, PrivacyRecord
 from guardana.core.manifest.usage import RunUsage
 
-MANIFEST_SCHEMA_VERSION = 10
+MANIFEST_SCHEMA_VERSION = 11
 """Version of the run document, moved independently of the CLI.
 
 A run written by 0.7.3 and one written by 0.9.0 are the same document if the
@@ -40,6 +40,9 @@ Version 9 records what a suite measured over its dataset and what its gate concl
 
 Version 10 records what the judges configured under `evaluators:` spent (`usage.judge`),
 apart from the target's counts, and whether a judge's own ceiling stopped the run.
+
+Version 11 records the digest of the document a run read, and what it covers
+(`target.document`).
 """
 
 

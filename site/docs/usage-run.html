@@ -342,6 +342,9 @@ recomputed. Its trials line still prints
 recomputed.</p>
 <p>A schema-9 run migrates to schema 10 with <code>usage.judge: null</code>: judge calls were not
 counted, which is not the same as none being made. <code>inspect</code> prints <code>judge: not counted</code>.</p>
+<p>A schema-10 run migrates to schema 11 with <code>target.document: null</code>. No earlier schema
+recorded the digest of the document a run read, so nothing is relabelled, and no older run
+is read as carrying a content digest.</p>
 <p>One thing <em>is</em> recovered: the <strong>title</strong> of a framework reference, which version 3
 onward records beside its framework and id. It is looked up from the installed
 catalogue for the exact <code>(framework, id)</code> pair the document already carries, so
@@ -363,8 +366,8 @@ published was the file. There is now a test that validates the <em>artifact</em>
 parametrised over every field a version-1 run could be missing.</p>
 <h2 id="the-document">The document</h2>
 <p>The saved-run schema lives at
-<a href="https://github.com/guardana/guardana/blob/main/schemas/run-v10.schema.json"><code>schemas/run-v10.schema.json</code></a>, identified by
-<code>https://guardana.dev/schemas/run/v10.schema.json</code>, and the site serves every schema
+<a href="https://github.com/guardana/guardana/blob/main/schemas/run-v11.schema.json"><code>schemas/run-v11.schema.json</code></a>, identified by
+<code>https://guardana.dev/schemas/run/v11.schema.json</code>, and the site serves every schema
 at the URL its identifier names. The version is in the identifier,
 so a consumer can tell which contract it is holding before parsing anything; it
 changes whenever the change is not backwards-compatible. A test validates what
@@ -382,7 +385,8 @@ which is what it always counted. Version 8 records the <code>correction</code> b
 <code>trial_summary</code> and the calibration fields on <code>run.evaluators[]</code>. Version 9 records
 <code>run.rules[].suite</code>, what a quality suite measured and concluded. Version 10 records
 <code>run.usage.judge</code>, what the configured judges spent and whether one of their budgets
-stopped the run.</p>
+stopped the run. Version 11 records <code>run.target.document</code>, the digest of the document the run
+read and what it covers.</p>
 <p>Top level:</p>
 <div class="table-wrap"><table>
 <thead>
@@ -394,7 +398,7 @@ stopped the run.</p>
 <tbody>
 <tr>
 <td><code>schema_version</code></td>
-<td><code>10</code>. Stated once, for the whole document.</td>
+<td><code>11</code>. Stated once, for the whole document.</td>
 </tr>
 <tr>
 <td><code>run</code></td>
@@ -437,7 +441,7 @@ stopped the run.</p>
 </tr>
 <tr>
 <td><code>target</code></td>
-<td>what was examined, with a fingerprint and the fields that fingerprint covers</td>
+<td>what was examined, with a fingerprint, the fields that fingerprint covers, and the digest of the document the run read</td>
 </tr>
 <tr>
 <td><code>deployment</code></td>
@@ -482,6 +486,12 @@ can be migrated when the algorithm moves.</p>
 fields the digest was computed from. A digest of a URL and a model name identifies a
 <em>declared</em> target; it attests nothing about the weights behind it, and the document
 says so rather than leaving a reader to assume the stronger reading.</p>
+<p><strong>A document digest says how much of the document it covers.</strong> <code>target.document</code> is
+<code>null</code>, or <code>{digest, kind, bytes}</code>: <code>digest</code> is SHA-256 over the first <code>bytes</code> bytes of the
+file the run read, and <code>kind</code> is <code>content</code> when that was the whole file or
+<code>content_prefix</code> when a read ceiling stopped the reader first. <code>analyze-trace</code> and
+<code>import-observations</code> fill it. <code>null</code> means no digest was recorded, never that two
+documents matched.</p>
 <h2 id="assessments">Assessments</h2>
 <p>The channel that is not about problems. Every other one — findings, unverified,
 errors, coverage shortfall — records something wrong; a check that ran and was

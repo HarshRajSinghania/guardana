@@ -1,4 +1,4 @@
-"""`schemas/run-v10.schema.json` is a published contract, so it is tested.
+"""`schemas/run-v11.schema.json` is a published contract, so it is tested.
 
 A schema nothing validates against is a promise. This asserts the two directions
 that matter: what the engine writes satisfies the schema, and the schema refuses
@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from guardana.core.fingerprint import DigestKind, DocumentDigest
 from guardana.core.gate import GateOutcome
 from guardana.core.manifest import (
     MANIFEST_SCHEMA_VERSION,
@@ -46,7 +47,7 @@ from guardana.core.severity import Severity
 from guardana.core.target import TargetKind
 from jsonschema import Draft202012Validator
 
-_SCHEMA_PATH = Path(__file__).resolve().parents[3] / "schemas" / "run-v10.schema.json"
+_SCHEMA_PATH = Path(__file__).resolve().parents[3] / "schemas" / "run-v11.schema.json"
 _NOW = datetime(2026, 8, 2, 10, 0, tzinfo=UTC)
 
 
@@ -114,6 +115,9 @@ def _fully_populated() -> RunManifest:
             fingerprint=digest_of("http://x", "m"),
             fingerprint_inputs=("base_url", "model"),
             capabilities=("chat", "plant_system_prompt"),
+            document=DocumentDigest(
+                digest="sha256:" + "0" * 64, kind=DigestKind.CONTENT, bytes=1024
+            ),
         ),
         deployment=DeploymentRef(
             ai_system="support-bot",
@@ -353,7 +357,7 @@ def test_the_schema_requires_usage_keys_even_when_unknown() -> None:
     assert list(_validator().iter_errors(document))
 
 
-@pytest.mark.parametrize("version", [1, 2, 3, 4, 5, 6, 7, 8, 9, 11, "10"])
+@pytest.mark.parametrize("version", [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, "11"])
 def test_the_schema_refuses_any_version_but_the_current_one(version: object) -> None:
     document = _document(_minimal())
     document["schema_version"] = version

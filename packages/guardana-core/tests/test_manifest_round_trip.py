@@ -22,6 +22,7 @@ from dataclasses import fields, is_dataclass
 from datetime import UTC, datetime
 from typing import Any
 
+from guardana.core.fingerprint import DigestKind, DocumentDigest
 from guardana.core.gate import GateOutcome, StopReason
 from guardana.core.manifest.coverage import CoverageRecord, TaxonomyCatalogRecord
 from guardana.core.manifest.identity import (
@@ -88,6 +89,9 @@ def _fully_populated() -> RunManifest:
             fingerprint="sha256:1111",
             fingerprint_inputs=("url", "model"),
             capabilities=("chat", "plant_system_prompt"),
+            document=DocumentDigest(
+                digest="sha256:" + "cd" * 32, kind=DigestKind.CONTENT_PREFIX, bytes=65536
+            ),
         ),
         configuration=ConfigurationRef(
             profile_name="ci",

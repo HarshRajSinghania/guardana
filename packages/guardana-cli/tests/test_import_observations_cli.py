@@ -10,6 +10,7 @@ results has to say where the other hundred and ninety-eight went, or the import 
 the whole file.
 """
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -151,3 +152,18 @@ def test_an_unreadable_record_is_reported_rather_than_dropped(tmp_path: Path) ->
     assert "could not be read" in result.output
     document = json.loads(output.read_text(encoding="utf-8"))
     assert len(document["errors"]) == 1
+
+
+def test_the_saved_run_records_the_digest_of_the_imported_document(tmp_path: Path) -> None:
+    results = _jsonl(tmp_path, _GARAK)
+    output = tmp_path / "run.json"
+
+    _run(str(results), "--format", "json", "--output", str(output))
+
+    target = json.loads(output.read_text(encoding="utf-8"))["run"]["target"]
+    assert target["document"] == {
+        "digest": f"sha256:{hashlib.sha256(results.read_bytes()).hexdigest()}",
+        "kind": "content",
+        "bytes": results.stat().st_size,
+    }
+    assert target["fingerprint"] is None, "the document digest is not an attestation of the target"

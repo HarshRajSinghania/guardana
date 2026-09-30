@@ -112,7 +112,12 @@ def import_observations(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI 
         # The identity carries no fingerprint on purpose: Guardana never saw this
         # target, and a digest of a string somebody typed would look like an
         # attestation of what was verified. `fingerprint_inputs=()` says so.
-        identity=TargetIdentity(kind=TargetKind.ENDPOINT, ref=reference, fingerprint_inputs=()),
+        identity=TargetIdentity(
+            kind=TargetKind.ENDPOINT,
+            ref=reference,
+            fingerprint_inputs=(),
+            document=read.provenance.document,
+        ),
         deployment=deployment,
         source_kind=SourceKind.IMPORTED_TRACE,
     )

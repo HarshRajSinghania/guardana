@@ -11,10 +11,13 @@ own detector declining to score — is imported as undecided rather than folded 
 passes.
 """
 
+import hashlib
 import json
+import os
 from pathlib import Path
 
 import pytest
+from guardana.core.fingerprint import DigestKind, DocumentDigest
 from guardana.core.severity import Severity
 from guardana.core.trace import (
     ObservationDialect,
@@ -23,6 +26,7 @@ from guardana.core.trace import (
     detect_observation_dialect,
     read_observations,
 )
+from guardana.core.trace import observations as observations_module
 from guardana.core.trace.claims import claims_of
 
 _GARAK = [
@@ -239,6 +243,30 @@ def test_every_dialect_gets_a_document_digest_so_a_claim_can_be_traced_back(
         assert read_observations(path).provenance.document_digest
 
 
+@pytest.mark.parametrize("dialect", [ObservationDialect.GENERIC, ObservationDialect.GARAK])
+def test_the_document_digest_covers_the_raw_bytes_and_crlf_changes_nothing_else(
+    tmp_path: Path, dialect: ObservationDialect
+) -> None:
+    if dialect is ObservationDialect.GARAK:
+        lf = _jsonl(tmp_path, _GARAK, "lf.jsonl")
+    else:
+        # Indented, so the one JSON object has line breaks for CRLF to replace.
+        lf = tmp_path / "lf.json"
+        lf.write_text(json.dumps(_generic(), indent=2) + "\n", encoding="utf-8")
+    crlf = tmp_path / f"crlf{lf.suffix}"
+    crlf.write_bytes(lf.read_bytes().replace(b"\n", b"\r\n"))
+
+    read = read_observations(crlf, dialect)
+
+    assert read.provenance.document == DocumentDigest(
+        digest=f"sha256:{hashlib.sha256(crlf.read_bytes()).hexdigest()}",
+        kind=DigestKind.CONTENT,
+        bytes=crlf.stat().st_size,
+    )
+    assert read.observations == read_observations(lf, dialect).observations
+    assert read.observations, "the fixture must import something for the comparison to mean it"
+
+
 def test_an_imported_claim_is_never_presented_as_a_guardana_verdict(tmp_path: Path) -> None:
     """It lands inconclusive, names the producer, and carries no framework reference."""
     read = read_observations(_json(tmp_path, _promptfoo(nested=True)))
@@ -270,3 +298,23 @@ def test_two_claims_from_one_producer_still_get_distinct_fingerprints(tmp_path: 
     """One rule id per producer, so a baseline waiver has to key on the evidence summary."""
     claims = claims_of(read_observations(_jsonl(tmp_path, _GARAK)), "https://target/")
     assert len({c.fingerprint for c in claims}) == len(claims)
+
+
+def test_a_document_over_the_ceiling_is_refused_whatever_its_size_on_disk_said(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The read itself is bounded: a file still being written can outgrow the size a
+    # check read a moment earlier.
+    path = tmp_path / "results.json"
+    path.write_text(json.dumps({"guardana_observations": 1, "observations": []}), encoding="utf-8")
+    monkeypatch.setattr(observations_module, "MAX_TRACE_BYTES", 16)
+    original_stat = Path.stat
+
+    def small(self: Path, *args: object, **kwargs: object) -> os.stat_result:
+        real = original_stat(self, *args, **kwargs)  # type: ignore[arg-type]
+        return os.stat_result((real.st_mode, *real[1:6], 1, *real[7:]))
+
+    monkeypatch.setattr(Path, "stat", small)
+
+    with pytest.raises(TraceLoadError, match="ceiling"):
+        read_observations(path, ObservationDialect.GENERIC)

@@ -117,6 +117,10 @@ recomputed.
 A schema-9 run migrates to schema 10 with `usage.judge: null`: judge calls were not
 counted, which is not the same as none being made. `inspect` prints `judge: not counted`.
 
+A schema-10 run migrates to schema 11 with `target.document: null`. No earlier schema
+recorded the digest of the document a run read, so nothing is relabelled, and no older run
+is read as carrying a content digest.
+
 One thing *is* recovered: the **title** of a framework reference, which version 3
 onward records beside its framework and id. It is looked up from the installed
 catalogue for the exact `(framework, id)` pair the document already carries, so
@@ -145,8 +149,8 @@ parametrised over every field a version-1 run could be missing.
 ## The document
 
 The saved-run schema lives at
-[`schemas/run-v10.schema.json`](../schemas/run-v10.schema.json), identified by
-`https://guardana.dev/schemas/run/v10.schema.json`, and the site serves every schema
+[`schemas/run-v11.schema.json`](../schemas/run-v11.schema.json), identified by
+`https://guardana.dev/schemas/run/v11.schema.json`, and the site serves every schema
 at the URL its identifier names. The version is in the identifier,
 so a consumer can tell which contract it is holding before parsing anything; it
 changes whenever the change is not backwards-compatible. A test validates what
@@ -165,13 +169,14 @@ which is what it always counted. Version 8 records the `correction` block on
 `trial_summary` and the calibration fields on `run.evaluators[]`. Version 9 records
 `run.rules[].suite`, what a quality suite measured and concluded. Version 10 records
 `run.usage.judge`, what the configured judges spent and whether one of their budgets
-stopped the run.
+stopped the run. Version 11 records `run.target.document`, the digest of the document the run
+read and what it covers.
 
 Top level:
 
 | Key | What it is |
 |---|---|
-| `schema_version` | `10`. Stated once, for the whole document. |
+| `schema_version` | `11`. Stated once, for the whole document. |
 | `run` | the manifest — everything below |
 | `findings` / `unverified` / `waived` / `errors` / `observations` | the problem, evidence and inventory channels |
 | `assessments` | what the run *measured*, pass included — see [assessments](#assessments) |
@@ -184,7 +189,7 @@ Inside `run`:
 | `migrated_from` | which older schema it came from, or `null` |
 | `source` | who started it — a laptop, CI, a schedule |
 | `guardana` | which software produced it |
-| `target` | what was examined, with a fingerprint and the fields that fingerprint covers |
+| `target` | what was examined, with a fingerprint, the fields that fingerprint covers, and the digest of the document the run read |
 | `deployment` | which deployment of which AI system this verifies |
 | `configuration` | which settings produced it, **by digest** |
 | `execution` | what limits it ran under, and `trials`: the attempts per case the run asked for |
@@ -206,6 +211,13 @@ can be migrated when the algorithm moves.
 fields the digest was computed from. A digest of a URL and a model name identifies a
 *declared* target; it attests nothing about the weights behind it, and the document
 says so rather than leaving a reader to assume the stronger reading.
+
+**A document digest says how much of the document it covers.** `target.document` is
+`null`, or `{digest, kind, bytes}`: `digest` is SHA-256 over the first `bytes` bytes of the
+file the run read, and `kind` is `content` when that was the whole file or
+`content_prefix` when a read ceiling stopped the reader first. `analyze-trace` and
+`import-observations` fill it. `null` means no digest was recorded, never that two
+documents matched.
 
 ## Assessments
 

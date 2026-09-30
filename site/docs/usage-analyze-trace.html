@@ -558,6 +558,13 @@ can tell a recording from a live check. It compares with <code>guardana diff</co
 run, and the coverage fingerprint records which dimensions were available — so a diff
 against a richer trace says the <em>reach</em> changed instead of reading the missing findings as
 an improvement.</p>
+<p>The run also records which bytes it read, under <code>run.target.document</code>. <code>digest</code> is SHA-256
+over the first <code>bytes</code> bytes of the trace file, and <code>kind</code> is <code>content</code> when that is the
+whole file or <code>content_prefix</code> when a read ceiling stopped the reader first. Check it with
+<code>head -c &lt;bytes&gt; trace.jsonl | sha256sum</code>. An edit changes the digest even when the file
+keeps its size. The digest sits beside the target fingerprint, not inside it, so a trace
+re-recorded at the same path is still the same target for <code>diff</code>. A run saved before
+schema 11 carries <code>document: null</code>: the digest was not recorded.</p>
 <h2 id="related">Related</h2>
 <ul>
 <li><a href="usage-trace-inspect.html"><code>usage-trace-inspect.md</code></a> — what this file can answer at

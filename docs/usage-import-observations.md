@@ -54,6 +54,10 @@ the evidence, where it reads as a quotation.
 `fail_on_error` on by default — makes the run indeterminate. A dropped record is a failing
 check that disappears, which is a false green arriving through the import path.
 
+**The document is identified by its bytes.** Each claim's evidence names the SHA-256 of the
+file it came from, and the saved run records the same digest under `run.target.document`
+with `kind: content`, so `sha256sum` on the file you kept reproduces it.
+
 ## Three formats
 
 Detected from the file's structure rather than its name; `--producer` overrides.

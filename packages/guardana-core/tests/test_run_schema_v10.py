@@ -13,12 +13,12 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from _documents import run_manifest, saved_run_at_v9, scan_result
+from _documents import run_manifest, saved_run_at_v9, saved_run_at_v10, scan_result
 from guardana.core.manifest.load import ManifestLoadError, manifest_from_dict
 from guardana.core.manifest.migrations import migrate_v9
 from guardana.core.manifest.serialize import manifest_to_dict
 from guardana.core.manifest.usage import JudgeUsage, RunUsage
-from guardana.core.report.load import load_report, migrate_forward
+from guardana.core.report.load import load_report
 from guardana.core.report.serialize import run_to_dict
 from jsonschema import Draft202012Validator
 
@@ -26,6 +26,9 @@ _SCHEMAS = Path(__file__).resolve().parents[3] / "schemas"
 
 
 def _errors(document: dict[str, Any], version: int = 10) -> list[str]:
+    """Validate `document` against the schema at `version`, in the shape that version wrote."""
+    if version == 10:
+        document = saved_run_at_v10(document)
     schema = json.loads((_SCHEMAS / f"run-v{version}.schema.json").read_text(encoding="utf-8"))
     return [error.message for error in Draft202012Validator(schema).iter_errors(document)]
 
@@ -226,13 +229,6 @@ def test_the_migration_recomputes_nothing_else() -> None:
 
     assert v9 == before, "the migration must not edit the document it was handed"
     assert saved_run_at_v9(migrated) == v9
-
-
-def test_every_older_version_reaches_10_through_the_chain() -> None:
-    migrated = migrate_forward(saved_run_at_v9(_document()), 9)
-
-    assert migrated["schema_version"] == 10
-    assert not _errors(migrated)
 
 
 def test_a_loaded_v9_run_says_it_was_migrated_so_its_unknowns_are_not_read_as_zero(

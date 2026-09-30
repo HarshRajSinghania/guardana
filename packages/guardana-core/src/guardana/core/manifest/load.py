@@ -4,6 +4,7 @@ from collections.abc import Mapping
 from datetime import datetime
 from typing import Any
 
+from guardana.core.fingerprint import DigestKind, DocumentDigest
 from guardana.core.gate import GateOutcome
 from guardana.core.manifest.coverage import CoverageRecord, TaxonomyCatalogRecord
 from guardana.core.manifest.identity import (
@@ -34,6 +35,8 @@ from guardana.core.report.skipped import SkippedRule, SkipReason
 from guardana.core.report.stop import StopReason
 from guardana.core.target import TargetKind
 from guardana.core.trials import check_trials
+
+_DIGEST_KINDS = frozenset(str(kind) for kind in DigestKind)
 
 
 class ManifestLoadError(Exception):
@@ -148,7 +151,37 @@ def _target(raw: object) -> TargetIdentity:
         fingerprint=_optional_text(block, "fingerprint"),
         fingerprint_inputs=tuple(str(v) for v in inputs) if isinstance(inputs, list) else (),
         capabilities=tuple(str(v) for v in capabilities) if isinstance(capabilities, list) else (),
+        document=_document(block),
     )
+
+
+def _document(target: Mapping[str, Any]) -> DocumentDigest | None:
+    """Read the digest of the document the run read, refusing one absent or malformed.
+
+    The key is required, null included: a digest read back as absent when the writer
+    recorded one would drop the only link from the run to the bytes it graded.
+    """
+    what = "run.target.document"
+    raw = _present(target, "document", "run.target")
+    if raw is None:
+        return None
+    block = _mapping(raw, what)
+    unknown = sorted(set(block) - {"digest", "kind", "bytes"})
+    if unknown:
+        raise ManifestLoadError(f"{what} carries {unknown}, which no writer records")
+    digest = _present(block, "digest", what)
+    kind = _present(block, "kind", what)
+    size = _present(block, "bytes", what)
+    if not isinstance(digest, str):
+        raise ManifestLoadError(f"{what}.digest must be a string")
+    if not isinstance(kind, str) or kind not in _DIGEST_KINDS:
+        raise ManifestLoadError(f"{what}.kind {kind!r} is not one of {sorted(_DIGEST_KINDS)}")
+    if isinstance(size, bool) or not isinstance(size, int):
+        raise ManifestLoadError(f"{what}.bytes must be an integer")
+    try:
+        return DocumentDigest(digest=digest, kind=DigestKind(kind), bytes=size)
+    except (TypeError, ValueError) as exc:
+        raise ManifestLoadError(f"{what}: {exc}") from exc
 
 
 def _deployment(raw: object) -> DeploymentRef:

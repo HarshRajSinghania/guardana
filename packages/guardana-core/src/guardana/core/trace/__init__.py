@@ -30,6 +30,7 @@ imported from their own modules: `guardana.core.trace.bridge.as_trajectory` and
 See `docs/design/trace-domain-model.md`.
 """
 
+from guardana.core.fingerprint import DigestKind, DocumentDigest
 from guardana.core.trace.agent import AgentRef
 from guardana.core.trace.authorization import (
     Approval,
@@ -107,8 +108,10 @@ __all__ = [
     "CredentialRef",
     "Delegation",
     "Dialect",
+    "DigestKind",
     "Dimension",
     "DimensionCoverage",
+    "DocumentDigest",
     "EffectStatus",
     "Handoff",
     "Identity",

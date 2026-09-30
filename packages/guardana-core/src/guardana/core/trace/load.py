@@ -11,14 +11,16 @@ downwards.** A trace with no consent records anywhere is indistinguishable from 
 producer that does not emit them, and both must stop the consent rule from running.
 """
 
+import hashlib
+import io
 import json
 from collections.abc import Iterator, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import StrEnum
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TextIO
 
-from guardana.core.fingerprint import digest_of
+from guardana.core.fingerprint import DigestKind, DocumentDigest
 from guardana.core.trace import _native, otel
 from guardana.core.trace._parse import TraceLoadError, mapping_of
 from guardana.core.trace.limits import MAX_RECORD_BYTES, MAX_SPANS, MAX_TRACE_BYTES
@@ -64,7 +66,16 @@ def detect_dialect(path: Path) -> Dialect:
     a JSON object at all is refused here rather than producing an empty trace, which
     is the shape a mistyped path takes.
     """
-    for raw in _records(path):
+    try:
+        handle = path.open("r", encoding="utf-8")
+    except OSError as exc:
+        raise TraceLoadError(f"{path} could not be read: {exc}") from exc
+    with handle:
+        return _dialect_of(path, handle)
+
+
+def _dialect_of(path: Path, handle: TextIO) -> Dialect:
+    for raw in _records(path, handle):
         if not isinstance(raw, str):
             raise TraceLoadError(
                 f"{path} opens with a record this build cannot read, so its dialect cannot be "
@@ -81,15 +92,77 @@ def read_trace(path: Path, dialect: Dialect | None = None) -> TraceRead:
     `dialect` overrides detection, which is what an operator reaches for when a file
     is ambiguous — and the reason detection announces its answer rather than keeping
     it.
+
+    The trace's provenance carries the digest of every byte the reader consumed, taken
+    in the same pass that parses them: `content` when the reader reached the end of the
+    file, `content_prefix` when a ceiling stopped it first.
     """
     chosen = dialect if dialect is not None else detect_dialect(path)
-    digest = digest_of(_size_and_name(path))
-    if chosen is Dialect.GUARDANA:
-        return _read_native(path, digest)
-    return _read_otel(path, digest)
+    try:
+        raw = _HashingReader(path.open("rb", buffering=0))
+    except OSError as exc:
+        raise TraceLoadError(f"{path} could not be read: {exc}") from exc
+    with io.TextIOWrapper(io.BufferedReader(raw), encoding="utf-8") as handle:
+        records = _records(path, handle)
+        if chosen is Dialect.GUARDANA:
+            read = _read_native(path, records)
+        else:
+            read = _read_otel(path, records)
+    provenance = replace(read.trace.provenance, document=raw.document())
+    return replace(read, trace=replace(read.trace, provenance=provenance))
 
 
-def _read_native(path: Path, digest: str) -> TraceRead:
+class _HashingReader(io.RawIOBase):
+    """A raw file that digests every byte it hands the buffer above it.
+
+    Hashing at the raw layer keeps the text layer above untouched, so line splitting,
+    the ceilings and the UTF-8 refusal read exactly what they would read from a plain
+    file. The buffer reads ahead, so the digest covers what left the file, which can be
+    more than the records parsed; the invariant is that it covers a prefix of the file.
+    """
+
+    def __init__(self, file: io.FileIO) -> None:
+        """Wrap `file`, which this reader closes when it is closed."""
+        super().__init__()
+        self._file = file
+        self._hash = hashlib.sha256()
+        self._bytes = 0
+        self._ended = False
+
+    def readable(self) -> bool:
+        """Report the one thing this stream does."""
+        return True
+
+    def readinto(self, buffer: object, /) -> int | None:
+        """Read from the file into `buffer`, digesting what was read."""
+        if not isinstance(buffer, memoryview | bytearray):
+            raise TypeError(f"a trace is read into a writable byte buffer, not {type(buffer)}")
+        count = self._file.readinto(buffer)
+        if count is None:
+            return None
+        if count == 0:
+            self._ended = True
+            return 0
+        with memoryview(buffer) as view:
+            self._hash.update(view.cast("B")[:count])
+        self._bytes += count
+        return count
+
+    def close(self) -> None:
+        """Close the file underneath as well."""
+        self._file.close()
+        super().close()
+
+    def document(self) -> DocumentDigest:
+        """Digest what was read so far, saying whether the file ended within it."""
+        return DocumentDigest(
+            f"sha256:{self._hash.hexdigest()}",
+            DigestKind.CONTENT if self._ended else DigestKind.CONTENT_PREFIX,
+            self._bytes,
+        )
+
+
+def _read_native(path: Path, records: "_Records") -> TraceRead:
     header: _native.NativeHeader | None = None
     footer: _native.NativeFooter | None = None
     version = 0
@@ -97,7 +170,7 @@ def _read_native(path: Path, digest: str) -> TraceRead:
     unreadable: list[UnreadableRecord] = []
     encountered = 0
     truncated: TraceTruncation | None = None
-    for number, raw in enumerate(_records(path), start=1):
+    for number, raw in enumerate(records, start=1):
         if isinstance(raw, _TooLong):
             unreadable.append(UnreadableRecord(number, raw.reason))
             encountered += header is not None
@@ -144,7 +217,6 @@ def _read_native(path: Path, digest: str) -> TraceRead:
                 dialect=str(Dialect.GUARDANA),
                 producer_version=header.producer_version,
                 recorded_at=header.recorded_at,
-                document_digest=digest,
             ),
             # Declared wins over derived: a producer that says it records approvals is
             # believed, so a run of theirs with no approval anywhere is a finding rather
@@ -211,13 +283,13 @@ def _incompleteness(
     return TraceTruncation.RECORDS_LOST if footer.spans != encountered else None
 
 
-def _read_otel(path: Path, digest: str) -> TraceRead:
+def _read_otel(path: Path, records: "_Records") -> TraceRead:
     spans: list[Span] = []
     unreadable: list[UnreadableRecord] = []
     trace_id: str | None = None
     truncated: TraceTruncation | None = None
     unread_content = 0
-    for number, raw in enumerate(_records(path), start=1):
+    for number, raw in enumerate(records, start=1):
         if isinstance(raw, _TooLong):
             unreadable.append(UnreadableRecord(number, raw.reason))
             continue
@@ -246,7 +318,6 @@ def _read_otel(path: Path, digest: str) -> TraceRead:
                 producer="opentelemetry",
                 source=str(path),
                 dialect=str(Dialect.OTEL),
-                document_digest=digest,
             ),
             instrumented=dimensions_present(spans),
             truncated=truncated,
@@ -274,25 +345,27 @@ class _Overflow:
     """The file passed the total-bytes ceiling: the trace is truncated, not shorter."""
 
 
-def _records(path: Path) -> Iterator[str | _TooLong | _Overflow]:
+_Records = Iterator[str | _TooLong | _Overflow]
+
+
+def _records(path: Path, handle: TextIO) -> _Records:
     """Stream a JSONL file line by line, bounded, yielding a marker at each ceiling."""
     read = 0
     try:
-        with path.open("r", encoding="utf-8") as handle:
-            for line in handle:
-                stripped = line.strip()
-                if not stripped:
-                    continue
-                read += len(line)
-                if read > MAX_TRACE_BYTES:
-                    yield _Overflow()
-                    return
-                if len(stripped) > MAX_RECORD_BYTES:
-                    yield _TooLong(
-                        f"record is {len(stripped)} bytes, over the {MAX_RECORD_BYTES}-byte ceiling"
-                    )
-                    continue
-                yield stripped
+        for line in handle:
+            stripped = line.strip()
+            if not stripped:
+                continue
+            read += len(line)
+            if read > MAX_TRACE_BYTES:
+                yield _Overflow()
+                return
+            if len(stripped) > MAX_RECORD_BYTES:
+                yield _TooLong(
+                    f"record is {len(stripped)} bytes, over the {MAX_RECORD_BYTES}-byte ceiling"
+                )
+                continue
+            yield stripped
     except OSError as exc:
         raise TraceLoadError(f"{path} could not be read: {exc}") from exc
     except UnicodeDecodeError as exc:
@@ -308,16 +381,3 @@ def _parse(raw: str, number: int) -> object:
     except json.JSONDecodeError as exc:
         raise TraceLoadError(f"record {number} is not valid JSON: {exc}") from exc
     return parsed
-
-
-def _size_and_name(path: Path) -> str:
-    """Identify a trace file without reading it twice.
-
-    A digest of the bytes would mean a second pass over a file bounded at 64 MiB, for
-    a value whose job is to say *which file this claim came from*. Name and size do
-    that; a content hash would say something stronger than the provenance needs.
-    """
-    try:
-        return f"{path.name}:{path.stat().st_size}"
-    except OSError:
-        return path.name

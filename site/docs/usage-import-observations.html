@@ -290,6 +290,9 @@ the evidence, where it reads as a quotation.</p>
 <p><strong>Nothing is dropped.</strong> A record that cannot be read goes to the <code>errors</code> channel and — with
 <code>fail_on_error</code> on by default — makes the run indeterminate. A dropped record is a failing
 check that disappears, which is a false green arriving through the import path.</p>
+<p><strong>The document is identified by its bytes.</strong> Each claim's evidence names the SHA-256 of the
+file it came from, and the saved run records the same digest under <code>run.target.document</code>
+with <code>kind: content</code>, so <code>sha256sum</code> on the file you kept reproduces it.</p>
 <h2 id="three-formats">Three formats</h2>
 <p>Detected from the file's structure rather than its name; <code>--producer</code> overrides.</p>
 <h3 id="garak">garak</h3>

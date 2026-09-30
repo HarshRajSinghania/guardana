@@ -244,6 +244,14 @@ run, and the coverage fingerprint records which dimensions were available — so
 against a richer trace says the *reach* changed instead of reading the missing findings as
 an improvement.
 
+The run also records which bytes it read, under `run.target.document`. `digest` is SHA-256
+over the first `bytes` bytes of the trace file, and `kind` is `content` when that is the
+whole file or `content_prefix` when a read ceiling stopped the reader first. Check it with
+`head -c <bytes> trace.jsonl | sha256sum`. An edit changes the digest even when the file
+keeps its size. The digest sits beside the target fingerprint, not inside it, so a trace
+re-recorded at the same path is still the same target for `diff`. A run saved before
+schema 11 carries `document: null`: the digest was not recorded.
+
 ## Related
 
 - [`usage-trace-inspect.md`](usage-trace-inspect.md) — what this file can answer at

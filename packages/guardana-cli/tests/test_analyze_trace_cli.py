@@ -13,6 +13,7 @@ clean, which is what a mistyped path in a pipeline looks like — and that is th
 shape of false green this project has.
 """
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -234,3 +235,38 @@ def test_a_truncated_trace_says_a_quiet_rule_is_not_a_passing_one(tmp_path: Path
     result = _run(str(_write(tmp_path, header, _CLEAN_SPAN)))
     assert "incomplete" in result.output
     assert "inconclusive rather than a pass" in result.output
+
+
+def _saved_document(tmp_path: Path, trace: Path) -> dict[str, object]:
+    output = tmp_path / "run.json"
+    result = _run(str(trace), "--format", "json", "--output", str(output))
+    assert result.exit_code == ExitCode.OK, result.output
+    document: dict[str, object] = json.loads(output.read_text(encoding="utf-8"))["run"]["target"][
+        "document"
+    ]
+    return document
+
+
+def test_a_saved_trace_run_records_the_digest_of_every_byte_it_read(tmp_path: Path) -> None:
+    trace = _write(tmp_path, _HEADER, _CLEAN_SPAN)
+
+    document = _saved_document(tmp_path, trace)
+
+    assert document == {
+        "digest": f"sha256:{hashlib.sha256(trace.read_bytes()).hexdigest()}",
+        "kind": "content",
+        "bytes": trace.stat().st_size,
+    }
+
+
+def test_a_same_size_edit_to_the_trace_changes_the_saved_digest(tmp_path: Path) -> None:
+    trace = _write(tmp_path, _HEADER, _CLEAN_SPAN)
+    before = _saved_document(tmp_path, trace)
+    original = trace.read_bytes()
+    trace.write_bytes(original.replace(b'"http"', b'"htpt"', 1))
+    assert trace.stat().st_size == len(original)
+
+    after = _saved_document(tmp_path, trace)
+
+    assert after["digest"] != before["digest"]
+    assert after["digest"] == f"sha256:{hashlib.sha256(trace.read_bytes()).hexdigest()}"

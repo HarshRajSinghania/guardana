@@ -59,7 +59,7 @@ from guardana.core.profile import Profile
 from guardana.core.registry import Registry
 from guardana.core.report import CoverageShortfall, ScanResult
 from guardana.core.rule import Rule
-from guardana.core.target import REQUEST_TIMEOUT_SECONDS, Target, TargetKind
+from guardana.core.target import REQUEST_TIMEOUT_SECONDS, Target, TargetKind, TraceReader
 from guardana.core.taxonomy import catalogs
 from guardana.core.trials import reduce_rule
 from guardana.core.usage import TargetUsage
@@ -186,6 +186,9 @@ def target_identity(target: Target, ref: str) -> TargetIdentity:
     target to identify itself. `fingerprint_inputs` records exactly that, so no
     consumer reads the digest as covering model weights it never saw. What a real
     endpoint supports, and how it identifies itself, is `guardana target inspect`.
+
+    A trace also records the digest of the document it was read from, beside the
+    fingerprint rather than in it, so the fingerprint keeps identifying the target.
     """
     inputs = ("kind", "ref")
     return TargetIdentity(
@@ -194,6 +197,7 @@ def target_identity(target: Target, ref: str) -> TargetIdentity:
         fingerprint=digest_of(str(target.kind), ref),
         fingerprint_inputs=inputs,
         capabilities=tuple(sorted(str(c) for c in target.capabilities())),
+        document=target.trace.provenance.document if isinstance(target, TraceReader) else None,
     )
 
 

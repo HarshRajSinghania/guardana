@@ -24,6 +24,7 @@ from guardana.core.manifest.migrations import (
     migrate_v7,
     migrate_v8,
     migrate_v9,
+    migrate_v10,
 )
 from guardana.core.manifest.model import RunManifest
 from guardana.core.manifest.usage import RunUsage
@@ -52,6 +53,7 @@ _MIGRATIONS = {
     7: migrate_v7,
     8: migrate_v8,
     9: migrate_v9,
+    10: migrate_v10,
 }
 """One step forward per version, keyed by the version the document *is*.
 

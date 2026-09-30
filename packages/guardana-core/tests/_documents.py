@@ -16,6 +16,7 @@ from typing import Any
 
 from guardana.core.assessment import Assessment, AssessmentStatus, Direction
 from guardana.core.evaluator.base import Verdict
+from guardana.core.fingerprint import DigestKind, DocumentDigest
 from guardana.core.gate import GateOutcome, StopReason
 from guardana.core.manifest.coverage import CoverageRecord, TaxonomyCatalogRecord
 from guardana.core.manifest.identity import (
@@ -130,6 +131,9 @@ def run_manifest() -> RunManifest:
             fingerprint="sha256:1111",
             fingerprint_inputs=("url", "model"),
             capabilities=("chat", "plant_system_prompt"),
+            document=DocumentDigest(
+                digest="sha256:" + "ab" * 32, kind=DigestKind.CONTENT_PREFIX, bytes=8192
+            ),
         ),
         configuration=ConfigurationRef(
             profile_name="ci",
@@ -362,8 +366,23 @@ def scan_result() -> ScanResult:
     )
 
 
+def saved_run_at_v10(document: dict[str, Any]) -> dict[str, Any]:
+    """Rewrite a document this build wrote into the shape a version-10 build wrote."""
+    run = document["run"]
+    return {
+        **document,
+        "schema_version": 10,
+        "$schema": "https://guardana.dev/schemas/run/v10.schema.json",
+        "run": {
+            **run,
+            "target": {k: v for k, v in run["target"].items() if k != "document"},
+        },
+    }
+
+
 def saved_run_at_v9(document: dict[str, Any]) -> dict[str, Any]:
     """Rewrite a document this build wrote into the shape a version-9 build wrote."""
+    document = saved_run_at_v10(document)
     run = document["run"]
     return {
         **document,

@@ -2,6 +2,7 @@
 
 from datetime import UTC, datetime
 
+from guardana.core.fingerprint import DocumentDigest
 from guardana.core.manifest.coverage import CoverageRecord
 from guardana.core.manifest.identity import DeploymentRef, RunSource, TargetIdentity, ToolInfo
 from guardana.core.manifest.model import MANIFEST_SCHEMA_VERSION, RunManifest
@@ -69,7 +70,14 @@ def _target(target: TargetIdentity) -> dict[str, object]:
         "fingerprint": target.fingerprint,
         "fingerprint_inputs": list(target.fingerprint_inputs),
         "capabilities": list(target.capabilities),
+        "document": _document(target.document),
     }
+
+
+def _document(document: DocumentDigest | None) -> dict[str, object] | None:
+    if document is None:
+        return None
+    return {"digest": document.digest, "kind": str(document.kind), "bytes": document.bytes}
 
 
 def _deployment(deployment: DeploymentRef) -> dict[str, object]:

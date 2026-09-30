@@ -276,6 +276,26 @@ def migrate_v9(document: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def migrate_v10(document: Mapping[str, Any]) -> dict[str, Any]:
+    """Rewrite a schema-10 saved run as a schema-11 one, recomputing nothing.
+
+    **`run.target.document`** arrives null, overwriting whatever the document holds: no
+    version-10 build recorded a document digest, so none is relabelled and nothing is
+    ever read as a digest of content.
+    """
+    run = _mapping(document.get("run"), "run")
+    target = run.get("target")
+    return {
+        **document,
+        "schema_version": 11,
+        "$schema": schema_url(11),
+        "run": {
+            **run,
+            "target": {**(target if isinstance(target, dict) else {}), "document": None},
+        },
+    }
+
+
 _PER_CLASS_CALIBRATION = (
     "assessor",
     "judge_identity",
