@@ -12,6 +12,7 @@ Wired in `.claude/settings.json`; the case table lives in
 
 import json
 import re
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -26,6 +27,54 @@ ATTRIBUTION = re.compile(r"co-authored-by|generated with|claude\.ai/code|\U0001F
 TAG_PUSH = re.compile(r"\bgit\s+push\b[^|;&]*(?:--tags\b|refs/tags/|\bv\d+\.\d+)")
 # A push to `main` deploys guardana.dev straight from the tree, before CI has run.
 SITE_CHECKS = ("generate_docs.py", "sync_site.py", "build_site.py", "generate_llms_txt.py")
+# Programs that read or check a file named on their command line and never run it.
+FILE_READERS = frozenset(
+    {
+        "awk",
+        "bat",
+        "cat",
+        "cp",
+        "diff",
+        "echo",
+        "egrep",
+        "file",
+        "find",
+        "git",
+        "grep",
+        "head",
+        "less",
+        "ls",
+        "more",
+        "mv",
+        "mypy",
+        "printf",
+        "pytest",
+        "rg",
+        "ruff",
+        "sed",
+        "shasum",
+        "sha256sum",
+        "stat",
+        "tail",
+        "wc",
+    }
+)
+UV_OPTIONS_WITH_VALUE = frozenset(
+    {
+        "--directory",
+        "--env-file",
+        "--extra",
+        "--group",
+        "--package",
+        "--project",
+        "--python",
+        "--with",
+        "-p",
+    }
+)
+SAFE_RELEASE_FLAGS = frozenset({"--dry-run", "--help", "-h"})
+# A here-document's body is input to a program, not a command; it is cut before parsing.
+HEREDOC = re.compile(r"<<-?\s*(['\"]?)(\w+)\1([^\n]*)\n.*?\n\2[ \t]*(?=\n|$)", re.DOTALL)
 SELF_EXEMPT = frozenset(
     {"scripts/guard_hook.py", "scripts/check_claude_setup.py", "scripts/tests/test_guard_hook.py"}
 )
@@ -134,10 +183,57 @@ def _guard_tools(command: str) -> None:
             "Call GPT/Gemini through scripts/text_model.py, one call per batch; "
             "each call boots a full agent session on the other side.",
         )
-    if re.search(r"scripts/release\.py\b", command) and "--dry-run" not in command:
+    if _runs_release(command):
         decide("ask", "release.py commits, tags and pushes; the tag publishes to PyPI.")
     if re.search(r"\bgh\s+(?:release\s+(?:create|delete|edit)|run\s+cancel)\b", command):
         decide("ask", "This changes a public release or a running publish.")
+
+
+def _runs_release(command: str) -> bool:
+    """Whether some simple command in `command` runs scripts/release.py for real.
+
+    Reading, grepping or linting the file never asks, and neither do `--help` and
+    `--dry-run`. Quoting that cannot be parsed, or a program this cannot place, asks.
+    """
+    if "release.py" not in command:
+        return False
+    command = HEREDOC.sub(r"\3", command)
+    lexer = shlex.shlex(command, posix=True, punctuation_chars=True)
+    lexer.whitespace_split = True
+    try:
+        tokens = list(lexer)
+    except ValueError:
+        return not SAFE_RELEASE_FLAGS.intersection(command.split())
+    simple: list[list[str]] = [[]]
+    for token in tokens:
+        if token and set(token) <= set(";&|()<>\n"):
+            simple.append([])
+        else:
+            simple[-1].append(token)
+    return any(_runs_script(words) for words in simple if any("release.py" in w for w in words))
+
+
+def _runs_script(words: list[str]) -> bool:
+    """Whether one simple command executes scripts/release.py without a safe flag."""
+    while words and re.fullmatch(r"[A-Za-z_]\w*=.*", words[0]):
+        words = words[1:]
+    if words[:2] == ["uv", "run"]:
+        rest, words, skip = words[2:], [], False
+        for index, word in enumerate(rest):
+            if skip:
+                skip = False
+            elif word in UV_OPTIONS_WITH_VALUE:
+                skip = True
+            elif not word.startswith("-"):
+                words = rest[index:]
+                break
+    if not words or Path(words[0]).name in FILE_READERS:
+        return False
+    if re.fullmatch(r"python[\d.]*", Path(words[0]).name):
+        scripts = [w for w in words[1:] if not w.startswith("-")]
+        if not scripts or Path(scripts[0]).name != "release.py":
+            return False
+    return not SAFE_RELEASE_FLAGS.intersection(words)
 
 
 def guard_bash(command: str) -> None:
