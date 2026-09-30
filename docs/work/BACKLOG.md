@@ -5,24 +5,32 @@ rebuilt. An item leaves this file by becoming a work file (`/plan`) or by being 
 reason in the commit message. Priorities live in `ROADMAP.md`; this file is the inventory.
 Re-verify an item before starting it — several sessions work in this repo.
 
-## Framework usability triage (2026-09-26)
+## Triage (2026-09-30, after the direction audit)
 
-The inventory below is preserved. This triage was checked against 0.29.0 (`5bed6dc`);
-priorities use the IDs in [ROADMAP.md](../../ROADMAP.md).
-Rationale: [framework audit](../design/framework-usability-audit.md).
+The inventory below is preserved. Priorities use the IDs in [ROADMAP.md](../../ROADMAP.md);
+the order and its evidence are in the [direction audit](../design/audit-0.31-direction.md),
+which supersedes the [framework audit](../design/framework-usability-audit.md)'s order.
 No remote issues were created; the GitHub open-issue query returned zero.
 
 | ID | Concrete work | Roadmap | Acceptance evidence |
 |---|---|---|---|
 | B04 | Starter and three short task-oriented recipes | F2 | Clean-install offline run, edited custom check and saved artifact; recorded-answer and actual-application paths clearly distinguish their coverage. |
 | B05 | Supported Python result facade and parity tests | F3 | Failed and partial results remain accessible; trust, local rules, calibration, redaction, budgets and manifest agree with CLI. |
-| B06 | Output extension discovery | F4 | External installed renderer/reporter, namespace collisions, trust refusals, redaction and pack/lock compatibility all exercised. |
+| B06 | One redacted export and one webhook | F4 | An independently installed package provides both through the common redaction boundary, collision checks, trust modes and locks; delivery status observable; offline use sends nothing. The general plugin contract is deferred. |
 | B07 | Recorded answers and regrading | F5 | No target calls; new grading provenance; declared judge traffic/cost; unavailable evidence remains ungraded. |
 | B08 | Connection/adapter parity across endpoint commands | F6 | One custom endpoint can be planned, inspected, probed, monitored and calibrated with equivalent settings. |
 | B10 | Calibration identity supports several rubric versions and verdict IDs | M1 | Match the actual grader identity. Kept for M1 in 0.30.0: re-keying the store is calibration schema 3 and F5 defines grading identity; the decline already no longer promises an impossible rerun. |
 | B11 | Collector measurement envelope and storage | M3 | Independent envelope migration carries measurements, denominator, trials, uncertainty and missingness, with tenant isolation. |
-| B12 | Namespaces, declarative packs and ID service | Later | Keep local ID validation; investigate non-executing packs first. An external registry needs evidence of collisions/discovery needs. |
+| B12 | Non-executing declarative packs | parallel lane, decided before F2 | Keep local ID validation. Decide whether a pack can ship checks that execute no Python. The public extension-ID service is dropped (direction audit). |
 | B13 | Public contributor tasks and adoption checks | F2/F6 | Prepare small issue descriptions from B04/B06/B08; record five developer sessions and two team integrations with consent. Publishing issues is separate maintainer work. |
+| B15 | Result-state matrix across renderers | Q1 | One shared test renders stopped, interrupted, verified-nothing, unverified, errored and shortfall runs through human, JSON, SARIF and JUnit and asserts they agree; JUnit's stopped run shipped in 0.31.0. |
+| B16 | Trace document digest over content | Q1 | `core/trace/load.py::_size_and_name` replaced by a digest of the bytes read in the one bounded pass; the saved run says which kind it carries; a same-size edit changes it. |
+| B17 | Strict release-gate preset | Q1 | A named preset fails on a skipped or unverified selected check (`fail_on_skipped`, `fail_on_inconclusive`); documented beside the existing presets; `plan` agrees with it. |
+| B18 | Detection limits per rule family | Q1 | A generated page separates tested invariants, heuristic leads and framework mappings per rule family, from rule metadata, never hand-written. |
+| B19 | MCP and A2A conformance fixtures | F7 | Both MCP revisions against independent server fixtures (authorization, task identity, cache scope, registry metadata, version change) and one A2A v1 fixture; unsupported capability recorded as missing coverage. |
+| B20 | Live retrieval pilot | F6 | One retrieval target catches a poisoned document and a tenant-filter failure without an uncontrolled side effect. |
+| B21 | Three-outcome fixtures for every built-in | 1.0 | The ratchet in `test_builtin_fixture_coverage.py` (12 of 51 at 0.31.0) reaches every rule that can decline. |
+| B22 | A time bound for `regex` | Later | A crafted reply can make an author's backtracking pattern run for a very long time; the 65,536-character bound limits input, not time. Any fix that adds a dependency needs principle 6's justification. |
 
 B01, B02, B03, B09 and B14 shipped in 0.30.0 (ROADMAP F1). The lockfile/gitleaks and
 script-parser items shipped in 0.31.0; ONNX metadata grading, ATLAS provenance and the other
@@ -146,15 +154,11 @@ Found on 2026-09-26 while building and reviewing the suites
 An independent review (codex, read-only, 2026-09-30) found these; each was checked in the code.
 Its JUnit finding shipped in 0.31.0, and its two documentation findings were corrected.
 
-- **A trace's `document_digest` identifies name and size, not content**
-  (`core/trace/load.py::_size_and_name`): a changed trace of the same size keeps its digest,
-  so a finding cannot be tied to the exact evidence reviewed. Hash the bytes during the
-  bounded read (one pass), or rename the field to say what it is.
-- **Built-in three-outcome fixtures are a ratchet at 12 of 51 rules**
-  (`packages/guardana-rules/tests/test_builtin_fixture_coverage.py`).
-- **A strict CI policy is one profile away, not a preset**: `fail_on_inconclusive` and
-  `fail_on_skipped` default to off, so a run with a declined or skipped check can exit `0`.
-  A named strict preset for release gates is the proposal.
+- **A trace's `document_digest` identifies name and size, not content** — B16, in Q1.
+- **Built-in three-outcome fixtures are a ratchet at 12 of 51 rules** — B21, a 1.0 criterion.
+- **A strict CI policy is one profile away, not a preset** — B17, in Q1.
+- Its claim that generated-documentation checks run only locally was refuted: pytest runs
+  every generator's `--check`, and CI runs pytest.
 
 ## Guardana Control on guardana.dev, and the product line
 

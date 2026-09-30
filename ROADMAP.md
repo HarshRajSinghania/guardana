@@ -10,7 +10,7 @@ This is the ordered plan, not a release promise. [FEATURES.md](FEATURES.md)
 describes shipped behavior; [the generated rule summary](docs/generated/rule-summary.md)
 and [rule catalog](docs/generated/rule-catalog.md) are the coverage source of truth;
 [Product status](docs/product-status.md) states limits; [CHANGELOG.md](CHANGELOG.md)
-records releases; [the framework audit](docs/design/framework-usability-audit.md)
+records releases; [the direction audit](docs/design/audit-0.31-direction.md)
 explains this order.
 
 ## Product constraints
@@ -28,7 +28,7 @@ explains this order.
 
 This beta provides offline artifact scanning, repeated controlled endpoint and MCP probes, recorded-trace analysis, regression diffs, policy and baseline gates, extension APIs and pack scaffolding, and an optional authenticated PostgreSQL collector. Quality suites grade versioned team datasets and gate pass rates; stopped or raised suites retain total and measured case counts, appearing as JUnit errors. Plans price judge calls against budgets; saved runs log judge usage and budget stops. Agent checks catch canary leaks across turns, require payload proof and argument allowlists, and never pass a truncated run. Judge-graded suites and judge-error correction are experimental; matching calibrations correct trial/suite rates; reports flag their absence. Text checks read every reply of an agent run, and a scenario step grades the replies since the previous graded step. A credential in a target URL never reaches a saved run, a report or a message. A plan refuses a run that could not pass, and a crash or an interrupt exits with its documented code. See [FEATURES.md](FEATURES.md) and [Product status](docs/product-status.md).
 
-## Now: first value and an extensible data workflow
+## Now: honest evidence, first value and the real application
 
 Use stable IDs for new planning. Older designs may reference the previous numbered
 roadmap table; their decisions remain historical inputs. Verify the implementation
@@ -36,49 +36,56 @@ status of each item before starting it.
 
 | Order | ID | Deliverable | Done when |
 |---:|---|---|---|
-| 1 | F2 | First result and one custom check | A clean-install offline starter demonstrates a failure, a fix and saved evidence, without an account, key, model or collector. A user edits one check and reruns it. Separate paths cover local scan, recorded answers and a real application. Five external users attempt it; publish completion counts and observed times. Target: four finish in ten minutes without maintainer help. |
-| 2 | F3 | Supported Python data workflow | A documented facade composes the existing registry, execution, redaction, gate, manifest and serialization. Typed results are accessible even when a run fails. CLI and Python agree on every result channel and gate. Custom targets, local checks and private evaluators work through both; trust, calibration, budgets and paths are explicit. |
-| 3 | F4 | Renderer and reporter plugins | Implement the output-plugin proposal with common redaction, collision checks, trust modes, pack validation and locks. An independently installed package exports a local table and delivers a team webhook payload without CLI changes. Offline use has no network; delivery status is separately observable. |
-| 4 | F5 | Recorded-answer grading and evidence regrading | Versioned, validated cases with supplied answers can be assessed without target calls. Original execution and new grading identities remain separate. Remote judging declares traffic and budget; unavailable or insufficient evidence stays ungraded. |
-| 5 | F6 | Reproducible team checks | A repository recipe pins profiles, datasets, packs and grading identities; runs the actual application or a clearly labelled model harness; and produces a reviewable CI artifact. Connection settings work across probe, plan, target inspection, monitor and calibration. Two independent teams reproduce a run and consume its data. |
+| 1 | Q1 | Evidence and gate integrity | One shared test makes the human, JSON, SARIF and JUnit output agree on a run that stopped, was interrupted, verified nothing, left checks unverified, recorded errors or missed demanded coverage. A trace's document digest hashes the bytes it read, and a saved run says which kind of digest it carries. A named strict preset for release gates fails when a selected check is skipped or unverified. A generated page states, per rule family, what is a tested invariant, what is a heuristic lead and what is only a framework mapping. |
+| 2 | F2 | First result and one custom check | A clean-install offline starter demonstrates a failure, a fix and saved evidence, without an account, key, model or collector. It runs with built-in trust only and shows what an installed pack would execute. A user edits one check and reruns it. Separate paths cover local scan, recorded answers and a real application. Five external users attempt it; publish completion counts and observed times. Target: four finish in ten minutes without maintainer help. |
+| 3 | F3 | Supported Python data workflow | A documented facade composes the existing registry, execution, redaction, gate, manifest and serialization. Typed results are accessible even when a run fails. CLI and Python agree on every result channel and gate. Custom targets, local checks and private evaluators work through both; trust, calibration, budgets and paths are explicit. |
+| 4 | F5 | Recorded-answer grading and evidence regrading | Versioned, validated cases with supplied answers can be assessed without target calls. Original execution and new grading identities remain separate. Remote judging declares traffic and budget; unavailable or insufficient evidence stays ungraded. It fixes the case-compatibility and missing-data contract M1 builds on. |
+| 5 | F6 | Reproducible team checks on the real application | A repository recipe pins profiles, datasets, packs and grading identities, runs the team's own application with safe fixtures or doubles (a model harness only when clearly labelled) and produces a reviewable CI artifact. Two independent teams save a failed and an incomplete result, label a redacted case, version it, regrade it and gate that regression in CI, with no automatic promotion of sensitive production data. Connection settings work across probe, plan, target inspection, monitor and calibration. Repeatable conformance tests cover the providers and adapters the pilots use: system messages, tools, failure paths, budgets, usage and adapter limits. One live retrieval target catches a poisoned document and a tenant-filter failure without an uncontrolled side effect. |
+| 6 | F7 | Protocol and evidence conformance | MCP `2025-11-25` and `2026-07-28` are tested against independent server fixtures for authorization, task identity, cache scope, registry metadata and version changes. One A2A v1 fixture covers the agent card, caller identity and task visibility. A capability a server does not support is recorded as missing coverage, never as a pass. |
+| 7 | F4 | One redacted export and one webhook | One redacted local export and one webhook that reports its delivery status go through the common redaction boundary, collision checks, trust modes and pack locks, from an independently installed package, without CLI changes. Offline use sends nothing. The general renderer and reporter plugin contract waits for a team that needs more. |
 
-F1 (suite integration and verdict defects) shipped in 0.30.0; the verdict, leak and
-accounting defects found while building it shipped in 0.31.0. Design F3 and F4 around
-the same result boundary. F5 consumes it. Advanced statistics must not block
-inspecting a result, adding a deterministic check or consuming a table;
-statistically proven regression claims must wait for M1.
+F1 shipped in 0.30.0 and the defects found while building it in 0.31.0. M2 (provider and
+application conformance) and M4 (evidence to regression) are part of F6 now. Design F3, F5
+and F4 around the same result boundary. Advanced statistics must not block inspecting a
+result, adding a deterministic check or consuming a table; statistically proven regression
+claims wait for M1.
 
 ### Milestone exit criteria
 
 - A new user obtains a local result and modifies one check.
 - A Python consumer processes failed and incomplete runs as typed data.
-- Third-party targets, rules, evaluators, renderers and reporters work without a fork.
+- Third-party targets, rules, evaluators and the F4 export and webhook work without a fork.
 - Case outcomes and missing evidence survive serialization, redaction and export.
-- A team runs its application and reviews saved evidence in CI.
+- A team runs its own application and reviews saved evidence in CI.
+- Three measures are published from generated data: first-run completion, coverage of the
+  real application, and the share of attempted checks that reached a supported verdict with
+  comparable evidence.
 - User research is recorded with consent, without telemetry or invented adoption claims.
 
 ## Next: trustworthy comparison and shared measurements
 
 | ID | Deliverable | Done when |
 |---|---|---|
-| M1 | Paired statistical diff | Pair compatible cases and grading identities; handle repeated trials at the case level; refuse insufficient coverage or power; report effect size and uncertainty; gate on a declared effect; control multiple gated suites. Label existing descriptive diff accurately. |
-| M2 | Provider and application conformance | Repeatable tests back documented support, starting with pilot-team providers and adapters. Exercise system messages, tools, failure paths, budgets, usage and adapter limits. |
-| M3 | Collector measurements | Version the envelope independently from run schema; migrate clients and storage together. Query by system, deployment, dataset and assessor; carry sample counts, unknowns and uncertainty. Show coverage gaps beside trends. |
-| M4 | Evidence-to-regression workflow | A team reviews and labels redacted recorded cases, versions a small dataset, adds an assessor and prevents a previously observed failure in CI. No automatic promotion of sensitive production data. |
+| M1 | Paired statistical diff | Pair compatible cases and grading identities; handle repeated trials at the case level; refuse insufficient coverage or power; report effect size and uncertainty; gate on a declared effect; control multiple gated suites. Label existing descriptive diff accurately. It follows the F5–F6 evidence workflow. |
+| M3 | Collector measurements | Version the envelope independently from run schema; migrate clients and storage together. Query by system, deployment, dataset and assessor; carry sample counts, unknowns and uncertainty. Show coverage gaps beside trends. It starts after two teams reproduce and consume local results. |
 
 Keep the earlier designs for [suites](docs/design/quality-suites.md),
 [trials](docs/design/repeated-trials.md) and
 [judge error](docs/design/judge-error-correction.md).
-F4 starts from [output plugins](docs/design/output-plugins.md);
-F5 from [regrading](docs/design/regrading-stored-exchanges.md);
-M1 from [paired statistics](docs/design/paired-regression-statistics.md).
+F4 starts from [output plugins](docs/design/output-plugins.md), narrowed to the export and
+the webhook; F5 from [regrading](docs/design/regrading-stored-exchanges.md);
+M1 from [paired statistics](docs/design/paired-regression-statistics.md). Q1, F6 and F7
+start from [the direction audit](docs/design/audit-0.31-direction.md) and need a design
+before code.
 
 ## Later: ongoing verification and platform fit
 
 - Synthetic scheduled verification with [anytime-valid monitoring](docs/design/anytime-valid-monitoring.md), rather than repeated fixed-level tests presented as reliable alerts.
-- Prometheus and webhook reporters over the common output contract.
-- Live RAG/application targets with safe fixtures and explicit data boundaries, ordered by pilot needs.
-- Central distribution of signed, versioned profiles and policies.
+- A Prometheus reporter over the common output contract, once a team names the measurements and unknowns it needs.
+- Live RAG and application targets beyond the F6 pilot, with safe fixtures and explicit data boundaries, ordered by pilot needs.
+- Central distribution of signed, versioned profiles and policies, after local locks and recipes prove use.
+- Agent supply-chain provenance beyond a manifest hash: the approved tool schema, package or image identity, resolved server origin, and skill and configuration identity.
+- An evidence-quality contract for imported runs (garak, promptfoo, Inspect, OpenTelemetry): source trust, missing fields, redaction, sampling, judge identity and comparability, and when an imported observation may become a verified local regression.
 - OIDC/SSO, human roles and Helm when collector users need them; exercise upgrade, rollback, backup, restore and deletion.
 
 An exported recording remains an explicit supported subset behind an adapter.
@@ -89,7 +96,8 @@ Live production intake and supervision belong to
 ## 1.0: dependable extension contracts
 
 - Publish the supported Python facade, extension protocols and output contracts, with a compatibility matrix and deprecation policy.
-- Ship a standalone conformance kit and independently installed reference pack.
+- Publish the conformance kit built during F6 and F7, and an independently installed reference pack.
+- Every built-in rule that can decline carries finding, clean and inconclusive fixtures.
 - Exercise migrations with older run, dataset, profile, pack and collector documents.
 - Ship two release candidates without unplanned public API changes.
 - Record successful third-party customization and team reproduction, with consent.
@@ -104,10 +112,12 @@ Small deterministic checks, framework adapters, taxonomy updates and artifact
 formats may proceed when they do not delay the milestone. Heavy dependencies,
 niche corpora and experimental graders belong in extension packages.
 
-ATLAS content provenance, fixture expressiveness, stateful tool doubles and
-non-executing declarative packs remain in [the backlog](docs/work/BACKLOG.md).
-Evaluate declarative pack loading before building a public extension-ID service;
-namespaces and local validation already address the immediate author workflow.
+These move up, and live in [the backlog](docs/work/BACKLOG.md): ATLAS provenance, pinning
+the monthly content release and the data-format release separately, with positive and
+negative fixtures for new techniques; fixture expressiveness and stateful tool doubles,
+which F6 needs; and a decision on non-executing declarative packs before F2 ships, because
+installed Python packs execute code. A public extension-ID service is dropped: namespaces,
+local validation and locks cover the author workflow.
 
 Application quality checks need application-owned criteria, rather than invented
 OWASP mappings; built-in security checks retain public-framework mappings
@@ -115,10 +125,12 @@ OWASP mappings; built-in security checks retain public-framework mappings
 
 ## Researched after the foundations
 
-Multi-agent protocols, multimodal carriers, adaptive attackers,
+Multi-agent protocols beyond the A2A fixture in F7, multimodal carriers beyond one
+document or image carrier a pilot actually uses, adaptive attackers,
 [reusable techniques](docs/design/attack-techniques.md) and broad multilingual or
 domain corpora follow measured usefulness, evaluation quality and bounded execution.
-Additional attack volume is not the current adoption metric.
+Import or buy coverage rather than grow the prompt count; attack volume is not the
+adoption metric.
 
 ## Non-goals
 

@@ -93,7 +93,8 @@ not task guides and may describe rejected or superseded alternatives.
 - [`design/audit-0.23-market.md`](design/audit-0.23-market.md) — repository audit, market evidence, and the rationale for the current order
 - [`design/audit-0.25-market.md`](design/audit-0.25-market.md) — whether that order still follows from evidence, and the validation plan that replaces the one it could not run
 - [`design/audit-0.26-measurement.md`](design/audit-0.26-measurement.md) — what a clean result rests on, and why rows 1 and 2 widened and a re-grading row was added
-- [`design/framework-usability-audit.md`](design/framework-usability-audit.md) — the audit behind the F1–F6 and M1–M4 order: first value, a Python data workflow and output extensions before statistics
+- [`design/framework-usability-audit.md`](design/framework-usability-audit.md) — the audit behind the earlier F1–F6 and M1–M4 order: first value, a Python data workflow and output extensions before statistics
+- [`design/audit-0.31-direction.md`](design/audit-0.31-direction.md) — the current order: evidence and gate integrity first, the real application as the acceptance test, protocol conformance, and narrower output work
 - [`design/guardana-and-control.md`](design/guardana-and-control.md) — Guardana and Guardana Control: measuring before release versus supervising agents while they run, what the two exchange, and how the two sites divide the work
 - [`../CHANGELOG.md`](../CHANGELOG.md) — release history
 

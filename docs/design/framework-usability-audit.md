@@ -2,12 +2,12 @@
 title: "Framework usability audit"
 nav_order: 210
 summary: "Evidence behind prioritizing first value, a supported Python data workflow and output extensions."
-status: accepted
+status: superseded
 ---
 
 # Framework usability and direction audit
 
-**Status:** accepted · **Written:** 2026-09-26
+**Status:** superseded by [`audit-0.31-direction.md`](audit-0.31-direction.md), which keeps this document's evidence and changes its order · **Written:** 2026-09-26
 
 The roadmap order was updated at the owner's request. This document records the
 research and implementation rationale; it does not claim the proposed APIs ship.

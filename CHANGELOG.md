@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The roadmap follows the 0.31 direction audit.** Evidence and gate integrity (Q1) comes first: renderers that agree on every incomplete-run state, a trace digest over content, a strict release preset and a generated page of detection limits. Then the starter with built-in trust (F2), the Python facade (F3), recorded answers (F5, moved up), the team's real application as the acceptance test (F6, absorbing M2 and M4 and piloting one live retrieval target), protocol conformance for both MCP revisions and A2A v1 (F7, new), and one redacted export with a webhook (F4, narrowed from general output plugins). M1 follows F5–F6; M3 waits for two teams to reproduce local results; a public extension-ID service is dropped. `docs/design/audit-0.31-direction.md` records the evidence, including the claims checked against the code and one refuted. No code changed.
 - **guardana.dev links Guardana Control's website.** `control.guardana.dev` answers, so the landing page's Control card and footer link to it instead of saying the site is coming soon, and Control's structured data names its site and its latest release, `0.2.0-alpha`. `site/llms.txt` still points at Control's README: `control.guardana.dev/llms.txt` does not answer yet.
 
 ## [0.31.0] - 2026-09-30 — reply grading, redacted target URLs, and plans that catch run errors
