@@ -1,8 +1,17 @@
+from collections.abc import Callable
 from xml.sax.saxutils import escape, quoteattr
 
+from guardana.core.gate import GateOutcome, OpenQuestion, declined_suites, open_questions
+from guardana.core.manifest import RunManifest
 from guardana.core.manifest.records import SuiteOutcome, SuiteSummary
-from guardana.core.report import ScanResult
+from guardana.core.report import Finding, ScanResult
 from guardana.core.suite import describe
+from guardana.report._refusal import (
+    recorded_gate,
+    refusal_clause,
+    refused_skips,
+    unnamed_refusal,
+)
 
 
 class JUnitRenderer:
@@ -10,8 +19,12 @@ class JUnitRenderer:
 
     name = "junit"
 
+    def __init__(self, run: RunManifest | None = None, gate: GateOutcome | None = None) -> None:
+        self._gate = recorded_gate(run, gate)
+
     def render(self, result: ScanResult) -> str:
         """Render one scan result to text."""
+        questions = open_questions(result)
         cases: list[str] = []
         # A suite is one testcase whatever it concluded, in place of its finding: a pass
         # rate is the suite's answer, and a pipeline counting testcases must see it pass.
@@ -20,7 +33,7 @@ class JUnitRenderer:
         suites = {rule: s for rule, s in result.suites.items() if rule not in waived}
         findings = [f for f in result.findings if f.rule_id not in suites]
         unverified = [f for f in result.unverified if f.rule_id not in suites]
-        declined = sum(1 for s in suites.values() if s.outcome is SuiteOutcome.INCONCLUSIVE)
+        declined = len(declined_suites(result))
         failed = sum(1 for s in suites.values() if s.outcome is SuiteOutcome.FAIL)
         cases.extend(
             _suite_case(rule_id, suite, _subject(result, rule_id))
@@ -56,89 +69,128 @@ class JUnitRenderer:
                 f"      <skipped message={message}>{reason}</skipped>\n"
                 f"    </testcase>"
             )
-        # `<error>` rather than `<failure>`: CI tooling reads the first as "the
-        # test could not run" and the second as "the test ran and failed", which is
-        # exactly the distinction this channel exists to make.
-        for e in result.errors:
-            name = quoteattr(e.source)
-            classname = quoteattr(f"guardana.{e.stage}")
-            message = quoteattr("check did not run")
-            cases.append(
-                f"    <testcase name={name} classname={classname}>\n"
-                f"      <error message={message}>{escape(e.reason)}</error>\n"
-                f"    </testcase>"
-            )
-        # Also `<error>`, and counted as one: a pipeline that renders this XML reads
-        # `errors="0"` as a suite that ran cleanly, and coverage the operator demanded
-        # and did not get is the one thing that must never look like that.
-        for gap in result.coverage_shortfall:
-            name = quoteattr(gap.name)
-            classname = quoteattr(f"guardana.coverage.{gap.kind}")
-            message = quoteattr("demanded coverage was not available")
-            cases.append(
-                f"    <testcase name={name} classname={classname}>\n"
-                f"      <error message={message}>{escape(gap.detail)}</error>\n"
-                f"    </testcase>"
-            )
-        # And once more, for the run as a whole. Every declined check above is a
-        # `<skipped>`, which is the honest word for one of them — and a suite of
-        # nothing but skips renders green on every dashboard that reads this file.
-        # A run where not one check reached a verdict is the same fact as unmet
-        # coverage: nothing was established, and it must not look like it was.
-        if result.verified_nothing:
-            detail = (
-                f"{result.rules_run_count} check(s) ran and not one of them reached a "
-                f"verdict, so this run established nothing"
-            )
-            cases.append(
-                '    <testcase name="guardana.run" classname="guardana.coverage">\n'
-                f'      <error message="nothing was verified">{escape(detail)}</error>\n'
-                "    </testcase>"
-            )
-        # The same fact, one step weaker, and the one that actually arrives: some
-        # checks declined while others concluded. `verified_nothing` is False then,
-        # so the guard above never fired — and a model store nobody could parse
-        # rendered as `failures="0" skipped="N"`, which every dashboard reads as a
-        # pass. A skip is honest for one check and dishonest for the suite.
-        if unverified and not result.verified_nothing:
-            detail = (
-                f"{len(unverified)} check(s) ran and could not reach a verdict, "
-                f"so what they cover was not established"
-            )
-            cases.append(
-                '    <testcase name="guardana.unverified" classname="guardana.coverage">\n'
-                f'      <error message="some checks reached no verdict">{escape(detail)}</error>\n'
-                "    </testcase>"
-            )
-        # A run the budget or an interrupt cut short did not finish its plan, whatever the
-        # checks that ran concluded; `errors="0"` over it reads as a complete pass.
-        if result.stopped_by is not None:
-            detail = (
-                f"the run stopped early ({result.stopped_by.value}) before finishing its plan; "
-                f"checks it never reached are not in this report"
-            )
-            cases.append(
-                '    <testcase name="guardana.stopped" classname="guardana.run">\n'
-                f'      <error message="run stopped early">{escape(detail)}</error>\n'
-                "    </testcase>"
-            )
+        # Every open question the renderers always name is one or more `<error>`
+        # testcases, and so is a refusal the recorded gate made over nothing else named.
+        errors = [case for q in questions for case in _OPEN_CASES[q](result, unverified)]
+        refusal = unnamed_refusal(result, self._gate, questions)
+        if refusal is not None:
+            errors.append(_refusal_case(result, refusal))
+        cases.extend(errors)
         body = "\n".join(cases)
         skipped = len(unverified) + len(result.waived)
-        errors = (
-            len(result.errors)
-            + len(result.coverage_shortfall)
-            + declined
-            + (1 if result.verified_nothing else 0)
-            + (1 if unverified and not result.verified_nothing else 0)
-            + (1 if result.stopped_by is not None else 0)
-        )
         return (
             '<?xml version="1.0" encoding="UTF-8"?>\n'
             f'<testsuite name="guardana" tests="{result.rules_run_count}" '
             f'failures="{len(findings) + failed}" skipped="{skipped}" '
-            f'errors="{errors}">\n'
+            f'errors="{len(errors) + declined}">\n'
             f"{body}\n</testsuite>"
         )
+
+
+def _error_case(name: str, classname: str, message: str, detail: str) -> str:
+    return (
+        f"    <testcase name={quoteattr(name)} classname={quoteattr(classname)}>\n"
+        f"      <error message={quoteattr(message)}>{escape(detail)}</error>\n"
+        f"    </testcase>"
+    )
+
+
+def _stopped_cases(result: ScanResult, _unverified: list[Finding]) -> list[str]:
+    """Name a run cut short: `errors="0"` over one reads as a complete pass."""
+    detail = (
+        f"the run stopped early ({result.stopped_by}) before finishing its plan; "
+        f"checks it never reached are not in this report"
+    )
+    return [_error_case("guardana.stopped", "guardana.run", "run stopped early", detail)]
+
+
+def _nothing_verified_cases(result: ScanResult, _unverified: list[Finding]) -> list[str]:
+    """One error for the run: a suite made only of `<skipped>` renders green everywhere."""
+    detail = (
+        f"{result.rules_run_count} check(s) ran and not one of them reached a "
+        f"verdict, so this run established nothing"
+    )
+    return [_error_case("guardana.run", "guardana.coverage", "nothing was verified", detail)]
+
+
+def _shortfall_cases(result: ScanResult, _unverified: list[Finding]) -> list[str]:
+    """One error per demanded piece of coverage the run did not get."""
+    return [
+        _error_case(
+            gap.name,
+            f"guardana.coverage.{gap.kind}",
+            "demanded coverage was not available",
+            gap.detail,
+        )
+        for gap in result.coverage_shortfall
+    ]
+
+
+def _nothing_measured_cases(result: ScanResult, _unverified: list[Finding]) -> list[str]:
+    detail = (
+        f"not one of the {len(result.assessments)} recorded measurement(s) produced a "
+        f"value, so this run measured nothing"
+    )
+    return [
+        _error_case(
+            "guardana.nothing_measured", "guardana.coverage", "nothing was measured", detail
+        )
+    ]
+
+
+def _error_cases(result: ScanResult, _unverified: list[Finding]) -> list[str]:
+    """`<error>` rather than `<failure>`: CI reads the first as "could not run"."""
+    return [
+        _error_case(e.source, f"guardana.{e.stage}", "check did not run", e.reason)
+        for e in result.errors
+    ]
+
+
+def _unverified_cases(result: ScanResult, unverified: list[Finding]) -> list[str]:
+    """One error for the checks that declined while others concluded.
+
+    Each declined check is honestly a `<skipped>`, and a suite of them beside a few passes
+    renders as `failures="0"`, which every dashboard reads as a pass. A run that verified
+    nothing already says so, and a declined suite rule is its own testcase.
+    """
+    if not unverified or result.verified_nothing:
+        return []
+    detail = (
+        f"{len(unverified)} check(s) ran and could not reach a verdict, "
+        f"so what they cover was not established"
+    )
+    return [
+        _error_case(
+            "guardana.unverified", "guardana.coverage", "some checks reached no verdict", detail
+        )
+    ]
+
+
+def _named_elsewhere(_result: ScanResult, _unverified: list[Finding]) -> list[str]:
+    return []
+
+
+_OPEN_CASES: dict[OpenQuestion, Callable[[ScanResult, list[Finding]], list[str]]] = {
+    OpenQuestion.STOPPED: _stopped_cases,
+    OpenQuestion.NOTHING_VERIFIED: _nothing_verified_cases,
+    OpenQuestion.COVERAGE_SHORTFALL: _shortfall_cases,
+    OpenQuestion.NOTHING_MEASURED: _nothing_measured_cases,
+    # Each declined suite is already an `<error>` testcase of its own.
+    OpenQuestion.SUITE_DECLINED: _named_elsewhere,
+    OpenQuestion.ERRORS: _error_cases,
+    OpenQuestion.UNVERIFIED: _unverified_cases,
+    # A skip is an error only when the recorded gate refused the run over it.
+    OpenQuestion.SKIPPED: _named_elsewhere,
+}
+
+
+def _refusal_case(result: ScanResult, gate: GateOutcome) -> str:
+    return _error_case(
+        "guardana.skipped" if refused_skips(result, gate) else "guardana.gate",
+        "guardana.run",
+        "the gate refused the run",
+        refusal_clause(result, gate),
+    )
 
 
 def _subject(result: ScanResult, rule_id: str) -> str:

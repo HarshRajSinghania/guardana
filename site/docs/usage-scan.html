@@ -290,7 +290,7 @@
 <td>Path to a <code>guardana.yaml</code> policy file — see <a href="profiles.html"><code>profiles.md</code></a></td>
 </tr>
 <tr>
-<td><code>--preset [ci|pre-training|monitor]</code></td>
+<td><code>--preset [ci|pre-training|monitor|release]</code></td>
 <td>none</td>
 <td>Named policy preset (mutually exclusive with <code>--profile</code>) — see <a href="profiles.html#named-presets---preset"><code>profiles.md</code></a></td>
 </tr>
@@ -393,6 +393,13 @@ files via <code>ast.parse</code>; it does not read <code>requirements.txt</code>
 guardana scan . --format sarif   # SARIF 2.1.0, for GitHub code-scanning upload
 guardana scan . --format junit   # JUnit XML, for CI test-result reporting
 </code></pre>
+<p>Every format says when a run is not a clean pass, each in its own vocabulary. A run that
+stopped early, verified or measured nothing, missed demanded coverage, had a suite decline,
+could not run a check or left a check without a verdict prints no <code>✓</code> in the terminal, is
+an <code>&lt;error&gt;</code> testcase in JUnit, and sets SARIF's <code>executionSuccessful</code> to <code>false</code> with one
+<code>toolExecutionNotifications</code> entry per cause (<code>guardana.open_question.*</code>,
+<code>guardana.check_error.*</code>, <code>guardana.coverage_shortfall.*</code>). A skipped rule counts only when
+the policy fails on skips, and then no format renders the run clean either.</p>
 <h2 id="baselining-existing-findings">Baselining existing findings</h2>
 <p>Turning on a blocking gate for an existing repository is usually all-or-nothing:
 either you fix the whole backlog first, or you exclude a rule entirely and go

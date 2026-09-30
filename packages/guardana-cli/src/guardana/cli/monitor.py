@@ -58,7 +58,7 @@ def alert_handler(
     def handle(alert: Alert) -> None:
         result = redactor.redact_result(alert.result)
         typer.echo(f"--- ALERT (cycle {alert.cycle}): {alert.reason} ---")
-        typer.echo(get_renderer("human", redactor=redactor).render(result))
+        typer.echo(get_renderer("human", redactor=redactor, gate=alert.gate).render(result))
         if reporter_url:
             submit_safely(reporter_url, result, source=source, deployment=deployment)
 

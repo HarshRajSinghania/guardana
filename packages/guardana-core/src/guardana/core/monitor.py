@@ -3,6 +3,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from guardana.core.diff import IncomparableRunsError, compare
+from guardana.core.gate import GateOutcome, gate_outcome
 from guardana.core.profile.model import Policy
 from guardana.core.report import ScanResult
 from guardana.core.runner import gate
@@ -29,6 +30,8 @@ class Alert:
     cycle: int
     result: ScanResult
     reason: str
+    gate: GateOutcome | None = None
+    """What the policy made of this cycle, so an alert renders the verdict it was raised on."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -117,5 +120,5 @@ class Monitor:
                 baseline = result
             reason = self._alert_reason(result, baseline)
             if reason is not None:
-                on_alert(Alert(cycle, result, reason))
+                on_alert(Alert(cycle, result, reason, gate_outcome(result, self.policy)))
             cycle += 1

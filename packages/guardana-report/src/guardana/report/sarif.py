@@ -1,10 +1,23 @@
 import json
+from collections.abc import Callable
 from datetime import UTC, datetime
 
-from guardana.core.gate import GateOutcome, exit_code_for
+from guardana.core.gate import (
+    GateOutcome,
+    OpenQuestion,
+    declined_suites,
+    exit_code_for,
+    open_questions,
+)
 from guardana.core.manifest import RunManifest
 from guardana.core.report import CheckError, CoverageShortfall, Finding, ScanResult, split_ref
 from guardana.core.severity import Severity
+from guardana.report._refusal import (
+    recorded_gate,
+    refusal_clause,
+    refused_skips,
+    unnamed_refusal,
+)
 
 _LEVEL = {
     Severity.CRITICAL: "error",
@@ -125,35 +138,27 @@ def _utc(value: datetime | None) -> str | None:
     return None if value is None else value.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
 
-def _invocation(result: ScanResult, manifest: RunManifest | None) -> dict[str, object]:
+def _invocation(
+    result: ScanResult, manifest: RunManifest | None, gate: GateOutcome | None
+) -> dict[str, object]:
     """Build `runs[].invocations[0]` — SARIF's own place for how the run itself went.
 
     `executionSuccessful` is what stops a viewer reading an empty result list as
-    a clean run, so it is false for **every** reason a run is not entitled to a
-    verdict — the same four the gate uses. It asked about two of them for three
-    releases: a run whose demanded coverage was missing, and a run in which not one
-    check reached a verdict, both reported a successful invocation over an empty
-    result list, which is precisely the shape this field exists to deny.
+    a clean run, so it is false for every open question the renderers always name,
+    each with a notification saying which, and for a refusal the recorded gate made
+    over nothing else named.
 
     The timestamps and exit code come from the manifest when there is one; SARIF
     marks them optional, and inventing them would be worse than omitting.
     """
-    unmet = [_coverage_notification(gap) for gap in result.coverage_shortfall]
-    nothing_verified = (
-        [_nothing_verified_notification(result.rules_run_count)] if result.verified_nothing else []
-    )
+    questions = open_questions(result)
+    notifications = [note for q in questions for note in _OPEN_NOTES[q](result, manifest, gate)]
+    refusal = unnamed_refusal(result, gate, questions)
+    if refusal is not None:
+        notifications.append(_refusal_notification(result, refusal))
     invocation: dict[str, object] = {
-        "executionSuccessful": not (
-            result.errors
-            or result.stopped_by is not None
-            or result.coverage_shortfall
-            or result.verified_nothing
-        ),
-        "toolExecutionNotifications": [
-            *(_notification(e) for e in result.errors),
-            *unmet,
-            *nothing_verified,
-        ],
+        "executionSuccessful": not notifications,
+        "toolExecutionNotifications": notifications,
     }
     if manifest is None:
         return invocation
@@ -174,8 +179,9 @@ class SarifRenderer:
 
     name = "sarif"
 
-    def __init__(self, run: RunManifest | None = None) -> None:
+    def __init__(self, run: RunManifest | None = None, gate: GateOutcome | None = None) -> None:
         self._run = run
+        self._gate = recorded_gate(run, gate)
 
     def render(self, result: ScanResult) -> str:
         """Render one scan result to text."""
@@ -194,7 +200,7 @@ class SarifRenderer:
                         }
                     },
                     "results": _results(result, index),
-                    "invocations": [_invocation(result, self._run)],
+                    "invocations": [_invocation(result, self._run, self._gate)],
                 }
             ],
         }
@@ -233,3 +239,94 @@ def _nothing_verified_notification(ran: int) -> dict[str, object]:
         },
         "descriptor": {"id": "guardana.coverage_shortfall.nothing_verified"},
     }
+
+
+def _open_question(question: str, text: str, level: str = "error") -> dict[str, object]:
+    return {
+        "level": level,
+        "message": {"text": text},
+        "descriptor": {"id": f"guardana.open_question.{question}"},
+    }
+
+
+def _stopped_notes(
+    result: ScanResult, _manifest: RunManifest | None, _gate: GateOutcome | None
+) -> list[dict[str, object]]:
+    text = (
+        f"the run stopped early ({result.stopped_by}) before finishing its plan; checks it "
+        f"never reached are not in this report"
+    )
+    return [_open_question(OpenQuestion.STOPPED, text)]
+
+
+def _nothing_measured_notes(
+    result: ScanResult, _manifest: RunManifest | None, _gate: GateOutcome | None
+) -> list[dict[str, object]]:
+    text = (
+        f"not one of the {len(result.assessments)} recorded measurement(s) produced a value, "
+        f"so this run measured nothing"
+    )
+    return [_open_question(OpenQuestion.NOTHING_MEASURED, text)]
+
+
+def _suite_declined_notes(
+    result: ScanResult, _manifest: RunManifest | None, _gate: GateOutcome | None
+) -> list[dict[str, object]]:
+    declined = [
+        f"{rule_id} ({summary.reason})" for rule_id, summary in declined_suites(result).items()
+    ]
+    text = (
+        f"{len(declined)} suite(s) declined to conclude on their pass rate: {'; '.join(declined)}"
+    )
+    return [_open_question(OpenQuestion.SUITE_DECLINED, text)]
+
+
+def _unverified_notes(
+    result: ScanResult, manifest: RunManifest | None, gate: GateOutcome | None
+) -> list[dict[str, object]]:
+    """Say how many checks reached no verdict and what the recorded gate made of it.
+
+    Under a policy that accepts them the exit code is `0` beside `executionSuccessful:
+    false`, which reads as a contradiction unless the notification states both halves.
+    """
+    text = f"{len(result.unverified)} check(s) ran and could not reach a verdict"
+    if manifest is None and gate is None:
+        text += ", so what they cover was not established"
+    elif gate is None:
+        text += "; the run recorded no gate"
+    elif gate is GateOutcome.PASS:
+        text += "; the gate is pass, so the policy accepted the run without them"
+    else:
+        text += f"; the gate is {gate}"
+    return [_open_question(OpenQuestion.UNVERIFIED, text, level="warning")]
+
+
+def _named_by_refusal(
+    _result: ScanResult, _manifest: RunManifest | None, _gate: GateOutcome | None
+) -> list[dict[str, object]]:
+    return []
+
+
+_OPEN_NOTES: dict[
+    OpenQuestion,
+    Callable[[ScanResult, RunManifest | None, GateOutcome | None], list[dict[str, object]]],
+] = {
+    OpenQuestion.STOPPED: _stopped_notes,
+    OpenQuestion.NOTHING_VERIFIED: lambda r, _m, _g: [
+        _nothing_verified_notification(r.rules_run_count)
+    ],
+    OpenQuestion.COVERAGE_SHORTFALL: lambda r, _m, _g: [
+        _coverage_notification(gap) for gap in r.coverage_shortfall
+    ],
+    OpenQuestion.NOTHING_MEASURED: _nothing_measured_notes,
+    OpenQuestion.SUITE_DECLINED: _suite_declined_notes,
+    OpenQuestion.ERRORS: lambda r, _m, _g: [_notification(e) for e in r.errors],
+    OpenQuestion.UNVERIFIED: _unverified_notes,
+    # A skip is named only when the recorded gate refused the run over it.
+    OpenQuestion.SKIPPED: _named_by_refusal,
+}
+
+
+def _refusal_notification(result: ScanResult, gate: GateOutcome) -> dict[str, object]:
+    question = "skipped" if refused_skips(result, gate) else "gate"
+    return _open_question(question, refusal_clause(result, gate))

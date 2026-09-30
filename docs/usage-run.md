@@ -375,7 +375,8 @@ translation.
 
 The SARIF output carries the same facts in SARIF's own vocabulary: `runs[].invocations[0]`
 with `startTimeUtc`, `endTimeUtc`, `exitCode`, `exitCodeDescription` and
-`executionSuccessful`.
+`executionSuccessful`, which is `false` whenever the run leaves a question open, with a
+notification saying which (see [`usage-scan.md`](usage-scan.md#other-formats)).
 
 ## See also
 

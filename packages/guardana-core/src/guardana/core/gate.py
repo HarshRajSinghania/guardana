@@ -43,6 +43,58 @@ class GateOutcome(StrEnum):
     INDETERMINATE = "indeterminate"
 
 
+class OpenQuestion(StrEnum):
+    """One fact in a result that leaves part of the run's question unanswered.
+
+    The single list the gate, every renderer and `plan` read, so an output cannot call
+    clean a run the gate refused. Ordered by how completely each one invalidates the
+    run, which is the order an output names them in.
+    """
+
+    STOPPED = "stopped"
+    NOTHING_VERIFIED = "nothing_verified"
+    COVERAGE_SHORTFALL = "coverage_shortfall"
+    NOTHING_MEASURED = "nothing_measured"
+    SUITE_DECLINED = "suite_declined"
+    ERRORS = "errors"
+    UNVERIFIED = "unverified"
+    SKIPPED = "skipped"
+
+
+def open_questions(result: "ScanResult") -> tuple[OpenQuestion, ...]:
+    """Every open question present in `result`, whatever the policy, in `OpenQuestion` order.
+
+    A skip counts only when it is a coverage gap: a contract about another system did
+    not apply, and nothing is missing.
+    """
+    present = {
+        OpenQuestion.STOPPED: result.stopped_by is not None,
+        OpenQuestion.NOTHING_VERIFIED: result.verified_nothing,
+        OpenQuestion.COVERAGE_SHORTFALL: bool(result.coverage_shortfall),
+        OpenQuestion.NOTHING_MEASURED: bool(result.assessments) and not result.measured,
+        OpenQuestion.SUITE_DECLINED: bool(declined_suites(result)),
+        OpenQuestion.ERRORS: bool(result.errors),
+        OpenQuestion.UNVERIFIED: bool(result.unverified),
+        OpenQuestion.SKIPPED: any(s.is_coverage_gap for s in result.rules_skipped),
+    }
+    return tuple(question for question, holds in present.items() if holds)
+
+
+def refused_by(
+    questions: tuple[OpenQuestion, ...], threshold: "FailOn"
+) -> tuple[OpenQuestion, ...]:
+    """Return the open questions this bar refuses: every unswitched one, and each switch on."""
+    switches = {
+        OpenQuestion.ERRORS: threshold.fail_on_error,
+        # Not filtered by severity, and that is the whole point of the switch. A
+        # severity answers "how bad is this problem"; an unverified result is the
+        # absence of an answer, so asking how bad it is has no meaning.
+        OpenQuestion.UNVERIFIED: threshold.fail_on_inconclusive,
+        OpenQuestion.SKIPPED: threshold.fail_on_skipped,
+    }
+    return tuple(q for q in questions if switches.get(q, True))
+
+
 def gate_outcome(result: "ScanResult", policy: "Policy") -> GateOutcome:
     """Judge one result against a policy, in three states rather than two.
 
@@ -62,9 +114,11 @@ def gate_outcome(result: "ScanResult", policy: "Policy") -> GateOutcome:
     `INDETERMINATE` with no switch in front; filtering the failure by severity would
     give a worse measurement a greener exit than no measurement.
 
-    **Anything else that leaves the question open is `INDETERMINATE`** — see
-    `_left_unanswered`, which owns that list. One branch here because they are one
-    answer: their order among themselves cannot change a verdict.
+    **Anything else that leaves the question open is `INDETERMINATE`**: every
+    `OpenQuestion` the failure bar refuses (`refused_by`). Demanded coverage, a run that
+    concluded or measured nothing and a declined suite are demands, so no switch stands
+    in front of them; errors, unverified checks and skips are preferences behind their
+    `fail_on_*` switches.
     """
     if result.stopped_by is not None:
         return GateOutcome.INDETERMINATE
@@ -78,44 +132,23 @@ def gate_outcome(result: "ScanResult", policy: "Policy") -> GateOutcome:
         # that threshold is what keeps a noisy heuristic from breaking CI.
         if f.verdict is None or f.verdict.confidence >= threshold.min_confidence:
             return GateOutcome.FAIL
-    if _left_unanswered(result, threshold):
+    if refused_by(open_questions(result), threshold):
         return GateOutcome.INDETERMINATE
     return GateOutcome.PASS
 
 
-def _left_unanswered(result: "ScanResult", threshold: "FailOn") -> bool:
-    """Whether this run failed to answer its own question, for any reason.
+def declined_suites(result: "ScanResult") -> dict[str, "SuiteSummary"]:
+    """Return every suite no baseline accepted that declined to conclude, by rule id.
 
-    Three have no toggle in front of them, because each is a demand rather than a
-    preference:
-
-    - **coverage the operator demanded and did not get** — every `fail_on_*` switch
-      covers checks nobody specifically asked for, and this one was asked for;
-    - **a run that reached no conclusion at all** — `verified_nothing` counts
-      conclusions, not executions, so an endpoint answering everything with an
-      empty message cannot pass with a full rule count;
-    - **a run that measured cases and measured none of them** — the same fact for
-      the measurement channel, which is carried separately and would otherwise
-      satisfy every test above on a sample of zero;
-    - **a suite that declined** — its gate is a demand its author wrote into the rule,
-      and a pass rate the suite could not establish is not a preference to switch off.
-
-    The rest are preferences and stay behind their switches.
+    What `OpenQuestion.SUITE_DECLINED` stands for, so an output counting or naming the
+    declined suites counts the ones the gate read.
     """
-    return bool(
-        result.coverage_shortfall
-        or result.verified_nothing
-        or (result.assessments and not result.measured)
-        or any(summary.outcome == "inconclusive" for summary in _demanded_suites(result))
-        or (result.errors and threshold.fail_on_error)
-        # Not filtered by severity, and that is the whole point of the switch. A
-        # severity answers "how bad is this problem"; an unverified result is the
-        # absence of an answer, so asking how bad it is has no meaning. Filtering
-        # it let a profile failing on `medium` promote a model store holding a
-        # hundred members nobody could parse, because each was graded LOW.
-        or (threshold.fail_on_inconclusive and bool(result.unverified))
-        or (threshold.fail_on_skipped and any(s.is_coverage_gap for s in result.rules_skipped))
-    )
+    waived = {f.rule_id for f in result.waived}
+    return {
+        rule_id: summary
+        for rule_id, summary in sorted(result.suites.items())
+        if rule_id not in waived and summary.outcome == "inconclusive"
+    }
 
 
 def _demanded_suites(result: "ScanResult") -> list["SuiteSummary"]:

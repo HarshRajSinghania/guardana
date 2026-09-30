@@ -41,7 +41,9 @@ flags are mutually exclusive with the built-in connection flags.
 
 Note: `monitor` has no `--format` flag — alerts are always printed as human
 text (findings inside an alert use the `human` renderer); forward to a
-collector for machine-readable persistence.
+collector for machine-readable persistence. The alert renders with the gate its cycle
+recorded, so a cycle refused only for a skip (`fail_on_skipped`, as in `--preset release`)
+says so instead of printing `✓ No findings.`
 
 ## Evidence leaves this command twice, and both are redacted
 

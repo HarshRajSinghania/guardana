@@ -13,10 +13,12 @@ is visible to whoever is watching the terminal.
 import guardana.cli.monitor as monitor_module
 import pytest
 from guardana.cli.monitor import alert_handler
+from guardana.core.gate import GateOutcome
 from guardana.core.manifest.settings import EvidenceMode
 from guardana.core.monitor import Alert
 from guardana.core.redaction import EvidenceRedactor, RedactionPolicy
 from guardana.core.report import Evidence, Finding, ScanResult
+from guardana.core.report.skipped import SkippedRule, SkipReason
 from guardana.core.severity import Severity
 from guardana.core.testing import fake_aws_key
 
@@ -133,3 +135,21 @@ def test_a_monitor_run_that_names_no_handler_still_redacts(
     monitor_module.alert_handler(EvidenceRedactor(profile.privacy), None, "http://fake")(alert)
 
     assert _FAKE_KEY not in capsys.readouterr().out
+
+
+def test_an_alert_over_a_refused_skip_is_not_printed_as_an_all_clear(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    skipped = SkippedRule("guardana.mcp.cache_scope", SkipReason.MISSING_CAPABILITY, (), "")
+    alert = Alert(
+        0,
+        ScanResult((), ("guardana.prompt.canary",), (skipped,)),
+        "gate failed",
+        GateOutcome.INDETERMINATE,
+    )
+
+    _handler(EvidenceMode.REDACTED, None)(alert)  # type: ignore[operator]
+
+    printed = capsys.readouterr().out
+    assert "✓" not in printed
+    assert "1 rule(s) were skipped and the gate refused the run" in printed

@@ -740,7 +740,8 @@ without the namespace; <code>execution.seed</code> and <code>execution.temperatu
 translation.</p>
 <p>The SARIF output carries the same facts in SARIF's own vocabulary: <code>runs[].invocations[0]</code>
 with <code>startTimeUtc</code>, <code>endTimeUtc</code>, <code>exitCode</code>, <code>exitCodeDescription</code> and
-<code>executionSuccessful</code>.</p>
+<code>executionSuccessful</code>, which is <code>false</code> whenever the run leaves a question open, with a
+notification saying which (see <a href="usage-scan.html#other-formats"><code>usage-scan.md</code></a>).</p>
 <h2 id="see-also">See also</h2>
 <ul>
 <li><a href="usage-diff.html"><code>usage-diff.md</code></a> — comparing two saved runs</li>

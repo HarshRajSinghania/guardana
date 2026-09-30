@@ -56,6 +56,9 @@ the target. `guardana plan probe` prices those judge calls before the run, names
 it cannot price, and exits `3` when the target or a judge meter could exceed the
 request budget, when no rule would run, when a rule it would skip or a calibration
 file would stop the run, or when the run would record an error before its first rule.
+The gate, the four output formats and `plan` decide from one list of open questions, so no
+format renders clean a run the gate refused: no `✓`, a JUnit `<error>`, and SARIF
+`executionSuccessful: false` with a notification naming the cause.
 
 Repeated trials send the same case as independent, fresh requests without shared
 conversation history or agent memory. Any failed attempt fails the case; if a grader

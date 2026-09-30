@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Every output agrees on a run that is not a pass.** The gate, the four renderers and `plan` read one list of open questions (`guardana.core.gate.OpenQuestion`), and no output renders clean when the saved gate is not `pass`. Before, a run whose measurements were all ungraded, or whose suite declined, printed `✓ No findings.` and a successful SARIF invocation while the gate said `indeterminate`; SARIF reported a stopped run without saying why and an unverified check as a successful invocation; and under a policy failing on skips, a skipped rule rendered clean everywhere but in the exit code. JUnit now reads the run manifest, and a `monitor` alert, which writes no run document, renders with the gate its cycle recorded (`Alert.gate`): a cycle refused only for a skip printed `gate failed` above `✓ No findings.`. New SARIF notification ids: `guardana.open_question.stopped`, `.nothing_measured`, `.suite_declined`, `.unverified` (a warning that states the recorded gate), `.skipped` and `.gate`; new JUnit error testcases: `guardana.nothing_measured`, `guardana.skipped`, `guardana.gate`. One shared test renders every open question, a stopped and an interrupted run and a clean one through human, JSON, SARIF and JUnit under the default policy and the release bar.
+
 ### Changed
 
 - **The roadmap names its first goal: 1.0.** One "Now" item per minor release from 0.32 to 0.39 (F6 over two), a readiness release 0.40 and two release candidates at least two weeks apart lead to 1.0.0, targeted for the first quarter of 2027. External evidence sets that date more than the code does: five first-run users after F2, two teams in F6 and a recorded third-party customization. 1.0 freezes the public surface `RELEASING.md` names; M1, the M3 measurement queries and "Later" follow in 1.x, and versioning the collector envelope apart from the run schema moves from M3 into the 1.0 criteria, because 1.0 keeps the envelope stable. `docs/product-status.md` points at the plan instead of a section that did not exist.

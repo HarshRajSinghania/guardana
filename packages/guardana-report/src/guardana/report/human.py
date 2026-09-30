@@ -2,11 +2,17 @@ import math
 from collections.abc import Callable
 
 from guardana.core.assessment import AssessmentStatus
+from guardana.core.gate import GateOutcome, OpenQuestion, declined_suites, open_questions
 from guardana.core.manifest import RunManifest
-from guardana.core.manifest.records import CorrectionStatus, JudgeCorrection, TrialSummary
+from guardana.core.manifest.records import (
+    CorrectionStatus,
+    JudgeCorrection,
+    TrialSummary,
+)
 from guardana.core.report import Finding, ScanResult
 from guardana.core.suite import describe
 from guardana.core.trials import CONFIDENCE, wilson_interval
+from guardana.report._refusal import recorded_gate, refusal_clause, unnamed_refusal
 
 _ICON = {"CRITICAL": "✖", "HIGH": "✖", "MEDIUM": "▲", "LOW": "•", "INFO": "·"}
 
@@ -16,18 +22,24 @@ class HumanRenderer:
 
     name = "human"
 
-    def __init__(self, run: RunManifest | None = None) -> None:
+    def __init__(self, run: RunManifest | None = None, gate: GateOutcome | None = None) -> None:
         self._run = run
+        self._gate = recorded_gate(run, gate)
 
     def render(self, result: ScanResult) -> str:
         """Render one scan result to text."""
+        questions = open_questions(result)
+        refusal = unnamed_refusal(result, self._gate, questions)
         lines = []
         for f in result.findings:
             icon = _ICON.get(f.severity.name, "•")
             lines.append(f"{icon} [{f.severity.name}] {f.rule_id} — {f.title}")
             lines.append(f"    {f.evidence.summary}  ({f.target_ref})")
         if not result.findings:
-            lines.append(_nothing_found(result))
+            lines.append(_nothing_found(result, questions, refusal))
+        elif refusal is not None:
+            clause = refusal_clause(result, refusal)
+            lines.append(f"⚠ {clause[:1].upper()}{clause[1:]} (this is not an all-clear).")
         for f in result.unverified:
             lines.append(f"? [UNVERIFIED] {f.rule_id} — {f.title}")
             lines.append(f"    {_why_unverified(f)}  ({f.target_ref})")
@@ -209,53 +221,57 @@ def _down(value: float) -> str:
     return _percent(math.floor(value * 1000 + 1e-9) / 1000)
 
 
-_NOT_AN_ALL_CLEAR: tuple[
-    tuple[Callable[[ScanResult], object], Callable[[ScanResult], str]], ...
-] = (
+_NOT_AN_ALL_CLEAR: dict[OpenQuestion, Callable[[ScanResult], str]] = {
+    # The exit code already says `6`, and nobody reads an exit code off a terminal: a
+    # tick over a run that ended after two rules is the same false green as a tick over
+    # a rule that crashed.
+    OpenQuestion.STOPPED: lambda r: (
+        f"the run stopped early ({r.stopped_by}) before finishing its plan"
+    ),
     # Every rule ran and every one declined — an endpoint answering with an empty
     # message, a trace cut short. The count above is not zero, which is the only
     # reason this needs a line of its own.
-    (
-        lambda r: r.verified_nothing,
-        lambda r: f"not one of the {r.rules_run_count} check(s) that ran could reach a verdict",
+    OpenQuestion.NOTHING_VERIFIED: lambda r: (
+        f"not one of the {r.rules_run_count} check(s) that ran could reach a verdict"
     ),
-    (
-        lambda r: r.coverage_shortfall,
-        lambda r: f"{len(r.coverage_shortfall)} piece(s) of demanded coverage were not available",
+    OpenQuestion.COVERAGE_SHORTFALL: lambda r: (
+        f"{len(r.coverage_shortfall)} piece(s) of demanded coverage were not available"
     ),
-    (lambda r: r.errors, lambda r: f"{len(r.errors)} check(s) could not run"),
-    # The quietest of the six, and the one that arrives in bulk: a model store whose
+    OpenQuestion.NOTHING_MEASURED: lambda r: (
+        f"not one of the {len(r.assessments)} recorded measurement(s) produced a value"
+    ),
+    OpenQuestion.SUITE_DECLINED: lambda r: (
+        f"{len(declined_suites(r))} suite(s) declined to conclude on their pass rate"
+    ),
+    OpenQuestion.ERRORS: lambda r: f"{len(r.errors)} check(s) could not run",
+    # The quietest of them, and the one that arrives in bulk: a model store whose
     # checkpoints this build cannot parse produces no findings at all and every one
     # of them lands here. A tick over "I could not read your model" is the whole
     # failure this tool is built to refuse, printed in green.
-    (
-        lambda r: r.unverified,
-        lambda r: f"{len(r.unverified)} check(s) ran and could not reach a verdict",
+    OpenQuestion.UNVERIFIED: lambda r: (
+        f"{len(r.unverified)} check(s) ran and could not reach a verdict"
     ),
-)
+}
+"""The line that denies the tick for each open question a renderer always names."""
 
 
-def _nothing_found(result: ScanResult) -> str:
+def _nothing_found(
+    result: ScanResult, questions: tuple[OpenQuestion, ...], refusal: GateOutcome | None
+) -> str:
     """Say what "no findings" means here — a tick only when it means an all-clear.
 
-    Six ways a clean report is not a clean result, ordered by how completely each
-    one invalidates the run. The tick is what people scroll for and what job summaries
-    grep for, so every one of these is a line that denies it in words.
+    The tick is what people scroll for and what job summaries grep for, so every open
+    question but a skip denies it in words, the first one in `OpenQuestion` order; a
+    skip does too once the recorded gate refused the run over it.
     """
     if not result.rules_run:
         return "⚠ 0 rules ran — nothing was checked (this is not an all-clear)."
-    # Its own branch rather than a row in the table below, because the message needs
-    # the value the condition just proved is there. The exit code already says `6`,
-    # and nobody reads an exit code off a terminal: a tick over a run that ended
-    # after two rules is the same false green as a tick over a rule that crashed.
-    if result.stopped_by is not None:
-        return (
-            f"⚠ No findings, but the run stopped early ({result.stopped_by.value}) "
-            "before finishing its plan (this is not an all-clear)."
-        )
-    for applies, message in _NOT_AN_ALL_CLEAR:
-        if applies(result):
-            return f"⚠ No findings, but {message(result)} (this is not an all-clear)."
+    for question in questions:
+        if question is not OpenQuestion.SKIPPED:
+            message = _NOT_AN_ALL_CLEAR[question](result)
+            return f"⚠ No findings, but {message} (this is not an all-clear)."
+    if refusal is not None:
+        return f"⚠ No findings, but {refusal_clause(result, refusal)} (this is not an all-clear)."
     return "✓ No findings."
 
 

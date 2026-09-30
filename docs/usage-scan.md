@@ -21,7 +21,7 @@ guardana scan [PATH] [OPTIONS]
 | `--target SCHEME://LOCATOR` | none | Build a trusted installed artifact target instead of the built-in path target |
 | `--target-option KEY=VALUE` | none | Repeatable, non-secret configuration passed to that target |
 | `--profile PATH` | none (built-in default profile) | Path to a `guardana.yaml` policy file — see [`profiles.md`](profiles.md) |
-| `--preset [ci\|pre-training\|monitor]` | none | Named policy preset (mutually exclusive with `--profile`) — see [`profiles.md`](profiles.md#named-presets---preset) |
+| `--preset [ci\|pre-training\|monitor\|release]` | none | Named policy preset (mutually exclusive with `--profile`) — see [`profiles.md`](profiles.md#named-presets---preset) |
 | `--format [human\|json\|sarif\|junit]` | `human` | Output format |
 | `--plugins [all\|builtins\|allowlist\|disabled]` | `all` | Which installed plugins (entry-point rules/evaluators/targets) to load — the primary plugin-trust control. `builtins` keeps Guardana's own reviewed rules while refusing third-party ones; `disabled` is YAML-only safe mode. See [`SECURITY.md`](../SECURITY.md). |
 | `--allow-plugin TEXT` | none | Distribution to trust; repeatable. Only valid together with `--plugins allowlist`. |
@@ -85,6 +85,14 @@ guardana scan . --format json    # machine-readable findings + summary
 guardana scan . --format sarif   # SARIF 2.1.0, for GitHub code-scanning upload
 guardana scan . --format junit   # JUnit XML, for CI test-result reporting
 ```
+
+Every format says when a run is not a clean pass, each in its own vocabulary. A run that
+stopped early, verified or measured nothing, missed demanded coverage, had a suite decline,
+could not run a check or left a check without a verdict prints no `✓` in the terminal, is
+an `<error>` testcase in JUnit, and sets SARIF's `executionSuccessful` to `false` with one
+`toolExecutionNotifications` entry per cause (`guardana.open_question.*`,
+`guardana.check_error.*`, `guardana.coverage_shortfall.*`). A skipped rule counts only when
+the policy fails on skips, and then no format renders the run clean either.
 
 ## Baselining existing findings
 
