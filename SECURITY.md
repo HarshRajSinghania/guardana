@@ -21,9 +21,10 @@ Either way, include:
   (`guardana-core`, `guardana-rules`, `guardana-cli`, `guardana-report`,
   `guardana-server`).
 
-We aim to acknowledge reports promptly and to coordinate a disclosure
-timeline with the reporter once a fix is available. Please give us
-reasonable time to ship a fix before any public disclosure.
+We will send a first response to every vulnerability report within 14 days
+of receiving it. Once a fix is available, we will coordinate a disclosure
+timeline with the reporter. Please allow us reasonable time to ship a fix
+before public disclosure.
 
 ## Scope
 
