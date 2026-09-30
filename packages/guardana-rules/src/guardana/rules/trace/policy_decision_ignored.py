@@ -2,6 +2,7 @@ from collections.abc import Iterator
 
 from guardana.core.report import Finding
 from guardana.core.rule import RuleMeta
+from guardana.core.safety import Detection
 from guardana.core.severity import Severity
 from guardana.core.target import Capability, TargetKind
 from guardana.core.taxonomy import OWASP_ASI02_2026, OWASP_LLM10_2026
@@ -28,6 +29,7 @@ class PolicyDecisionIgnoredRule(TraceRule):
         target_kind=TargetKind.TRACE,
         taxonomy=(OWASP_ASI02_2026, OWASP_LLM10_2026),
         required_capabilities=frozenset({Capability.READ_TRACE, Capability.READ_POLICY_DECISIONS}),
+        detection=Detection.INVARIANT,
     )
 
     claim = "whether a refused action went ahead is not established"

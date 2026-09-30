@@ -2,7 +2,7 @@ from collections.abc import Iterator
 
 from guardana.core.report import Finding
 from guardana.core.rule import RuleMeta
-from guardana.core.safety import Impact
+from guardana.core.safety import Detection, Impact
 from guardana.core.severity import Severity
 from guardana.core.target import (
     Capability,
@@ -44,6 +44,7 @@ class McpScopeBreadthRule(McpAuthorizationRule):
         taxonomy=(OWASP_MCP02_2025, OWASP_LLM03_2026, OWASP_ASI03_2026),
         required_capabilities=frozenset({Capability.INSPECT_AUTHORIZATION}),
         impact=Impact.ACTIVE,
+        detection=Detection.HEURISTIC,
     )
 
     claim = "the breadth of the scopes it advertises was not established"

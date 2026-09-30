@@ -100,3 +100,33 @@ def test_cost_bucket_keeps_a_declared_zero_out_of_the_cheapest_paid_band(
     same page as a declared `2`, which is the false claim this pins shut.
     """
     assert explorer.cost_bucket({"estimated_requests": declared}) == bucket
+
+
+def _explorer_entry(**overrides: object) -> dict[str, object]:
+    entry: dict[str, object] = {
+        "severity": "HIGH",
+        "surface": "runtime",
+        "family": "prompt",
+        "impact": "active",
+        "target_kind": "endpoint",
+        "estimated_requests": 1,
+        "evaluator": "canary",
+        "maturity": "stable",
+        "destructive": False,
+        "requires": ["chat"],
+        "detection": "invariant",
+    }
+    entry.update(overrides)
+    return entry
+
+
+def test_a_rule_page_states_what_its_findings_are() -> None:
+    assert "<li><b>Detection</b>invariant</li>" in explorer.rule_properties(_explorer_entry(), "")
+
+
+def test_a_rule_entry_without_a_detection_reads_as_undeclared() -> None:
+    """A `rules.json` written before the field existed says nothing, which is not a label."""
+    entry = _explorer_entry()
+    del entry["detection"]
+
+    assert "<li><b>Detection</b>undeclared</li>" in explorer.rule_properties(entry, "")

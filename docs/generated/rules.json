@@ -15,6 +15,7 @@
       "impact": "active",
       "destructive": false,
       "maturity": "stable",
+      "detection": "invariant",
       "requires": [
         "call_tools",
         "chat",
@@ -72,6 +73,7 @@
       "impact": "active",
       "destructive": false,
       "maturity": "stable",
+      "detection": "invariant",
       "requires": [
         "call_tools",
         "chat"
@@ -121,6 +123,7 @@
       "impact": "active",
       "destructive": false,
       "maturity": "stable",
+      "detection": "invariant",
       "requires": [
         "call_tools",
         "chat"
@@ -170,6 +173,7 @@
       "impact": "active",
       "destructive": false,
       "maturity": "stable",
+      "detection": "heuristic",
       "requires": [
         "list_tools"
       ],
@@ -267,6 +271,7 @@
       "impact": "active",
       "destructive": false,
       "maturity": "stable",
+      "detection": "invariant",
       "requires": [
         "call_tools",
         "chat"
@@ -323,6 +328,7 @@
       "impact": "active",
       "destructive": false,
       "maturity": "stable",
+      "detection": "invariant",
       "requires": [
         "call_tools",
         "chat"
@@ -379,6 +385,7 @@
       "impact": "active",
       "destructive": false,
       "maturity": "stable",
+      "detection": "invariant",
       "requires": [
         "call_tools",
         "chat"
@@ -449,6 +456,7 @@
       "impact": "active",
       "destructive": false,
       "maturity": "stable",
+      "detection": "invariant",
       "requires": [
         "inspect_authorization"
       ],
@@ -490,6 +498,7 @@
       "impact": "active",
       "destructive": false,
       "maturity": "stable",
+      "detection": "invariant",
       "requires": [
         "inspect_authorization",
         "list_tools"
@@ -532,6 +541,7 @@
       "impact": "active",
       "destructive": false,
       "maturity": "stable",
+      "detection": "invariant",
       "requires": [
         "inspect_authorization"
       ],
@@ -573,6 +583,7 @@
       "impact": "active",
       "destructive": false,
       "maturity": "stable",
+      "detection": "invariant",
       "requires": [
         "inspect_authorization"
       ],
@@ -614,6 +625,7 @@
       "impact": "active",
       "destructive": false,
       "maturity": "stable",
+      "detection": "heuristic",
       "requires": [
         "inspect_authorization"
       ],
@@ -655,6 +667,7 @@
       "impact": "active",
       "destructive": false,
       "maturity": "stable",
+      "detection": "heuristic",
       "requires": [
         "inspect_authorization"
       ],
@@ -689,6 +702,7 @@
       "impact": "active",
       "destructive": false,
       "maturity": "stable",
+      "detection": "invariant",
       "requires": [
         "inspect_authorization"
       ],
@@ -730,6 +744,7 @@
       "impact": "active",
       "destructive": false,
       "maturity": "stable",
+      "detection": "invariant",
       "requires": [
         "inspect_authorization"
       ],
@@ -771,6 +786,7 @@
       "impact": "active",
       "destructive": false,
       "maturity": "stable",
+      "detection": "heuristic",
       "requires": [
         "chat"
       ],
@@ -805,6 +821,7 @@
       "impact": "active",
       "destructive": false,
       "maturity": "stable",
+      "detection": "heuristic",
       "requires": [
         "chat"
       ],
@@ -846,6 +863,7 @@
       "impact": "passive",
       "destructive": false,
       "maturity": "stable",
+      "detection": "heuristic",
       "requires": [
         "read_files"
       ],
@@ -915,6 +933,7 @@
       "impact": "active",
       "destructive": false,
       "maturity": "stable",
+      "detection": "heuristic",
       "requires": [
         "chat"
       ],
@@ -956,6 +975,7 @@
       "impact": "active",
       "destructive": false,
       "maturity": "stable",
+      "detection": "heuristic",
       "requires": [
         "chat"
       ],
@@ -990,6 +1010,7 @@
       "impact": "passive",
       "destructive": false,
       "maturity": "stable",
+      "detection": "heuristic",
       "requires": [
         "read_files"
       ],
@@ -1080,6 +1101,7 @@
       "impact": "active",
       "destructive": false,
       "maturity": "stable",
+      "detection": "invariant",
       "requires": [
         "chat",
         "plant_system_prompt"
@@ -1122,6 +1144,7 @@
       "impact": "active",
       "destructive": false,
       "maturity": "stable",
+      "detection": "heuristic",
       "requires": [
         "chat"
       ],
@@ -1156,6 +1179,7 @@
       "impact": "active",
       "destructive": false,
       "maturity": "stable",
+      "detection": "heuristic",
       "requires": [
         "chat"
       ],
@@ -1197,6 +1221,7 @@
       "impact": "active",
       "destructive": false,
       "maturity": "stable",
+      "detection": "invariant",
       "requires": [
         "chat",
         "plant_system_prompt"
@@ -1267,6 +1292,7 @@
       "impact": "passive",
       "destructive": false,
       "maturity": "stable",
+      "detection": "heuristic",
       "requires": [
         "read_files"
       ],
@@ -1336,6 +1362,7 @@
       "impact": "passive",
       "destructive": false,
       "maturity": "stable",
+      "detection": "heuristic",
       "requires": [
         "read_files"
       ],
@@ -1384,6 +1411,7 @@
       "impact": "passive",
       "destructive": false,
       "maturity": "stable",
+      "detection": "heuristic",
       "requires": [
         "read_files"
       ],
@@ -1425,6 +1453,7 @@
       "impact": "passive",
       "destructive": false,
       "maturity": "stable",
+      "detection": "heuristic",
       "requires": [
         "read_files"
       ],
@@ -1459,6 +1488,7 @@
       "impact": "passive",
       "destructive": false,
       "maturity": "stable",
+      "detection": "heuristic",
       "requires": [
         "read_files"
       ],
@@ -1493,6 +1523,7 @@
       "impact": "passive",
       "destructive": false,
       "maturity": "stable",
+      "detection": "heuristic",
       "requires": [
         "read_files"
       ],
@@ -1534,6 +1565,7 @@
       "impact": "passive",
       "destructive": false,
       "maturity": "stable",
+      "detection": "invariant",
       "requires": [
         "read_files"
       ],
@@ -1596,6 +1628,7 @@
       "impact": "passive",
       "destructive": false,
       "maturity": "stable",
+      "detection": "heuristic",
       "requires": [
         "read_files"
       ],
@@ -1651,6 +1684,7 @@
       "impact": "passive",
       "destructive": false,
       "maturity": "stable",
+      "detection": "heuristic",
       "requires": [
         "read_files"
       ],
@@ -1706,6 +1740,7 @@
       "impact": "passive",
       "destructive": false,
       "maturity": "stable",
+      "detection": "heuristic",
       "requires": [
         "read_files"
       ],
@@ -1754,6 +1789,7 @@
       "impact": "passive",
       "destructive": false,
       "maturity": "stable",
+      "detection": "heuristic",
       "requires": [
         "read_files"
       ],
@@ -1823,6 +1859,7 @@
       "impact": "passive",
       "destructive": false,
       "maturity": "stable",
+      "detection": "invariant",
       "requires": [
         "read_files"
       ],
@@ -1892,6 +1929,7 @@
       "impact": "passive",
       "destructive": false,
       "maturity": "stable",
+      "detection": "heuristic",
       "requires": [
         "read_files"
       ],
@@ -1933,6 +1971,7 @@
       "impact": "passive",
       "destructive": false,
       "maturity": "stable",
+      "detection": "heuristic",
       "requires": [
         "read_files"
       ],
@@ -1981,6 +2020,7 @@
       "impact": "passive",
       "destructive": false,
       "maturity": "stable",
+      "detection": "heuristic",
       "requires": [
         "read_files"
       ],
@@ -2036,6 +2076,7 @@
       "impact": "passive",
       "destructive": false,
       "maturity": "stable",
+      "detection": "heuristic",
       "requires": [
         "read_files"
       ],
@@ -2098,6 +2139,7 @@
       "impact": "passive",
       "destructive": false,
       "maturity": "stable",
+      "detection": "invariant",
       "requires": [
         "read_consent",
         "read_trace"
@@ -2140,6 +2182,7 @@
       "impact": "passive",
       "destructive": false,
       "maturity": "stable",
+      "detection": "invariant",
       "requires": [
         "read_delegation",
         "read_trace"
@@ -2182,6 +2225,7 @@
       "impact": "passive",
       "destructive": false,
       "maturity": "stable",
+      "detection": "invariant",
       "requires": [
         "read_retrieval",
         "read_trace"
@@ -2217,6 +2261,7 @@
       "impact": "passive",
       "destructive": false,
       "maturity": "stable",
+      "detection": "invariant",
       "requires": [
         "read_delegation",
         "read_handoffs",
@@ -2260,6 +2305,7 @@
       "impact": "passive",
       "destructive": false,
       "maturity": "stable",
+      "detection": "invariant",
       "requires": [
         "read_identity",
         "read_trace"
@@ -2295,6 +2341,7 @@
       "impact": "passive",
       "destructive": false,
       "maturity": "stable",
+      "detection": "invariant",
       "requires": [
         "read_policy_decisions",
         "read_trace"
@@ -2330,6 +2377,7 @@
       "impact": "passive",
       "destructive": false,
       "maturity": "stable",
+      "detection": "heuristic",
       "requires": [
         "read_tool_calls",
         "read_trace"
@@ -2372,6 +2420,7 @@
       "impact": "passive",
       "destructive": false,
       "maturity": "stable",
+      "detection": "invariant",
       "requires": [
         "read_identity",
         "read_trace"
@@ -2407,6 +2456,7 @@
       "impact": "passive",
       "destructive": false,
       "maturity": "stable",
+      "detection": "invariant",
       "requires": [
         "read_approvals",
         "read_side_effects",
@@ -2450,6 +2500,7 @@
       "impact": "passive",
       "destructive": false,
       "maturity": "stable",
+      "detection": "heuristic",
       "requires": [
         "read_files"
       ],

@@ -20,6 +20,7 @@ from guardana.core.rule._yaml_schema import (
     _require_str,
     builtin_expectation_problem,
     impact_for,
+    parse_detection,
     reject_unknown_keys,
     require_canary_is_plantable,
 )
@@ -39,6 +40,7 @@ _ALLOWED_SCENARIO_KEYS = frozenset(
         "stateful",
         "expect",
         "fixtures",
+        "detection",
     }
 )
 _ALLOWED_STEP_KEYS = frozenset({"send", "expect"})
@@ -63,6 +65,7 @@ def parse_scenario(raw: dict[str, Any], path: Path) -> ScenarioRule:
         required_capabilities=_parse_capabilities(raw.get("requires"), path),
         evaluator=None,
         impact=impact_for(kind, frozenset()),
+        detection=parse_detection(raw, path),
     )
     steps = _parse_steps(raw.get("steps"), path)
     stateful = _parse_bool(raw.get("stateful", False), "stateful", path)

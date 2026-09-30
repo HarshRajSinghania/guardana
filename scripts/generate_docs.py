@@ -31,7 +31,10 @@ from guardana.core import __version__  # noqa: E402
 from guardana.core.evaluator import CONFIG_WIRED  # noqa: E402
 from guardana.core.evaluator.base import Evaluator  # noqa: E402
 from guardana.core.pack import PACK_SCHEMA_VERSION  # noqa: E402
-from guardana.core.rule.base import Rule  # noqa: E402
+from guardana.core.rule.base import Rule, RuleContext  # noqa: E402
+from guardana.core.rule.fixture import FixtureOutcome  # noqa: E402
+from guardana.core.rule.verify import FixtureVerdict, verify_rule  # noqa: E402
+from guardana.core.safety import Detection  # noqa: E402
 from guardana.core.severity import Severity  # noqa: E402
 from guardana.core.surface import Surface  # noqa: E402
 from guardana.core.target import TargetKind  # noqa: E402
@@ -63,11 +66,17 @@ _FRONTMATTER: dict[str, tuple[str, int, str]] = {
         40,
         "Which entry of each public framework at least one built-in rule maps to.",
     ),
+    "detection-limits.md": (
+        "Detection limits",
+        50,
+        "Per rule family, whether a finding is a tested invariant, a heuristic lead, "
+        "or undeclared.",
+    ),
 }
 """Nav metadata for the generated pages, alongside the code that writes them.
 
 The hand-written pages carry their own frontmatter, and the site build refuses a
-page without a title rather than inferring one from the filename. These four have
+page without a title rather than inferring one from the filename. These pages have
 no author to write it, so it lives here — beside the renderer, in the same file a
 new generated page would be added to.
 """
@@ -219,6 +228,7 @@ def _rule_entry(rule: Rule) -> dict[str, object]:
         "impact": str(meta.impact),
         "destructive": meta.destructive,
         "maturity": str(meta.maturity),
+        "detection": str(meta.detection),
         "requires": sorted(str(capability) for capability in meta.required_capabilities),
         "estimated_requests": rule.estimated_requests,
         "goal": _goal(rule),
@@ -265,11 +275,100 @@ def _evaluator_catalog(_rules: list[Rule]) -> str:
     return _evaluators()
 
 
+_DETECTION_PREAMBLE = (
+    "What a finding from each built-in rule states about the target, grouped by rule "
+    "family and read from the `detection` each rule declares.\n\n"
+    "- **Tested invariant**: every finding the rule can emit states a checked fact about "
+    "the target (a planted marker seen in output, a byte sequence or opcode present, a "
+    "server answering without credentials, a recorded span showing the forbidden step), "
+    "and the rule ships a finding sample and a clean sample that it classifies correctly.\n"
+    "- **Invariant, not sampled**: the rule declares that every finding states a checked "
+    "fact, and does not ship both a finding sample and a clean sample that it classifies "
+    "correctly.\n"
+    "- **Heuristic lead**: a finding is a lead a person confirms. A keyword, a phrase or "
+    "name list, a threshold, an entropy or pattern match decides whether the risk is real. "
+    "A rule that can emit both kinds is listed here.\n"
+    "- **Not declared**: the rule does not say which of the two its findings are.\n\n"
+    "A framework mapping says a rule is relevant to that entry, not that the entry is "
+    "covered.\n"
+)
+
+_TESTED = "Tested invariant"
+_UNSAMPLED = "Invariant, not sampled"
+_LEAD = "Heuristic lead"
+_UNDECLARED = "Not declared"
+_GROUPS = (_TESTED, _UNSAMPLED, _LEAD, _UNDECLARED)
+
+
+def _detection_group(rule: Rule, sampled: Callable[[Rule], bool]) -> str:
+    """Name the group a rule is printed under; anything but the two labels is not declared."""
+    detection = rule.meta.detection
+    if detection is Detection.INVARIANT:
+        return _TESTED if sampled(rule) else _UNSAMPLED
+    if detection is Detection.HEURISTIC:
+        return _LEAD
+    return _UNDECLARED
+
+
+def _ships_both_samples(rule: Rule, ctx: RuleContext) -> bool:
+    """Whether the rule classifies a finding sample and a clean sample of its own correctly.
+
+    A sample that failed or could not run shows nothing, so one such result is enough
+    to leave the rule unsampled rather than tested.
+    """
+    verification = verify_rule(rule, ctx)
+    if verification.failed or verification.errored:
+        return False
+    passed = {
+        result.expected
+        for result in verification.results
+        if result.verdict is FixtureVerdict.PASSED
+    }
+    return {FixtureOutcome.FINDING, FixtureOutcome.CLEAN} <= passed
+
+
+def _detection_page(rules: list[Rule], sampled: Callable[[Rule], bool]) -> str:
+    """Render the detection-limits page for `rules`, deciding "tested" with `sampled`."""
+    families: defaultdict[str, list[Rule]] = defaultdict(list)
+    for rule in rules:
+        families[_family(rule.meta.id)].append(rule)
+    lines = [_HEADER + _DETECTION_PREAMBLE]
+    for family in sorted(families):
+        members = sorted(families[family], key=lambda r: r.meta.id)
+        lines.append(f"## {family}\n")
+        grouped: defaultdict[str, list[Rule]] = defaultdict(list)
+        for rule in members:
+            grouped[_detection_group(rule, sampled)].append(rule)
+        for group in _GROUPS:
+            if grouped[group]:
+                lines.append(f"### {group}\n")
+                lines += [f"- `{r.meta.id}`: {r.meta.title}" for r in grouped[group]]
+                lines.append("")
+        references = {ref.reference: ref for rule in members for ref in rule.meta.taxonomy}
+        lines.append("### Framework entries these rules are relevant to, not coverage of them\n")
+        if references:
+            lines += [
+                f"- `{reference}`: {references[reference].title}"
+                for reference in sorted(references)
+            ]
+        else:
+            lines.append("- none mapped")
+        lines.append("")
+    return "\n".join(lines).rstrip("\n") + "\n"
+
+
+def _detection_limits(rules: list[Rule]) -> str:
+    """Render the detection-limits page, running each rule's own samples to tell tested apart."""
+    ctx = RuleContext(evaluators={type(e).id: e for e in provide_evaluators()})
+    return _detection_page(rules, lambda rule: _ships_both_samples(rule, ctx))
+
+
 _FILES: dict[str, Callable[[list[Rule]], str]] = {
     "rule-summary.md": _summary,
     "rule-catalog.md": _catalog,
     "evaluator-catalog.md": _evaluator_catalog,
     "taxonomy-coverage.md": _taxonomy,
+    "detection-limits.md": _detection_limits,
     "rules.json": _rules_json,
 }
 

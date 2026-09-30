@@ -164,7 +164,10 @@ without guessing from a short id.
 Third-party packages can provide rules, evaluators, targets, and taxonomies
 through Python entry points. YAML rules cover `prompt`, `scenario`, and `agent`
 endpoint shapes, and every shape can declare the finding, clean, and inconclusive
-samples that `guardana rule test` runs without a network. `guardana new-pack` writes a complete pack —
+samples that `guardana rule test` runs without a network. A rule declares whether a finding
+is a checked fact or a lead (`detection:`), and the generated
+[detection limits](docs/generated/detection-limits.md) page lists every built-in by family
+beside the framework entries it is only mapped to. `guardana new-pack` writes a complete pack —
 manifest, entry points, one sampled rule per shape, a locator target and tests — that
 passes `pack validate` and `rule test` before it is edited. Pack manifests declare API
 compatibility and locks pin the exact installed extensions.

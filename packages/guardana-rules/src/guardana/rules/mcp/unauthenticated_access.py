@@ -2,7 +2,7 @@ from collections.abc import Iterator
 
 from guardana.core.report import Finding
 from guardana.core.rule import RuleMeta
-from guardana.core.safety import Impact
+from guardana.core.safety import Detection, Impact
 from guardana.core.severity import Severity
 from guardana.core.target import Capability, McpAuthorizationView, TargetKind, is_local_address
 from guardana.core.taxonomy import (
@@ -36,6 +36,7 @@ class McpUnauthenticatedAccessRule(McpAuthorizationRule):
         taxonomy=(OWASP_MCP07_2025, OWASP_ASI03_2026, ATLAS_T0084_001),
         required_capabilities=frozenset({Capability.INSPECT_AUTHORIZATION}),
         impact=Impact.ACTIVE,
+        detection=Detection.INVARIANT,
     )
 
     claim = "whether it requires a credential is unknown"

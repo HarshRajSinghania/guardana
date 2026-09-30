@@ -8,7 +8,7 @@ from guardana.core.evaluator.base import Verdict
 from guardana.core.fingerprint import digest_of
 from guardana.core.report import Evidence, Finding
 from guardana.core.rule import Rule, RuleContext, RuleMeta
-from guardana.core.safety import Impact
+from guardana.core.safety import Detection, Impact
 from guardana.core.severity import Severity
 from guardana.core.target import Capability, McpTool, Target, TargetKind, display_url
 from guardana.core.target.protocols import ToolListing
@@ -148,6 +148,7 @@ class McpServerManifestRule(Rule):
         ),
         required_capabilities=frozenset({Capability.LIST_TOOLS}),
         impact=Impact.ACTIVE,
+        detection=Detection.HEURISTIC,
     )
 
     @property

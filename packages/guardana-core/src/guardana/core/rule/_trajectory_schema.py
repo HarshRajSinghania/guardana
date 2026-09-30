@@ -44,6 +44,7 @@ _ALLOWED_KEYS = frozenset(
         "max_steps",
         "expect",
         "fixtures",
+        "detection",
     }
 )
 _ALLOWED_TOOL_KEYS = frozenset({"name", "description", "returns", "memory"})

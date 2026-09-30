@@ -5,7 +5,7 @@ from guardana.core.evaluator.base import Verdict
 from guardana.core.report import Evidence, Finding
 from guardana.core.rule import Rule, RuleContext, RuleMeta
 from guardana.core.rule.errors import RuleError
-from guardana.core.safety import Impact
+from guardana.core.safety import Detection, Impact
 from guardana.core.severity import Severity
 from guardana.core.target import (
     Capability,
@@ -61,6 +61,7 @@ class ExcessiveAgencyRule(Rule):
         ),
         required_capabilities=frozenset({Capability.CHAT, Capability.CALL_TOOLS}),
         impact=Impact.ACTIVE,
+        detection=Detection.INVARIANT,
     )
 
     def __init__(self, trials: int = 1) -> None:

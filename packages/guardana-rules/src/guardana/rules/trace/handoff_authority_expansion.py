@@ -2,6 +2,7 @@ from collections.abc import Iterator
 
 from guardana.core.report import Finding
 from guardana.core.rule import RuleMeta
+from guardana.core.safety import Detection
 from guardana.core.severity import Severity
 from guardana.core.target import Capability, TargetKind
 from guardana.core.taxonomy import OWASP_ASI03_2026, OWASP_ASI07_2026, OWASP_LLM03_2026
@@ -33,6 +34,7 @@ class HandoffAuthorityExpansionRule(TraceRule):
         required_capabilities=frozenset(
             {Capability.READ_TRACE, Capability.READ_HANDOFFS, Capability.READ_DELEGATION}
         ),
+        detection=Detection.INVARIANT,
     )
 
     claim = "whether an agent gained authority across a handoff is not established"

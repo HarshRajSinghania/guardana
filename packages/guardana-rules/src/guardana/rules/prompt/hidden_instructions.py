@@ -4,6 +4,7 @@ from pathlib import Path
 from guardana.core.formats import FormatError, read_safetensors_header
 from guardana.core.report import Evidence, Finding
 from guardana.core.rule import RuleContext, RuleMeta
+from guardana.core.safety import Detection
 from guardana.core.severity import Severity
 from guardana.core.target import Capability, FileReader, Target, TargetKind
 from guardana.core.taxonomy import (
@@ -121,6 +122,7 @@ class HiddenInstructionsRule(ArtifactRule):
             ATLAS_T0080,
         ),
         required_capabilities=frozenset({Capability.READ_FILES}),
+        detection=Detection.HEURISTIC,
     )
 
     def run(self, target: Target, ctx: RuleContext) -> Iterable[Finding]:

@@ -26,7 +26,7 @@ from guardana.core.evaluator.reference_judge import ReferenceJudgeEvaluator
 from guardana.core.evaluator.regex import RegexEvaluator
 from guardana.core.rule.base import RuleMeta
 from guardana.core.rule.errors import RuleLoadError
-from guardana.core.safety import Impact
+from guardana.core.safety import Detection, Impact
 from guardana.core.severity import Severity
 from guardana.core.target import Capability, TargetKind
 from guardana.core.taxonomy import TaxonomyError, TaxonomyRef, resolve
@@ -43,6 +43,7 @@ _ALLOWED_RULE_KEYS = frozenset(
         "prompts",
         "expect",
         "fixtures",
+        "detection",
     }
 )
 _TYPED_EXPECT_KEYS = frozenset({"canary", "goal"})
@@ -164,6 +165,22 @@ def _parse_severity(raw: dict[str, Any], path: Path) -> Severity:
         raise RuleLoadError(f"invalid rule in {path}: unknown severity {name!r}") from exc
 
 
+def parse_detection(raw: dict[str, Any], path: Path) -> Detection:
+    """Read the optional `detection:` key, refusing any value that is not a `Detection`.
+
+    Matched exactly, case included: a label on a rule is read by people and by the
+    generated documentation, and a near-miss accepted here would print as a claim
+    nobody made.
+    """
+    value = raw.get("detection", Detection.UNDECLARED.value)
+    allowed = ", ".join(member.value for member in Detection)
+    if not isinstance(value, str) or value not in {member.value for member in Detection}:
+        raise RuleLoadError(
+            f"invalid rule in {path}: unknown detection {value!r}; expected one of {allowed}"
+        )
+    return Detection(value)
+
+
 def _parse_target_kind(raw: dict[str, Any], path: Path) -> TargetKind:
     name = _require_str(raw, "target_kind", path)
     try:
@@ -198,6 +215,7 @@ def parse_meta(
         required_capabilities=capabilities,
         evaluator=_require_str(raw, "evaluator", path),
         impact=impact_for(kind, capabilities),
+        detection=parse_detection(raw, path),
     )
 
 

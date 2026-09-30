@@ -2,7 +2,7 @@ from collections.abc import Iterable, Iterator
 
 from guardana.core.report import Finding
 from guardana.core.rule import RuleContext, RuleMeta
-from guardana.core.safety import Impact
+from guardana.core.safety import Detection, Impact
 from guardana.core.severity import Severity
 from guardana.core.target import (
     Capability,
@@ -63,6 +63,7 @@ class McpCacheScopeRule(McpReporting):
         taxonomy=(OWASP_MCP10_2025, OWASP_MCP07_2025, OWASP_ASI03_2026),
         required_capabilities=frozenset({Capability.LIST_TOOLS, Capability.INSPECT_AUTHORIZATION}),
         impact=Impact.ACTIVE,
+        detection=Detection.INVARIANT,
     )
 
     claim = "what it declares about caching its tool listing was not established"

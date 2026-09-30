@@ -7,7 +7,7 @@ from guardana.core.assessment import Assessment
 from guardana.core.evaluator.base import Evaluator, Expectation
 from guardana.core.report import Finding
 from guardana.core.rule._digest import digest_parts
-from guardana.core.safety import Impact, Maturity
+from guardana.core.safety import Detection, Impact, Maturity
 from guardana.core.severity import Severity
 from guardana.core.surface import Surface
 from guardana.core.target import Capability, Target, TargetKind
@@ -57,6 +57,14 @@ class RuleMeta:
     Defaults to `STABLE` because every built-in is, and a default of
     `EXPERIMENTAL` would make the honest label meaningless by applying it to
     everything.
+    """
+
+    detection: Detection = Detection.UNDECLARED
+    """Whether a finding from this rule is a checked fact or a lead. See `Detection`.
+
+    Defaults to `UNDECLARED` rather than to either answer, because each would be a
+    claim about a rule nobody has read. Kept out of `Rule.digest()`: relabelling a
+    rule does not change what it sends or how it grades.
     """
 
     @property

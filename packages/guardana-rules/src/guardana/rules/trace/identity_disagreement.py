@@ -2,6 +2,7 @@ from collections.abc import Iterator
 
 from guardana.core.report import Finding
 from guardana.core.rule import RuleMeta
+from guardana.core.safety import Detection
 from guardana.core.severity import Severity
 from guardana.core.target import Capability, TargetKind
 from guardana.core.taxonomy import OWASP_ASI03_2026, OWASP_MCP01_2025
@@ -28,6 +29,7 @@ class IdentityDisagreementRule(TraceRule):
         target_kind=TargetKind.TRACE,
         taxonomy=(OWASP_MCP01_2025, OWASP_ASI03_2026),
         required_capabilities=frozenset({Capability.READ_TRACE, Capability.READ_IDENTITY}),
+        detection=Detection.INVARIANT,
     )
 
     claim = "whether a token was presented outside its audience is not established"

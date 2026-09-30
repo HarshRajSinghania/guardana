@@ -79,6 +79,7 @@
 <li><a href="generated/rule-catalog.html">Rule catalog</a></li>
 <li><a href="generated/evaluator-catalog.html">Evaluator catalog</a></li>
 <li><a href="generated/taxonomy-coverage.html">Taxonomy coverage</a></li>
+<li><a href="generated/detection-limits.html">Detection limits</a></li>
 </ul>
 <h2>Design documents</h2><ul>
 <li><a href="design/README.html">How these are written</a></li>
@@ -197,6 +198,7 @@
 <li><a href="generated/rule-catalog.html">Rule catalog</a></li>
 <li><a href="generated/evaluator-catalog.html">Evaluator catalog</a></li>
 <li><a href="generated/taxonomy-coverage.html">Taxonomy coverage</a></li>
+<li><a href="generated/detection-limits.html">Detection limits</a></li>
 </ul>
 <h2>Design documents</h2><ul>
 <li><a href="design/README.html">How these are written</a></li>
@@ -383,6 +385,12 @@ expect:
 <td>no</td>
 <td>list of mappings</td>
 <td>The rule's own samples — a finding, a clean and an inconclusive one — each a scripted <code>reply</code> and the <code>outcome</code> the rule must reach. <a href="usage-rule-test.html"><code>guardana rule test</code></a> runs them; a rule without all three is reported as not fully sampled.</td>
+</tr>
+<tr>
+<td><code>detection</code></td>
+<td>no (default <code>undeclared</code>)</td>
+<td><code>invariant|heuristic|undeclared</code></td>
+<td>What a finding from this rule states. <code>invariant</code>: every finding is a checked fact about the target, such as a planted marker seen in a reply. <code>heuristic</code>: a finding is a lead a person confirms, because a keyword, a list, a threshold or a pattern decides it. A rule that can emit both kinds declares <code>heuristic</code>. Any other value is refused at load. The key does not change the rule's digest, so a saved run does not report a relabelled rule as changed. <a href="generated/detection-limits.html">Detection limits</a> lists every built-in by this value.</td>
 </tr>
 </tbody>
 </table></div>
@@ -707,6 +715,8 @@ class MyRule(Rule):
                     evidence=Evidence(summary=&quot;why this fired&quot;, detail=str(path)),
                 )
 </code></pre>
+<p><code>RuleMeta</code> takes the same <code>detection</code> as the YAML key, <code>detection=Detection.INVARIANT</code> or
+<code>Detection.HEURISTIC</code> from <code>guardana.core.safety</code>; left out, it is <code>Detection.UNDECLARED</code>.</p>
 <p><code>RuleContext.config</code> carries whatever the active profile's <code>rule_config</code> declares
 for this rule id (<code>ctx.get(key, default)</code>). Built-in readers include
 <code>guardana.supply_chain.hardcoded_secret</code>, which reads <code>entropy</code>, and the MCP

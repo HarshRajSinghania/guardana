@@ -78,6 +78,7 @@ coverage. Do not edit them by hand.
 - [`generated/rule-catalog.md`](generated/rule-catalog.md) — every built-in rule
 - [`generated/evaluator-catalog.md`](generated/evaluator-catalog.md) — every evaluator
 - [`generated/taxonomy-coverage.md`](generated/taxonomy-coverage.md) — framework coverage
+- [`generated/detection-limits.md`](generated/detection-limits.md) — what a finding states, per rule family
 
 ## Design documents
 

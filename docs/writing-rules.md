@@ -95,6 +95,7 @@ expect:
 | `prompts` | yes (at least one) | list of strings | The corpus sent to the target, one `chat()` call per prompt and trial. A scalar string is rejected — it would explode into single-character prompts — and so is a prompt listed twice, because a prompt is its own case id. |
 | `expect` | no (default `{}`) | mapping | Passed straight to the evaluator as an `Expectation`: `canary` (string, the marker the `canary` evaluator looks for) and `goal` (string, free-text used by `llm_judge`'s prompt template). Unknown keys are rejected. |
 | `fixtures` | no | list of mappings | The rule's own samples — a finding, a clean and an inconclusive one — each a scripted `reply` and the `outcome` the rule must reach. [`guardana rule test`](usage-rule-test.md) runs them; a rule without all three is reported as not fully sampled. |
+| `detection` | no (default `undeclared`) | `invariant\|heuristic\|undeclared` | What a finding from this rule states. `invariant`: every finding is a checked fact about the target, such as a planted marker seen in a reply. `heuristic`: a finding is a lead a person confirms, because a keyword, a list, a threshold or a pattern decides it. A rule that can emit both kinds declares `heuristic`. Any other value is refused at load. The key does not change the rule's digest, so a saved run does not report a relabelled rule as changed. [Detection limits](generated/detection-limits.md) lists every built-in by this value. |
 
 A YAML file may contain a single rule mapping or a **list** of rule
 mappings — `load_yaml_rules` accepts both.
@@ -372,6 +373,9 @@ class MyRule(Rule):
                     evidence=Evidence(summary="why this fired", detail=str(path)),
                 )
 ```
+
+`RuleMeta` takes the same `detection` as the YAML key, `detection=Detection.INVARIANT` or
+`Detection.HEURISTIC` from `guardana.core.safety`; left out, it is `Detection.UNDECLARED`.
 
 `RuleContext.config` carries whatever the active profile's `rule_config` declares
 for this rule id (`ctx.get(key, default)`). Built-in readers include

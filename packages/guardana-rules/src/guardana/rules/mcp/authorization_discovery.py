@@ -3,7 +3,7 @@ from urllib.parse import urlsplit
 
 from guardana.core.report import Finding
 from guardana.core.rule import RuleMeta
-from guardana.core.safety import Impact
+from guardana.core.safety import Detection, Impact
 from guardana.core.severity import Severity
 from guardana.core.target import (
     Capability,
@@ -47,6 +47,7 @@ class McpAuthorizationDiscoveryRule(McpAuthorizationRule):
         taxonomy=(OWASP_MCP07_2025, OWASP_MCP01_2025, OWASP_ASI03_2026),
         required_capabilities=frozenset({Capability.INSPECT_AUTHORIZATION}),
         impact=Impact.ACTIVE,
+        detection=Detection.INVARIANT,
     )
 
     claim = "whether its authorization surface is one a client can use was not established"

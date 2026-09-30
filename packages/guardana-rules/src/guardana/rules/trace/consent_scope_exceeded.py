@@ -2,6 +2,7 @@ from collections.abc import Iterator
 
 from guardana.core.report import Finding
 from guardana.core.rule import RuleMeta
+from guardana.core.safety import Detection
 from guardana.core.severity import Severity
 from guardana.core.target import Capability, TargetKind
 from guardana.core.taxonomy import OWASP_ASI03_2026, OWASP_LLM03_2026, OWASP_MCP02_2025
@@ -29,6 +30,7 @@ class ConsentScopeExceededRule(TraceRule):
         target_kind=TargetKind.TRACE,
         taxonomy=(OWASP_MCP02_2025, OWASP_ASI03_2026, OWASP_LLM03_2026),
         required_capabilities=frozenset({Capability.READ_TRACE, Capability.READ_CONSENT}),
+        detection=Detection.INVARIANT,
     )
 
     claim = "whether an ungranted scope was exercised is not established"

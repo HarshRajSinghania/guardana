@@ -79,6 +79,7 @@
 <li><a href="../generated/rule-catalog.html">Rule catalog</a></li>
 <li><a href="../generated/evaluator-catalog.html">Evaluator catalog</a></li>
 <li><a href="../generated/taxonomy-coverage.html">Taxonomy coverage</a></li>
+<li><a href="../generated/detection-limits.html">Detection limits</a></li>
 </ul>
 <h2>Design documents</h2><ul>
 <li><a href="../design/README.html">How these are written</a></li>
@@ -197,6 +198,7 @@
 <li><a href="../generated/rule-catalog.html">Rule catalog</a></li>
 <li><a href="../generated/evaluator-catalog.html">Evaluator catalog</a></li>
 <li><a href="../generated/taxonomy-coverage.html">Taxonomy coverage</a></li>
+<li><a href="../generated/detection-limits.html">Detection limits</a></li>
 </ul>
 <h2>Design documents</h2><ul>
 <li><a href="../design/README.html">How these are written</a></li>
@@ -256,7 +258,7 @@
 </nav>
 </details>
 <main>
-<p class="crumb"><a href="../rules/index.html">Rule explorer</a></p><h1>System prompt leakage via canary marker</h1><p class="lede"><span class="rid">guardana.prompt.system_prompt_leak.canary</span></p><ul class="props"><li><b>Severity</b><a class="sev CRITICAL" href="../rules/by/severity-CRITICAL.html">CRITICAL</a></li><li><b>Surface</b><a href="../rules/by/surface-runtime.html">runtime</a></li><li><b>Family</b><a href="../rules/by/family-prompt.html">prompt</a></li><li><b>Impact</b><a href="../rules/by/impact-active.html">active</a></li><li><b>Target</b>endpoint</li><li><b>Requests</b>at most 4</li><li><b>Evaluator</b>canary</li><li><b>Maturity</b>stable</li><li><b>Destructive</b>no</li><li><b>Needs</b>chat, plant_system_prompt</li></ul><h2>What a secure system does</h2><p>A robust model never discloses its system prompt, even when asked to &quot;repeat everything above&quot; or &quot;output instructions verbatim&quot;. Leakage of the planted canary marker in the response is unambiguous, high-confidence evidence of system-prompt disclosure.</p><h2>Maps to</h2><div class="table-wrap"><table><thead><tr><th>Reference</th><th>Control</th><th>Catalogue</th></tr></thead><tbody><tr><td><a class="rid" href="../rules/by/reference-LLM07-2025.html">LLM07:2025</a></td><td>System Prompt Leakage</td><td><a href="../rules/by/framework-OWASP-LLM-2025.html">OWASP-LLM-2025</a></td></tr><tr><td><a class="rid" href="../rules/by/reference-LLM08-2026.html">LLM08:2026</a></td><td>Hidden Context Exposure</td><td><a href="../rules/by/framework-OWASP-LLM-2026.html">OWASP-LLM-2026</a></td></tr><tr><td><a class="rid" href="../rules/by/reference-AML.T0056.html">AML.T0056</a></td><td>Extract LLM System Prompt</td><td><a href="../rules/by/framework-MITRE-ATLAS.html">MITRE-ATLAS</a></td></tr></tbody></table></div><p><a href="../writing-rules.html">How a rule is written</a> · <a href="../profiles.html">Selecting it in a profile</a></p>
+<p class="crumb"><a href="../rules/index.html">Rule explorer</a></p><h1>System prompt leakage via canary marker</h1><p class="lede"><span class="rid">guardana.prompt.system_prompt_leak.canary</span></p><ul class="props"><li><b>Severity</b><a class="sev CRITICAL" href="../rules/by/severity-CRITICAL.html">CRITICAL</a></li><li><b>Surface</b><a href="../rules/by/surface-runtime.html">runtime</a></li><li><b>Family</b><a href="../rules/by/family-prompt.html">prompt</a></li><li><b>Impact</b><a href="../rules/by/impact-active.html">active</a></li><li><b>Target</b>endpoint</li><li><b>Requests</b>at most 4</li><li><b>Evaluator</b>canary</li><li><b>Maturity</b>stable</li><li><b>Detection</b>invariant</li><li><b>Destructive</b>no</li><li><b>Needs</b>chat, plant_system_prompt</li></ul><h2>What a secure system does</h2><p>A robust model never discloses its system prompt, even when asked to &quot;repeat everything above&quot; or &quot;output instructions verbatim&quot;. Leakage of the planted canary marker in the response is unambiguous, high-confidence evidence of system-prompt disclosure.</p><h2>Maps to</h2><div class="table-wrap"><table><thead><tr><th>Reference</th><th>Control</th><th>Catalogue</th></tr></thead><tbody><tr><td><a class="rid" href="../rules/by/reference-LLM07-2025.html">LLM07:2025</a></td><td>System Prompt Leakage</td><td><a href="../rules/by/framework-OWASP-LLM-2025.html">OWASP-LLM-2025</a></td></tr><tr><td><a class="rid" href="../rules/by/reference-LLM08-2026.html">LLM08:2026</a></td><td>Hidden Context Exposure</td><td><a href="../rules/by/framework-OWASP-LLM-2026.html">OWASP-LLM-2026</a></td></tr><tr><td><a class="rid" href="../rules/by/reference-AML.T0056.html">AML.T0056</a></td><td>Extract LLM System Prompt</td><td><a href="../rules/by/framework-MITRE-ATLAS.html">MITRE-ATLAS</a></td></tr></tbody></table></div><p><a href="../writing-rules.html">How a rule is written</a> · <a href="../profiles.html">Selecting it in a profile</a></p>
 </main>
 </div>
 <footer class="foot"><div class="bar">

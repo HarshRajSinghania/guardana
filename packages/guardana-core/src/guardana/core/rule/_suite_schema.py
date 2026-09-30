@@ -51,6 +51,7 @@ _ALLOWED_SUITE_KEYS = frozenset(
         "sample",
         "gate",
         "fixtures",
+        "detection",
     }
 )
 _ALLOWED_GATE_KEYS = frozenset({"min_pass_rate", "min_sample"})

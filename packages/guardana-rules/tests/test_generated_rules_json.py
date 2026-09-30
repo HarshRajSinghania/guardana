@@ -86,6 +86,7 @@ def test_the_json_describes_the_registry_that_is_installed() -> None:
         assert entry["impact"] == str(rule.meta.impact)
         assert entry["destructive"] == rule.meta.destructive
         assert entry["maturity"] == str(rule.meta.maturity)
+        assert entry["detection"] == str(rule.meta.detection)
         assert entry["evaluator"] == rule.meta.evaluator
         assert entry["estimated_requests"] == rule.estimated_requests
         assert entry["requires"] == sorted(str(c) for c in rule.meta.required_capabilities)

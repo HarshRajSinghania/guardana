@@ -2,6 +2,7 @@ from collections.abc import Iterator
 
 from guardana.core.report import Finding
 from guardana.core.rule import RuleMeta
+from guardana.core.safety import Detection
 from guardana.core.severity import Severity
 from guardana.core.target import Capability, TargetKind
 from guardana.core.taxonomy import OWASP_ASI02_2026, OWASP_ASI09_2026, OWASP_LLM03_2026
@@ -58,6 +59,7 @@ class UnapprovedSideEffectRule(TraceRule):
         required_capabilities=frozenset(
             {Capability.READ_TRACE, Capability.READ_APPROVALS, Capability.READ_SIDE_EFFECTS}
         ),
+        detection=Detection.INVARIANT,
     )
 
     claim = "whether an effect executed without approval is not established"
