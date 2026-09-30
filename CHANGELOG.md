@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`SECURITY.md` commits to a first response to every vulnerability report within 14 days.**
 
+### Fixed
+
+- **`docs/threat-model.md` claimed protections that do not exist.** T7 said the dashboard ships a restrictive Content-Security-Policy and is tested with a crafted payload; neither is true. T10 said tags and container images are signed; neither is. Both entries now state what ships and name the gaps as residual risk.
+
 ## [0.32.0] - 2026-09-30 — release gates, document digests, consistent run outputs, and detection limits
 
 ### Added

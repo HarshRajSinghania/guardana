@@ -183,9 +183,12 @@ unscoped query exists. Tested per entity, both read and write.
 **Scenario:** a model's reply contains a script tag; it lands in evidence; the
 dashboard renders it.
 
-**Stance:** evidence is attacker-influenced text by definition. It is escaped and
-sanitized on render, and the dashboard ships a restrictive CSP. Tested with a
-crafted payload.
+**Stance:** evidence is attacker-influenced text by definition. The dashboard
+HTML-escapes every submitted string before it inserts it into the page.
+
+**Residual risk:** escaping is the only layer. The collector sends no
+Content-Security-Policy, and no test renders a crafted payload through the
+dashboard.
 
 ### T8 — Denial of service through huge inputs
 
@@ -212,9 +215,16 @@ README says so before the quickstart.
 
 **Scenario:** a malicious version is published to PyPI.
 
-**Stance:** trusted publishing via OIDC (no long-lived token), signed tags, and
-from v0.7: SBOM, provenance attestations, checksums and container signatures.
-Documented immutable pins for high-security environments, not just the moving tag.
+**Stance:** trusted publishing via OIDC (no long-lived token). Each release
+publishes Sigstore-signed build provenance and PyPI's PEP 740 attestation for the
+distributions, a CycloneDX SBOM per distribution, and an SBOM and provenance
+attestation beside each container image. How to check them is in
+[`SECURITY.md`](../SECURITY.md#what-a-release-publishes-and-how-to-check-it-yourself).
+
+**Residual risk:** Git tags are not signed, and the image attestations are not
+signed either, so `gh attestation verify` can check a distribution but not an
+image. The documented pins are moving `X.Y` tags; nothing documents pinning an
+image by digest.
 
 ## Explicit non-goals
 

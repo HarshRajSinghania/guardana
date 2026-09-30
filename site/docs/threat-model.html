@@ -399,9 +399,11 @@ unscoped query exists. Tested per entity, both read and write.</p>
 <h3 id="t7--stored-xss-through-evidence-in-the-dashboard">T7 — Stored XSS through evidence in the dashboard</h3>
 <p><strong>Scenario:</strong> a model's reply contains a script tag; it lands in evidence; the
 dashboard renders it.</p>
-<p><strong>Stance:</strong> evidence is attacker-influenced text by definition. It is escaped and
-sanitized on render, and the dashboard ships a restrictive CSP. Tested with a
-crafted payload.</p>
+<p><strong>Stance:</strong> evidence is attacker-influenced text by definition. The dashboard
+HTML-escapes every submitted string before it inserts it into the page.</p>
+<p><strong>Residual risk:</strong> escaping is the only layer. The collector sends no
+Content-Security-Policy, and no test renders a crafted payload through the
+dashboard.</p>
 <h3 id="t8--denial-of-service-through-huge-inputs">T8 — Denial of service through huge inputs</h3>
 <p><strong>Scenario:</strong> a 40 GB file, a 5 GB model response, a report with a million
 findings posted to the collector.</p>
@@ -418,9 +420,15 @@ actions Guardana merely prompted. Probing staging is the recommendation, and the
 README says so before the quickstart.</p>
 <h3 id="t10--a-compromised-guardana-release">T10 — A compromised Guardana release</h3>
 <p><strong>Scenario:</strong> a malicious version is published to PyPI.</p>
-<p><strong>Stance:</strong> trusted publishing via OIDC (no long-lived token), signed tags, and
-from v0.7: SBOM, provenance attestations, checksums and container signatures.
-Documented immutable pins for high-security environments, not just the moving tag.</p>
+<p><strong>Stance:</strong> trusted publishing via OIDC (no long-lived token). Each release
+publishes Sigstore-signed build provenance and PyPI's PEP 740 attestation for the
+distributions, a CycloneDX SBOM per distribution, and an SBOM and provenance
+attestation beside each container image. How to check them is in
+<a href="https://github.com/guardana/guardana/blob/main/SECURITY.md"><code>SECURITY.md</code></a>.</p>
+<p><strong>Residual risk:</strong> Git tags are not signed, and the image attestations are not
+signed either, so <code>gh attestation verify</code> can check a distribution but not an
+image. The documented pins are moving <code>X.Y</code> tags; nothing documents pinning an
+image by digest.</p>
 <h2 id="explicit-non-goals">Explicit non-goals</h2>
 <ul>
 <li>Guardana is <strong>not an inline control</strong>. It does not sit in the request path and
