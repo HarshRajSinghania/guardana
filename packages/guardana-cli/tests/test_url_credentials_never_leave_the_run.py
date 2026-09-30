@@ -7,6 +7,7 @@ placeholder in the run document, SARIF and every message.
 """
 
 import json
+import re
 from collections.abc import Mapping
 from pathlib import Path
 from urllib.error import URLError
@@ -62,9 +63,18 @@ _URL_COMMANDS = pytest.mark.parametrize(
 )
 
 
+_ANSI = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def _plain(text: str) -> str:
+    """Rendered output without styling or panel borders, so it reads the same on any terminal."""
+    return " ".join(_ANSI.sub("", text).replace("│", " ").split())
+
+
 def _leaked(result: Result, *files: Path) -> bool:
     texts = [result.stdout, result.stderr, *(f.read_text("utf-8") for f in files if f.exists())]
-    return any(_MARKER in text for text in texts)
+    # Squashed too: a panel that wraps the marker across lines must not hide it.
+    return any(_MARKER in "".join(_plain(text).split()) or _MARKER in text for text in texts)
 
 
 def _adapter(tmp_path: Path, url: str | None = None) -> Path:
@@ -84,7 +94,7 @@ def test_a_url_the_built_in_transports_cannot_use_is_invalid_usage(
     result = runner.invoke(app, [*command, "--url", url, "--model", "m"])
 
     assert result.exit_code == ExitCode.INVALID_USAGE, result.output
-    assert "--url" in result.output
+    assert "--url" in _plain(result.output)
     assert not _leaked(result)
 
 
@@ -204,7 +214,7 @@ def test_an_mcp_url_with_userinfo_is_invalid_usage(command: list[str]) -> None:
     result = runner.invoke(app, [*command, "--mcp", f"https://user:{_MARKER}@mcp.example/mcp"])
 
     assert result.exit_code == ExitCode.INVALID_USAGE, result.output
-    assert "--mcp" in result.output
+    assert "--mcp" in _plain(result.output)
     assert not _leaked(result)
 
 
@@ -352,5 +362,5 @@ def test_a_reporter_url_it_cannot_use_is_refused_before_the_scan_without_its_tex
     result = runner.invoke(app, ["scan", str(tmp_path), "--reporter", reporter])
 
     assert result.exit_code == ExitCode.INVALID_USAGE, result.output
-    assert "--reporter" in result.output
+    assert "--reporter" in _plain(result.output)
     assert not _leaked(result)
