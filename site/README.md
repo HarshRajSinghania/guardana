@@ -13,6 +13,8 @@ which Cloudflare reads for the security headers — applies to both.
 | `schemas/` | every JSON Schema in `schemas/`, served at the URL its `$id` names (`/schemas/run/v8.schema.json`) | **generated** by `scripts/build_site.py`, byte for byte — never edit it |
 | `assets/brand/v1/` | the visual system both sites share: `tokens.css` (fonts, colours, type), the IBM Plex files with their licence, `mark.svg`, `icon.svg` and `SHA256SUMS` | hand-written once and then frozen (see below) |
 | `favicon.svg` | the browser icon; the same drawing as `assets/brand/v1/icon.svg` | hand-written |
+| `favicon.ico`, `apple-touch-icon.png`, `apple-touch-icon-precomposed.png` | the icons browsers request without a page declaring them | **generated** by `scripts/generate_well_known.py` from `favicon.svg` — never edit them |
+| `.well-known/security.txt` | the [RFC 9116](https://www.rfc-editor.org/rfc/rfc9116) pointer to the vulnerability policy | **generated** by `scripts/generate_well_known.py` from `SECURITY.md`; `Expires` is refreshed on every release |
 
 Preview locally:
 

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **guardana.dev answers the icon and `security.txt` requests browsers and scanners make.** `/favicon.ico` (16, 32 and 48 px), `/apple-touch-icon.png` and `/apple-touch-icon-precomposed.png` (180 px, square corners because iOS masks the icon itself) are rendered from `site/favicon.svg` by `scripts/generate_well_known.py` with the standard library only. `/.well-known/security.txt` (RFC 9116) takes its contacts from the "Reporting a vulnerability" section of `SECURITY.md`. Its `Expires` is generated: a release refreshes it to 180 days ahead once it is under 90 days away, and `--check` fails under 30 days or beyond a year. The check compares icons by pixels, so another zlib build does not make them stale.
+
 ## [0.32.0] - 2026-09-30 — release gates, document digests, consistent run outputs, and detection limits
 
 ### Added

@@ -26,7 +26,13 @@ ENV_FILE = r"(?<![\w.-])\.env(?!\.example)[\w.-]*"
 ATTRIBUTION = re.compile(r"co-authored-by|generated with|claude\.ai/code|\U0001F916", re.IGNORECASE)
 TAG_PUSH = re.compile(r"\bgit\s+push\b[^|;&]*(?:--tags\b|refs/tags/|\bv\d+\.\d+)")
 # A push to `main` deploys guardana.dev straight from the tree, before CI has run.
-SITE_CHECKS = ("generate_docs.py", "sync_site.py", "build_site.py", "generate_llms_txt.py")
+SITE_CHECKS = (
+    "generate_docs.py",
+    "sync_site.py",
+    "build_site.py",
+    "generate_llms_txt.py",
+    "generate_well_known.py",
+)
 # Programs that read or check a file named on their command line and never run it.
 FILE_READERS = frozenset(
     {

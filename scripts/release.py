@@ -151,6 +151,10 @@ def main(argv: list[str]) -> None:
     # `llms.txt` states the version and the rule counts, so it goes stale on exactly
     # the same schedule as the page beside it.
     _run(["uv", "run", "python", "scripts/generate_llms_txt.py", *(["--check"] if dry_run else [])])
+    # security.txt carries an expiry date; a release is what keeps it in the future.
+    _run(
+        ["uv", "run", "python", "scripts/generate_well_known.py", *(["--check"] if dry_run else [])]
+    )
     # The documentation site last, because it reads `docs/generated/rules.json` that
     # `generate_docs.py` has just rewritten, and it prints the version in every page
     # footer. Building it before the bump would ship a hundred and ninety pages
