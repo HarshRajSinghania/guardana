@@ -86,6 +86,7 @@ This file is generated from the documentation map; do not edit it by hand.
 - [design/framework-usability-audit.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/design/framework-usability-audit.md): the audit behind the earlier F1–F6 and M1–M4 order: first value, a Python data workflow and output extensions before statistics
 - [design/audit-0.31-direction.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/design/audit-0.31-direction.md): the current order: evidence and gate integrity first, the real application as the acceptance test, protocol conformance, and narrower output work
 - [design/guardana-and-control.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/design/guardana-and-control.md): Guardana and Guardana Control: measuring before release versus supervising agents while they run, what the two exchange, and how the two sites divide the work
+- [design/non-executing-packs.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/design/non-executing-packs.md): whether a pack can ship checks that execute no Python, and why every command starts with built-in plugin trust
 - [../CHANGELOG.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/CHANGELOG.md): release history
 
 ## Schemas

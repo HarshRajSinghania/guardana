@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>guardana.supply_chain.keras_lambda — Guardana documentation</title>
-<meta name="description" content="Keras Lambda layer (arbitrary code on model load)">
-<link rel="canonical" href="https://guardana.dev/docs/rules/guardana.supply_chain.keras_lambda">
+<title>Non-executing packs and the default plugin trust — Guardana documentation</title>
+<meta name="description" content="whether a pack can ship checks that execute no Python, and which plugin trust a command starts with when the user says nothing">
+<link rel="canonical" href="https://guardana.dev/docs/design/non-executing-packs">
 <link rel="icon" href="../../favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="../../assets/brand/v1/tokens.css">
 <link rel="stylesheet" href="../docs.css">
@@ -89,7 +89,7 @@
 <li><a href="../design/audit-0.25-market.html">The 0.25 roadmap and market audit<span class="tag">accepted</span></a></li>
 <li><a href="../design/audit-0.26-measurement.html">The 0.26 measurement audit<span class="tag">accepted</span></a></li>
 <li><a href="../design/guardana-and-control.html">Guardana and Guardana Control<span class="tag">accepted</span></a></li>
-<li><a href="../design/non-executing-packs.html">Non-executing packs and the default plugin trust<span class="tag">accepted</span></a></li>
+<li><a href="../design/non-executing-packs.html" aria-current="page">Non-executing packs and the default plugin trust<span class="tag">accepted</span></a></li>
 <li><a href="../design/framework-usability-audit.html">Framework usability audit<span class="tag">superseded</span></a></li>
 <li><a href="../design/audit-0.31-direction.html">Direction audit after 0.31<span class="tag">accepted</span></a></li>
 </ul>
@@ -139,7 +139,7 @@
 </ul>
 </nav>
 <details class="mnav">
-<summary>Menu · <b>Overview</b></summary>
+<summary>Menu · <b>Non-executing packs and the default plugin trust</b></summary>
 <nav class="inner" aria-label="Documentation">
 <ul class="home"><li><a href="../index.html">Overview</a></li></ul>
 <h2>First run</h2><ul>
@@ -209,7 +209,7 @@
 <li><a href="../design/audit-0.25-market.html">The 0.25 roadmap and market audit<span class="tag">accepted</span></a></li>
 <li><a href="../design/audit-0.26-measurement.html">The 0.26 measurement audit<span class="tag">accepted</span></a></li>
 <li><a href="../design/guardana-and-control.html">Guardana and Guardana Control<span class="tag">accepted</span></a></li>
-<li><a href="../design/non-executing-packs.html">Non-executing packs and the default plugin trust<span class="tag">accepted</span></a></li>
+<li><a href="../design/non-executing-packs.html" aria-current="page">Non-executing packs and the default plugin trust<span class="tag">accepted</span></a></li>
 <li><a href="../design/framework-usability-audit.html">Framework usability audit<span class="tag">superseded</span></a></li>
 <li><a href="../design/audit-0.31-direction.html">Direction audit after 0.31<span class="tag">accepted</span></a></li>
 </ul>
@@ -260,13 +260,123 @@
 </nav>
 </details>
 <main>
-<p class="crumb"><a href="../rules/index.html">Rule explorer</a></p><h1>Keras Lambda layer (arbitrary code on model load)</h1><p class="lede"><span class="rid">guardana.supply_chain.keras_lambda</span></p><ul class="props"><li><b>Severity</b><a class="sev HIGH" href="../rules/by/severity-HIGH.html">HIGH</a></li><li><b>Surface</b><a href="../rules/by/surface-build.html">build</a></li><li><b>Family</b><a href="../rules/by/family-supply_chain.html">supply_chain</a></li><li><b>Impact</b><a href="../rules/by/impact-passive.html">passive</a></li><li><b>Target</b>artifact</li><li><b>Requests</b>at most 0</li><li><b>Evaluator</b>graded in code</li><li><b>Maturity</b>stable</li><li><b>Detection</b>invariant</li><li><b>Destructive</b>no</li><li><b>Needs</b>read_files</li></ul><h2>What a secure system does</h2><p>This rule grades in code rather than against a declared expectation, so it states no goal here. Its behaviour is its fixtures, which <code>guardana rule test</code> runs.</p><h2>Maps to</h2><div class="table-wrap"><table><thead><tr><th>Reference</th><th>Control</th><th>Catalogue</th></tr></thead><tbody><tr><td><a class="rid" href="../rules/by/reference-LLM05-2025.html">LLM05:2025</a></td><td>Improper Output Handling</td><td><a href="../rules/by/framework-OWASP-LLM-2025.html">OWASP-LLM-2025</a></td></tr><tr><td><a class="rid" href="../rules/by/reference-LLM10-2026.html">LLM10:2026</a></td><td>Improper Output Handling</td><td><a href="../rules/by/framework-OWASP-LLM-2026.html">OWASP-LLM-2026</a></td></tr><tr><td><a class="rid" href="../rules/by/reference-ML06-2023.html">ML06:2023</a></td><td>AI Supply Chain Attacks</td><td><a href="../rules/by/framework-OWASP-ML-2023.html">OWASP-ML-2023</a></td></tr><tr><td><a class="rid" href="../rules/by/reference-AML.T0018.html">AML.T0018</a></td><td>Manipulate AI Model</td><td><a href="../rules/by/framework-MITRE-ATLAS.html">MITRE-ATLAS</a></td></tr><tr><td><a class="rid" href="../rules/by/reference-supply-chain.html">supply-chain</a></td><td>GenAI Supply Chain Attack</td><td><a href="../rules/by/framework-NIST-AI-100-2.html">NIST-AI-100-2</a></td></tr><tr><td><a class="rid" href="../rules/by/reference-ASI05-2026.html">ASI05:2026</a></td><td>Unexpected Code Execution</td><td><a href="../rules/by/framework-OWASP-ASI-2026.html">OWASP-ASI-2026</a></td></tr></tbody></table></div><p><a href="../writing-rules.html">How a rule is written</a> · <a href="../profiles.html">Selecting it in a profile</a></p>
+<h1>Non-executing declarative packs<span class="status accepted">accepted</span></h1><p class="lede">whether a pack can ship checks that execute no Python, and which plugin trust a command starts with when the user says nothing</p><p><strong>Status:</strong> accepted, not yet implemented · <strong>Written:</strong> 2026-09-30 · <strong>Decided:</strong> 2026-09-30 by the
+maintainer · <strong>Serves:</strong> ROADMAP F2, backlog B12 · <strong>Follows:</strong> <a href="audit-0.31-direction.html">the direction audit</a></p>
+<h2 id="decision">Decision</h2>
+<ul>
+<li><strong>Decision 1: B, data-only distributions.</strong> Designed and built in the parallel contributor lane
+after F2's starter; F2's custom check is a local YAML file.</li>
+<li><strong>Decision 2: the CLI starts with <code>builtins</code> from 0.33</strong>, stated as breaking in the CHANGELOG,
+with a <code>plugins:</code> key in <code>guardana.yaml</code> so a team states its trust once.</li>
+<li><strong>Data-only content loads under <code>builtins</code> by default.</strong> It executes nothing, so the default
+trust admits it; any Python provider stays behind <code>--plugins</code>.</li>
+</ul>
+<p>The analysis below is what the decision was made from.</p>
+<h2 id="the-two-questions">The two questions</h2>
+<ol>
+<li>Can a pack ship checks that execute no Python, installed and locked like any other pack?</li>
+<li>Which plugin trust does a command start with when the user says nothing?</li>
+</ol>
+<p>The roadmap asks for this before F2 ships: the first-run starter runs with built-in trust only
+and shows what an installed pack would execute, and today installing a pack means running its
+author's code.</p>
+<h2 id="what-the-code-does-today">What the code does today</h2>
+<ul>
+<li><strong>Every pack is a Python distribution.</strong> <code>Registry.discover</code> walks the four entry-point
+groups and calls <code>ep.load()()</code> for each provider (<code>core/registry.py:249-306</code>). The pack
+manifest is found through <code>importlib.resources.files(module)</code>, which imports the package
+(<code>core/pack/discover.py:179-205</code>). A pack's YAML catalogue is read by its own Python
+(<code>pack_templates/package_init.py.tmpl</code>), and so is the built-in one (<code>rules/__init__.py</code>).</li>
+<li><strong>Trust is decided before the import</strong>, per distribution (<code>core/plugins.py:47-62</code>); a refused
+entry point is recorded as a <code>discovery</code> error, so a refused pack makes the run
+indeterminate rather than quietly smaller. The default mode is <code>all</code> for <code>scan</code>, <code>probe</code>
+and <code>plan</code> (<code>cli/_plugins.py</code>); the profile has no key for it.</li>
+<li><strong>Declarative rules already run without third-party code</strong>: <code>--rules</code> and <code>rules.paths</code> read
+YAML from disk (<code>Registry.load_yaml_rule_dirs</code>), and <code>--plugins builtins</code> keeps the built-in
+evaluators. What is missing is packaging: such a directory has no version, no install path
+and no lock entry.</li>
+<li><strong>Nothing reads rule files out of an installed distribution without importing it.</strong>
+<code>importlib.metadata</code> is used for entry points and versions only.</li>
+<li><code>pack lock</code> pins each pack's distribution and version, its rules by <code>Rule.digest()</code>, its
+evaluators and targets by id (<code>core/pack/lock.py</code>).</li>
+</ul>
+<h2 id="decision-1-can-a-pack-execute-nothing">Decision 1: can a pack execute nothing?</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Option</th>
+<th>What it is</th>
+<th>Cost</th>
+<th>What it leaves open</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A. Keep directories</td>
+<td>Declarative checks travel as directories passed to <code>--rules</code>; packs stay Python</td>
+<td>none</td>
+<td>no version, install, lock or discovery story for shared checks; teams copy directories</td>
+</tr>
+<tr>
+<td><strong>B. Data-only distributions</strong></td>
+<td>A wheel declares its YAML catalogue in a new entry-point group whose value is a path inside the distribution; Guardana reads it through <code>importlib.metadata</code> (<code>dist.files</code>, <code>locate_file</code>) and imports nothing. Rules may name built-in evaluators only</td>
+<td>a fifth entry-point group and a pack manifest schema 3 (protected contracts), a loader, lock entries by digest, docs</td>
+<td>a rule needing a third-party evaluator still needs that pack's Python</td>
+</tr>
+<tr>
+<td>C. Pack archives</td>
+<td><code>guardana pack add PATH</code> copies a digested directory into a project store listed in the profile</td>
+<td>a store, a profile key and versioning semantics Guardana would own; a download path would break offline-by-default</td>
+<td>duplicates what pip, uv and private indexes already do for teams</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Recommendation: B</strong>, designed and built in the parallel lane after F2's starter, not
+blocking F2. It keeps pip and uv as the channel teams already pin, mirror and audit, adds no
+network path, and lets a pack say &quot;this executes nothing&quot; as a fact Guardana checks rather
+than a promise. Trust follows from it: data-only content can be loaded under <code>builtins</code> while
+any Python provider stays behind <code>--plugins</code>. F2 itself needs only A — its custom check is a
+local YAML file.</p>
+<h2 id="decision-2-the-default-plugin-trust">Decision 2: the default plugin trust</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Effect</th>
+<th>Risk</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Keep <code>all</code></td>
+<td>every installed provider is imported on every run, as today</td>
+<td>a first run imports code the user never chose to trust, which F2's promise contradicts</td>
+</tr>
+<tr>
+<td><strong>Switch to <code>builtins</code> in 0.33, with F2</strong></td>
+<td>a run imports only <code>guardana-core</code>, <code>guardana-rules</code> and <code>guardana-report</code>; <code>--plugins all</code> or an allowlist opts in</td>
+<td><strong>breaking</strong> for a team relying on an installed pack; loud, not silent: each refused entry point is a <code>discovery</code> error and the run is indeterminate under <code>fail_on_error</code>, with a message naming <code>--plugins all</code></td>
+</tr>
+<tr>
+<td><code>builtins</code> for the starter only</td>
+<td>the starter command passes <code>builtins</code>; every other command keeps <code>all</code></td>
+<td>two defaults to explain; the first real <code>scan</code> after the starter imports everything again</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Recommendation: switch the default to <code>builtins</code> in 0.33</strong>, stated as breaking in the
+CHANGELOG, with a profile key (<code>plugins:</code>) so a team states its trust once instead of on every
+command. Pre-1.0 is when a default like this can move; after 1.0 it cannot.</p>
+<h2 id="what-was-open">What was open</h2>
+<p>The three choices above, each answered in &quot;Decision&quot;. Until they were, F2 planned for A and for
+built-in trust in the starter.</p>
+
 </main>
 </div>
 <footer class="foot"><div class="bar">
 <span class="who">Guardana 0.32.0 · Apache-2.0 ·
 maintained by Konrad Karauda</span>
-<a href="https://github.com/guardana/guardana">Source on GitHub</a>
+<a href="https://github.com/guardana/guardana/blob/main/docs/design/non-executing-packs.md">Edit this page on GitHub</a>
 <a href="https://github.com/guardana/guardana">github.com/guardana</a>
 <a href="../../llms.txt">llms.txt</a>
 </div></footer>
