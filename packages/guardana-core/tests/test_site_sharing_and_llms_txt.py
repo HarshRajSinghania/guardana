@@ -150,15 +150,20 @@ def test_the_structured_data_states_the_version_that_ships() -> None:
     assert _structured_data()["Guardana"]["softwareVersion"] == __version__
 
 
-def test_guardana_control_is_described_where_its_code_is_public() -> None:
-    """Control's own site does not answer yet; its link and its structured data go to the repo."""
+def test_guardana_control_is_described_where_it_answers() -> None:
+    """Control's structured data points at its own site and names its latest release."""
     control = _structured_data()["Guardana Control"]
 
-    assert control["url"] == "https://github.com/guardana/control"
-    assert "softwareVersion" not in control, "name a Control version only once it is released"
+    assert control["url"] == "https://control.guardana.dev/"
+    assert control["codeRepository"] == "https://github.com/guardana/control"
+    assert re.fullmatch(r"\d+\.\d+\.\d+(?:-[a-z]+)?", str(control["softwareVersion"]))
 
 
-@pytest.mark.parametrize("published", ["index.html", "llms.txt"])
-def test_nothing_links_to_control_guardana_dev_before_it_answers(published: str) -> None:
-    """Update this test in the same change that points the links at the live subdomain."""
-    assert "control.guardana.dev" not in (_repo() / "site" / published).read_text(encoding="utf-8")
+def test_the_landing_page_links_control_where_it_answers() -> None:
+    assert 'href="https://control.guardana.dev/"' in _page()
+    assert "website is coming soon" not in _page()
+
+
+def test_llms_txt_names_no_control_resource_that_does_not_answer() -> None:
+    """Control publishes no llms.txt yet; the related-project entry stays on its README."""
+    assert "control.guardana.dev" not in (_repo() / "site" / "llms.txt").read_text(encoding="utf-8")

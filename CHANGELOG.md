@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **guardana.dev links Guardana Control's website.** `control.guardana.dev` answers, so the landing page's Control card and footer link to it instead of saying the site is coming soon, and Control's structured data names its site and its latest release, `0.2.0-alpha`. `site/llms.txt` still points at Control's README: `control.guardana.dev/llms.txt` does not answer yet.
+
 ## [0.31.0] - 2026-09-30 — reply grading, redacted target URLs, and plans that catch run errors
 
 ### Added

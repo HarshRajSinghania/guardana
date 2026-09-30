@@ -144,12 +144,13 @@ Found on 2026-09-26 while building and reviewing the suites
 ## Guardana Control on guardana.dev, and the product line
 
 Left open when the site shipped on 2026-09-25 with Control in coming-soon mode
-(`docs/design/guardana-and-control.md`, decision 7).
+(`docs/design/guardana-and-control.md`, decision 7); Control's own site answered on 2026-09-30.
 
-- When `control.guardana.dev` answers: point the landing page's Control links at it, add
-  `control.guardana.dev/llms.txt` to `site/llms.txt`, name Control's released version in its
-  JSON-LD, and update `test_nothing_links_to_control_guardana_dev_before_it_answers` and
-  `test_guardana_control_is_described_where_its_code_is_public` in the same change.
+- When `control.guardana.dev/llms.txt` answers, list it in `site/llms.txt` and turn
+  `test_llms_txt_names_no_control_resource_that_does_not_answer` around; the site itself is
+  linked since it answered.
+- Control's `softwareVersion` in the landing page's JSON-LD is written by hand (`0.2.0-alpha`):
+  update it with each Control release, or have `scripts/sync_site.py` read the latest release.
 - `scripts/generate_llms_txt.py` quotes Control's README tagline and "Status: alpha" by hand;
   re-read Control's README when its status changes.
 - For the `control` repository, not this one: a site generator for `control.guardana.dev`
