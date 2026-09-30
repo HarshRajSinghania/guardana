@@ -23,6 +23,10 @@
 <nav class="side" aria-label="Documentation">
 <ul class="home"><li><a href="index.html">Overview</a></li></ul>
 <h2>First run</h2><ul>
+<li><a href="usage-init.html">guardana init</a></li>
+<li><a href="recipe-local-scan.html">Recipe: scan your own project</a></li>
+<li><a href="recipe-recorded-answers.html">Recipe: check a run your application recorded</a></li>
+<li><a href="recipe-real-application.html">Recipe: probe your real application</a></li>
 <li><a href="how-it-works.html">How Guardana works</a></li>
 <li><a href="install.html">Installing</a></li>
 <li><a href="usage-testing.html">In your test suite</a></li>
@@ -80,6 +84,7 @@
 <li><a href="generated/evaluator-catalog.html">Evaluator catalog</a></li>
 <li><a href="generated/taxonomy-coverage.html">Taxonomy coverage</a></li>
 <li><a href="generated/detection-limits.html">Detection limits</a></li>
+<li><a href="generated/first-run.html">First-run measure</a></li>
 </ul>
 <h2>Design documents</h2><ul>
 <li><a href="design/README.html">How these are written</a></li>
@@ -97,6 +102,7 @@
 <li><a href="maintainers/github-setup.html">GitHub repository setup</a></li>
 <li><a href="maintainers/ops-catalogue.html">Operations catalogue</a></li>
 <li><a href="maintainers/lessons.html">Lessons</a></li>
+<li><a href="maintainers/first-run-study.html">First-run study</a></li>
 </ul>
 <h2>Also here</h2><ul>
 <li><a href="design/trace-domain-model.html">The Trace domain model<span class="tag">implemented</span></a></li>
@@ -143,6 +149,10 @@
 <nav class="inner" aria-label="Documentation">
 <ul class="home"><li><a href="index.html">Overview</a></li></ul>
 <h2>First run</h2><ul>
+<li><a href="usage-init.html">guardana init</a></li>
+<li><a href="recipe-local-scan.html">Recipe: scan your own project</a></li>
+<li><a href="recipe-recorded-answers.html">Recipe: check a run your application recorded</a></li>
+<li><a href="recipe-real-application.html">Recipe: probe your real application</a></li>
 <li><a href="how-it-works.html">How Guardana works</a></li>
 <li><a href="install.html">Installing</a></li>
 <li><a href="usage-testing.html">In your test suite</a></li>
@@ -200,6 +210,7 @@
 <li><a href="generated/evaluator-catalog.html">Evaluator catalog</a></li>
 <li><a href="generated/taxonomy-coverage.html">Taxonomy coverage</a></li>
 <li><a href="generated/detection-limits.html">Detection limits</a></li>
+<li><a href="generated/first-run.html">First-run measure</a></li>
 </ul>
 <h2>Design documents</h2><ul>
 <li><a href="design/README.html">How these are written</a></li>
@@ -217,6 +228,7 @@
 <li><a href="maintainers/github-setup.html">GitHub repository setup</a></li>
 <li><a href="maintainers/ops-catalogue.html">Operations catalogue</a></li>
 <li><a href="maintainers/lessons.html">Lessons</a></li>
+<li><a href="maintainers/first-run-study.html">First-run study</a></li>
 </ul>
 <h2>Also here</h2><ul>
 <li><a href="design/trace-domain-model.html">The Trace domain model<span class="tag">implemented</span></a></li>
@@ -270,14 +282,26 @@ guardana config explain
 ✓ guardana-rules: 0.32.0
 ✓ guardana-cli: 0.32.0
 ✓ guardana-report: 0.32.0
+✓ plugin trust: builtins (not stated, the default)
 ✓ rules discovered: 51
 ✓ evaluators discovered: 10
 ✓ target schemes: none (installed targets are Python-only)
+✓ installed packs: no third-party Guardana entry points are installed; 2 built-in Guardana entry point(s)
 ✓ profile: default parsed
 ! budgets: no ceiling set — a probe against a paid endpoint has no upper bound
 
 0 problem(s), 1 thing(s) worth knowing.
 </code></pre>
+<h2 id="what-an-installed-pack-would-execute">What an installed pack would execute</h2>
+<p>If a pack is installed and you have not set trust, <code>doctor</code> lists every Guardana entry point the pack advertises. It also lists the module <code>--plugins all</code> would import. It reads installed metadata without importing the module:</p>
+<pre><code class="language-text">! pack acme-guardana-rules 1.2.0: 2 Guardana entry point(s) — 2 refused
+    guardana.rules acme → module acme_rules: refused
+    guardana.evaluators acme_eval → module acme_rules: refused
+! refused packs: with this profile (fail_on_error on), scan and probe exit 2, and monitor alerts every cycle, while these stay refused; to load them, narrowest first: --plugins allowlist --allow-plugin acme-guardana-rules
+    or plugins: {mode: allowlist, allow: [acme-guardana-rules]} in guardana.yaml, used with --profile guardana.yaml
+    or --plugins all, which loads every installed distribution
+</code></pre>
+<p>A refusal is a warning because it reflects a trust choice. An admitted pack that fails to import is a failure. Each failure is shown on the entry point that raised it, whatever other entry points share its name. The list covers only Guardana entry points. A package's dependencies and <code>.pth</code> startup hooks run when Python starts, before Guardana decides trust; <code>doctor</code> does not claim to cover them. Like other commands, <code>doctor</code> accepts <code>--plugins</code>, <code>--allow-plugin</code> and <code>--profile</code>. It warns when a profile's <code>plugins:</code> widens trust beyond the built-ins. A pipeline checking untrusted contributions should pass a flag to keep trust on <code>builtins</code>.</p>
 <p><strong>It contacts nothing.</strong> A diagnostic that costs money or shows up in somebody's
 production logs is one people avoid running, which defeats the purpose.</p>
 <p>It answers the questions that are otherwise guessed at:</p>
@@ -285,8 +309,8 @@ production logs is one people avoid running, which defeats the purpose.</p>
 <li><strong>which distributions are installed, and whether they agree.</strong> A stale
 <code>guardana-rules</code> beside a current CLI is a different tool than the version
 string suggests, and it is invisible until a rule behaves oddly.</li>
-<li><strong>which plugins loaded, and which failed to import.</strong> A failed import is a check
-that will not run.</li>
+<li><strong>which plugins loaded, which were refused, and which failed to import.</strong> A refused
+or failed one is a check that will not run.</li>
 <li><strong>whether third-party rules are installed.</strong> They are code this process imports.</li>
 <li><strong>which settings weaken the gate.</strong> Each is a legitimate choice; making it
 silently is what must not happen.</li>
@@ -302,7 +326,8 @@ budget finding out.</p>
 </code></pre>
 <p>A profile file shows what somebody wrote. The question they actually have is what
 is <em>in force</em>, and most of a gate is defaults — including the ones nobody typed.
-<code>explain</code> prints the resolved settings: thresholds, budgets, privacy, safety, and
+<code>explain</code> prints the resolved settings: thresholds, budgets, privacy, safety, plugin
+trust (with whether the profile stated it), and
 the privacy policy digest that a run manifest also records, so a saved run can be
 matched back to the configuration that produced it.</p>
 <h2 id="see-also">See also</h2>

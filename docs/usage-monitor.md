@@ -32,7 +32,7 @@ guardana monitor (--url <base-url> --model <name> | --target <scheme://locator>)
 | `--preset [ci\|pre-training\|monitor\|release]` | none | Named policy preset (mutually exclusive with `--profile`); `--preset monitor` fails on HIGH **and** on inconclusive — see [`profiles.md`](profiles.md#named-presets---preset) |
 | `--rules PATH` | none | Directory or file of custom YAML rules; repeatable. Combined with the profile's `rules.paths` — see [`writing-rules.md`](writing-rules.md). A malformed rule file is a warning, never an abort. |
 | `--reporter TEXT` | none | Forward each **alert's** findings to a collector, e.g. `server://https://collector.example.com` |
-| `--plugins [all\|builtins\|allowlist\|disabled]` | `all` | Which installed plugins to load — same meaning as on `probe`. Added in 0.7.1; before that `monitor` was the one command with no way to restrict what it imported. |
+| `--plugins [all\|builtins\|allowlist\|disabled]` | `builtins`, or the profile's `plugins:` | Which installed plugins to load — same meaning as on `probe`. |
 | `--allow-plugin TEXT` | none | Distribution to trust; repeatable, needs `--plugins allowlist` |
 
 Each custom-target cycle builds a fresh target from the locator, so per-cycle

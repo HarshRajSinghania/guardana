@@ -8,13 +8,15 @@ JSON document keeps its shape.
 
 import json
 import re
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from pathlib import Path
 
 import pytest
+from _fake_distribution import EXPLODING_MODULE, MARKING_MODULE, FakeSite
 from guardana.cli import _endpoint as endpoint_module
 from guardana.cli.exit_codes import ExitCode
 from guardana.cli.main import app
+from guardana.core.entrypoints import RULE_GROUP
 from guardana.core.target.endpoint import ChatMessage
 from typer.testing import CliRunner, Result
 
@@ -102,7 +104,8 @@ def test_disabled_plugins_are_named_with_the_way_to_load_them(
     assert "plugin refused" in stderr
     assert "guardana-rules" in stderr
     assert "--plugins all" in stderr
-    assert "--allow-plugin <distribution>" in stderr
+    assert "--plugins allowlist --allow-plugin guardana-rules" in stderr
+    assert "fail_on.fail_on_error: false" not in stderr
 
 
 @pytest.mark.parametrize("command", ["scan", "probe"])
@@ -282,3 +285,32 @@ def test_a_preset_without_those_switches_prints_neither_note(
     stderr = _plain(result.stderr)
     assert _DECLINES_NOTE not in stderr
     assert _ENDPOINT_NOTE not in stderr
+
+
+@pytest.fixture
+def site(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[FakeSite]:
+    (tmp_path / "site").mkdir()
+    fake = FakeSite(tmp_path / "site", monkeypatch)
+    yield fake
+    fake.forget_imports()
+
+
+@pytest.mark.parametrize("command", ["scan", "probe"])
+def test_a_load_failure_sharing_a_refused_entry_points_name_is_still_a_cause(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, site: FakeSite, command: str
+) -> None:
+    site.distribution("acme-boom", (RULE_GROUP, "shared", site.module(EXPLODING_MODULE).name))
+    site.distribution("acme-calm", (RULE_GROUP, "shared", site.module(MARKING_MODULE).name))
+    model = tmp_path / "model"
+    model.mkdir()
+
+    result = _plan(
+        monkeypatch, command, model, "--plugins", "allowlist", "--allow-plugin", "acme-boom"
+    )
+
+    assert result.exit_code == ExitCode.INVALID_USAGE, result.output
+    stderr = _plain(result.stderr)
+    assert "plugin refused — acme-calm: 1 entry point(s) not loaded" in stderr
+    assert "would not run — shared (discovery): RuntimeError: this module was imported" in stderr
+    assert "would not run — shared (discovery): plugin from" not in stderr
+    assert "fix them, or set fail_on.fail_on_error: false" in stderr

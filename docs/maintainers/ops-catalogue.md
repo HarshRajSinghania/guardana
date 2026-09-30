@@ -50,6 +50,7 @@ runs three of them inside pytest.
 | `generate_sitemap.py` | `site/sitemap.xml` and `site/robots.txt` from the pages actually built, in the URL form the host serves | `repo` (`site/sitemap.xml`, `site/robots.txt`) | `--check` | `-` | `site/` already built |
 | `generate_llms_txt.py` | `site/llms.txt` from `docs/index.md` and `schemas/` | `repo` | `--check` | `-` | — |
 | `generate_well_known.py` | `site/favicon.ico` and the Apple touch icons rendered from `site/favicon.svg`, and `site/.well-known/security.txt` from `SECURITY.md` with a generated `Expires` | `repo` | `--check` | `-` | — |
+| `first_run_measure.py` | validate the first-run study sheet and print the measure it supports; `generate_docs.py` writes the same text to `docs/generated/first-run.md` | `-` | `-` | `-` | — |
 | `og_card.html` | the source of `site/og.png`, rendered by hand (`site/README.md`) | `-` | `-` | `-` | a browser |
 
 ### Release

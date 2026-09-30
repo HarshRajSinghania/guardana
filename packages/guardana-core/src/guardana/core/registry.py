@@ -1,10 +1,18 @@
+import copy
 import re
 from collections.abc import Callable, Iterable, Mapping
-from dataclasses import dataclass
-from importlib.metadata import entry_points
+from dataclasses import dataclass, field, fields, replace
 from pathlib import Path
 from typing import Any, Self
 
+from guardana.core.entrypoints import (
+    EVALUATOR_GROUP,
+    RULE_GROUP,
+    TARGET_GROUP,
+    TAXONOMY_GROUP,
+    InstalledEntryPoint,
+    installed_entry_points,
+)
 from guardana.core.evaluator.base import Evaluator, check_expectation
 from guardana.core.origin import UNATTRIBUTED, Origin
 from guardana.core.plugins import PluginTrust
@@ -17,10 +25,6 @@ from guardana.core.taxonomy import TaxonomyRef
 from guardana.core.taxonomy import register as register_taxonomy
 from guardana.core.trials import check_trials
 
-_RULE_GROUP = "guardana.rules"
-_EVALUATOR_GROUP = "guardana.evaluators"
-_TARGET_GROUP = "guardana.targets"
-_TAXONOMY_GROUP = "guardana.taxonomies"
 _CANARY_EVALUATOR_ID = "canary"
 # Never planted for real: only used to ask a rule whether it participates at all.
 _MARKER = "GUARDANA_CANARY_PARTICIPATION_CHECK"
@@ -46,6 +50,26 @@ class RuleDirLoad:
     errors: tuple[CheckError, ...]
 
 
+@dataclass(slots=True)
+class _LoadRecord:
+    """Everything a registry learned about what it could not load, kept as one value."""
+
+    errors: list[CheckError] = field(default_factory=list)
+    refused: list[InstalledEntryPoint] = field(default_factory=list)
+    refusal_errors: list[CheckError] = field(default_factory=list)
+    """The entries of `errors` that record a refusal, the same objects rather than copies."""
+    failed: list[tuple[InstalledEntryPoint, CheckError]] = field(default_factory=list)
+    """Each admitted entry point that failed to load, with the entry of `errors` it recorded."""
+
+    def copied(self) -> "_LoadRecord":
+        """Return a copy whose containers are new and whose entries are shared.
+
+        Every field is copied by iterating `fields`, so a field added later travels too;
+        the entries stay shared so a refusal error is still found in `errors` by identity.
+        """
+        return replace(self, **{f.name: copy.copy(getattr(self, f.name)) for f in fields(self)})
+
+
 class Registry:
     """Single discovery point for rules, evaluators, and targets (built-in or third-party)."""
 
@@ -53,17 +77,59 @@ class Registry:
         self._rules: list[Rule] = []
         self._evaluators: dict[str, Evaluator] = {}
         self._targets: list[type[Target]] = []
-        self._load_errors: list[CheckError] = []
+        self._load = _LoadRecord()
         self._origins: dict[str, Origin] = {}
+
+    def empty_with_load_state(self) -> Self:
+        """Return a registry with no rules, evaluators or targets, carrying this one's load state.
+
+        Load errors, refusals, failed entry points and what tells them apart all travel,
+        so a registry built from part of this one still reports every plugin that did not
+        load, and which entry point each failure belongs to.
+        """
+        other: Self = type(self)()
+        other._load = self._load.copied()
+        return other
 
     @property
     def load_errors(self) -> tuple[CheckError, ...]:
         """Every plugin or rule file that could not be loaded, and why."""
-        return tuple(self._load_errors)
+        return tuple(self._load.errors)
+
+    @property
+    def refused(self) -> tuple[InstalledEntryPoint, ...]:
+        """Every entry point plugin trust kept from being imported, in discovery order.
+
+        The same refusals `load_errors` carries as `discovery` errors, as records a
+        caller can read without parsing a reason written for a human.
+        """
+        return tuple(self._load.refused)
+
+    @property
+    def failed(self) -> tuple[tuple[InstalledEntryPoint, CheckError], ...]:
+        """Every admitted entry point that failed to load, paired with the error it recorded.
+
+        The error is the same object `load_failures` carries, so a caller attributes a
+        failure to its entry point without matching on a name two entry points can share.
+        """
+        return tuple(self._load.failed)
+
+    @property
+    def load_failures(self) -> tuple[CheckError, ...]:
+        """Every load error that is not a refusal by plugin trust, in the order recorded.
+
+        Told apart by the error the refusal recorded, not by name: an admitted entry
+        point that failed can share its name with a refused one.
+        """
+        return tuple(
+            error
+            for error in self._load.errors
+            if not any(error is refusal for refusal in self._load.refusal_errors)
+        )
 
     def record_load_error(self, error: CheckError) -> None:
         """Record something that could not be loaded, so the run can report it."""
-        self._load_errors.append(error)
+        self._load.errors.append(error)
 
     def register_rule(self, rule: Rule, origin: Origin = UNATTRIBUTED) -> None:
         """Add a rule under its id, refusing an id another origin already holds.
@@ -242,7 +308,7 @@ class Registry:
                         loaded.append(rule.meta.id)
                 except (RuleLoadError, OSError) as exc:
                     errors.append(CheckError.from_exception(str(file), "load", exc))
-        self._load_errors.extend(errors)
+        self._load.errors.extend(errors)
         return RuleDirLoad(tuple(loaded), tuple(errors))
 
     @classmethod
@@ -266,43 +332,45 @@ class Registry:
         """
         policy = trust if trust is not None else PluginTrust()
         reg = cls()
-        for group, expected, register in (
-            # Taxonomies first: a rule can only name a framework that is already
-            # registered, and a YAML rule pack resolves its `taxonomy:` ids while
-            # its own entry point is being loaded.
-            (_TAXONOMY_GROUP, TaxonomyRef, _ignoring_origin(register_taxonomy)),
-            (_RULE_GROUP, Rule, reg.register_rule),
-            (_EVALUATOR_GROUP, Evaluator, reg.register_evaluator),
-            (_TARGET_GROUP, Target, reg.register_target),
-        ):
-            for ep in entry_points(group=group):
-                if not policy.allows(_distribution_of(ep)):
-                    # Recorded, not silently dropped: a rule pack the user
-                    # installed and this run refused to load is coverage they
-                    # think they have. Landing in `load_errors` puts it in the
-                    # `errors` channel, which fails the gate by default.
-                    reg.record_load_error(
-                        CheckError(
-                            source=ep.name,
-                            stage="discovery",
-                            reason=(
-                                f"plugin from {_distribution_of(ep) or 'an unknown distribution'} "
-                                f"was not loaded: plugin trust is {policy.describe()}"
-                            ),
-                        )
-                    )
-                    continue
-                origin = _origin_of(ep)
-                # Rollback rather than a pre-flight, so a refusal added later stays
-                # atomic without needing a second implementation. The framework
-                # catalogue is deliberately outside it: it is process-wide, and
-                # re-registering an identical reference is already a no-op.
-                snapshot = reg._snapshot()
-                try:
-                    _absorb(ep.load()(), expected, register, origin)
-                except Exception as exc:
-                    reg._restore(snapshot)
-                    reg.record_load_error(CheckError.from_exception(ep.name, "discovery", exc))
+        handlers: dict[str, tuple[type | tuple[type, ...], Callable[[Any, Origin], None]]] = {
+            TAXONOMY_GROUP: (TaxonomyRef, _ignoring_origin(register_taxonomy)),
+            RULE_GROUP: (Rule, reg.register_rule),
+            EVALUATOR_GROUP: (Evaluator, reg.register_evaluator),
+            TARGET_GROUP: (Target, reg.register_target),
+        }
+        for entry_point in installed_entry_points():
+            expected, register = handlers[entry_point.group]
+            if not policy.allows(entry_point.distribution):
+                # Recorded, not silently dropped: a rule pack the user
+                # installed and this run refused to load is coverage they
+                # think they have. Landing in `load_errors` puts it in the
+                # `errors` channel, which fails the gate by default.
+                refusal = CheckError(
+                    source=entry_point.name,
+                    stage="discovery",
+                    reason=(
+                        f"plugin from "
+                        f"{entry_point.distribution or 'an unknown distribution'} "
+                        f"was not loaded: plugin trust is {policy.describe()}"
+                    ),
+                )
+                reg._load.refused.append(entry_point)
+                reg._load.refusal_errors.append(refusal)
+                reg.record_load_error(refusal)
+                continue
+            origin = Origin(distribution=entry_point.distribution, version=entry_point.version)
+            # Rollback rather than a pre-flight, so a refusal added later stays
+            # atomic without needing a second implementation. The framework
+            # catalogue is deliberately outside it: it is process-wide, and
+            # re-registering an identical reference is already a no-op.
+            snapshot = reg._snapshot()
+            try:
+                _absorb(_provided_by(entry_point), expected, register, origin)
+            except Exception as exc:
+                reg._restore(snapshot)
+                failure = CheckError.from_exception(entry_point.name, "discovery", exc)
+                reg._load.failed.append((entry_point, failure))
+                reg.record_load_error(failure)
         return reg
 
     def _snapshot(
@@ -339,27 +407,12 @@ def _ignoring_origin(register: Callable[[Any], None]) -> Callable[[Any, Origin],
     return call
 
 
-def _origin_of(ep: object) -> Origin:
-    """Name the distribution and version behind one entry point."""
-    dist = getattr(ep, "dist", None)
-    name = getattr(dist, "name", None)
-    version = getattr(dist, "version", None)
-    return Origin(
-        distribution=str(name) if name else None,
-        version=str(version) if version else None,
-    )
-
-
-def _distribution_of(ep: object) -> str | None:
-    """Which installed distribution advertised this entry point, if it says.
-
-    `EntryPoint.dist` is populated by `importlib.metadata` when the entry point
-    came from an installed distribution. An entry point that cannot name its
-    origin is treated as third-party, which is the cautious reading.
-    """
-    dist = getattr(ep, "dist", None)
-    name = getattr(dist, "name", None)
-    return str(name) if name else None
+def _provided_by(entry_point: InstalledEntryPoint) -> object:
+    """Import the entry point and call the provider it names."""
+    provider = entry_point.load()
+    if not callable(provider):
+        raise TypeError(f"entry point {entry_point.value!r} does not name a callable provider")
+    return provider()
 
 
 def _require_canary_participation(rule: Rule) -> None:

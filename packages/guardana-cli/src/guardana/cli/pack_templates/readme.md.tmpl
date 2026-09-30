@@ -10,10 +10,15 @@ commands that judge a pack:
 
 ```bash
 pip install -e .
-guardana pack validate src/__MODULE__/guardana-pack.yaml
-guardana rule test '__PREFIX__.*'
+guardana pack validate src/__MODULE__/guardana-pack.yaml --plugins allowlist --allow-plugin __DIST__
+guardana rule test '__PREFIX__.*' --plugins allowlist --allow-plugin __DIST__
 pytest tests
 ```
+
+Guardana loads only its own built-ins unless you say otherwise, so every command
+that should see this pack names it with `--allow-plugin`. A team states it once in
+`guardana.yaml` instead (`plugins: {mode: allowlist, allow: [__DIST__]}`) and passes
+`--profile guardana.yaml`.
 
 `guardana rule test` grades every rule against the three samples it declares: one
 that must produce a finding, one that must stay clean, one where the rule must

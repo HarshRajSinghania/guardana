@@ -2,6 +2,7 @@ from collections.abc import Callable, Sequence
 from urllib.error import URLError
 
 import typer
+from guardana.cli._plugins import admission_forms, refused_distributions
 from guardana.cli.exit_codes import ExitCode
 from guardana.core.registry import Registry
 from guardana.core.target import EndpointError, LocatorError, Target, TargetKind
@@ -71,16 +72,14 @@ def resolve_target(
 
 def _trust_note(registry: Registry) -> str:
     """Explain when a scheme may be absent because plugin trust refused its provider."""
-    refused = [
-        error.reason
-        for error in registry.load_errors
-        if error.stage == "discovery" and "plugin trust is" in error.reason
-    ]
-    if not refused:
+    if not registry.refused:
         return ""
-    policy = refused[0].rsplit("plugin trust is ", 1)[-1]
+    named = refused_distributions(registry.refused)
+    origins = ", ".join(named) if named else "no named distribution"
+    forms = "; or ".join(admission_forms(list(named)))
     return (
-        f"; {len(refused)} plugin entry point(s) were not loaded because plugin trust is {policy}"
+        f"; plugin trust refused {len(registry.refused)} entry point(s) from {origins}, "
+        f"so a scheme they provide is not loaded — admit them with {forms}"
     )
 
 

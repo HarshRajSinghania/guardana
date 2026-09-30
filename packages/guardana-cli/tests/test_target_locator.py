@@ -195,13 +195,14 @@ def test_an_unreachable_target_has_its_own_exit_code() -> None:
     assert stopped.value.exit_code == 4
 
 
-def test_an_unknown_scheme_mentions_when_plugin_trust_refused_providers() -> None:
+def test_an_unknown_scheme_blames_trust_only_for_a_recorded_refusal() -> None:
+    """A reason that merely reads like a refusal is not one; `Registry.refused` decides."""
     registry = Registry()
     registry.record_load_error(
         CheckError("acme", "discovery", "entry point refused: plugin trust is allowlist")
     )
 
-    with pytest.raises(typer.BadParameter, match="plugin trust is allowlist"):
+    with pytest.raises(typer.BadParameter) as refused:
         resolve_target(
             registry,
             locator="acme-files://x",
@@ -209,6 +210,8 @@ def test_an_unknown_scheme_mentions_when_plugin_trust_refused_providers() -> Non
             kind=TargetKind.ARTIFACT,
             fallback=_fallback,
         )
+
+    assert "plugin trust refused" not in str(refused.value)
 
 
 def test_scan_keeps_a_plugin_owned_locator_ref_verbatim(

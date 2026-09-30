@@ -1,7 +1,8 @@
 """Every rule proves all three outcomes: finding, clean, and could not tell.
 
 The third is the one that proves a rule can decline, which is the property this
-tool is built around. `guardana rule test "__PREFIX__.*"` runs the same check.
+tool is built around. `guardana rule test "__PREFIX__.*" --plugins allowlist
+--allow-plugin __DIST__` runs the same check.
 """
 
 import __MODULE__

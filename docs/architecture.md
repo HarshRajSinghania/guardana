@@ -276,7 +276,9 @@ That same call runs in every CLI mode, `--plugins disabled` (`--no-plugins`'s
 deprecated spelling) included: it still walks every installed entry point,
 but `PluginTrust.allows()` refuses each one *before*
 its code is imported and records the refusal in `load_errors` — the registry
-ends up empty, but zero third-party code ever runs. `Registry()`, the bare
+ends up empty, and no entry point's module is imported. The CLI starts with
+`builtins` unless a flag or the profile's `plugins:` says otherwise, and records each
+refusal the same way. `Registry()`, the bare
 constructor with no entry-point walk at all, is for embedding code that wants
 to skip discovery entirely — `guardana.core.testing.assert_secure` accepts one
 this way when a caller wants no plugins and no CLI involved. See

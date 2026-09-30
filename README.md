@@ -44,6 +44,14 @@ uv add guardana-cli                       # or: pip install guardana-cli
 
 The command is `guardana`; the distribution is `guardana-cli`. For a source checkout, clone and run `uv sync` as described in [`docs/install.md`](docs/install.md).
 
+Start with an offline result:
+
+```bash
+guardana init --starter first-run   # a small project with one problem to find and fix
+```
+
+Its README guides you through a failing scan, the fix, a saved run and a check of your own. You need no account, key, model or network. Then choose a recipe: [your own project](docs/recipe-local-scan.md), [a run your application recorded](docs/recipe-recorded-answers.md), or [the application your users talk to](docs/recipe-real-application.md).
+
 Every published distribution has signed, keyless build provenance verifiable with `gh attestation verify`, plus a PEP 740 attestation on PyPI.
 
 Scan the bundled vulnerable model directory:
@@ -69,7 +77,7 @@ That run exits `1`, so it can gate CI. To check your own work:
 
 ```bash
 guardana scan path/to/your/project     # static, offline, no model needed
-guardana init                          # write a starter guardana.yaml
+guardana init                          # write a guardana.yaml policy file
 guardana scan . --format sarif         # SARIF 2.1.0 for GitHub code scanning
 
 guardana probe --url http://localhost:11434 --model llama3 --preset ci --output run.json

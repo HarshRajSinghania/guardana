@@ -43,7 +43,7 @@ hurry, and it should look like one.
 | `PATH` (positional) | — | Directory to scan; required unless `--target` is used |
 | `--target SCHEME://LOCATOR` | none | Build a trusted installed artifact target for `create` or `update` |
 | `--target-option KEY=VALUE` | none | Repeatable, non-secret configuration passed to that target |
-| `--plugins [all\|builtins\|allowlist\|disabled]` | `all` | Which installed plugins to load — same meaning as on `probe` |
+| `--plugins [all\|builtins\|allowlist\|disabled]` | `builtins`, or the profile's `plugins:` | Which installed plugins to load — same meaning as on `probe` |
 | `--allow-plugin TEXT` | none | Distribution to trust; repeatable, needs `--plugins allowlist` |
 
 `PATH` and `--target` are mutually exclusive. `verify` only reads the baseline,

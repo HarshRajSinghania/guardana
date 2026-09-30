@@ -19,7 +19,12 @@ from guardana.cli._mcp_run import (
     run_mcp_probe,
 )
 from guardana.cli._output import emit, refuse_incomparable_output
-from guardana.cli._plugins import resolve_trust
+from guardana.cli._plugins import (
+    AllowPluginOption,
+    PluginsOption,
+    hint_refused_plugins,
+    resolve_trust,
+)
 from guardana.cli._probe_run import Connection, run_probe, run_target_probe
 from guardana.cli._profile import PRESET_HELP, resolve_profile
 from guardana.cli._reporting import check_reporter_url, submit_safely
@@ -183,14 +188,8 @@ def probe(  # noqa: C901, PLR0912, PLR0913, PLR0915, PLR0917 — Typer surface, 
             help="Permit rules that can destroy or alter something the target owns.",
         ),
     ] = False,
-    plugins: Annotated[
-        str,
-        typer.Option(help="Which installed plugins to load: all|builtins|allowlist|disabled"),
-    ] = "all",
-    allow_plugin: Annotated[
-        list[str],
-        typer.Option("--allow-plugin", help="Distribution to trust; repeatable, needs allowlist."),
-    ] = [],  # noqa: B006 — typer builds the option from a literal default
+    plugins: PluginsOption = None,
+    allow_plugin: AllowPluginOption = None,
     target: Annotated[
         str | None,
         typer.Option("--target", help="Installed endpoint target as scheme://locator."),
@@ -219,7 +218,9 @@ def probe(  # noqa: C901, PLR0912, PLR0913, PLR0915, PLR0917 — Typer surface, 
         ),
         trials=prof.trials if trials is None else trials,
     )
-    registry = Registry.discover(resolve_trust(plugins, allow_plugin, no_plugins=False))
+    resolved = resolve_trust(plugins, allow_plugin, prof)
+    registry = Registry.discover(resolved.trust)
+    hint_refused_plugins(registry, resolved)
     try:
         judges = wire_config_evaluators(registry, prof, prof.budgets)
     except BudgetExhausted as exc:

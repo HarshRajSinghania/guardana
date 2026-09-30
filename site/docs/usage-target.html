@@ -23,6 +23,10 @@
 <nav class="side" aria-label="Documentation">
 <ul class="home"><li><a href="index.html">Overview</a></li></ul>
 <h2>First run</h2><ul>
+<li><a href="usage-init.html">guardana init</a></li>
+<li><a href="recipe-local-scan.html">Recipe: scan your own project</a></li>
+<li><a href="recipe-recorded-answers.html">Recipe: check a run your application recorded</a></li>
+<li><a href="recipe-real-application.html">Recipe: probe your real application</a></li>
 <li><a href="how-it-works.html">How Guardana works</a></li>
 <li><a href="install.html">Installing</a></li>
 <li><a href="usage-testing.html">In your test suite</a></li>
@@ -80,6 +84,7 @@
 <li><a href="generated/evaluator-catalog.html">Evaluator catalog</a></li>
 <li><a href="generated/taxonomy-coverage.html">Taxonomy coverage</a></li>
 <li><a href="generated/detection-limits.html">Detection limits</a></li>
+<li><a href="generated/first-run.html">First-run measure</a></li>
 </ul>
 <h2>Design documents</h2><ul>
 <li><a href="design/README.html">How these are written</a></li>
@@ -97,6 +102,7 @@
 <li><a href="maintainers/github-setup.html">GitHub repository setup</a></li>
 <li><a href="maintainers/ops-catalogue.html">Operations catalogue</a></li>
 <li><a href="maintainers/lessons.html">Lessons</a></li>
+<li><a href="maintainers/first-run-study.html">First-run study</a></li>
 </ul>
 <h2>Also here</h2><ul>
 <li><a href="design/trace-domain-model.html">The Trace domain model<span class="tag">implemented</span></a></li>
@@ -143,6 +149,10 @@
 <nav class="inner" aria-label="Documentation">
 <ul class="home"><li><a href="index.html">Overview</a></li></ul>
 <h2>First run</h2><ul>
+<li><a href="usage-init.html">guardana init</a></li>
+<li><a href="recipe-local-scan.html">Recipe: scan your own project</a></li>
+<li><a href="recipe-recorded-answers.html">Recipe: check a run your application recorded</a></li>
+<li><a href="recipe-real-application.html">Recipe: probe your real application</a></li>
 <li><a href="how-it-works.html">How Guardana works</a></li>
 <li><a href="install.html">Installing</a></li>
 <li><a href="usage-testing.html">In your test suite</a></li>
@@ -200,6 +210,7 @@
 <li><a href="generated/evaluator-catalog.html">Evaluator catalog</a></li>
 <li><a href="generated/taxonomy-coverage.html">Taxonomy coverage</a></li>
 <li><a href="generated/detection-limits.html">Detection limits</a></li>
+<li><a href="generated/first-run.html">First-run measure</a></li>
 </ul>
 <h2>Design documents</h2><ul>
 <li><a href="design/README.html">How these are written</a></li>
@@ -217,6 +228,7 @@
 <li><a href="maintainers/github-setup.html">GitHub repository setup</a></li>
 <li><a href="maintainers/ops-catalogue.html">Operations catalogue</a></li>
 <li><a href="maintainers/lessons.html">Lessons</a></li>
+<li><a href="maintainers/first-run-study.html">First-run study</a></li>
 </ul>
 <h2>Also here</h2><ul>
 <li><a href="design/trace-domain-model.html">The Trace domain model<span class="tag">implemented</span></a></li>
@@ -309,13 +321,18 @@ This inspection cost 3 request(s).
 </tr>
 <tr>
 <td><code>--plugins [all|builtins|allowlist|disabled]</code></td>
-<td><code>all</code></td>
+<td><code>builtins</code>, or the profile's <code>plugins:</code></td>
 <td>Which installed plugins to load — same meaning as on <code>probe</code></td>
 </tr>
 <tr>
 <td><code>--allow-plugin TEXT</code></td>
 <td>none</td>
 <td>Distribution to trust; repeatable, needs <code>--plugins allowlist</code></td>
+</tr>
+<tr>
+<td><code>--profile PATH</code></td>
+<td>none</td>
+<td>A <code>guardana.yaml</code> whose <code>plugins:</code> decides which installed plugins load — see <a href="profiles.html#plugin-trust-plugins"><code>profiles.md</code></a></td>
 </tr>
 </tbody>
 </table></div>

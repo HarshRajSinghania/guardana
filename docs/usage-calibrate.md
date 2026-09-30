@@ -201,5 +201,5 @@ and it was fine".
 | `--profile PATH` | resolve config-wired evaluators (`llm_judge`, `guard`) from `guardana.yaml` |
 | `--max-ece FLOAT` | fail the build when expected calibration error exceeds this |
 | `--record PATH` | write the measurement where runs can carry it |
-| `--plugins [all\|builtins\|allowlist\|disabled]` | which installed plugins to load; defaults to `all` |
+| `--plugins [all\|builtins\|allowlist\|disabled]` | which installed plugins to load; defaults to `builtins`, or the profile's `plugins:` |
 | `--allow-plugin TEXT` | distribution to trust; repeatable, needs `--plugins allowlist` |

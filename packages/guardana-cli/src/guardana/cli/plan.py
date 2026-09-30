@@ -18,7 +18,17 @@ from guardana.cli._evaluators import wire_config_evaluators
 from guardana.cli._exit import refuse_invalid_profile, refuse_unenforceable_budget
 from guardana.cli._formats import OutputFormat
 from guardana.cli._mcp_run import plan_target, require_chat_endpoint
-from guardana.cli._plugins import resolve_trust, warn_about_load_errors
+from guardana.cli._plugins import (
+    AllowPluginOption,
+    NoPluginsOption,
+    PluginsOption,
+    ResolvedTrust,
+    admission_forms,
+    hint_refused_plugins,
+    refused_distributions,
+    resolve_trust,
+    warn_about_load_errors,
+)
 from guardana.cli._profile import PRESET_HELP, resolve_profile
 from guardana.cli._rules_loading import load_custom_rules
 from guardana.cli._run_meta import calibrations_or_exit
@@ -26,9 +36,9 @@ from guardana.cli._safety_flags import parse_impact
 from guardana.cli._target_locator import resolve_target
 from guardana.cli.exit_codes import ExitCode
 from guardana.core.budget import BudgetExhausted, Budgets
+from guardana.core.entrypoints import InstalledEntryPoint
 from guardana.core.gate import OpenQuestion
 from guardana.core.plan import JudgePlan, RunPlan, build_plan
-from guardana.core.plugins import PluginTrust
 from guardana.core.profile import Profile, ProfileError
 from guardana.core.registry import Registry
 from guardana.core.target import ArtifactTarget, Target, TargetKind
@@ -169,13 +179,13 @@ def _emit(
     kind: TargetKind,
     *,
     profile: Profile,
-    trust: PluginTrust,
+    registry: Registry,
 ) -> None:
     if output_format is OutputFormat.json:
         typer.echo(_render_json(run_plan))
     else:
         typer.echo(_render_human(run_plan, kind))
-    cannot_pass = _explain_what_the_run_cannot_pass(run_plan, profile, trust)
+    cannot_pass = _explain_what_the_run_cannot_pass(run_plan, profile, registry)
     _note_what_only_the_run_can_tell(run_plan, profile, kind)
     if run_plan.exceeds_budget or cannot_pass:
         # Invalid configuration, not a failed run: nothing ran. Raising it here
@@ -184,7 +194,7 @@ def _emit(
 
 
 def _explain_what_the_run_cannot_pass(
-    run_plan: RunPlan, profile: Profile, trust: PluginTrust
+    run_plan: RunPlan, profile: Profile, registry: Registry
 ) -> bool:
     """Print one stderr line per reason the planned run would not pass; return whether it cannot.
 
@@ -192,6 +202,9 @@ def _explain_what_the_run_cannot_pass(
     verified nothing, a rule it would skip leaves it indeterminate while `fail_on_skipped`
     is on, and so does an error recorded before its first rule while `fail_on_error` is on.
     With that switch off the errors are still named, as a warning, and do not refuse.
+
+    A plugin trust refused is named per distribution, from `registry.refused`, with the
+    ways to admit it; accepting errors wholesale is advice only for the other errors.
     """
     blockers = run_plan.blockers(profile.policy.fail_on)
     cannot_pass = bool(blockers)
@@ -215,27 +228,49 @@ def _explain_what_the_run_cannot_pass(
         causes.append(
             f"  • {len(gaps)} rule(s) would be skipped and fail_on_skipped is on: {', '.join(gaps)}"
         )
-    refusal = f"plugin trust is {trust.describe()}"
+    causes.extend(_refusal_causes(registry.refused))
+    # Every error that is not a refusal is its own cause, a load failure included. Told
+    # apart by the object the registry recorded: a failure can share a refusal's name.
+    failures = registry.load_failures
+    refusals = [e for e in registry.load_errors if not any(e is f for f in failures)]
+    others = 0
     for error in run_plan.errors:
+        if any(error is refusal for refusal in refusals):
+            continue
+        others += 1
         # A reason can span lines (a YAML parser's excerpt); the warning above keeps
         # it whole, and a cause stays one line.
         where = f"{error.source} ({error.stage}): {' '.join(error.reason.split())}"
-        if error.stage == "discovery" and error.reason.endswith(refusal):
-            causes.append(
-                f"  • plugin refused — {where}; load it with --plugins all, "
-                f"or --plugins allowlist --allow-plugin <distribution>"
-            )
-        else:
-            causes.append(f"  • would not run — {where}")
-    # One distribution refused in two entry-point groups is one cause.
+        causes.append(f"  • would not run — {where}")
     lines = [header, *dict.fromkeys(causes)]
     if OpenQuestion.ERRORS in blockers:
+        advice = "fix them, or set fail_on.fail_on_error: false to accept them"
         lines.append(
-            "  fail_on_error is on, so these errors leave the run indeterminate; "
-            "fix them, or set fail_on.fail_on_error: false to accept them"
+            "  fail_on_error is on, so these errors leave the run indeterminate"
+            + (f"; {advice}" if others else "; admit the refused plugins as above")
         )
     typer.echo("\n".join(lines), err=True)
     return cannot_pass
+
+
+def _refusal_causes(refused: tuple[InstalledEntryPoint, ...]) -> list[str]:
+    """One cause per distribution plugin trust refused, then the ways to admit them."""
+    if not refused:
+        return []
+    named = refused_distributions(refused)
+    causes = [
+        f"  • plugin refused — {name}: {count} entry point(s) not loaded"
+        for name, count in named.items()
+    ]
+    causes.extend(
+        f"  • plugin refused — {ep.name} (module {ep.module}) names no distribution"
+        for ep in refused
+        if ep.distribution is None
+    )
+    first, *rest = admission_forms(list(named))
+    causes.append(f"    admit it with {first}")
+    causes.extend(f"    or {form}" for form in rest)
+    return causes
 
 
 def _note_what_only_the_run_can_tell(run_plan: RunPlan, profile: Profile, kind: TargetKind) -> None:
@@ -260,10 +295,11 @@ def _note_what_only_the_run_can_tell(run_plan: RunPlan, profile: Profile, kind: 
         typer.echo("\n".join(notes), err=True)
 
 
-def _registry_for(profile: Profile, rules: list[Path], *, trust: PluginTrust) -> Registry:
+def _registry_for(profile: Profile, rules: list[Path], *, resolved: ResolvedTrust) -> Registry:
     """Load exactly the registry a planned run will use."""
-    registry = Registry.discover(trust)
-    warn_about_load_errors(registry, what="rule")
+    registry = Registry.discover(resolved.trust)
+    warn_about_load_errors(registry, resolved, what="rule")
+    hint_refused_plugins(registry, resolved)
     load_custom_rules(registry, profile, rules)
     return registry
 
@@ -273,17 +309,9 @@ def plan_scan(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; this
     profile: Annotated[Path | None, typer.Option(help="guardana.yaml path")] = None,
     preset: Annotated[str | None, typer.Option(help=PRESET_HELP)] = None,
     format: Annotated[OutputFormat, typer.Option(help="human|json")] = OutputFormat.human,
-    no_plugins: Annotated[
-        bool, typer.Option("--no-plugins", help="Deprecated alias for --plugins disabled.")
-    ] = False,
-    plugins: Annotated[
-        str,
-        typer.Option(help="Which installed plugins to load: all|builtins|allowlist|disabled"),
-    ] = "all",
-    allow_plugin: Annotated[
-        list[str],
-        typer.Option("--allow-plugin", help="Distribution to trust; repeatable, needs allowlist."),
-    ] = [],  # noqa: B006 — typer builds the option from a literal default
+    no_plugins: NoPluginsOption = False,
+    plugins: PluginsOption = None,
+    allow_plugin: AllowPluginOption = None,
     rules: Annotated[
         list[Path], typer.Option("--rules", help="Directory or file of custom YAML rules.")
     ] = [],  # noqa: B006 — typer builds the option from a literal default
@@ -297,13 +325,13 @@ def plan_scan(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; this
     ] = [],  # noqa: B006 — typer builds the option from a literal default
 ) -> None:
     """Report which rules a scan would run. A file scan sends no requests at all."""
-    trust = resolve_trust(plugins, allow_plugin, no_plugins=no_plugins)
     prof = resolve_profile(profile, preset)
+    resolved = resolve_trust(plugins, allow_plugin, prof, no_plugins=no_plugins)
     # Read as the run reads them: a calibration file that would stop the run stops the plan.
     calibrations_or_exit(prof)
     if target is not None and path is not None:
         raise typer.BadParameter("pass either a path or --target, not both")
-    registry = _registry_for(prof, rules, trust=trust)
+    registry = _registry_for(prof, rules, resolved=resolved)
     selected = resolve_target(
         registry,
         locator=target,
@@ -311,7 +339,13 @@ def plan_scan(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; this
         kind=TargetKind.ARTIFACT,
         fallback=lambda: _plan_scan_path(path, prof.path_excludes),
     )
-    _emit(build_plan(registry, prof, selected), format, selected.kind, profile=prof, trust=trust)
+    _emit(
+        build_plan(registry, prof, selected),
+        format,
+        selected.kind,
+        profile=prof,
+        registry=registry,
+    )
 
 
 def plan_probe(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; this is the command's surface
@@ -346,14 +380,8 @@ def plan_probe(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; thi
             help="Permit rules that can destroy or alter something the target owns.",
         ),
     ] = False,
-    plugins: Annotated[
-        str,
-        typer.Option(help="Which installed plugins to load: all|builtins|allowlist|disabled"),
-    ] = "all",
-    allow_plugin: Annotated[
-        list[str],
-        typer.Option("--allow-plugin", help="Distribution to trust; repeatable, needs allowlist."),
-    ] = [],  # noqa: B006 — typer builds the option from a literal default
+    plugins: PluginsOption = None,
+    allow_plugin: AllowPluginOption = None,
     target: Annotated[
         str | None,
         typer.Option("--target", help="Installed endpoint target as scheme://locator."),
@@ -407,8 +435,8 @@ def plan_probe(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; thi
     the probe builds them, and never asked anything; each counts against the
     request budget on a meter of its own, so each is compared with it on its own.
     """
-    trust = resolve_trust(plugins, allow_plugin, no_plugins=False)
     prof = resolve_profile(profile, preset)
+    resolved = resolve_trust(plugins, allow_plugin, prof)
     calibrations_or_exit(prof)
     prof = replace(
         prof,
@@ -428,9 +456,10 @@ def plan_probe(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; thi
         raise typer.BadParameter(
             "--target cannot be combined with --url, --model, --mcp, or --system-prompt-file"
         )
-    registry = Registry.discover(trust)
+    registry = Registry.discover(resolved.trust)
     judge_meters = _wire_judges(registry, prof)
-    warn_about_load_errors(registry, what="rule")
+    warn_about_load_errors(registry, resolved, what="rule")
+    hint_refused_plugins(registry, resolved)
     load_custom_rules(registry, prof, rules)
     registry.apply_trials(prof.trials)
     selected = resolve_target(
@@ -445,7 +474,7 @@ def plan_probe(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; thi
         format,
         selected.kind,
         profile=prof,
-        trust=trust,
+        registry=registry,
     )
 
 

@@ -5,6 +5,7 @@ from typing import Any
 
 import yaml
 from guardana.core.budget import Budgets, parse_duration
+from guardana.core.plugins import PluginMode, PluginTrust
 from guardana.core.profile.errors import ProfileError
 from guardana.core.profile.model import FailOn, Policy, Profile
 from guardana.core.redaction import DEFAULT_MAX_EVIDENCE_BYTES, EvidenceMode, RedactionPolicy
@@ -27,10 +28,12 @@ _ALLOWED_PROFILE_KEYS = frozenset(
         "contracts",
         "calibrations",
         "trials",
+        "plugins",
     }
 )
 _ALLOWED_RULES_KEYS = frozenset({"include", "exclude", "paths", "paths_exclude"})
 _ALLOWED_TRACE_KEYS = frozenset({"require"})
+_ALLOWED_PLUGINS_KEYS = frozenset({"mode", "allow"})
 _ALLOWED_FAIL_ON_KEYS = frozenset(
     {"severity", "min_confidence", "fail_on_inconclusive", "fail_on_error", "fail_on_skipped"}
 )
@@ -268,6 +271,40 @@ def _trials(raw: object, path: Path) -> int:
         raise ProfileError(f"invalid profile {path}: {exc}") from exc
 
 
+def _plugins(raw: object, path: Path) -> PluginTrust | None:
+    """Parse `plugins:`, refusing any shape whose trust is not exactly what was written.
+
+    An allowlist with nobody on it, or names beside a mode that ignores them, would
+    load something other than what the author believes they stated.
+    """
+    if raw is None:
+        return None
+    block = _as_mapping(raw, "plugins", path)
+    _reject_unknown_keys(block, _ALLOWED_PLUGINS_KEYS, "plugins", path)
+    modes = [str(mode) for mode in PluginMode]
+    mode_name = block.get("mode")
+    if not isinstance(mode_name, str) or mode_name not in modes:
+        raise ProfileError(
+            f"invalid profile {path}: plugins.mode must be one of {', '.join(modes)}, "
+            f"got {mode_name!r}"
+        )
+    mode = PluginMode(mode_name)
+    if "allow" in block and mode is not PluginMode.ALLOWLIST:
+        raise ProfileError(
+            f"invalid profile {path}: plugins.allow names distributions, which only "
+            f"plugins.mode: allowlist admits; mode is {mode_name!r}"
+        )
+    allow = _as_glob_list(block.get("allow"), "plugins.allow", path)
+    if any(not name.strip() for name in allow):
+        raise ProfileError(f"invalid profile {path}: plugins.allow holds an empty name")
+    if mode is PluginMode.ALLOWLIST and not allow:
+        raise ProfileError(
+            f"invalid profile {path}: plugins.mode: allowlist needs plugins.allow to name "
+            f"at least one distribution; for the built-ins alone use mode: builtins"
+        )
+    return PluginTrust(mode=mode, allowed=frozenset(allow))
+
+
 def load_profile(path: Path) -> Profile:
     """Parse a `guardana.yaml`, rejecting anything it can't honour.
 
@@ -318,5 +355,6 @@ def load_profile(path: Path) -> Profile:
             _as_glob_list(raw.get("calibrations"), "calibrations", path), path
         ),
         trials=_trials(raw.get("trials", 1), path),
+        plugins=_plugins(raw.get("plugins"), path),
         source=path,
     )

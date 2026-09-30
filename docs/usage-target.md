@@ -48,8 +48,9 @@ This inspection cost 3 request(s).
 |---|---|---|
 | `--target SCHEME://LOCATOR` | none | Build an installed custom endpoint target instead of `--url`/`--model` |
 | `--target-option KEY=VALUE` | none | Repeatable, non-secret configuration passed to that target |
-| `--plugins [all\|builtins\|allowlist\|disabled]` | `all` | Which installed plugins to load — same meaning as on `probe` |
+| `--plugins [all\|builtins\|allowlist\|disabled]` | `builtins`, or the profile's `plugins:` | Which installed plugins to load — same meaning as on `probe` |
 | `--allow-plugin TEXT` | none | Distribution to trust; repeatable, needs `--plugins allowlist` |
+| `--profile PATH` | none | A `guardana.yaml` whose `plugins:` decides which installed plugins load — see [`profiles.md`](profiles.md#plugin-trust-plugins) |
 
 `--target` is mutually exclusive with the built-in connection flags. The
 selected class comes from the trusted `guardana.targets` entry points; an unknown

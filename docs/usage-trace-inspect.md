@@ -143,7 +143,7 @@ consumer written against the older shape is unaffected.
 | `--profile PATH` / `--preset NAME` | resolve `trace.require:` so the `required` column and the verdict line mean something |
 | `--format human\|json` | the table, or the same facts named rather than aligned |
 | `--rules PATH` | include custom YAML rules when counting what each dimension is needed by; repeatable |
-| `--plugins`, `--allow-plugin` | the usual plugin-trust controls |
+| `--plugins`, `--allow-plugin` | the usual plugin-trust controls; `builtins` unless the flag or the profile's `plugins:` says otherwise |
 
 ## Filling a gap
 

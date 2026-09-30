@@ -10,7 +10,7 @@ status: stable
 `guardana pack validate` checks a pack's declarations when you need to verify extension compatibility for `Rule`, `Evaluator`, and `Target`.
 
 ```bash
-guardana pack validate
+guardana pack validate --plugins allowlist --allow-plugin acme-guardana-rules
 ```
 
 ```
@@ -20,6 +20,12 @@ extension APIs implemented by this build: 1, 2 (newest 2)
 
 1 pack(s) checked, 0 with problems.
 ```
+
+Both commands start with Guardana's own distributions only, like every other command,
+so a pack author admits their own distribution by name, or states it once in a profile
+given with `--profile` ([plugin trust](profiles.md#plugin-trust-plugins)). If plugin trust
+refused anything, both stop with exit `2` before they read a single manifest: finding a
+manifest means importing the package that holds it, and a refused pack is never imported.
 
 ## The manifest
 
@@ -98,6 +104,7 @@ failing a build over it would make this something teams switch off.
 |---|---|---|
 | every pack is loadable and accurate | pass | `0` |
 | a pack is unloadable, or promises what it does not register | fail | `1` |
+| plugin trust refused an installed extension; no manifest was read | **indeterminate** | `2` |
 | nothing declared a manifest | **indeterminate** | `2` |
 | an installed package registers extensions and declares no manifest | **indeterminate** | `2` |
 | the manifest named on the command line could not be read | refused | `3` |
@@ -202,6 +209,7 @@ have; one that appeared is a check nobody reviewed running against production.
 |---|---|---|
 | the build matches the lock | pass | `0` |
 | the build has drifted | fail | `1` |
+| plugin trust refused an installed extension; nothing was pinned or compared | **indeterminate** | `2` |
 | nothing installed declares a manifest, so there is nothing to pin | **indeterminate** | `2` |
 | the lock could not be read, or was taken against another `extension_api` | refused | `3` |
 

@@ -62,16 +62,10 @@ Found by the pre-ship review and the false-green hunt on 2026-09-30; each was re
 A code sweep for the `know_common_errors` attestation on 2026-09-30. The first three were
 reproduced; the rest are the sweep's reading with its anchors, not yet reproduced.
 
-- **`pack validate` and `pack lock` import packs that plugin trust refused.** Both read
-  manifests through `importlib.resources.files(module)` (`core/pack/discover.py:195-205`),
-  which imports the module, before they look at `registry.load_errors`
-  (`cli/pack.py:103`, `:184`). `--plugins builtins` still runs a third-party pack's
-  `__init__`, which `SECURITY.md` says never happens. On F2's path: read manifests through
-  `importlib.metadata` without importing, as B12's data-only packs will.
-- **`gh attestation verify oci://ghcr.io/guardana/guardana:0.32` answers 404.** The image
-  job holds `id-token` and `attestations` permissions but no `attest-build-provenance`
-  step; buildx's SBOM and provenance attestations are unsigned. `SECURITY.md` documents the
-  command. Add the step with `push-to-registry`, then check it on the first release.
+- **Check signed image provenance on the 0.33.0 release run.** 0.32 images answer 404 to
+  `gh attestation verify oci://…` because buildx's attestations are unsigned; the release
+  workflow now signs each image digest with `attest-build-provenance` and `push-to-registry`.
+  Only a release run proves it.
 - **The dashboard sends no Content-Security-Policy and nothing tests its escaping** against a
   crafted payload (`server/dashboard.py:179`); `docs/threat-model.md` T7 now says so.
 - The CLI prints model output and file names verbatim, so ANSI and other control
@@ -89,6 +83,42 @@ reproduced; the rest are the sweep's reading with its anchors, not yet reproduce
   (`server/auth.py:200`), which tells a caller whether a prefix exists.
 - `llm_judge` places the transcript into its prompt unfenced (`core/evaluator/llm_judge.py:26`).
 - Container base images are pinned by tag, not by digest (`deploy/docker/cli.Dockerfile:12`).
+
+## Left by F2 (0.33.0)
+
+- **The five first-run sessions.** The owner recruits five people new to Guardana and runs them
+  as `docs/maintainers/first-run-study.md` describes. The F2 row stays in ROADMAP's "Now" table,
+  marked study pending, until `scripts/first_run_measure.py` renders five consented rows.
+- **A saved run does not record the plugin trust in force**, so evidence cannot show "built-in
+  trust only"; the local-scan and real-application recipes say so. Record it beside `profile_digest` (itself written by nothing,
+  above) in run schema 12, with a migration.
+- **The profile has no `schema_version`.** A 0.33 profile using `plugins:` fails loudly on 0.32,
+  which is right, but the 1.0 criterion "migrations exercised with older profile documents" needs
+  a version to migrate from.
+- **Stating `builtins` with a pack co-installed leaves every run `indeterminate`**, and the only
+  way out, `fail_on_error: false`, turns off all error gating. A refusal the user stated could be
+  a visible coverage note instead of an error.
+- **`diff` ignores `result.errors` when it decides whether a run is complete**
+  (`core/diff/compare.py`, `_incomplete`), so a run with a refused pack compares like a whole one.
+- **`diff` calls a finding RESOLVED when its file is simply no longer observed.** Moving the
+  starter's pickle into `model/build/`, renaming it to `.bin`, or listing it in
+  `.guardanaignore` all read as "resolved"; `diff` should say the component left the scan.
+  A run manifest also records neither the exclude patterns nor `.guardanaignore`.
+- **A model file in a format Guardana does not recognise is not read and not reported.**
+  `pytorch_model.bin` (a torch zip holding a pickle) scans clean while the same bytes named
+  `model.pt` are flagged, and TFLite is listed as a component that no rule reads. Every observed
+  model component should be read by at least one rule or reported UNVERIFIED, and a scan target no rule claimed should be a coverage shortfall.
+- Name-based file selection is still case-sensitive: `remote_code_config` (`config.json`),
+  `chat_template` and `malicious_dependency` (`Pipfile`); `hallucinated_package` counts only
+  `.py` as a local module; the scaffolded pack's target template, the example's prompt-library
+  target and `cli/_contracts.py` filter suffixes case-sensitively too.
+- `probe` records each discovery error once per canary pass, so two refused entry points
+  appear as eight errors.
+- **The starter's end-to-end test runs its README through `/bin/sh`**, so it does not run on
+  Windows.
+- Under a stated trust, `taxonomy` words a refused rule or evaluator entry point as "could not
+  load a taxonomy provider"; and `rule test` prints a load failure twice, on stderr and in its
+  report.
 
 ## Accepted designs the roadmap does not carry
 

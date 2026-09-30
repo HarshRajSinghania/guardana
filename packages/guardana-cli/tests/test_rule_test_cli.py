@@ -5,14 +5,20 @@ over a rule nobody sampled is the one that matters: a command built to disprove
 false greens must not print "ok" over an empty set of cases in its own output.
 """
 
+import re
+from collections.abc import Iterator
 from pathlib import Path
 
+import pytest
+from _fake_distribution import MARKING_MODULE, FakeSite
 from guardana.cli.main import app
 from guardana.core.calibration.corpus import load_corpus
+from guardana.core.entrypoints import RULE_GROUP
 from guardana.core.evaluator.amplification import AmplificationEvaluator
 from typer.testing import CliRunner, Result
 
 runner = CliRunner()
+_ANSI = re.compile(r"\x1b\[[0-9;]*m")
 
 _CANARY = "ACME_CANARY_1"
 
@@ -414,3 +420,55 @@ def test_a_one_step_scenario_with_two_grades_is_left_out(tmp_path: Path) -> None
 
     assert text == ""
     assert "1 from a rule that declares no expectation or more than one" in result.output
+
+
+def _plain(text: str) -> str:
+    return " ".join(_ANSI.sub("", text).split())
+
+
+@pytest.fixture
+def site(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[FakeSite]:
+    (tmp_path / "site").mkdir()
+    fake = FakeSite(tmp_path / "site", monkeypatch)
+    yield fake
+    fake.forget_imports()
+
+
+def test_the_default_names_a_refused_pack_once_and_still_prints_a_load_error(
+    site: FakeSite, tmp_path: Path
+) -> None:
+    """The hint names the refusal with the way to admit it; a second copy is noise."""
+    module = site.module(MARKING_MODULE)
+    site.distribution("acme-rules", (RULE_GROUP, "acme_refused_entry", module.name))
+    directory = _rules_dir(tmp_path, _ALL_THREE)
+    (directory / "broken.yaml").write_text("id: [unclosed\n", encoding="utf-8")
+
+    result = _run("acme.*", "--rules", str(directory))
+
+    assert result.exit_code == 2, result.output
+    output = _plain(result.output)
+    assert output.count("plugin trust was not stated") == 1
+    assert "acme_refused_entry" not in output
+    assert "was not loaded: plugin trust is" not in output
+    stdout = _plain(result.stdout)
+    assert "! could not load" in stdout
+    assert "broken.yaml" in stdout
+    assert "1 rule source(s) could not be loaded." in stdout
+    assert "1 entry point(s) were refused by plugin trust." in stdout
+
+
+def test_a_stated_trust_still_lists_each_refused_entry_point(
+    site: FakeSite, tmp_path: Path
+) -> None:
+    module = site.module(MARKING_MODULE)
+    site.distribution("acme-rules", (RULE_GROUP, "acme_refused_entry", module.name))
+
+    result = _run(
+        "acme.*", "--rules", str(_rules_dir(tmp_path, _ALL_THREE)), "--plugins", "builtins"
+    )
+
+    assert result.exit_code == 2, result.output
+    stdout = _plain(result.stdout)
+    assert "! could not load acme_refused_entry (discovery)" in stdout
+    assert "1 rule source(s) could not be loaded." in stdout
+    assert "plugin trust was not stated" not in _plain(result.output)

@@ -9,7 +9,12 @@ import typer
 from guardana.cli._errors import EndpointFlag, run_against_endpoint
 from guardana.cli._evaluators import JudgeMeters, wire_config_evaluators
 from guardana.cli._exit import refuse_invalid_profile, refuse_unenforceable_budget
-from guardana.cli._plugins import resolve_trust
+from guardana.cli._plugins import (
+    AllowPluginOption,
+    PluginsOption,
+    hint_refused_plugins,
+    resolve_trust,
+)
 from guardana.cli._probe_run import Connection, run_probe, run_target_probe
 from guardana.cli._profile import PRESET_HELP, resolve_profile
 from guardana.cli._reporting import check_reporter_url, submit_safely
@@ -220,14 +225,8 @@ def monitor(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; this i
         str | None,
         typer.Option("--deployment-id", help="Which version of it, if you have an identifier."),
     ] = None,
-    plugins: Annotated[
-        str,
-        typer.Option(help="Which installed plugins to load: all|builtins|allowlist|disabled"),
-    ] = "all",
-    allow_plugin: Annotated[
-        list[str],
-        typer.Option("--allow-plugin", help="Distribution to trust; repeatable, needs allowlist."),
-    ] = [],  # noqa: B006 — typer builds the option from a literal default
+    plugins: PluginsOption = None,
+    allow_plugin: AllowPluginOption = None,
     target: Annotated[
         str | None,
         typer.Option("--target", help="Installed endpoint target as scheme://locator."),
@@ -242,7 +241,9 @@ def monitor(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; this i
     prof = resolve_profile(profile, preset)
     if trials is not None:
         prof = replace(prof, trials=trials)
-    registry = Registry.discover(resolve_trust(plugins, allow_plugin, no_plugins=False))
+    resolved = resolve_trust(plugins, allow_plugin, prof)
+    registry = Registry.discover(resolved.trust)
+    hint_refused_plugins(registry, resolved)
     try:
         wire_config_evaluators(registry, prof, prof.budgets)
     except BudgetExhausted as exc:

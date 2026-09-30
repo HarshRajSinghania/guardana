@@ -17,7 +17,15 @@ from typing import Annotated
 
 import typer
 import yaml
-from guardana.cli._plugins import resolve_trust, warn_about_load_errors
+from guardana.cli._plugins import (
+    AllowPluginOption,
+    PluginsOption,
+    ResolvedTrust,
+    hint_refused_plugins,
+    resolve_trust,
+    warn_about_load_errors,
+)
+from guardana.cli._profile import resolve_profile
 from guardana.cli.exit_codes import ExitCode
 from guardana.core.pack import (
     EXTENSION_API_VERSION,
@@ -26,10 +34,8 @@ from guardana.core.pack import (
     PackError,
     PackManifest,
     check_packs,
-    installed_manifests,
-    installed_packs,
+    discover_packs,
     load_manifest,
-    unmanifested_packages,
 )
 from guardana.core.pack.lock import (
     LOCK_NAME,
@@ -63,14 +69,9 @@ def validate(
         Path | None,
         typer.Argument(help="A guardana-pack.yaml to check. Omit to check every installed pack."),
     ] = None,
-    plugins: Annotated[
-        str,
-        typer.Option(help="Which installed plugins to load: all|builtins|allowlist|disabled"),
-    ] = "all",
-    allow_plugin: Annotated[
-        list[str],
-        typer.Option("--allow-plugin", help="Distribution to trust; repeatable, needs allowlist."),
-    ] = [],  # noqa: B006 — typer builds the option from a literal default
+    plugins: PluginsOption = None,
+    allow_plugin: AllowPluginOption = None,
+    profile: Annotated[Path | None, typer.Option(help="guardana.yaml path")] = None,
 ) -> None:
     """Check a pack manifest against this build's extension API and its own registrations.
 
@@ -80,8 +81,11 @@ def validate(
     are unproven and no manifest can be checked against them · `3` the manifest
     could not be read at all.
     """
-    registry = Registry.discover(resolve_trust(plugins, allow_plugin, no_plugins=False))
-    warn_about_load_errors(registry, what="an extension")
+    resolved = resolve_trust(plugins, allow_plugin, resolve_profile(profile, None))
+    registry = _discover_completely(
+        resolved,
+        consequence="a manifest cannot be checked against a registry this build did not fully load",
+    )
     # All four groups a manifest may declare. Leaving targets out made every pack
     # shipping one accused of not registering it — a false red, which this project
     # treats exactly as seriously as a false green: a validator that accuses a pack
@@ -100,7 +104,13 @@ def validate(
     )
 
     try:
-        manifests = [load_manifest(manifest)] if manifest is not None else installed_manifests()
+        if manifest is not None:
+            manifests = [load_manifest(manifest)]
+            silent: tuple[str, ...] = ()
+        else:
+            discovery = discover_packs(resolved.trust)
+            manifests = list(discovery.manifests)
+            silent = discovery.unmanifested
     except PackError as exc:
         typer.echo(f"error: {exc}", err=True)
         raise typer.Exit(code=ExitCode.INVALID_USAGE) from exc
@@ -113,27 +123,12 @@ def validate(
         )
         raise typer.Exit(code=ExitCode.INDETERMINATE)
 
-    if registry.load_errors:
-        # `registered` was built from this same registry, so an id it does not
-        # contain is unproven, not absent — printing "does not register" here
-        # would accuse a pack of a fault caused by the trust policy, not by the
-        # pack. See the module docstring: a validator that accuses a pack of a
-        # fault it does not have is a validator somebody turns off.
-        typer.echo(
-            f"error: {len(registry.load_errors)} extension(s) were refused by plugin "
-            f"trust, so what this build actually registers is unproven — a manifest "
-            f"cannot be checked against a registry this build did not fully load; "
-            f"see the warning(s) above",
-            err=True,
-        )
-        raise typer.Exit(code=ExitCode.INDETERMINATE)
-
     checks = check_packs(manifests, registered)
     for line in _render(checks):
         typer.echo(line)
     if any(not c.ok for c in checks):
         raise typer.Exit(code=ExitCode.POLICY_FAILED)
-    if manifest is None and (silent := unmanifested_packages()):
+    if silent:
         # Those packages register rules, evaluators, targets or catalogues that are
         # live in this build, and no manifest says which API they were written
         # against. Counting only the manifests found would report a clean bill of
@@ -159,14 +154,9 @@ def lock(
         bool,
         typer.Option("--check", help="Compare against the lock and write nothing."),
     ] = False,
-    plugins: Annotated[
-        str,
-        typer.Option(help="Which installed plugins to load: all|builtins|allowlist|disabled"),
-    ] = "all",
-    allow_plugin: Annotated[
-        list[str],
-        typer.Option("--allow-plugin", help="Distribution to trust; repeatable, needs allowlist."),
-    ] = [],  # noqa: B006 — typer builds the option from a literal default
+    plugins: PluginsOption = None,
+    allow_plugin: AllowPluginOption = None,
+    profile: Annotated[Path | None, typer.Option(help="guardana.yaml path")] = None,
 ) -> None:
     """Pin every installed extension by what it is, and fail when the build has drifted.
 
@@ -179,28 +169,21 @@ def lock(
     installed to pin, or plugin trust refused an extension so what this build
     registers is unproven · `3` the lock could not be read.
     """
-    registry = Registry.discover(resolve_trust(plugins, allow_plugin, no_plugins=False))
-    warn_about_load_errors(registry, what="an extension")
-    packs = installed_packs()
+    resolved = resolve_trust(plugins, allow_plugin, resolve_profile(profile, None))
+    # `_installed(registry)` reads this registry. Writing a lock from one that trust
+    # emptied would persist a false "rules: {}" for a pack that registers plenty;
+    # checking against it would call a refused extension "gone" when it was never
+    # absent. A lock is a document a team keeps and reads on every CI run.
+    registry = _discover_completely(
+        resolved,
+        consequence="a lock written or checked against it could call something 'gone' "
+        "that was only refused",
+    )
+    packs = discover_packs(resolved.trust).packs
     if not packs:
         typer.echo(
             "no installed pack declares a manifest, so there is nothing to pin — which "
             "is not the same as nothing being installed",
-            err=True,
-        )
-        raise typer.Exit(code=ExitCode.INDETERMINATE)
-    if registry.load_errors:
-        # `_installed(registry)` reads the same emptied registry `validate` does.
-        # Writing a lock from it would persist a false "rules: {}, evaluators: [],
-        # …" for a pack that registers plenty; checking against it would call a
-        # refused extension "gone" (`DriftKind.REMOVED`) when it was never absent.
-        # Both are worse than refusing outright — a lock is a document a team
-        # keeps and reads on every CI run, not a one-off report.
-        typer.echo(
-            f"error: {len(registry.load_errors)} extension(s) were refused by plugin "
-            f"trust, so what this build actually registers is unproven — a lock "
-            f"written or checked against it could call something 'gone' that was "
-            f"only refused; see the warning(s) above",
             err=True,
         )
         raise typer.Exit(code=ExitCode.INDETERMINATE)
@@ -238,6 +221,26 @@ def lock(
         raise typer.Exit(code=ExitCode.POLICY_FAILED)
     typer.echo(f"{len(present.packs)} pack(s) match {path}.")
     _warn_about_unpinnable(present)
+
+
+def _discover_completely(resolved: ResolvedTrust, *, consequence: str) -> Registry:
+    """Discover under `resolved`, and stop with exit 2 unless everything installed loaded.
+
+    Runs before any manifest is read, because reading one imports its module: a pack
+    trust refused must not execute through the command that reports the refusal.
+    """
+    registry = Registry.discover(resolved.trust)
+    warn_about_load_errors(registry, resolved, what="an extension")
+    hint_refused_plugins(registry, resolved)
+    if registry.load_errors:
+        typer.echo(
+            f"error: {len(registry.load_errors)} extension(s) were refused by plugin "
+            f"trust or failed to load, so what this build actually registers is "
+            f"unproven — {consequence}; see the warning(s) above",
+            err=True,
+        )
+        raise typer.Exit(code=ExitCode.INDETERMINATE)
+    return registry
 
 
 def _installed(registry: Registry) -> Installed:

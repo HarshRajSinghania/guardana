@@ -7,7 +7,7 @@ status: stable
 
 # `guardana new-pack` — start from something that already passes
 
-`guardana new-pack` creates an extension pack when you need a starting point for rules. `guardana init` writes a policy file; `guardana new-rule` writes a rule.
+`guardana new-pack` creates an extension pack when you need a starting point for rules. `guardana init` writes a policy file or, with `--starter`, a first-run project; `guardana new-rule` writes a rule.
 
 ```bash
 guardana new-pack acme-rules
@@ -17,10 +17,13 @@ guardana new-pack acme-rules
 Wrote 13 files to acme-rules/
 Install and verify it:
   pip install -e acme-rules
-  guardana pack validate acme-rules/src/acme_rules/guardana-pack.yaml
-  guardana rule test 'acme.*'
+  guardana pack validate acme-rules/src/acme_rules/guardana-pack.yaml --plugins allowlist --allow-plugin acme-rules
+  guardana rule test 'acme.*' --plugins allowlist --allow-plugin acme-rules
   pytest acme-rules/tests
 ```
+
+Every command starts with Guardana's own distributions only, so the two `guardana`
+lines admit the new pack by its distribution name.
 
 Those four lines are the point. Run them on the generated pack, before changing a
 character:

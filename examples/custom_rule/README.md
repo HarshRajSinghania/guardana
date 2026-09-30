@@ -51,22 +51,24 @@ eventually report clean about something it never examined.
 ## Try it
 
 From the repo root, install the example alongside Guardana and list the rules —
-Acme's `acme.*` rules appear right next to the built-ins:
+Acme's `acme.*` rules appear right next to the built-ins. Every command starts with
+Guardana's own distributions only, so each one below admits this distribution by name:
 
 ```bash
 uv pip install -e examples/custom_rule
-uv run guardana rules | grep acme
+uv run guardana rules --plugins allowlist --allow-plugin acme-guardana-rules | grep acme
 ```
 
 You should see `acme.supply_chain.hardcoded_key`, `acme.supply_chain.approved_model`,
 `acme.agent.customer_data`, `acme.prompt.overreach` and `acme.prompt.data_exfiltration`
-in the listing, and `ACME-14` beside the built-in frameworks in `guardana taxonomy`.
+in the listing, and `ACME-14` beside the built-in frameworks in
+`guardana taxonomy --plugins allowlist --allow-plugin acme-guardana-rules`.
 
 Run every rule's own fixtures — the fixture law, as a command, sending nothing
 anywhere:
 
 ```bash
-uv run guardana rule test 'acme.*'
+uv run guardana rule test 'acme.*' --plugins allowlist --allow-plugin acme-guardana-rules
 ```
 
 ```

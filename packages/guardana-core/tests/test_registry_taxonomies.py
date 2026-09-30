@@ -107,4 +107,4 @@ def _with_taxonomy_provider(
             return (fake,)
         return tuple(entry_points(group=group))
 
-    monkeypatch.setattr("guardana.core.registry.entry_points", fake_entry_points)
+    monkeypatch.setattr("guardana.core.entrypoints.entry_points", fake_entry_points)

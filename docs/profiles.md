@@ -46,6 +46,10 @@ rules:
                                          # `.guardanaignore` file at the root adds
                                          # more, one glob per line.
 
+plugins:                        # optional; which installed plugins a run imports
+  mode: allowlist               # all | builtins | allowlist | disabled
+  allow: [acme-guardana-rules]  # distributions to admit; only with mode: allowlist
+
 fail_on:
   severity: high                # one of: info | low | medium | high | critical
                                  # (case-insensitive); defaults to "high"
@@ -86,6 +90,8 @@ evaluators:                     # config-wired evaluators — see the section be
 | `rules.include` | list of glob patterns | `["*"]` | A rule's `id` must match at least one pattern here to run |
 | `rules.exclude` | list of glob patterns | `[]` | A rule's `id` matching any of these is dropped, even if included |
 | `rules.paths` | list of paths | `[]` | Directories (or single files) of custom declarative YAML rules to load, in addition to anything passed via the repeatable `--rules PATH` flag on `scan`/`probe`/`monitor`. A relative path is read beside the profile file, not from the current working directory, like `contracts` and `calibrations`; when it only exists in the working directory, the warning names both paths. A rule file that does not load never aborts the run: it is recorded in `errors`, which leaves the run indeterminate unless `fail_on.fail_on_error` is `false`. So is a directory that holds no `.yaml` or `.yml` file at its top level; rule files in its subdirectories are not read. See [`writing-rules.md`](writing-rules.md). |
+| `plugins.mode` | `all\|builtins\|allowlist\|disabled` | not stated: `builtins` | Which installed plugins every command given this profile imports. See [Plugin trust](#plugin-trust-plugins). |
+| `plugins.allow` | list of distribution names | — | The distributions `allowlist` admits beside Guardana's own. Required with `allowlist`, refused with any other mode. |
 | `fail_on.severity` | `info\|low\|medium\|high\|critical` | `high` | The minimum severity a finding needs to be eligible to fail the gate |
 | `fail_on.min_confidence` | float `0.0`–`1.0` | `0.0` | For findings that carry a `Verdict` (dynamic checks), the minimum confidence required to count toward the gate. Static findings have no verdict and always count once their severity threshold is met. |
 | `fail_on.fail_on_inconclusive` | bool | `false` | When `true`, a check that ran but could not reach a verdict (reported on the `unverified` channel) also fails the gate — the strict posture for a hard CI gate. **`severity` does not apply to it.** A severity answers how bad a problem is, and an unverified result is the absence of an answer, so any of them fails the gate once this is on. This is what makes "an artifact I could not read does not get promoted" expressible in one key. |
@@ -102,6 +108,18 @@ the rule's `id`, so namespacing rules (`guardana.*` for built-ins, `acme.*`
 for a company's own) lets one profile mix and match cleanly — see
 [`examples/guardana.yaml`](../examples/guardana.yaml) for a profile that
 includes both.
+
+## Plugin trust: `plugins:`
+
+Every command starts by trusting only Guardana's own distributions (`builtins`). `guardana doctor` lists installed packs. Guardana refuses a pack until you admit it and records its entry points as errors, so while a pack stays refused every run is `indeterminate` under the default `fail_on_error`, whether or not it would have used the pack. Use `plugins:` to set trust for every command given this profile:
+
+```yaml
+plugins:
+  mode: allowlist
+  allow: [acme-guardana-rules]
+```
+
+A flag takes precedence over the profile: `--plugins` and its `--allow-plugin` list replace the entire `plugins:` setting. A pipeline that checks untrusted contributions should pass `--plugins builtins` as a flag. Then a `guardana.yaml` changed in the same pull request cannot widen trust. A preset sets no trust, and Guardana does not read `guardana.yaml` unless `--profile` names it. Guardana compares names the way pip does: `Acme_Rules` admits `acme-rules`. Library callers of `Registry.discover()` who set no trust still get `all`. See [`SECURITY.md`](../SECURITY.md#the-plugin-trust-model) for the full model.
 
 ## The gate
 

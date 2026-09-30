@@ -6,7 +6,13 @@ import typer
 from guardana.cli._exit import exit_with, refuse_unenforceable_budget
 from guardana.cli._formats import OutputFormat
 from guardana.cli._output import emit
-from guardana.cli._plugins import resolve_trust
+from guardana.cli._plugins import (
+    AllowPluginOption,
+    NoPluginsOption,
+    PluginsOption,
+    hint_refused_plugins,
+    resolve_trust,
+)
 from guardana.cli._profile import PRESET_HELP, resolve_profile
 from guardana.cli._reporting import check_reporter_url, submit_safely
 from guardana.cli._rules_loading import load_custom_rules
@@ -83,6 +89,34 @@ def _path_target(path: Path | None, excludes: tuple[str, ...]) -> ArtifactTarget
     return ArtifactTarget(path, excludes=excludes)
 
 
+_NAMED_LOCAL_RULES = 3
+"""How many local rules the not-run line names before it says "and N more"."""
+
+
+def _say_which_local_rules_scan_does_not_run(registry: Registry, loaded: tuple[str, ...]) -> None:
+    """Name the local YAML rules this scan loaded and will not run, on one stderr line.
+
+    A rule written for an endpoint is neither selected nor skipped by an artifact
+    scan, so without this line an author's new check vanishes from the result.
+    """
+    kinds = {rule.meta.id: rule.meta.target_kind for rule in registry.rules()}
+    idle = [
+        rule_id
+        for rule_id in loaded
+        if kinds.get(rule_id, TargetKind.ARTIFACT) is not TargetKind.ARTIFACT
+    ]
+    if not idle:
+        return
+    shown = ", ".join(idle[:_NAMED_LOCAL_RULES])
+    more = len(idle) - _NAMED_LOCAL_RULES
+    typer.echo(
+        f"note: scan does not run {len(idle)} local rule(s) written for another target kind: "
+        f"{shown}{f' and {more} more' if more > 0 else ''} — they run against an endpoint "
+        f"with `guardana probe`, or offline with `guardana rule test`",
+        err=True,
+    )
+
+
 def scan(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; this is the command's surface
     path: Annotated[Path | None, typer.Argument(help="Directory to scan")] = None,
     profile: Annotated[Path | None, typer.Option(help="guardana.yaml path")] = None,
@@ -90,17 +124,9 @@ def scan(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; this is t
     format: Annotated[
         OutputFormat, typer.Option(help="human|json|sarif|junit")
     ] = OutputFormat.human,
-    no_plugins: Annotated[
-        bool, typer.Option("--no-plugins", help="Deprecated alias for --plugins disabled.")
-    ] = False,
-    plugins: Annotated[
-        str,
-        typer.Option(help="Which installed plugins to load: all|builtins|allowlist|disabled"),
-    ] = "all",
-    allow_plugin: Annotated[
-        list[str],
-        typer.Option("--allow-plugin", help="Distribution to trust; repeatable, needs allowlist."),
-    ] = [],  # noqa: B006 — typer builds the option from a literal default
+    no_plugins: NoPluginsOption = False,
+    plugins: PluginsOption = None,
+    allow_plugin: AllowPluginOption = None,
     rules: Annotated[
         list[Path],
         typer.Option("--rules", help="Directory or file of custom YAML rules; repeatable."),
@@ -165,8 +191,10 @@ def scan(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; this is t
     # SECURITY.md). Custom YAML rules still load, but one whose evaluator lives
     # behind an entry point resolves to nothing at run time and is skipped —
     # safe degradation, never a crash.
-    registry = Registry.discover(resolve_trust(plugins, allow_plugin, no_plugins=no_plugins))
-    load_custom_rules(registry, prof, rules)
+    resolved = resolve_trust(plugins, allow_plugin, prof, no_plugins=no_plugins)
+    registry = Registry.discover(resolved.trust)
+    hint_refused_plugins(registry, resolved)
+    _say_which_local_rules_scan_does_not_run(registry, load_custom_rules(registry, prof, rules))
     selected: Target = resolve_target(
         registry,
         locator=target,

@@ -154,8 +154,11 @@ jobs:
 
       # `sbom` and `provenance` are what make these images answerable in somebody
       # else's audit: both attestations are pushed alongside the image and can be
-      # read back with `docker buildx imagetools inspect` or `gh attestation verify`.
+      # read back with `docker buildx imagetools inspect`. They are unsigned, so the
+      # attest steps below sign a provenance statement per image digest, which is
+      # what `gh attestation verify oci://…` checks.
       - name: Build and push the CLI image
+        id: cli-build
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: .
@@ -169,6 +172,7 @@ jobs:
           provenance: mode=max
 
       - name: Build and push the collector image
+        id: collector-build
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: .
@@ -180,3 +184,17 @@ jobs:
           labels: ${{ steps.collector-meta.outputs.labels }}
           sbom: true
           provenance: mode=max
+
+      - name: Attest what built the CLI image
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
+        with:
+          subject-name: ghcr.io/guardana/guardana
+          subject-digest: ${{ steps.cli-build.outputs.digest }}
+          push-to-registry: true
+
+      - name: Attest what built the collector image
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
+        with:
+          subject-name: ghcr.io/guardana/guardana-collector
+          subject-digest: ${{ steps.collector-build.outputs.digest }}
+          push-to-registry: true

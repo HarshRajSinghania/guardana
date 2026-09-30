@@ -4,6 +4,7 @@ from fnmatch import fnmatch
 from pathlib import Path
 
 from guardana.core.budget import Budgets
+from guardana.core.plugins import PluginTrust
 from guardana.core.redaction import RedactionPolicy
 from guardana.core.safety import Impact
 from guardana.core.severity import Severity
@@ -121,6 +122,14 @@ class Profile:
 
     Beside `rule_paths` and read the same way, so a team that keeps one config for a
     pipeline does not have to repeat `--contract` in every job.
+    """
+
+    plugins: PluginTrust | None = None
+    """Which installed distributions' entry points this profile trusts, from `plugins:`.
+
+    None when the profile does not say, and then whoever discovers decides: the
+    library loads everything, a command applies its own default. A stated trust is
+    honoured wherever this profile drives discovery.
     """
 
     source: Path | None = None

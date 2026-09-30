@@ -6,12 +6,18 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
-from guardana.cli._plugins import resolve_trust
+from guardana.cli._plugins import (
+    AllowPluginOption,
+    PluginsOption,
+    ResolvedTrust,
+    hint_refused_plugins,
+    resolve_trust,
+)
 from guardana.cli._profile import PRESET_HELP, resolve_profile
 from guardana.cli._rules_loading import load_custom_rules
 from guardana.cli._target_locator import resolve_target
 from guardana.cli.exit_codes import ExitCode
-from guardana.core.plugins import PluginTrust
+from guardana.core.profile import Profile
 from guardana.core.redaction import EvidenceRedactor
 from guardana.core.registry import Registry
 from guardana.core.report import (
@@ -32,16 +38,15 @@ baseline_app = typer.Typer(
 _DEFAULT = Path("guardana-baseline.yaml")
 
 
-def _scan(  # noqa: PLR0913, PLR0917 — small shared seam for create and update
+def _scan(
     path: Path | None,
-    profile: Path | None,
-    preset: str | None,
-    trust: PluginTrust,
+    prof: Profile,
+    resolved: ResolvedTrust,
     locator: str | None,
     options: Sequence[str],
 ) -> ScanResult:
-    prof = resolve_profile(profile, preset)
-    registry = Registry.discover(trust)
+    registry = Registry.discover(resolved.trust)
+    hint_refused_plugins(registry, resolved)
     load_custom_rules(registry, prof, [])
     target = resolve_target(
         registry,
@@ -92,14 +97,8 @@ def create(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; this is
     output: Annotated[Path, typer.Option("--output", help="Where to write it")] = _DEFAULT,
     profile: Annotated[Path | None, typer.Option(help="guardana.yaml path")] = None,
     preset: Annotated[str | None, typer.Option(help=PRESET_HELP)] = None,
-    plugins: Annotated[
-        str,
-        typer.Option(help="Which installed plugins to load: all|builtins|allowlist|disabled"),
-    ] = "all",
-    allow_plugin: Annotated[
-        list[str],
-        typer.Option("--allow-plugin", help="Distribution to trust; repeatable, needs allowlist."),
-    ] = [],  # noqa: B006 — typer builds the option from a literal default
+    plugins: PluginsOption = None,
+    allow_plugin: AllowPluginOption = None,
     target: Annotated[
         str | None,
         typer.Option("--target", help="Installed artifact target as scheme://locator."),
@@ -117,8 +116,9 @@ def create(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; this is
     """
     if target is not None and path is not None:
         raise typer.BadParameter("pass either a path or --target, not both")
-    trust = resolve_trust(plugins, allow_plugin, no_plugins=False)
-    result = _scan(path, profile, preset, trust, target, target_option)
+    prof = resolve_profile(profile, preset)
+    resolved = resolve_trust(plugins, allow_plugin, prof)
+    result = _scan(path, prof, resolved, target, target_option)
     output.write_text(serialize_baseline(result), encoding="utf-8")
     count = len(result.findings)
     typer.echo(
@@ -161,14 +161,8 @@ def update(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; this is
     file: Annotated[Path, typer.Option("--file", help="Baseline to refresh")] = _DEFAULT,
     profile: Annotated[Path | None, typer.Option(help="guardana.yaml path")] = None,
     preset: Annotated[str | None, typer.Option(help=PRESET_HELP)] = None,
-    plugins: Annotated[
-        str,
-        typer.Option(help="Which installed plugins to load: all|builtins|allowlist|disabled"),
-    ] = "all",
-    allow_plugin: Annotated[
-        list[str],
-        typer.Option("--allow-plugin", help="Distribution to trust; repeatable, needs allowlist."),
-    ] = [],  # noqa: B006 — typer builds the option from a literal default
+    plugins: PluginsOption = None,
+    allow_plugin: AllowPluginOption = None,
     target: Annotated[
         str | None,
         typer.Option("--target", help="Installed artifact target as scheme://locator."),
@@ -186,13 +180,14 @@ def update(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; this is
     """
     if target is not None and path is not None:
         raise typer.BadParameter("pass either a path or --target, not both")
-    trust = resolve_trust(plugins, allow_plugin, no_plugins=False)
+    prof = resolve_profile(profile, preset)
+    resolved = resolve_trust(plugins, allow_plugin, prof)
     try:
         baseline = read_baseline(file)
     except BaselineError as exc:
         typer.echo(f"error: {exc}", err=True)
         raise typer.Exit(code=ExitCode.INVALID_USAGE) from exc
-    result = _scan(path, profile, preset, trust, target, target_option)
+    result = _scan(path, prof, resolved, target, target_option)
     if result.errors or result.stopped_by is not None:
         # Nothing is written. This command decides a finding is fixed by not
         # seeing it, and a rule that could not run produces exactly that absence —

@@ -158,13 +158,13 @@ def _run(target: Target, profile: Profile, registry: Registry | None) -> ScanRes
 
 
 def _discover(profile: Profile) -> Registry:
-    """Entry-point rules plus whatever the profile points at.
+    """Entry-point rules the profile's plugin trust admits, plus whatever it points at.
 
     The profile's own rule directories are loaded because a team that keeps rules in
     its repository expects them here too; a file that fails to load lands in
     `load_errors`, reaches `result.errors`, and makes the run indeterminate rather
     than quietly running one rule fewer.
     """
-    registry = Registry.discover()
+    registry = Registry.discover(profile.plugins)
     registry.load_yaml_rule_dirs(Path(path) for path in profile.rule_paths)
     return registry

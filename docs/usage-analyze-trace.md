@@ -218,7 +218,7 @@ session that ends when the process does is `unterminated` by construction.
 | `--output PATH` | Save the run |
 | `--reporter server://URL` | Forward findings to a collector |
 | `--ai-system`, `--environment`, `--deployment-id` | What this trace came from. Never guessed |
-| `--rules`, `--plugins`, `--allow-plugin` | Rule loading, as for `scan` |
+| `--rules`, `--plugins`, `--allow-plugin` | Rule loading and plugin trust, as for `scan`: `builtins` unless the flag or the profile's `plugins:` says otherwise |
 | `--contract PATH` | A [security contract](usage-contracts.md) to check this execution against; repeatable, and a directory loads every `.yaml` in it |
 
 The trace file and `--target` are mutually exclusive, and `--dialect` applies

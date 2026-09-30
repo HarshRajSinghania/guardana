@@ -16,15 +16,27 @@ make, just reached through a policy instead of a missing entry-point group. The
 fix refuses the comparison outright rather than reporting it wrong.
 """
 
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 from guardana.cli import pack
 from guardana.cli.exit_codes import ExitCode
 from guardana.cli.main import app
+from guardana.core.pack import PackDiscovery, discover_packs
+from guardana.core.plugins import PluginTrust
 from typer.testing import CliRunner
 
 runner = CliRunner()
+
+
+def _one_package_without_a_manifest(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Make discovery report `acme_rules` as registering extensions with no manifest."""
+
+    def discovered(trust: PluginTrust | None = None) -> PackDiscovery:
+        return replace(discover_packs(trust), unmanifested=("acme_rules",))
+
+    monkeypatch.setattr(pack, "discover_packs", discovered)
 
 
 def test_a_restrictive_plugin_mode_refuses_rather_than_accuses() -> None:
@@ -63,13 +75,13 @@ def test_a_package_that_registers_extensions_and_declares_no_manifest_is_named(
 ) -> None:
     """The silence this command used to keep about packs it never read.
 
-    `installed_manifests` drops a distribution that ships no manifest, and the
+    Discovery drops a distribution that ships no manifest, and the
     command went indeterminate only when the list came back empty — which it never
     does, because the built-in pack always has one. A third party whose manifest
     missed the wheel therefore saw "0 with problems" about rules that were live in
     the registry and had been compared against nothing.
     """
-    monkeypatch.setattr(pack, "unmanifested_packages", lambda: ["acme_rules"])
+    _one_package_without_a_manifest(monkeypatch)
 
     result = runner.invoke(app, ["pack", "validate"])
 
@@ -87,7 +99,7 @@ def test_a_named_manifest_is_answered_without_the_whole_installation(
     path would make a question about one file answerable only by the state of the
     environment around it.
     """
-    monkeypatch.setattr(pack, "unmanifested_packages", lambda: ["acme_rules"])
+    _one_package_without_a_manifest(monkeypatch)
     manifest = tmp_path / "guardana-pack.yaml"
     manifest.write_text(
         "schema_version: 2\nname: borrowed-pack\n"

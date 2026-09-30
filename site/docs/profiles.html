@@ -23,6 +23,10 @@
 <nav class="side" aria-label="Documentation">
 <ul class="home"><li><a href="index.html">Overview</a></li></ul>
 <h2>First run</h2><ul>
+<li><a href="usage-init.html">guardana init</a></li>
+<li><a href="recipe-local-scan.html">Recipe: scan your own project</a></li>
+<li><a href="recipe-recorded-answers.html">Recipe: check a run your application recorded</a></li>
+<li><a href="recipe-real-application.html">Recipe: probe your real application</a></li>
 <li><a href="how-it-works.html">How Guardana works</a></li>
 <li><a href="install.html">Installing</a></li>
 <li><a href="usage-testing.html">In your test suite</a></li>
@@ -80,6 +84,7 @@
 <li><a href="generated/evaluator-catalog.html">Evaluator catalog</a></li>
 <li><a href="generated/taxonomy-coverage.html">Taxonomy coverage</a></li>
 <li><a href="generated/detection-limits.html">Detection limits</a></li>
+<li><a href="generated/first-run.html">First-run measure</a></li>
 </ul>
 <h2>Design documents</h2><ul>
 <li><a href="design/README.html">How these are written</a></li>
@@ -97,6 +102,7 @@
 <li><a href="maintainers/github-setup.html">GitHub repository setup</a></li>
 <li><a href="maintainers/ops-catalogue.html">Operations catalogue</a></li>
 <li><a href="maintainers/lessons.html">Lessons</a></li>
+<li><a href="maintainers/first-run-study.html">First-run study</a></li>
 </ul>
 <h2>Also here</h2><ul>
 <li><a href="design/trace-domain-model.html">The Trace domain model<span class="tag">implemented</span></a></li>
@@ -143,6 +149,10 @@
 <nav class="inner" aria-label="Documentation">
 <ul class="home"><li><a href="index.html">Overview</a></li></ul>
 <h2>First run</h2><ul>
+<li><a href="usage-init.html">guardana init</a></li>
+<li><a href="recipe-local-scan.html">Recipe: scan your own project</a></li>
+<li><a href="recipe-recorded-answers.html">Recipe: check a run your application recorded</a></li>
+<li><a href="recipe-real-application.html">Recipe: probe your real application</a></li>
 <li><a href="how-it-works.html">How Guardana works</a></li>
 <li><a href="install.html">Installing</a></li>
 <li><a href="usage-testing.html">In your test suite</a></li>
@@ -200,6 +210,7 @@
 <li><a href="generated/evaluator-catalog.html">Evaluator catalog</a></li>
 <li><a href="generated/taxonomy-coverage.html">Taxonomy coverage</a></li>
 <li><a href="generated/detection-limits.html">Detection limits</a></li>
+<li><a href="generated/first-run.html">First-run measure</a></li>
 </ul>
 <h2>Design documents</h2><ul>
 <li><a href="design/README.html">How these are written</a></li>
@@ -217,6 +228,7 @@
 <li><a href="maintainers/github-setup.html">GitHub repository setup</a></li>
 <li><a href="maintainers/ops-catalogue.html">Operations catalogue</a></li>
 <li><a href="maintainers/lessons.html">Lessons</a></li>
+<li><a href="maintainers/first-run-study.html">First-run study</a></li>
 </ul>
 <h2>Also here</h2><ul>
 <li><a href="design/trace-domain-model.html">The Trace domain model<span class="tag">implemented</span></a></li>
@@ -290,6 +302,10 @@ rules:
                                          # `.guardanaignore` file at the root adds
                                          # more, one glob per line.
 
+plugins:                        # optional; which installed plugins a run imports
+  mode: allowlist               # all | builtins | allowlist | disabled
+  allow: [acme-guardana-rules]  # distributions to admit; only with mode: allowlist
+
 fail_on:
   severity: high                # one of: info | low | medium | high | critical
                                  # (case-insensitive); defaults to &quot;high&quot;
@@ -358,6 +374,18 @@ evaluators:                     # config-wired evaluators — see the section be
 <td>Directories (or single files) of custom declarative YAML rules to load, in addition to anything passed via the repeatable <code>--rules PATH</code> flag on <code>scan</code>/<code>probe</code>/<code>monitor</code>. A relative path is read beside the profile file, not from the current working directory, like <code>contracts</code> and <code>calibrations</code>; when it only exists in the working directory, the warning names both paths. A rule file that does not load never aborts the run: it is recorded in <code>errors</code>, which leaves the run indeterminate unless <code>fail_on.fail_on_error</code> is <code>false</code>. So is a directory that holds no <code>.yaml</code> or <code>.yml</code> file at its top level; rule files in its subdirectories are not read. See <a href="writing-rules.html"><code>writing-rules.md</code></a>.</td>
 </tr>
 <tr>
+<td><code>plugins.mode</code></td>
+<td><code>all|builtins|allowlist|disabled</code></td>
+<td>not stated: <code>builtins</code></td>
+<td>Which installed plugins every command given this profile imports. See <a href="#plugin-trust-plugins">Plugin trust</a>.</td>
+</tr>
+<tr>
+<td><code>plugins.allow</code></td>
+<td>list of distribution names</td>
+<td>—</td>
+<td>The distributions <code>allowlist</code> admits beside Guardana's own. Required with <code>allowlist</code>, refused with any other mode.</td>
+</tr>
+<tr>
 <td><code>fail_on.severity</code></td>
 <td><code>info|low|medium|high|critical</code></td>
 <td><code>high</code></td>
@@ -424,6 +452,13 @@ the rule's <code>id</code>, so namespacing rules (<code>guardana.*</code> for bu
 for a company's own) lets one profile mix and match cleanly — see
 <a href="https://github.com/guardana/guardana/blob/main/examples/guardana.yaml"><code>examples/guardana.yaml</code></a> for a profile that
 includes both.</p>
+<h2 id="plugin-trust-plugins">Plugin trust: <code>plugins:</code></h2>
+<p>Every command starts by trusting only Guardana's own distributions (<code>builtins</code>). <code>guardana doctor</code> lists installed packs. Guardana refuses a pack until you admit it and records its entry points as errors, so while a pack stays refused every run is <code>indeterminate</code> under the default <code>fail_on_error</code>, whether or not it would have used the pack. Use <code>plugins:</code> to set trust for every command given this profile:</p>
+<pre><code class="language-yaml">plugins:
+  mode: allowlist
+  allow: [acme-guardana-rules]
+</code></pre>
+<p>A flag takes precedence over the profile: <code>--plugins</code> and its <code>--allow-plugin</code> list replace the entire <code>plugins:</code> setting. A pipeline that checks untrusted contributions should pass <code>--plugins builtins</code> as a flag. Then a <code>guardana.yaml</code> changed in the same pull request cannot widen trust. A preset sets no trust, and Guardana does not read <code>guardana.yaml</code> unless <code>--profile</code> names it. Guardana compares names the way pip does: <code>Acme_Rules</code> admits <code>acme-rules</code>. Library callers of <code>Registry.discover()</code> who set no trust still get <code>all</code>. See <a href="https://github.com/guardana/guardana/blob/main/SECURITY.md"><code>SECURITY.md</code></a> for the full model.</p>
 <h2 id="the-gate">The gate</h2>
 <p>A run's exit code is <code>1</code> (fails) if <strong>any</strong> finding satisfies both:</p>
 <ol>

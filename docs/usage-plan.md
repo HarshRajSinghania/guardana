@@ -51,7 +51,7 @@ run they are pricing would use, so both take the same plugin-trust flags
 |---|---|---|
 | `--target SCHEME://LOCATOR` | none | Build a trusted installed target of the kind selected by `plan scan` or `plan probe` |
 | `--target-option KEY=VALUE` | none | Repeatable, non-secret configuration passed to that target |
-| `--plugins [all\|builtins\|allowlist\|disabled]` | `all` | Which installed plugins to load — same meaning as on `probe` |
+| `--plugins [all\|builtins\|allowlist\|disabled]` | `builtins`, or the profile's `plugins:` | Which installed plugins to load — same meaning as on `probe` |
 | `--allow-plugin TEXT` | none | Distribution to trust; repeatable, needs `--plugins allowlist` |
 | `--trials INTEGER` | `1` (or `trials:` in the profile) | `plan probe` only: price the run at this many attempts per case, as `probe --trials` would make them |
 | `--max-requests`, `--max-input-tokens`, `--max-output-tokens`, `--max-duration` | the profile's `budgets:` | `plan probe` only: check the plan against these ceilings, as `probe` would apply them |
@@ -218,8 +218,9 @@ on stderr, one line per cause:
 - **a file under `calibrations:` that would stop the run** — missing, unreadable, or
   measuring an evaluator another file measures too;
 - **an error the run would record before its first rule** — a rule file that does not
-  load, a plugin the trust mode refuses (the line names `--plugins all` or
-  `--allow-plugin`), a rule whose `expect:` block its evaluator cannot grade, or a
+  load, a plugin the trust mode refuses (the line names the distribution and how to
+  admit it: `--plugins allowlist --allow-plugin <distribution>`, the profile's
+  `plugins:`, or `--plugins all`), a rule whose `expect:` block its evaluator cannot grade, or a
   capability the target declares without implementing. The plan reads these from the
   same function the run does, so the two never list different errors.
 

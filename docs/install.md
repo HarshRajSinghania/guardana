@@ -73,4 +73,4 @@ Install third-party rule/evaluator packages as Python dependencies:
 uv add acme-guardana-rules   # example; see examples/custom_rule/
 ```
 
-Guardana discovers installed rules through the `guardana.rules` entry point (see [`extending.md`](extending.md)). These packages execute code, so install only packages you trust. Use `--plugins builtins` to allow only Guardana's reviewed rules; see [`SECURITY.md`](../SECURITY.md).
+Guardana discovers installed rules through the `guardana.rules` entry point (see [`extending.md`](extending.md)). These packages execute code, so install only packages you trust. Every command starts with Guardana's own distributions only and refuses an installed pack until you admit it by name: `--plugins allowlist --allow-plugin acme-guardana-rules`, or `plugins:` in a profile ([profiles](profiles.md#plugin-trust-plugins)). `guardana doctor` lists what an installed pack would execute; see [`SECURITY.md`](../SECURITY.md).

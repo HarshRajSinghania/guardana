@@ -65,20 +65,17 @@ def _canary_system_prompt(canary: str, base_system_prompt: str | None) -> str:
 
 
 def _sub_registry(rules: list[Rule], source: Registry) -> Registry:
-    """Build a registry holding a subset of rules, carrying the source's load failures.
+    """Build a registry holding a subset of rules, carrying the source's whole load state.
 
-    The load errors travel with it deliberately: a plugin that failed to import is
-    a check that will not run, and the sub-registry is what the Runner reads to
-    seed its error channel. Dropping them here made a broken pack invisible to
-    every probe and monitor run.
+    The load state travels with it deliberately: a plugin that failed to import or
+    was refused is a check that will not run, and the sub-registry is what the
+    Runner reads to seed its error channel.
     """
-    sub = Registry()
+    sub = source.empty_with_load_state()
     for rule in rules:
         sub.register_rule(rule)
     for evaluator in source.evaluators().values():
         sub.register_evaluator(evaluator)
-    for error in source.load_errors:
-        sub.record_load_error(error)
     return sub
 
 

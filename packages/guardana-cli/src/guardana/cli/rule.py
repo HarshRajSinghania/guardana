@@ -17,7 +17,13 @@ from typing import Annotated
 import typer
 from guardana.cli._evaluators import wire_config_evaluators
 from guardana.cli._exit import refuse_invalid_profile, refuse_unenforceable_budget
-from guardana.cli._plugins import resolve_trust, warn_about_load_errors
+from guardana.cli._plugins import (
+    AllowPluginOption,
+    PluginsOption,
+    hint_refused_plugins,
+    resolve_trust,
+    warn_about_load_errors,
+)
 from guardana.cli._profile import resolve_profile
 from guardana.cli._rules_loading import load_custom_rules
 from guardana.cli._run_meta import calibrations_or_exit
@@ -47,14 +53,8 @@ def run_fixtures(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; t
         list[Path],
         typer.Option("--rules", help="Directory or file of custom YAML rules; repeatable."),
     ] = [],  # noqa: B006 — typer builds the option from a literal default
-    plugins: Annotated[
-        str,
-        typer.Option(help="Which installed plugins to load: all|builtins|allowlist|disabled"),
-    ] = "all",
-    allow_plugin: Annotated[
-        list[str],
-        typer.Option("--allow-plugin", help="Distribution to trust; repeatable, needs allowlist."),
-    ] = [],  # noqa: B006 — typer builds the option from a literal default
+    plugins: PluginsOption = None,
+    allow_plugin: AllowPluginOption = None,
     write_corpus: Annotated[
         Path | None,
         typer.Option(
@@ -77,7 +77,8 @@ def run_fixtures(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; t
     `3` the selector matched nothing.
     """
     prof = resolve_profile(profile, None)
-    registry = Registry.discover(resolve_trust(plugins, allow_plugin, no_plugins=False))
+    resolved = resolve_trust(plugins, allow_plugin, prof)
+    registry = Registry.discover(resolved.trust)
     load_custom_rules(registry, prof, rules)
     try:
         wire_config_evaluators(registry, prof, budgets=prof.budgets)
@@ -85,7 +86,8 @@ def run_fixtures(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; t
         raise refuse_unenforceable_budget(exc) from exc
     except ProfileError as exc:
         raise refuse_invalid_profile(exc) from exc
-    warn_about_load_errors(registry, what="rule")
+    warn_about_load_errors(registry, resolved, what="rule")
+    hint_refused_plugins(registry, resolved)
     calibrations = {key: value.as_record() for key, value in calibrations_or_exit(prof).items()}
 
     selected = [r for r in registry.rules() if fnmatch(r.meta.id, selector)]
@@ -109,7 +111,10 @@ def run_fixtures(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; t
         )
 
     verifications = tuple(verify_rule(rule, context(rule)) for rule in selected)
-    for line in _render(verifications, registry.load_errors, unsampled_ok=unsampled_ok):
+    # Under the unstated default the refusals were already named once, by the hint.
+    shown = registry.load_errors if resolved.stated else registry.load_failures
+    refused = 0 if resolved.stated else len(registry.refused)
+    for line in _render(verifications, shown, refused=refused, unsampled_ok=unsampled_ok):
         typer.echo(line)
     if write_corpus is not None:
         _write_corpus(selected, verifications, write_corpus, context)
@@ -145,8 +150,14 @@ def _render(
     verifications: tuple[RuleVerification, ...],
     load_errors: tuple[CheckError, ...],
     *,
+    refused: int,
     unsampled_ok: bool,
 ) -> list[str]:
+    """Render one line per failing fixture and gap, `load_errors` each, then the totals.
+
+    `refused` counts entry points plugin trust kept out that `load_errors` omits;
+    they enter the totals so the count of what was not verified stays whole.
+    """
     lines = [
         f"! could not load {error.source} ({error.stage}): {error.reason}" for error in load_errors
     ]
@@ -168,6 +179,7 @@ def _render(
         f"{len(verifications)} rule(s); {passed} fixture(s) passed, {failed} failed, "
         f"{errored} could not run. {unsampled} rule(s) not fully sampled."
         + (f" {len(load_errors)} rule source(s) could not be loaded." if load_errors else "")
+        + (f" {refused} entry point(s) were refused by plugin trust." if refused else "")
     )
     if unsampled and unsampled_ok:
         lines.append(

@@ -125,15 +125,15 @@ changing judge models.
 ### Plugins are code you install
 
 Entry-point discovery imports installed packages. A malicious Guardana pack is a
-malicious Python package, with everything that implies. `--no-plugins` disables
-discovery — but also the built-ins, which makes safe mode expensive. A plugin
-allowlist (`--plugins builtins|allowlist|disabled`) is what fixes that, and a
-locked pack (`guardana pack lock`) pins the digest of every rule a pack provides.
-`--no-plugins` is a deprecated alias for `--plugins disabled`, understood only by
-`scan` and `plan scan`; every other command that loads plugins takes `--plugins`
-directly.
-Two limits remain: `--plugins all` is still the default, and a declarative pack
-format that executes no Python has no scheduled release. See the [threat
+malicious Python package, with everything that implies. Every command therefore starts
+with `--plugins builtins`: Guardana's own distributions load, every other installed pack
+is refused before it is imported, and the refusal is recorded so the run says what it
+declined. A pack is admitted by name (`--plugins allowlist --allow-plugin`, or
+`plugins:` in a profile), `guardana doctor` lists what it would execute, and a locked
+pack (`guardana pack lock`) pins the digest of every rule it provides. `--no-plugins` is
+a deprecated alias for `--plugins disabled`, understood only by `scan` and `plan scan`.
+Two limits remain: an admitted pack runs with your privileges, and a declarative pack
+format that executes no Python is decided but not built. See the [threat
 model](threat-model.md).
 
 ### Quality suites

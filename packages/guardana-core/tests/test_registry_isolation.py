@@ -11,7 +11,7 @@ from collections.abc import Callable, Iterable
 from pathlib import Path
 
 import pytest
-from guardana.core import registry as registry_module
+from guardana.core import entrypoints as entrypoints_module
 from guardana.core.evaluator.base import Evaluator, Expectation, Verdict
 from guardana.core.exchange import Exchange
 from guardana.core.registry import Registry
@@ -47,6 +47,8 @@ class _FakeEntryPoint:
         provides: object = None,
     ) -> None:
         self.name = name
+        self.value = f"{name}_module:provide"
+        self.dist = None
         self._load_raises = load_raises
         self._provides = provides
 
@@ -60,7 +62,7 @@ def _patch_entry_points(monkeypatch: pytest.MonkeyPatch, **groups: list[_FakeEnt
     def _fake(group: str) -> list[_FakeEntryPoint]:
         return groups.get(group.replace("guardana.", ""), [])
 
-    monkeypatch.setattr(registry_module, "entry_points", _fake)
+    monkeypatch.setattr(entrypoints_module, "entry_points", _fake)
 
 
 def test_an_entry_point_that_fails_to_import_does_not_kill_discovery(

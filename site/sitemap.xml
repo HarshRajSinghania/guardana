@@ -51,6 +51,7 @@
   <url><loc>https://guardana.dev/docs/extending</loc></url>
   <url><loc>https://guardana.dev/docs/generated/detection-limits</loc></url>
   <url><loc>https://guardana.dev/docs/generated/evaluator-catalog</loc></url>
+  <url><loc>https://guardana.dev/docs/generated/first-run</loc></url>
   <url><loc>https://guardana.dev/docs/generated/rule-catalog</loc></url>
   <url><loc>https://guardana.dev/docs/generated/rule-summary</loc></url>
   <url><loc>https://guardana.dev/docs/generated/taxonomy-coverage</loc></url>
@@ -58,6 +59,7 @@
   <url><loc>https://guardana.dev/docs/</loc></url>
   <url><loc>https://guardana.dev/docs/install</loc></url>
   <url><loc>https://guardana.dev/docs/integrations</loc></url>
+  <url><loc>https://guardana.dev/docs/maintainers/first-run-study</loc></url>
   <url><loc>https://guardana.dev/docs/maintainers/github-setup</loc></url>
   <url><loc>https://guardana.dev/docs/maintainers/lessons</loc></url>
   <url><loc>https://guardana.dev/docs/maintainers/ops-catalogue</loc></url>
@@ -65,6 +67,9 @@
   <url><loc>https://guardana.dev/docs/privacy</loc></url>
   <url><loc>https://guardana.dev/docs/product-status</loc></url>
   <url><loc>https://guardana.dev/docs/profiles</loc></url>
+  <url><loc>https://guardana.dev/docs/recipe-local-scan</loc></url>
+  <url><loc>https://guardana.dev/docs/recipe-real-application</loc></url>
+  <url><loc>https://guardana.dev/docs/recipe-recorded-answers</loc></url>
   <url><loc>https://guardana.dev/docs/rules/by/cost-1-4</loc></url>
   <url><loc>https://guardana.dev/docs/rules/by/cost-5-plus</loc></url>
   <url><loc>https://guardana.dev/docs/rules/by/cost-zero</loc></url>
@@ -204,6 +209,7 @@
   <url><loc>https://guardana.dev/docs/usage-diff</loc></url>
   <url><loc>https://guardana.dev/docs/usage-doctor</loc></url>
   <url><loc>https://guardana.dev/docs/usage-import-observations</loc></url>
+  <url><loc>https://guardana.dev/docs/usage-init</loc></url>
   <url><loc>https://guardana.dev/docs/usage-monitor</loc></url>
   <url><loc>https://guardana.dev/docs/usage-new-pack</loc></url>
   <url><loc>https://guardana.dev/docs/usage-pack</loc></url>

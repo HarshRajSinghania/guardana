@@ -5,8 +5,12 @@ from guardana.core.profile import Profile
 from guardana.core.registry import Registry
 
 
-def load_custom_rules(registry: Registry, profile: Profile, extra_paths: list[Path]) -> None:
+def load_custom_rules(
+    registry: Registry, profile: Profile, extra_paths: list[Path]
+) -> tuple[str, ...]:
     """Register YAML rules from the profile's `rules.paths` and any `--rules` flags.
+
+    Returns the id of every rule loaded, each once, in load order.
 
     A malformed or unloadable rule file never aborts the run — one bad custom rule
     must not take down the whole scan — but it is no longer only a warning either.
@@ -24,6 +28,7 @@ def load_custom_rules(registry: Registry, profile: Profile, extra_paths: list[Pa
     outcome = registry.load_yaml_rule_dirs(paths)
     for error in outcome.errors:
         typer.echo(f"warning: could not load rule — {error.source}: {error.reason}", err=True)
+    return tuple(dict.fromkeys(outcome.loaded))
 
 
 def _only_in_the_working_directory(profile: Profile) -> list[tuple[Path, Path]]:

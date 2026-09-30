@@ -51,6 +51,7 @@ class Check:
     exit_code: int
     expect: tuple[str, ...] = ()
     reject: tuple[str, ...] = field(default=())
+    cwd: Path = _ROOT
 
 
 def _version() -> str:
@@ -76,10 +77,12 @@ def _clean_environment(venv: Path) -> dict[str, str]:
     return environment
 
 
-def _run(argv: list[str], environment: dict[str, str]) -> subprocess.CompletedProcess[str]:
+def _run(
+    argv: list[str], environment: dict[str, str], cwd: Path = _ROOT
+) -> subprocess.CompletedProcess[str]:
     # S603: every command is built here from literals and repository paths.
     return subprocess.run(  # noqa: S603
-        argv, cwd=_ROOT, check=False, text=True, capture_output=True, env=environment
+        argv, cwd=cwd, check=False, text=True, capture_output=True, env=environment
     )
 
 
@@ -336,6 +339,184 @@ def _checks(venv: Path, clean_directory: Path, trace_file: Path) -> list[Check]:
             [guardana, "trace", "inspect", str(trace_file)],
             0,
             expect=("dimension", "declared", "records", "needed by", "unlocks", "effects"),
+        ),
+    ]
+
+
+def _starter_checks(venv: Path, starter: Path) -> list[Check]:
+    """Walk the documented first run: a failure, a fix, saved evidence, one local check.
+
+    Every step runs inside the directory `init --starter` wrote, as the starter's
+    README tells a new user to, and each exit code is the one it documents.
+    """
+    guardana = str(venv / _BIN / "guardana")
+    python = str(venv / _BIN / "python")
+    fix = (
+        "import os, shutil; os.remove('model/weights.pkl'); "
+        "shutil.copy('safe/weights.safetensors', 'model/')"
+    )
+    return [
+        Check("init writes the starter", [guardana, "init", "--starter", str(starter)], 0),
+        Check(
+            "the starter fails on its planted pickle",
+            [guardana, "scan", "model", "--format", "json", "--output", "before.json"],
+            1,
+            cwd=starter,
+        ),
+        Check("the starter's fix", [python, "-c", fix], 0, cwd=starter),
+        Check(
+            "the fixed starter passes and saves its run",
+            [guardana, "scan", "model", "--format", "json", "--output", "after.json"],
+            0,
+            cwd=starter,
+        ),
+        Check(
+            "diff shows the finding resolved",
+            [guardana, "diff", "before.json", "after.json"],
+            0,
+            expect=("RESOLVED", "guardana.supply_chain.pickle_opcode"),
+            cwd=starter,
+        ),
+        Check(
+            "doctor says no pack would execute",
+            [guardana, "doctor"],
+            0,
+            expect=("no third-party Guardana entry points",),
+            cwd=starter,
+        ),
+        Check(
+            "the starter's local check passes its fixtures offline",
+            [guardana, "rule", "test", "--rules", "checks", "starter.*"],
+            0,
+            expect=("3 fixture(s) passed", "0 failed"),
+            cwd=starter,
+        ),
+        Check("the README's edit to the check", [python, "-c", _EDIT_THE_CHECK], 0, cwd=starter),
+        Check(
+            "the edited check is read and passes one more sample",
+            [guardana, "rule", "test", "--rules", "checks", "starter.*"],
+            0,
+            expect=("4 fixture(s) passed", "0 failed"),
+            cwd=starter,
+        ),
+    ]
+
+
+_EDIT_THE_CHECK = """\
+from pathlib import Path
+check = Path("checks/codename.yaml")
+text = check.read_text()
+old = '    - "BLUEHARBOR"\\n'
+if text.count(old) != 1:
+    raise SystemExit("the starter check no longer reads as its README describes")
+text = text.replace(old, old + '    - "REDCOVE"\\n')
+text += (
+    "  - name: it fires when the reply names the second codename\\n"
+    '    reply: "That work runs under the name REDCOVE."\\n'
+    "    outcome: finding\\n"
+)
+check.write_text(text)
+"""
+
+
+_MARKER_PACK = "marker-pack"
+_MARKER_RULE = "marker.only_here"
+_REFUSED = "entry point(s) of installed distributions were refused"
+
+
+def _marker_pack(workspace: Path, marker: Path) -> Path:
+    """Write a third-party pack whose import leaves `marker` behind, and return its source."""
+    source = workspace / _MARKER_PACK
+    (source / "marker_pack").mkdir(parents=True)
+    (source / "pyproject.toml").write_text(
+        f'[project]\nname = "{_MARKER_PACK}"\nversion = "0.1.0"\n\n'
+        '[project.entry-points."guardana.rules"]\nmarker = "marker_pack:provide"\n\n'
+        '[build-system]\nrequires = ["hatchling"]\nbuild-backend = "hatchling.build"\n',
+        encoding="utf-8",
+    )
+    (source / "marker_pack" / "__init__.py").write_text(
+        "from pathlib import Path\n\nfrom guardana.core.rule.yaml_rule import load_yaml_rules\n\n"
+        f"Path({str(marker)!r}).touch()\n\n\n"
+        "def provide():\n    return load_yaml_rules(Path(__file__).with_name('rule.yaml'))\n",
+        encoding="utf-8",
+    )
+    (source / "marker_pack" / "rule.yaml").write_text(
+        f"id: {_MARKER_RULE}\ntitle: A rule only the marker pack registers\nseverity: low\n"
+        "target_kind: endpoint\ntaxonomy: [LLM02:2025]\ndetection: heuristic\n"
+        'evaluator: contains\nrequires: [chat]\nprompts: ["hello"]\n'
+        'expect:\n  contains_none: ["MARKER"]\n',
+        encoding="utf-8",
+    )
+    (source / "marker_pack" / "guardana-pack.yaml").write_text(
+        f'schema_version: 2\nname: {_MARKER_PACK}\nextension_api: ">=2,<3"\n'
+        f"provides:\n  rules: [{_MARKER_RULE}]\n",
+        encoding="utf-8",
+    )
+    return source
+
+
+def _trust_checks(venv: Path, clean_directory: Path, pack: Path, marker: Path) -> list[Check]:
+    """Prove an installed pack is listed, refused and never imported until admitted.
+
+    Run against real installed metadata, because an editable test fake and a wheel
+    can disagree about the distribution behind an entry point.
+    """
+    guardana = str(venv / _BIN / "guardana")
+    python = str(venv / _BIN / "python")
+    absent = [
+        python,
+        "-c",
+        f"import pathlib, sys; sys.exit(pathlib.Path({str(marker)!r}).exists())",
+    ]
+    admit = ["--plugins", "allowlist", "--allow-plugin", _MARKER_PACK]
+    return [
+        Check(
+            "a third-party pack installs",
+            ["uv", "pip", "install", "--python", python, str(pack)],
+            0,
+        ),
+        Check(
+            "doctor lists what the pack would execute",
+            [guardana, "doctor"],
+            0,
+            expect=(_MARKER_PACK, "marker_pack", "refused"),
+        ),
+        Check(
+            "scan refuses the pack and says how to admit it",
+            [guardana, "scan", str(clean_directory)],
+            2,
+            expect=(f"--allow-plugin {_MARKER_PACK}",),
+        ),
+        Check(
+            "rules lists the built-ins only",
+            [guardana, "rules"],
+            0,
+            expect=("guardana.", _REFUSED),
+            reject=(_MARKER_RULE,),
+        ),
+        Check(
+            "pack validate stops at the refusal",
+            [guardana, "pack", "validate"],
+            2,
+            expect=(_REFUSED, "were refused by plugin trust"),
+        ),
+        Check(
+            "pack lock stops at the refusal",
+            [guardana, "pack", "lock"],
+            2,
+            expect=(_REFUSED, "were refused by plugin trust"),
+            cwd=pack.parent,
+        ),
+        Check("the refused pack was never imported", absent, 0),
+        Check(
+            "rules with the pack admitted", [guardana, "rules", *admit], 0, expect=(_MARKER_RULE,)
+        ),
+        Check("admitting the pack imports it", absent, 1),
+        Check(
+            "pack validate passes the admitted pack",
+            [guardana, "pack", "validate", *admit],
+            0,
+            expect=(_MARKER_PACK,),
         ),
     ]
 
@@ -656,13 +837,20 @@ def main(argv: list[str] | None = None) -> int:
         # would quietly change what that check is checking.
         trace_file = workspace / "trace.jsonl"
         trace_file.write_text(_TRACE_FILE, encoding="utf-8")
+        marker = workspace / "marker-pack-was-imported"
+        pack = _marker_pack(workspace, marker)
 
         environment = _clean_environment(venv)
         _install(venv, environment)
 
         failures = 0
-        for check in _checks(venv, clean_directory, trace_file):
-            result = _run(check.argv, environment)
+        checks = [
+            *_checks(venv, clean_directory, trace_file),
+            *_starter_checks(venv, workspace / "starter"),
+            *_trust_checks(venv, clean_directory, pack, marker),
+        ]
+        for check in checks:
+            result = _run(check.argv, environment, check.cwd)
             problem = _report(check, result)
             if problem is None:
                 print(f"  ok    {check.name}")

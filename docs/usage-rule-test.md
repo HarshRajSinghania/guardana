@@ -252,7 +252,7 @@ project treats as worse than no test at all.
 | `--profile PATH` | resolve `rules.paths` and evaluator config from a `guardana.yaml` |
 | `--write-corpus PATH` | write the fixtures out as a labelled corpus |
 | `--unsampled-ok` | do not go indeterminate over unsampled rules; says so in the output |
-| `--plugins`, `--allow-plugin` | the usual plugin-trust controls |
+| `--plugins`, `--allow-plugin` | the usual plugin-trust controls; `builtins` unless the flag or the profile's `plugins:` says otherwise. While an installed pack is refused, every selector exits `2`, so a pack author admits their own distribution: `--plugins allowlist --allow-plugin <distribution>` |
 
 Reasoning: [`design/extension-author-tooling.md`](design/extension-author-tooling.md),
 [`design/declarative-fixtures.md`](design/declarative-fixtures.md).

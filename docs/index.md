@@ -12,6 +12,10 @@ Start with the root [README](../README.md). Before production use, read [Product
 ## First run
 
 - [`install.md`](install.md) — install the CLI or a container
+- [`usage-init.md`](usage-init.md) — a first-run project that fails, is fixed and keeps its evidence, offline
+- [`recipe-local-scan.md`](recipe-local-scan.md) — scan your own project and save the run
+- [`recipe-recorded-answers.md`](recipe-recorded-answers.md) — check a run your application already recorded
+- [`recipe-real-application.md`](recipe-real-application.md) — probe the application your users talk to
 - [`usage-scan.md`](usage-scan.md) — scan artifacts offline
 - [`usage-probe.md`](usage-probe.md) — probe a live endpoint, agent, or MCP server
 - [`usage-testing.md`](usage-testing.md) — run the same checks from pytest
@@ -79,6 +83,7 @@ coverage. Do not edit them by hand.
 - [`generated/evaluator-catalog.md`](generated/evaluator-catalog.md) — every evaluator
 - [`generated/taxonomy-coverage.md`](generated/taxonomy-coverage.md) — framework coverage
 - [`generated/detection-limits.md`](generated/detection-limits.md) — what a finding states, per rule family
+- [`generated/first-run.md`](generated/first-run.md) — whether new users reach a first result in ten minutes, from the study sheet
 
 ## Design documents
 
@@ -107,6 +112,7 @@ not task guides and may describe rejected or superseded alternatives.
 - [`maintainers/github-setup.md`](maintainers/github-setup.md) — repository settings
 - [`maintainers/ops-catalogue.md`](maintainers/ops-catalogue.md) — which script, is it safe, what it needs
 - [`maintainers/lessons.md`](maintainers/lessons.md) — why the rules are what they are
+- [`maintainers/first-run-study.md`](maintainers/first-run-study.md) — how the first-run sessions are run, consented and recorded
 
 ## Governance
 

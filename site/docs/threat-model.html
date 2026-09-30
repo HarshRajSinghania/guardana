@@ -23,6 +23,10 @@
 <nav class="side" aria-label="Documentation">
 <ul class="home"><li><a href="index.html">Overview</a></li></ul>
 <h2>First run</h2><ul>
+<li><a href="usage-init.html">guardana init</a></li>
+<li><a href="recipe-local-scan.html">Recipe: scan your own project</a></li>
+<li><a href="recipe-recorded-answers.html">Recipe: check a run your application recorded</a></li>
+<li><a href="recipe-real-application.html">Recipe: probe your real application</a></li>
 <li><a href="how-it-works.html">How Guardana works</a></li>
 <li><a href="install.html">Installing</a></li>
 <li><a href="usage-testing.html">In your test suite</a></li>
@@ -80,6 +84,7 @@
 <li><a href="generated/evaluator-catalog.html">Evaluator catalog</a></li>
 <li><a href="generated/taxonomy-coverage.html">Taxonomy coverage</a></li>
 <li><a href="generated/detection-limits.html">Detection limits</a></li>
+<li><a href="generated/first-run.html">First-run measure</a></li>
 </ul>
 <h2>Design documents</h2><ul>
 <li><a href="design/README.html">How these are written</a></li>
@@ -97,6 +102,7 @@
 <li><a href="maintainers/github-setup.html">GitHub repository setup</a></li>
 <li><a href="maintainers/ops-catalogue.html">Operations catalogue</a></li>
 <li><a href="maintainers/lessons.html">Lessons</a></li>
+<li><a href="maintainers/first-run-study.html">First-run study</a></li>
 </ul>
 <h2>Also here</h2><ul>
 <li><a href="design/trace-domain-model.html">The Trace domain model<span class="tag">implemented</span></a></li>
@@ -143,6 +149,10 @@
 <nav class="inner" aria-label="Documentation">
 <ul class="home"><li><a href="index.html">Overview</a></li></ul>
 <h2>First run</h2><ul>
+<li><a href="usage-init.html">guardana init</a></li>
+<li><a href="recipe-local-scan.html">Recipe: scan your own project</a></li>
+<li><a href="recipe-recorded-answers.html">Recipe: check a run your application recorded</a></li>
+<li><a href="recipe-real-application.html">Recipe: probe your real application</a></li>
 <li><a href="how-it-works.html">How Guardana works</a></li>
 <li><a href="install.html">Installing</a></li>
 <li><a href="usage-testing.html">In your test suite</a></li>
@@ -200,6 +210,7 @@
 <li><a href="generated/evaluator-catalog.html">Evaluator catalog</a></li>
 <li><a href="generated/taxonomy-coverage.html">Taxonomy coverage</a></li>
 <li><a href="generated/detection-limits.html">Detection limits</a></li>
+<li><a href="generated/first-run.html">First-run measure</a></li>
 </ul>
 <h2>Design documents</h2><ul>
 <li><a href="design/README.html">How these are written</a></li>
@@ -217,6 +228,7 @@
 <li><a href="maintainers/github-setup.html">GitHub repository setup</a></li>
 <li><a href="maintainers/ops-catalogue.html">Operations catalogue</a></li>
 <li><a href="maintainers/lessons.html">Lessons</a></li>
+<li><a href="maintainers/first-run-study.html">First-run study</a></li>
 </ul>
 <h2>Also here</h2><ul>
 <li><a href="design/trace-domain-model.html">The Trace domain model<span class="tag">implemented</span></a></li>
@@ -364,16 +376,24 @@ point and runs arbitrary code on discovery.</p>
 <p><strong>Stance:</strong> this is the sharpest edge in the product, and it is <strong>partially</strong>
 mitigated. Entry-point discovery imports installed packages; a malicious one runs
 with the user's privileges, and no amount of engine design changes that.</p>
-<p>What exists: <code>--plugins builtins|allowlist|disabled</code> loads the reviewed built-ins
-without discovering arbitrary installed packages; a pack manifest declares what a
+<p>What exists: every command starts with <code>--plugins builtins</code>, which loads the reviewed
+built-ins and refuses every other installed package before importing it, and records
+each refusal as an error, so under the default <code>fail_on_error</code> every run is <code>indeterminate</code>
+while a pack stays refused; a
+pack is admitted by name (<code>--plugins allowlist --allow-plugin</code>, or <code>plugins:</code> in a
+profile), and <code>guardana doctor</code> lists what an installed pack would execute without
+importing it; a pack manifest declares what a
 pack provides and <code>guardana pack lock</code> pins each rule by its hashed declaration;
 and since 0.22.0 the registry refuses an id another distribution already holds,
 enforces the reserved <code>guardana.*</code> namespace against installed packages, and
 records in the saved run which distribution and version supplied every rule that
 ran. That last part is what a compromise is <em>detectable</em> by after the fact.</p>
-<p>What does not exist: <code>--plugins all</code> is still the default, so an ordinary run
-imports whatever is installed. A declarative pack format that executes no Python
-at all, and subprocess isolation for packs that do, have no stated release.</p>
+<p>What does not exist: once a pack is admitted it runs with the user's privileges, and a
+package's dependencies and <code>.pth</code> startup hooks run when Python starts, before any
+trust decision. A declarative pack format that executes no Python is decided
+(<a href="design/non-executing-packs.html">non-executing packs</a>) but not built, and subprocess
+isolation for packs that do execute has no stated release. A library caller of
+<code>Registry.discover()</code> that states no trust still imports everything installed.</p>
 <p><strong>Until then:</strong> treat installing a Guardana pack exactly like installing any other
 Python package into your environment — because that is what it is. <code>SECURITY.md</code>
 says so.</p>
@@ -427,10 +447,10 @@ publishes Sigstore-signed build provenance and PyPI's PEP 740 attestation for th
 distributions, a CycloneDX SBOM per distribution, and an SBOM and provenance
 attestation beside each container image. How to check them is in
 <a href="https://github.com/guardana/guardana/blob/main/SECURITY.md"><code>SECURITY.md</code></a>.</p>
-<p><strong>Residual risk:</strong> Git tags are not signed, and the image attestations are not
-signed either, so <code>gh attestation verify</code> can check a distribution but not an
-image. The documented pins are moving <code>X.Y</code> tags; nothing documents pinning an
-image by digest.</p>
+<p><strong>Residual risk:</strong> Git tags are not signed. Images before 0.33.0 carry unsigned
+attestations only, so <code>gh attestation verify</code> cannot check them; from 0.33.0 each
+image digest has a signed provenance statement. The documented pins are moving <code>X.Y</code>
+tags; nothing documents pinning an image by digest.</p>
 <h2 id="explicit-non-goals">Explicit non-goals</h2>
 <ul>
 <li>Guardana is <strong>not an inline control</strong>. It does not sit in the request path and

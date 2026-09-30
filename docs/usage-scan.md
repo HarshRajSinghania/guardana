@@ -23,7 +23,7 @@ guardana scan [PATH] [OPTIONS]
 | `--profile PATH` | none (built-in default profile) | Path to a `guardana.yaml` policy file — see [`profiles.md`](profiles.md) |
 | `--preset [ci\|pre-training\|monitor\|release]` | none | Named policy preset (mutually exclusive with `--profile`) — see [`profiles.md`](profiles.md#named-presets---preset) |
 | `--format [human\|json\|sarif\|junit]` | `human` | Output format |
-| `--plugins [all\|builtins\|allowlist\|disabled]` | `all` | Which installed plugins (entry-point rules/evaluators/targets) to load — the primary plugin-trust control. `builtins` keeps Guardana's own reviewed rules while refusing third-party ones; `disabled` is YAML-only safe mode. See [`SECURITY.md`](../SECURITY.md). |
+| `--plugins [all\|builtins\|allowlist\|disabled]` | `builtins`, or the profile's `plugins:` | Which installed plugins (entry-point rules/evaluators/targets) to load — the primary plugin-trust control. `builtins` keeps Guardana's own reviewed rules while refusing third-party ones; `disabled` is YAML-only safe mode. See [`SECURITY.md`](../SECURITY.md). |
 | `--allow-plugin TEXT` | none | Distribution to trust; repeatable. Only valid together with `--plugins allowlist`. |
 | `--no-plugins` | off | **Deprecated** alias for `--plugins disabled`, kept for pipelines that already set it. Prefer `--plugins`. |
 | `--rules PATH` | none | Directory or file of custom YAML rules; repeatable. Combined with the profile's `rules.paths` — see [`writing-rules.md`](writing-rules.md). A malformed rule file is a warning, never an abort. |

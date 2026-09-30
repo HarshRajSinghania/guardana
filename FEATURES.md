@@ -15,6 +15,7 @@ For maturity and known gaps, read [Product status](docs/product-status.md).
 
 | Need | Command | Result |
 |---|---|---|
+| A first result, offline | `guardana init --starter DIR` | a failing scan, its fix, a saved run and one editable local check, with no account, key, model or network |
 | Scan code and model artifacts | `guardana scan PATH` | deterministic, offline findings |
 | Probe a model, agent, or MCP server | `guardana probe ...` | bounded active checks with graded evidence |
 | Analyze an existing execution | `guardana analyze-trace TRACE` | trace rules without opening a network connection |
@@ -162,7 +163,11 @@ without guessing from a short id.
 ## Extension surface
 
 Third-party packages can provide rules, evaluators, targets, and taxonomies
-through Python entry points. YAML rules cover `prompt`, `scenario`, and `agent`
+through Python entry points. Every command starts with Guardana's own distributions
+only: an installed pack is refused before it is imported, the refusal leaves a run
+`indeterminate`, and the pack is admitted by name (`--plugins allowlist
+--allow-plugin`, or `plugins:` in a profile). `guardana doctor` lists what an installed
+pack would execute without importing it. YAML rules cover `prompt`, `scenario`, and `agent`
 endpoint shapes, and every shape can declare the finding, clean, and inconclusive
 samples that `guardana rule test` runs without a network. A rule declares whether a finding
 is a checked fact or a lead (`detection:`), and the generated

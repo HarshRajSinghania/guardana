@@ -70,7 +70,16 @@ def test_the_installed_target_runs_from_the_real_cli(tmp_path: Path) -> None:
     executable = shutil.which("guardana")
     assert executable is not None
     completed = subprocess.run(  # noqa: S603 — resolved executable, crafted local fixture
-        [executable, "scan", "--target", f"acme-prompts://{tmp_path}"],
+        [
+            executable,
+            "scan",
+            "--target",
+            f"acme-prompts://{tmp_path}",
+            "--plugins",
+            "allowlist",
+            "--allow-plugin",
+            "acme-guardana-rules",
+        ],
         check=False,
         capture_output=True,
         text=True,

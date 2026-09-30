@@ -11,6 +11,10 @@ This file is generated from the documentation map; do not edit it by hand.
 ## First run
 
 - [install.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/install.md): install the CLI or a container
+- [usage-init.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/usage-init.md): a first-run project that fails, is fixed and keeps its evidence, offline
+- [recipe-local-scan.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/recipe-local-scan.md): scan your own project and save the run
+- [recipe-recorded-answers.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/recipe-recorded-answers.md): check a run your application already recorded
+- [recipe-real-application.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/recipe-real-application.md): probe the application your users talk to
 - [usage-scan.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/usage-scan.md): scan artifacts offline
 - [usage-probe.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/usage-probe.md): probe a live endpoint, agent, or MCP server
 - [usage-testing.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/usage-testing.md): run the same checks from pytest
@@ -75,6 +79,7 @@ This file is generated from the documentation map; do not edit it by hand.
 - [generated/evaluator-catalog.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/generated/evaluator-catalog.md): every evaluator
 - [generated/taxonomy-coverage.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/generated/taxonomy-coverage.md): framework coverage
 - [generated/detection-limits.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/generated/detection-limits.md): what a finding states, per rule family
+- [generated/first-run.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/generated/first-run.md): whether new users reach a first result in ten minutes, from the study sheet
 
 ## Project direction
 
@@ -108,5 +113,6 @@ This file is generated from the documentation map; do not edit it by hand.
 - [maintainers/github-setup.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/maintainers/github-setup.md): repository settings
 - [maintainers/ops-catalogue.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/maintainers/ops-catalogue.md): which script, is it safe, what it needs
 - [maintainers/lessons.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/maintainers/lessons.md): why the rules are what they are
+- [maintainers/first-run-study.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/maintainers/first-run-study.md): how the first-run sessions are run, consented and recorded
 - [../SECURITY.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/SECURITY.md): report vulnerabilities and understand support
 - [../CODE_OF_CONDUCT.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/CODE_OF_CONDUCT.md): community expectations

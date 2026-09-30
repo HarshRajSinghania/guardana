@@ -14,13 +14,13 @@ from typing import Annotated
 import typer
 from guardana.cli._formats import OutputFormat
 from guardana.cli._output import emit
-from guardana.cli._plugins import resolve_trust
 from guardana.cli._profile import PRESET_HELP, resolve_profile
 from guardana.cli._reporting import check_reporter_url, submit_safely
 from guardana.cli._run_meta import build_manifest, detect_deployment
 from guardana.cli.exit_codes import ExitCode
 from guardana.core.gate import gate_outcome
 from guardana.core.manifest import SourceKind, TargetIdentity
+from guardana.core.plugins import PluginMode, PluginTrust
 from guardana.core.redaction import EvidenceRedactor
 from guardana.core.registry import Registry
 from guardana.core.report import CheckError, ScanResult
@@ -102,7 +102,7 @@ def import_observations(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI 
     outcome = gate_outcome(result, prof.policy)
     deployment = detect_deployment(ai_system, environment, None)
     run = build_manifest(
-        Registry.discover(resolve_trust("disabled", [], no_plugins=False)),
+        Registry.discover(PluginTrust(mode=PluginMode.DISABLED)),
         prof,
         result,
         target_kind=TargetKind.ENDPOINT,

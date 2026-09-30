@@ -130,17 +130,25 @@ point and runs arbitrary code on discovery.
 mitigated. Entry-point discovery imports installed packages; a malicious one runs
 with the user's privileges, and no amount of engine design changes that.
 
-What exists: `--plugins builtins|allowlist|disabled` loads the reviewed built-ins
-without discovering arbitrary installed packages; a pack manifest declares what a
+What exists: every command starts with `--plugins builtins`, which loads the reviewed
+built-ins and refuses every other installed package before importing it, and records
+each refusal as an error, so under the default `fail_on_error` every run is `indeterminate`
+while a pack stays refused; a
+pack is admitted by name (`--plugins allowlist --allow-plugin`, or `plugins:` in a
+profile), and `guardana doctor` lists what an installed pack would execute without
+importing it; a pack manifest declares what a
 pack provides and `guardana pack lock` pins each rule by its hashed declaration;
 and since 0.22.0 the registry refuses an id another distribution already holds,
 enforces the reserved `guardana.*` namespace against installed packages, and
 records in the saved run which distribution and version supplied every rule that
 ran. That last part is what a compromise is *detectable* by after the fact.
 
-What does not exist: `--plugins all` is still the default, so an ordinary run
-imports whatever is installed. A declarative pack format that executes no Python
-at all, and subprocess isolation for packs that do, have no stated release.
+What does not exist: once a pack is admitted it runs with the user's privileges, and a
+package's dependencies and `.pth` startup hooks run when Python starts, before any
+trust decision. A declarative pack format that executes no Python is decided
+([non-executing packs](design/non-executing-packs.md)) but not built, and subprocess
+isolation for packs that do execute has no stated release. A library caller of
+`Registry.discover()` that states no trust still imports everything installed.
 
 **Until then:** treat installing a Guardana pack exactly like installing any other
 Python package into your environment — because that is what it is. `SECURITY.md`
@@ -221,10 +229,10 @@ distributions, a CycloneDX SBOM per distribution, and an SBOM and provenance
 attestation beside each container image. How to check them is in
 [`SECURITY.md`](../SECURITY.md#what-a-release-publishes-and-how-to-check-it-yourself).
 
-**Residual risk:** Git tags are not signed, and the image attestations are not
-signed either, so `gh attestation verify` can check a distribution but not an
-image. The documented pins are moving `X.Y` tags; nothing documents pinning an
-image by digest.
+**Residual risk:** Git tags are not signed. Images before 0.33.0 carry unsigned
+attestations only, so `gh attestation verify` cannot check them; from 0.33.0 each
+image digest has a signed provenance statement. The documented pins are moving `X.Y`
+tags; nothing documents pinning an image by digest.
 
 ## Explicit non-goals
 

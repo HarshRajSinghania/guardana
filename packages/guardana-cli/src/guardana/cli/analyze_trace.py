@@ -15,7 +15,12 @@ from guardana.cli._contracts import contract_paths, describe_contracts, wire_con
 from guardana.cli._exit import exit_with, refuse_unenforceable_budget
 from guardana.cli._formats import OutputFormat
 from guardana.cli._output import emit
-from guardana.cli._plugins import resolve_trust
+from guardana.cli._plugins import (
+    AllowPluginOption,
+    PluginsOption,
+    hint_refused_plugins,
+    resolve_trust,
+)
 from guardana.cli._profile import PRESET_HELP, resolve_profile
 from guardana.cli._reporting import check_reporter_url, submit_safely
 from guardana.cli._rules_loading import load_custom_rules
@@ -54,14 +59,8 @@ def analyze_trace(  # noqa: C901, PLR0913, PLR0917 — Typer surface plus two ta
     format: Annotated[
         OutputFormat, typer.Option(help="human|json|sarif|junit")
     ] = OutputFormat.human,
-    plugins: Annotated[
-        str,
-        typer.Option(help="Which installed plugins to load: all|builtins|allowlist|disabled"),
-    ] = "all",
-    allow_plugin: Annotated[
-        list[str],
-        typer.Option("--allow-plugin", help="Distribution to trust; repeatable, needs allowlist."),
-    ] = [],  # noqa: B006 — typer builds the option from a literal default
+    plugins: PluginsOption = None,
+    allow_plugin: AllowPluginOption = None,
     rules: Annotated[
         list[Path],
         typer.Option("--rules", help="Directory or file of custom YAML rules; repeatable."),
@@ -113,7 +112,9 @@ def analyze_trace(  # noqa: C901, PLR0913, PLR0917 — Typer surface plus two ta
     """Grade a recorded agent execution (JSONL, OpenTelemetry GenAI or Guardana native)."""
     check_reporter_url(reporter)
     prof = resolve_profile(profile, preset)
-    registry = Registry.discover(resolve_trust(plugins, allow_plugin, no_plugins=False))
+    resolved = resolve_trust(plugins, allow_plugin, prof)
+    registry = Registry.discover(resolved.trust)
+    hint_refused_plugins(registry, resolved)
     load_custom_rules(registry, prof, rules)
     if target is not None and trace is not None:
         raise typer.BadParameter("pass either a trace file or --target, not both")

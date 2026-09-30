@@ -8,6 +8,11 @@
 
 name: pre-deploy
 
+# Every command starts with Guardana's own distributions only; this admits Acme's.
+plugins:
+  mode: allowlist
+  allow: [acme-guardana-rules]
+
 rules:
   include:
     - "guardana.*"   # every built-in rule

@@ -12,23 +12,14 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from importlib import metadata, resources
 
+from guardana.core.entrypoints import InstalledEntryPoint, installed_entry_points
 from guardana.core.pack.load import MANIFEST_NAME, load_manifest
 from guardana.core.pack.model import (
     SUPPORTED_EXTENSION_API_VERSIONS,
     PackError,
     PackManifest,
 )
-
-_ENTRY_POINT_GROUPS = (
-    "guardana.rules",
-    "guardana.evaluators",
-    "guardana.targets",
-    # The fourth group, added with pack schema 2. Left out, a package whose only
-    # Guardana entry point was a control catalogue was not discovered at all — so
-    # its manifest was never read, and `pack validate` reported nothing about it
-    # rather than reporting it as unvalidated.
-    "guardana.taxonomies",
-)
+from guardana.core.plugins import PluginTrust
 
 
 @dataclass(frozen=True, slots=True)
@@ -44,43 +35,104 @@ class PackCheck:
         return not self.problems
 
 
-def installed_packs() -> list[tuple[str, str, PackManifest]]:
-    """Every installed pack as `(distribution, version, manifest)`.
+@dataclass(frozen=True, slots=True)
+class PackDiscovery:
+    """The installed packs trust admits, and the entry points it kept closed.
 
-    The distribution is resolved from the module the entry point names, because that
-    is the only direction that works: `guardana` is a PEP 420 namespace shared by
-    five distributions, so the package a manifest sits in does not name its
-    distribution and the reverse lookup is the one importlib offers.
-
-    A module whose distribution cannot be resolved is still returned, with an empty
-    version. Dropping it would remove a pack from the lock for a metadata problem,
-    and a pack silently missing from a lock is a pack running unpinned.
+    Returned together so a caller cannot report on the admitted packs without the
+    refusals in hand: a subset that does not say it is one reads as the whole.
     """
-    owners = _distributions_by_module()
-    return [
-        (owners.get(module, module), _version(owners.get(module, module)), manifest)
-        for module, manifest in _pack_modules()
-        if manifest is not None
-    ]
+
+    packs: tuple[tuple[str, str, PackManifest], ...]
+    """Every admitted pack as `(distribution, version, manifest)`."""
+
+    unmanifested: tuple[str, ...]
+    """Every admitted module that registers an extension and declares no manifest."""
+
+    refused: tuple[InstalledEntryPoint, ...]
+    """Every entry point trust refused; its module was never imported to look for a manifest."""
+
+    @property
+    def manifests(self) -> tuple[PackManifest, ...]:
+        """The manifest of every admitted pack."""
+        return tuple(manifest for _distribution, _version, manifest in self.packs)
 
 
-def _distributions_by_module() -> dict[str, str]:
-    """Which distribution advertised each extension module, taken from the entry point.
+def discover_packs(trust: PluginTrust | None = None) -> PackDiscovery:
+    """Read the manifest of every installed package whose entry points `trust` admits.
 
-    **Not from `packages_distributions()`.** `guardana` is a PEP 420 namespace shared
-    by five distributions, so a top-level-name lookup answers with whichever of them
-    sorts first — a lock would then pin every built-in rule to the wrong package and
-    read a version that has nothing to do with the code it is pinning. The entry
-    point already knows which distribution declared it.
+    Trust is decided per entry point, over the same enumeration `Registry.discover`
+    walks: a module is read only when an admitted entry point names it, because
+    reading a manifest through `importlib.resources` imports the module. `None`
+    admits everything, as `PluginTrust()` does.
+
+    **Located from the entry point, not from the distribution's file list.** An
+    editable install lists no files, so walking them finds nothing for a package
+    sitting right there. The entry point names the module that provides the
+    extension, and that module's package is exactly the one that owns the manifest.
+
+    **The distribution is taken from the entry point**, not from
+    `packages_distributions()`: `guardana` is a PEP 420 namespace shared by five
+    distributions, so a top-level-name lookup answers with whichever sorts first. A
+    module whose distribution cannot be resolved is still returned, named by its
+    module and with an empty version, because a pack silently missing from a lock is
+    a pack running unpinned.
     """
-    owners: dict[str, str] = {}
-    for group in _ENTRY_POINT_GROUPS:
-        for entry_point in metadata.entry_points(group=group):
-            module = entry_point.value.split(":", 1)[0].strip()
-            name = getattr(getattr(entry_point, "dist", None), "name", None)
-            if module and name:
-                owners.setdefault(module, str(name))
-    return owners
+    policy = trust if trust is not None else PluginTrust()
+    owners: dict[str, tuple[str, str | None]] = {}
+    modules: set[str] = set()
+    refused: list[InstalledEntryPoint] = []
+    for entry_point in installed_entry_points():
+        if not policy.allows(entry_point.distribution):
+            refused.append(entry_point)
+            continue
+        if not entry_point.module:
+            continue
+        modules.add(entry_point.module)
+        if entry_point.distribution is not None:
+            owners.setdefault(entry_point.module, (entry_point.distribution, entry_point.version))
+    packs: list[tuple[str, str, PackManifest]] = []
+    unmanifested: list[str] = []
+    for module in sorted(modules):
+        manifest = _manifest_in(module)
+        if manifest is None:
+            unmanifested.append(module)
+            continue
+        distribution, version = owners.get(module, (module, None))
+        packs.append((distribution, version or _version(distribution), manifest))
+    return PackDiscovery(tuple(packs), tuple(unmanifested), tuple(refused))
+
+
+def installed_packs(trust: PluginTrust | None = None) -> list[tuple[str, str, PackManifest]]:
+    """Every installed pack `trust` admits, as `(distribution, version, manifest)`.
+
+    What trust refused is not in this list; `discover_packs` returns it beside the
+    packs, and a caller passing a trust other than `all` reads it there.
+    """
+    return list(discover_packs(trust).packs)
+
+
+def installed_manifests(trust: PluginTrust | None = None) -> list[PackManifest]:
+    """Return the manifest of every installed extension package `trust` admits.
+
+    **Not de-duplicated by declared name.** Two packs claiming one name is a real
+    situation — a fork, a rename half-done — and dropping the second would silently
+    stop validating somebody's pack; `check_packs` reports it and validates both.
+
+    What trust refused is not in this list; `discover_packs` returns it beside the
+    manifests.
+    """
+    return list(discover_packs(trust).manifests)
+
+
+def unmanifested_packages(trust: PluginTrust | None = None) -> list[str]:
+    """Every admitted package that registers an extension and declares no manifest.
+
+    The other half of `installed_manifests`: those packages are live in the registry
+    and invisible to every check that reads manifests. A caller that reports only the
+    manifests it found is reporting on a subset it cannot name the size of.
+    """
+    return list(discover_packs(trust).unmanifested)
 
 
 def _version(distribution: str) -> str:
@@ -94,40 +146,6 @@ def _version(distribution: str) -> str:
         return metadata.version(distribution)
     except metadata.PackageNotFoundError:
         return ""
-
-
-def _pack_modules() -> list[tuple[str, PackManifest | None]]:
-    return [(package, _manifest_in(package)) for package in sorted(_extension_packages())]
-
-
-def installed_manifests() -> list[PackManifest]:
-    """Read the manifest of every installed package that registers a Guardana extension.
-
-    **Located from the entry point, not from the distribution's file list.** An
-    editable install lists no files, so walking them found nothing for a package
-    sitting right there — and a discovery that silently finds nothing is
-    indistinguishable from a package that declared nothing. The entry point already
-    names the module that provides the extension, and that module's package is
-    exactly the one that owns the manifest.
-
-    **Not de-duplicated by declared name.** Two packs claiming one name is a real
-    situation — a fork, a rename half-done — and dropping the second would silently
-    stop validating somebody's pack. The contract compiler refuses that exact shape
-    for two contracts producing one rule id; this reports it, in `check_packs`, and
-    validates both.
-    """
-    return [manifest for _module, manifest in _pack_modules() if manifest is not None]
-
-
-def unmanifested_packages() -> list[str]:
-    """Every installed package that registers an extension and declares no manifest.
-
-    The other half of `installed_manifests`, and the reason it is a function rather
-    than a detail: those packages are live in the registry and invisible to every
-    check that reads manifests. A caller that reports only the manifests it found is
-    reporting on a subset it cannot name the size of.
-    """
-    return [module for module, manifest in _pack_modules() if manifest is None]
 
 
 def check_packs(manifests: Sequence[PackManifest], registered: Iterable[str]) -> list[PackCheck]:
@@ -176,22 +194,6 @@ def check_pack(manifest: PackManifest, registered: Iterable[str]) -> PackCheck:
     return PackCheck(manifest, tuple(problems))
 
 
-def _extension_packages() -> set[str]:
-    """Every package that registers through a Guardana entry-point group.
-
-    The module, not the distribution: `guardana` is a PEP 420 namespace shared by
-    five distributions, so looking for a manifest beside the namespace root would
-    find whichever happened to be first on the path.
-    """
-    packages: set[str] = set()
-    for group in _ENTRY_POINT_GROUPS:
-        for entry_point in metadata.entry_points(group=group):
-            module = entry_point.value.split(":", 1)[0].strip()
-            if module:
-                packages.add(module)
-    return packages
-
-
 def _manifest_in(package: str) -> PackManifest | None:
     """Read the manifest a package ships, or None when it ships none.
 
@@ -207,10 +209,24 @@ def _manifest_in(package: str) -> PackManifest | None:
             return None
         with resources.as_file(candidate) as path:
             return load_manifest(path)
-    except (ModuleNotFoundError, TypeError, OSError):
+    except ImportError as exc:
+        if isinstance(exc, ModuleNotFoundError) and _names_itself(exc.name, package):
+            return None
+        # The package exists and cannot be imported, so whether it ships a manifest
+        # is unknown; reporting it as declaring none would be a guess.
+        raise PackError(
+            f"cannot read the manifest of {package}: importing it failed with "
+            f"{type(exc).__name__}: {exc}"
+        ) from exc
+    except (TypeError, OSError):
         return None
     except PackError:
         # A manifest that is present and unreadable is a real problem, and swallowing
         # it here would report the pack as having declared nothing. Raised so the
         # command exits `3` naming the file, exactly as a malformed contract does.
         raise
+
+
+def _names_itself(missing: str | None, package: str) -> bool:
+    """Whether the module that could not be found is `package` or one of its parents."""
+    return missing is not None and (package == missing or package.startswith(f"{missing}."))

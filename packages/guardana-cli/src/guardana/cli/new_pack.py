@@ -191,8 +191,11 @@ def new_pack(
     typer.echo(f"Wrote {len(written)} files to {target}{'/' if str(target) != '.' else ''}")
     typer.echo("Install and verify it:")
     typer.echo(f"  pip install -e {target}")
-    typer.echo(f"  guardana pack validate {package / MANIFEST_NAME}")
-    typer.echo(f"  guardana rule test '{names.prefix}.*'")
+    # Guardana loads only its built-ins unless trust is stated, so each command
+    # admits this pack by its distribution name.
+    admit = f"--plugins allowlist --allow-plugin {names.distribution}"
+    typer.echo(f"  guardana pack validate {package / MANIFEST_NAME} {admit}")
+    typer.echo(f"  guardana rule test '{names.prefix}.*' {admit}")
     typer.echo(f"  pytest {target / 'tests'}")
 
 

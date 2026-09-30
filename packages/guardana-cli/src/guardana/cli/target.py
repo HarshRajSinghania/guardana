@@ -2,13 +2,21 @@
 
 import json
 import os
+from pathlib import Path
 from typing import Annotated
 
 import typer
 from guardana.cli._endpoint import build_endpoint
 from guardana.cli._errors import EndpointFlag, run_against_endpoint
 from guardana.cli._formats import OutputFormat
-from guardana.cli._plugins import resolve_trust, warn_about_load_errors
+from guardana.cli._plugins import (
+    AllowPluginOption,
+    PluginsOption,
+    hint_refused_plugins,
+    resolve_trust,
+    warn_about_load_errors,
+)
+from guardana.cli._profile import resolve_profile
 from guardana.cli._target_locator import resolve_target
 from guardana.cli.exit_codes import ExitCode
 from guardana.core.inspect import (
@@ -104,14 +112,9 @@ def inspect_target(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag;
             help="Comma-separated capabilities that must be confirmed; exit 2 if any is not.",
         ),
     ] = None,
-    plugins: Annotated[
-        str,
-        typer.Option(help="Which installed plugins to load: all|builtins|allowlist|disabled"),
-    ] = "all",
-    allow_plugin: Annotated[
-        list[str],
-        typer.Option("--allow-plugin", help="Distribution to trust; repeatable, needs allowlist."),
-    ] = [],  # noqa: B006 — typer builds the option from a literal default
+    plugins: PluginsOption = None,
+    allow_plugin: AllowPluginOption = None,
+    profile: Annotated[Path | None, typer.Option(help="guardana.yaml path")] = None,
     target: Annotated[
         str | None,
         typer.Option("--target", help="Installed endpoint target as scheme://locator."),
@@ -128,9 +131,10 @@ def inspect_target(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag;
     proxy can drop the system message — either of which turns a rule into a check
     that runs and proves nothing.
     """
-    trust = resolve_trust(plugins, allow_plugin, no_plugins=False)
-    registry = Registry.discover(trust)
-    warn_about_load_errors(registry, what="rule")
+    resolved = resolve_trust(plugins, allow_plugin, resolve_profile(profile, None))
+    registry = Registry.discover(resolved.trust)
+    warn_about_load_errors(registry, resolved, what="rule")
+    hint_refused_plugins(registry, resolved)
     if target is not None:
         used = [
             name

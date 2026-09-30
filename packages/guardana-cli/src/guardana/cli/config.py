@@ -6,6 +6,7 @@ from typing import Annotated
 
 import typer
 from guardana.cli._formats import OutputFormat
+from guardana.cli._plugins import DEFAULT_MODE
 from guardana.cli._profile import PRESET_HELP, resolve_profile
 from guardana.cli.exit_codes import ExitCode
 from guardana.core.profile import Profile
@@ -61,7 +62,20 @@ def _resolved(profile: Profile) -> dict[str, object]:
             "max_impact": str(profile.max_impact),
             "allow_destructive": profile.allow_destructive,
         },
+        "plugins": _plugins(profile),
     }
+
+
+def _plugins(profile: Profile) -> dict[str, object]:
+    """Describe the plugin trust this profile states, or the default it leaves in force."""
+    trust = profile.plugins
+    if trust is None:
+        return {
+            "mode": str(DEFAULT_MODE),
+            "allow": [],
+            "source": f"not stated: {DEFAULT_MODE} by default",
+        }
+    return {"mode": str(trust.mode), "allow": sorted(trust.allowed), "source": "this profile"}
 
 
 def validate(

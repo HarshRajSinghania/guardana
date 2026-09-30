@@ -409,7 +409,10 @@ my_targets = "acme_rules:provide_targets"
 list of instances. Any pip-installed package —
 ours or a third party's private one — is discovered identically; there is
 no built-in/custom distinction at the registry level, only namespacing by
-`id`. `guardana scan --no-plugins` is a deprecated alias for `--plugins
+`id`. The CLI starts with `--plugins builtins`, so a user admits your pack by its
+distribution name (`--plugins allowlist --allow-plugin <your-distribution>`, or
+`plugins:` in a profile); `Registry.discover()` called from Python with no trust
+still loads everything. `guardana scan --no-plugins` is a deprecated alias for `--plugins
 disabled`: discovery still runs, every plugin is refused, and each refusal is
 recorded — see [`SECURITY.md`](../SECURITY.md) for the trust modes and why
 this exists.

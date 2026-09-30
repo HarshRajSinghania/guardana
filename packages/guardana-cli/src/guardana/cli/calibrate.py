@@ -7,7 +7,13 @@ import typer
 from guardana.cli._errors import run_against_endpoint
 from guardana.cli._evaluators import wire_config_evaluators
 from guardana.cli._exit import refuse_invalid_profile
-from guardana.cli._plugins import resolve_trust, warn_about_load_errors
+from guardana.cli._plugins import (
+    AllowPluginOption,
+    PluginsOption,
+    hint_refused_plugins,
+    resolve_trust,
+    warn_about_load_errors,
+)
 from guardana.cli._profile import resolve_profile
 from guardana.cli.exit_codes import ExitCode
 from guardana.core.calibration import CalibrationReport, calibrate
@@ -45,14 +51,8 @@ def calibrate_command(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI fl
             help="Write the measurement here so runs can carry it; see `calibrations:`.",
         ),
     ] = None,
-    plugins: Annotated[
-        str,
-        typer.Option(help="Which installed plugins to load: all|builtins|allowlist|disabled"),
-    ] = "all",
-    allow_plugin: Annotated[
-        list[str],
-        typer.Option("--allow-plugin", help="Distribution to trust; repeatable, needs allowlist."),
-    ] = [],  # noqa: B006 — typer builds the option from a literal default
+    plugins: PluginsOption = None,
+    allow_plugin: AllowPluginOption = None,
 ) -> None:
     """Measure how honest an evaluator's stated confidence is, against known labels.
 
@@ -61,10 +61,11 @@ def calibrate_command(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI fl
     and tool calls settle them without a human — and compare what the evaluator
     said with what happened.
     """
-    trust = resolve_trust(plugins, allow_plugin, no_plugins=False)
     prof = resolve_profile(profile, None)
-    registry = Registry.discover(trust)
-    warn_about_load_errors(registry, what="evaluator")
+    resolved = resolve_trust(plugins, allow_plugin, prof)
+    registry = Registry.discover(resolved.trust)
+    warn_about_load_errors(registry, resolved, what="evaluator")
+    hint_refused_plugins(registry, resolved)
     try:
         wire_config_evaluators(registry, prof)
     except ProfileError as exc:

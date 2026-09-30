@@ -13,7 +13,13 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
-from guardana.cli._plugins import resolve_trust, warn_about_load_errors
+from guardana.cli._plugins import (
+    AllowPluginOption,
+    PluginsOption,
+    hint_refused_plugins,
+    resolve_trust,
+    warn_about_load_errors,
+)
 from guardana.cli._profile import PRESET_HELP, resolve_profile
 from guardana.cli._rules_loading import load_custom_rules
 from guardana.cli._trace_input import load_trace_or_exit, trace_source
@@ -45,14 +51,8 @@ def inspect(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; the co
     profile: Annotated[Path | None, typer.Option(help="guardana.yaml path")] = None,
     preset: Annotated[str | None, typer.Option(help=PRESET_HELP)] = None,
     format: Annotated[InspectFormat, typer.Option(help="human|json")] = InspectFormat.human,
-    plugins: Annotated[
-        str,
-        typer.Option(help="Which installed plugins to load: all|builtins|allowlist|disabled"),
-    ] = "all",
-    allow_plugin: Annotated[
-        list[str],
-        typer.Option("--allow-plugin", help="Distribution to trust; repeatable, needs allowlist."),
-    ] = [],  # noqa: B006 — typer builds the option from a literal default
+    plugins: PluginsOption = None,
+    allow_plugin: AllowPluginOption = None,
     rules: Annotated[
         list[Path],
         typer.Option("--rules", help="Directory or file of custom YAML rules; repeatable."),
@@ -66,8 +66,10 @@ def inspect(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; the co
     """
     prof = resolve_profile(profile, preset)
     read = load_trace_or_exit(trace, dialect)
-    registry = Registry.discover(resolve_trust(plugins, allow_plugin, no_plugins=False))
-    warn_about_load_errors(registry, what="rule")
+    resolved = resolve_trust(plugins, allow_plugin, prof)
+    registry = Registry.discover(resolved.trust)
+    warn_about_load_errors(registry, resolved, what="rule")
+    hint_refused_plugins(registry, resolved)
     load_custom_rules(registry, prof, rules)
     matrix = evidence_matrix(read.trace)
     licensed = _licensed_rules(registry)
