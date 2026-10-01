@@ -1,6 +1,7 @@
 """`guardana grade` and `probe --keep-exchanges`: answers graded again without the target."""
 
 import json
+import re
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
@@ -14,6 +15,7 @@ from guardana.core.target import ChatMessage
 from typer.testing import CliRunner
 
 runner = CliRunner()
+_ANSI = re.compile(r"\x1b\[[0-9;]*m")
 
 _SUITE = "acme.quality.answers"
 _TARGET = "http://app.test/v1"
@@ -50,6 +52,11 @@ class _JudgeDown(_App):
         if "judge" in base_url:
             raise URLError(f"connection refused by {base_url}")
         return super().send(base_url, model, messages, api_key)
+
+
+def _plain(text: str) -> str:
+    """Rendered output without styling or panel borders, as CI's coloured terminal prints it."""
+    return " ".join(_ANSI.sub("", text).replace("│", " ").split())
 
 
 def _rules(tmp_path: Path, evaluator: str = "contains", expected: str = "Settings") -> Path:
@@ -258,7 +265,7 @@ def test_keeping_without_a_saved_run_is_refused(
     result = _probe_keeping(monkeypatch, tmp_path, *extra)
 
     assert result.exit_code == ExitCode.INVALID_USAGE, result.output
-    assert said in " ".join(result.output.split())
+    assert said in _plain(result.output)
 
 
 def test_keeping_an_mcp_server_is_refused(tmp_path: Path) -> None:
