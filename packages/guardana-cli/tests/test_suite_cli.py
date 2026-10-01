@@ -384,5 +384,7 @@ def test_a_monitor_gives_the_judge_a_fresh_budget_every_cycle(
         ],
     )
 
-    assert result.exit_code == 0, result.output
+    # Every cycle's suite declines for want of a calibrated judge, so the watch ends
+    # indeterminate, as a probe of the same cycle would.
+    assert result.exit_code == ExitCode.INDETERMINATE, result.output
     assert _Answering.sent == 2 * (3 + 9)

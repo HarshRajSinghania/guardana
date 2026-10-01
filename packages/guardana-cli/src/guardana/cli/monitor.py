@@ -21,10 +21,11 @@ from guardana.cli._reporting import check_reporter_url, submit_safely
 from guardana.cli._rules_loading import load_custom_rules
 from guardana.cli._run_meta import calibrations_or_exit, detect_deployment
 from guardana.cli._target_locator import resolve_target
+from guardana.cli.exit_codes import ExitCode
 from guardana.core.budget import BudgetExhausted
 from guardana.core.manifest import DeploymentRef
 from guardana.core.manifest.records import CalibrationRecord
-from guardana.core.monitor import Alert, Monitor, MonitorConfig
+from guardana.core.monitor import Alert, Monitor, MonitorConfig, MonitorSummary
 from guardana.core.profile import Profile, ProfileError
 from guardana.core.redaction import EvidenceRedactor
 from guardana.core.registry import Registry
@@ -86,7 +87,7 @@ def run_monitor(  # noqa: PLR0913 — the test seam needs every hook injectable
     on_error: Callable[[int, Exception], None] = _warn_cycle_failed,
     sleep: Callable[[float], None] = time.sleep,
     calibrations: Mapping[str, CalibrationRecord] | None = None,
-) -> None:
+) -> MonitorSummary:
     """Sample `connection` on a loop, running the same probe `guardana probe` runs.
 
     A transient failure mid-run is logged and the loop continues; a never-reachable
@@ -114,7 +115,7 @@ def run_monitor(  # noqa: PLR0913 — the test seam needs every hook injectable
         policy=profile.policy,
         config=MonitorConfig(interval_seconds=interval_seconds, max_cycles=max_cycles),
     )
-    monitor.run(handler, on_error=on_error, sleep=sleep)
+    return monitor.run(handler, on_error=on_error, sleep=sleep)
 
 
 def run_target_monitor(  # noqa: PLR0913 — mirrors the tested monitor seam
@@ -130,7 +131,7 @@ def run_target_monitor(  # noqa: PLR0913 — mirrors the tested monitor seam
     on_error: Callable[[int, Exception], None] = _warn_cycle_failed,
     sleep: Callable[[float], None] = time.sleep,
     calibrations: Mapping[str, CalibrationRecord] | None = None,
-) -> None:
+) -> MonitorSummary:
     """Sample a freshly built custom endpoint target on every monitor cycle."""
     handler = (
         on_alert
@@ -153,7 +154,7 @@ def run_target_monitor(  # noqa: PLR0913 — mirrors the tested monitor seam
         policy=profile.policy,
         config=MonitorConfig(interval_seconds=interval_seconds, max_cycles=max_cycles),
     )
-    monitor.run(handler, on_error=on_error, sleep=sleep)
+    return monitor.run(handler, on_error=on_error, sleep=sleep)
 
 
 def _rearm_judges(registry: Registry, profile: Profile) -> JudgeMeters:
@@ -281,7 +282,7 @@ def monitor(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; this i
         on_alert = alert_handler(
             EvidenceRedactor(prof.privacy), reporter, source=selected.ref, deployment=deployment
         )
-        run_against_endpoint(
+        summary = run_against_endpoint(
             selected.ref,
             lambda: run_target_monitor(
                 registry,
@@ -302,6 +303,7 @@ def monitor(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; this i
             ),
             accepts=_ACCEPTED_FLAGS,
         )
+        _exit_with_worst(summary)
         return
 
     if target_option:
@@ -324,7 +326,7 @@ def monitor(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; this i
         source=f"{display_url(url)}#{model}",
         deployment=deployment,
     )
-    run_against_endpoint(
+    summary = run_against_endpoint(
         url,
         lambda: run_monitor(
             registry,
@@ -338,6 +340,25 @@ def monitor(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; this i
         ),
         accepts=_ACCEPTED_FLAGS,
     )
+    _exit_with_worst(summary)
+
+
+def _exit_with_worst(summary: MonitorSummary) -> None:
+    """End a bounded watch with the worst code a cycle earned, as `probe` would have.
+
+    A cycle that could not be sampled verified nothing, so it ends the watch as an
+    unavailable target unless a sampled cycle earned something worse.
+    """
+    typer.echo(
+        f"monitor: {summary.cycles} cycle(s) sampled, {summary.alerts} alert(s), "
+        f"{summary.unsampled} cycle(s) not sampled",
+        err=True,
+    )
+    code = ExitCode(summary.exit_code)
+    if code is ExitCode.OK and summary.unsampled:
+        code = ExitCode.TARGET_UNAVAILABLE
+    if code is not ExitCode.OK:
+        raise typer.Exit(code=code)
 
 
 def _missing_target() -> Target:

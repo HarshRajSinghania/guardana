@@ -28,7 +28,7 @@ guardana scan [PATH] [OPTIONS]
 | `--no-plugins` | off | **Deprecated** alias for `--plugins disabled`, kept for pipelines that already set it. Prefer `--plugins`. |
 | `--rules PATH` | none | Directory or file of custom YAML rules; repeatable. Combined with the profile's `rules.paths` — see [`writing-rules.md`](writing-rules.md). A malformed rule file is a warning, never an abort. |
 | `--baseline PATH` | none | Baseline file: findings it lists are **waived** — still reported (as `WAIVED`), but they no longer fail the gate. A *new* finding elsewhere still does. See [Baselining](#baselining-existing-findings). |
-| `--write-baseline PATH` | none | Write a baseline waiving every current finding to `PATH`, then exit 0. Add a reason to each entry before committing it. |
+| `--write-baseline PATH` | none | Write a baseline waiving every current finding to `PATH`, then exit 0. Add a reason to each entry before committing it. Over an incomplete run it writes nothing and exits `2` — see [Baselining](#baselining-existing-findings). |
 | `--reporter TEXT` | none | Forward findings to a collector, e.g. `server://https://collector.example.com/findings` |
 | `--ai-system TEXT` | none | Which AI system this run verifies, e.g. `support-agent`. Never guessed. |
 | `--environment TEXT` | none | Where it runs, e.g. `production`. Never guessed from a branch name. |
@@ -142,7 +142,14 @@ finding's location — so it keeps waiving the same finding but never a differen
 one. Waived findings are never silently dropped: they appear in every format (a
 `WAIVED` line in human output, a `waived` array in JSON, `suppressions` in SARIF),
 so a reviewer can always see what was accepted and why. A malformed baseline file
-is a hard error (exit 2), never a silent "waive nothing" or "waive everything".
+is a hard error (exit 3), never a silent "waive nothing" or "waive everything".
+
+`--write-baseline` writes nothing when the run is not entitled to a snapshot: the
+gate's own open questions decide — nothing verified, a coverage shortfall, a declined
+suite, anything the profile's `fail_on` refuses — and a check that did not run counts
+whatever `fail_on_error` says, because a baseline reads its silence as an answer. The
+command names what was left open and exits `2`, or `6`/`7` when the run was stopped,
+as `scan` itself would.
 
 ## Exit codes
 

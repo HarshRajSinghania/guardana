@@ -343,7 +343,7 @@
 <tr>
 <td><code>--write-baseline PATH</code></td>
 <td>none</td>
-<td>Write a baseline waiving every current finding to <code>PATH</code>, then exit 0. Add a reason to each entry before committing it.</td>
+<td>Write a baseline waiving every current finding to <code>PATH</code>, then exit 0. Add a reason to each entry before committing it. Over an incomplete run it writes nothing and exits <code>2</code> — see <a href="#baselining-existing-findings">Baselining</a>.</td>
 </tr>
 <tr>
 <td><code>--reporter TEXT</code></td>
@@ -485,7 +485,13 @@ finding's location — so it keeps waiving the same finding but never a differen
 one. Waived findings are never silently dropped: they appear in every format (a
 <code>WAIVED</code> line in human output, a <code>waived</code> array in JSON, <code>suppressions</code> in SARIF),
 so a reviewer can always see what was accepted and why. A malformed baseline file
-is a hard error (exit 2), never a silent &quot;waive nothing&quot; or &quot;waive everything&quot;.</p>
+is a hard error (exit 3), never a silent &quot;waive nothing&quot; or &quot;waive everything&quot;.</p>
+<p><code>--write-baseline</code> writes nothing when the run is not entitled to a snapshot: the
+gate's own open questions decide — nothing verified, a coverage shortfall, a declined
+suite, anything the profile's <code>fail_on</code> refuses — and a check that did not run counts
+whatever <code>fail_on_error</code> says, because a baseline reads its silence as an answer. The
+command names what was left open and exits <code>2</code>, or <code>6</code>/<code>7</code> when the run was stopped,
+as <code>scan</code> itself would.</p>
 <h2 id="exit-codes">Exit codes</h2>
 <p><code>scan</code> exits <code>1</code> (and CI treats the step as failed) when any finding's
 severity is at or above the active profile's <code>fail_on.severity</code> <strong>and</strong>

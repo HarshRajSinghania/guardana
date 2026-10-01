@@ -124,3 +124,17 @@ def test_migrate_leaves_a_current_run_alone(tmp_path: Path) -> None:
     assert result.exit_code == 0, result.output
     assert "already" in result.output
     assert path.read_text(encoding="utf-8") == before
+
+
+def test_migrate_refuses_an_object_that_only_claims_the_current_schema(tmp_path: Path) -> None:
+    # "Already current" is a statement about a run, so it needs a run: the same
+    # document `run inspect` refuses is not one migrate may wave through.
+    fake = tmp_path / "fake.json"
+    fake.write_text(json.dumps({"schema_version": REPORT_SCHEMA_VERSION}), encoding="utf-8")
+
+    migrated = runner.invoke(app, ["run", "migrate", str(fake)])
+    inspected = runner.invoke(app, ["run", "inspect", str(fake)])
+
+    assert inspected.exit_code == _INVALID_USAGE
+    assert migrated.exit_code == _INVALID_USAGE, migrated.output
+    assert "already" not in migrated.output

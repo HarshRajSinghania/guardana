@@ -346,13 +346,21 @@ still carrying the generated placeholder. <code>verify</code> is the command nob
 pipeline, so the two facts a red build most needs — <em>this lapsed</em> and <em>nobody ever
 wrote a reason for this</em> — were only ever available to somebody who already
 suspected them.</p>
+<h2 id="written-only-from-a-complete-scan">Written only from a complete scan</h2>
+<p><code>create</code> and <code>update</code> write nothing when the scan behind them is not entitled to a
+snapshot, and exit <code>2</code> (<code>6</code> or <code>7</code> when the run was stopped, as <code>scan</code> would). The
+gate's own open questions decide — nothing verified, a run cut short, a coverage
+shortfall, anything the profile's <code>fail_on</code> refuses — and a rule that did not run
+counts whatever <code>fail_on_error</code> says. A profile that selects no rule produces a
+scan with nothing in it, and a baseline taken over it would waive nothing while
+looking complete; for <code>update</code>, it would delete every waiver as &quot;fixed&quot;.</p>
 <h2 id="update-only-removes-and-only-on-a-complete-scan"><code>update</code> only removes, and only on a complete scan</h2>
 <p>It drops waivers for findings that no longer occur and <strong>never adds new ones</strong>.
 Accepting a risk is a decision somebody makes; <code>create</code> is where that happens.
 An update that quietly widened a baseline would be the same failure as a gate that
 weakens itself.</p>
 <p>It also <strong>refuses to touch the file</strong> when the scan behind it was incomplete — a
-rule that errored, or a run cut short — and exits <code>2</code>. The command decides a
+rule that errored, a run cut short, a run that verified nothing. The command decides a
 finding is fixed by not seeing it, and a check that did not run produces exactly
 that absence. Until 0.7.1 one broken rule deleted the waiver, the reason and the
 approver, printed &quot;is fixed&quot;, and exited <code>0</code>.</p>

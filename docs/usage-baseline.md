@@ -69,6 +69,16 @@ pipeline, so the two facts a red build most needs — *this lapsed* and *nobody 
 wrote a reason for this* — were only ever available to somebody who already
 suspected them.
 
+## Written only from a complete scan
+
+`create` and `update` write nothing when the scan behind them is not entitled to a
+snapshot, and exit `2` (`6` or `7` when the run was stopped, as `scan` would). The
+gate's own open questions decide — nothing verified, a run cut short, a coverage
+shortfall, anything the profile's `fail_on` refuses — and a rule that did not run
+counts whatever `fail_on_error` says. A profile that selects no rule produces a
+scan with nothing in it, and a baseline taken over it would waive nothing while
+looking complete; for `update`, it would delete every waiver as "fixed".
+
 ## `update` only removes, and only on a complete scan
 
 It drops waivers for findings that no longer occur and **never adds new ones**.
@@ -77,7 +87,7 @@ An update that quietly widened a baseline would be the same failure as a gate th
 weakens itself.
 
 It also **refuses to touch the file** when the scan behind it was incomplete — a
-rule that errored, or a run cut short — and exits `2`. The command decides a
+rule that errored, a run cut short, a run that verified nothing. The command decides a
 finding is fixed by not seeing it, and a check that did not run produces exactly
 that absence. Until 0.7.1 one broken rule deleted the waiver, the reason and the
 approver, printed "is fixed", and exited `0`.

@@ -3,8 +3,10 @@ from urllib.error import URLError
 
 import guardana.cli._endpoint as endpoint_module
 import pytest
+from guardana.cli import main as cli_main
 from guardana.cli._errors import run_against_endpoint
 from guardana.cli._probe_run import Connection
+from guardana.cli.exit_codes import ExitCode
 from guardana.cli.main import app
 from guardana.cli.monitor import run_monitor
 from guardana.core.profile import default_profile
@@ -93,6 +95,8 @@ def test_monitor_unreachable_endpoint_exits_two(monkeypatch: pytest.MonkeyPatch)
 
 
 def test_monitor_command_bounded_run_reports_alert(monkeypatch: pytest.MonkeyPatch) -> None:
+    # A bounded watch ends with the worst outcome a cycle earned: a leak the gate
+    # fails is `1`, as `probe` would exit, never a clean `0` after the alert.
     monkeypatch.setattr(endpoint_module, "transport_factory", EchoingTransport)
 
     result = runner.invoke(
@@ -100,7 +104,7 @@ def test_monitor_command_bounded_run_reports_alert(monkeypatch: pytest.MonkeyPat
         ["monitor", "--url", "http://fake", "--model", "m", "--max-cycles", "1", "--interval", "0"],
     )
 
-    assert result.exit_code == 0, result.output
+    assert result.exit_code == ExitCode.POLICY_FAILED, result.output
     assert "ALERT" in result.output
     assert "system_prompt_leak" in result.output
 
@@ -154,7 +158,7 @@ def test_a_dead_collector_does_not_kill_the_monitor(monkeypatch: pytest.MonkeyPa
         ],
     )
 
-    assert result.exit_code == 0, result.output
+    assert result.exit_code == ExitCode.POLICY_FAILED, result.output
     assert "ALERT" in result.output
     assert "could not submit to reporter" in result.output
     assert "could not reach endpoint" not in result.output
@@ -197,5 +201,27 @@ def test_monitor_command_forwards_alerts_to_reporter(monkeypatch: pytest.MonkeyP
         ],
     )
 
-    assert result.exit_code == 0, result.output
+    assert result.exit_code == ExitCode.POLICY_FAILED, result.output
     assert submitted == ["http://fake#m"]
+
+
+def test_ctrl_c_after_an_alert_exits_interrupted(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # The alert already printed is the record of that cycle; the exit code says the
+    # watch did not finish, whatever an earlier cycle found.
+    cycles = iter([EchoingTransport])
+
+    def next_cycle() -> EchoingTransport:
+        factory = next(cycles, None)
+        if factory is None:
+            raise KeyboardInterrupt
+        return factory()
+
+    monkeypatch.setattr(endpoint_module, "transport_factory", next_cycle)
+
+    with pytest.raises(SystemExit) as stopped:
+        cli_main.main(["monitor", "--url", "http://fake", "--model", "m", "--interval", "0"])
+
+    assert stopped.value.code == int(ExitCode.INTERRUPTED)
+    assert "ALERT" in capsys.readouterr().out

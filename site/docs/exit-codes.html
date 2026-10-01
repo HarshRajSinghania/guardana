@@ -365,9 +365,13 @@ place and hides real bugs in a category people learn to ignore.</p>
 policy failure, or a typo in a config file reads as a security finding.</p>
 <p><strong><code>7</code> is honest partiality.</strong> Ctrl-C is neither a pass nor a completed failure.
 Nothing the command had not yet written is written afterwards, and the code says
-the run did not finish. Stopping <code>guardana monitor</code> with Ctrl-C exits <code>7</code> too.</p>
+the run did not finish. Stopping <code>guardana monitor</code> with Ctrl-C exits <code>7</code> too, even
+after an alert: the alerts it printed are the record of the cycles that raised them.</p>
 <h2 id="which-commands-produce-which">Which commands produce which</h2>
-<p><code>scan</code>, <code>probe</code> and <code>monitor</code> can produce any of them. <code>diff</code> has no target to be
+<p><code>scan</code>, <code>probe</code> and <code>monitor</code> can produce any of them. A <code>monitor</code> bounded by
+<code>--max-cycles</code> exits with the worst outcome any cycle earned, judged as <code>probe</code> judges
+the cycle and as <code>diff</code> judges it against the first one; a policy failure outranks a
+stop, and a cycle the endpoint dropped is <code>4</code> when nothing worse was seen. <code>diff</code> has no target to be
 unavailable, so <code>4</code> never occurs there; it uses <code>2</code> both for &quot;these runs cannot be
 compared&quot; — including a rule whose trials per case changed between the two runs — and
 for &quot;one of them never finished&quot;. <code>run inspect</code>, <code>run migrate</code>,
@@ -377,8 +381,11 @@ it has no verdict to report and says what is missing in its output instead.
 <code>analyze-trace</code> adds one route to <code>2</code> the others do not have: demanded coverage that
 was not available, and a security contract that turned out to be about a different
 AI system than the one under test. <code>baseline create</code>, <code>baseline update</code> and
-<code>scan --write-baseline</code> produce <code>2</code> when a check did not run, because a snapshot
-taken over a rule that never ran is missing whatever it would have found.</p>
+<code>scan --write-baseline</code> write nothing and produce <code>2</code> when the run is not entitled
+to a snapshot — any open question the gate refuses, with a check that did not run
+counted whatever <code>fail_on_error</code> says — because a snapshot taken over a rule that
+never ran is missing whatever it would have found. A run that stopped exits <code>6</code> or
+<code>7</code> there, as it does on <code>scan</code>.</p>
 <p>An unused code is better than a second table.</p>
 <h3 id="changed-in-0210">Changed in 0.21.0</h3>
 <p><strong>A run where every check declined now exits <code>2</code> instead of <code>0</code>.</strong> The guard for
@@ -395,7 +402,8 @@ with a single concluded check is unaffected.</p>
 <li><strong>An unreadable saved run exited <code>1</code>.</strong> <code>run inspect</code>, <code>run migrate</code> and <code>diff</code>
 let the manifest reader's own exception escape, so the user got a traceback and
 a code that says &quot;a finding failed the policy&quot; — the one thing a broken input
-file is not. All three now report <code>3</code>.</li>
+file is not. <code>run inspect</code> and <code>run migrate</code> now report <code>3</code>; <code>diff</code> reports <code>2</code>,
+because a comparison with an unreadable side is one that could not be made.</li>
 <li><strong><code>scan --write-baseline</code> exited <code>1</code> where <code>baseline create</code> exited <code>2</code></strong> for
 the identical situation. Codes are read by pipelines that never see the message
 beside them, so a code meaning two things means nothing.</li>

@@ -1,6 +1,7 @@
 """`guardana baseline create|verify|update` — accepted risk with an owner and an end date."""
 
 from collections.abc import Sequence
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated
@@ -16,8 +17,9 @@ from guardana.cli._plugins import (
 from guardana.cli._profile import PRESET_HELP, resolve_profile
 from guardana.cli._rules_loading import load_custom_rules
 from guardana.cli._target_locator import resolve_target
-from guardana.cli.exit_codes import ExitCode
-from guardana.core.profile import Profile
+from guardana.cli.exit_codes import ExitCode, code_for
+from guardana.core.gate import GateOutcome, open_questions, refused_by
+from guardana.core.profile import Policy, Profile
 from guardana.core.redaction import EvidenceRedactor
 from guardana.core.registry import Registry
 from guardana.core.report import (
@@ -67,6 +69,26 @@ def _path_target(path: Path | None, excludes: tuple[str, ...]) -> ArtifactTarget
     if not path.exists():
         raise typer.BadParameter(f"{path} does not exist, so there is nothing to scan")
     return ArtifactTarget(path, excludes=excludes)
+
+
+def refuse_an_incomplete_baseline(result: ScanResult, policy: Policy, destination: Path) -> None:
+    """End the command without writing `destination` when the run is not entitled to a baseline.
+
+    The gate's own open questions decide, with `fail_on_error` held on: a baseline reads
+    a check's silence as its answer, so a check that did not run leaves a gap whatever
+    the profile tolerates in a scan. Exits as the run itself would, `2` unless it stopped.
+    """
+    refused = refused_by(open_questions(result), replace(policy.fail_on, fail_on_error=True))
+    if not refused:
+        return
+    for error in result.errors:
+        typer.echo(f"error: {error.source} did not run ({error.stage}): {error.reason}", err=True)
+    typer.echo(
+        f"error: nothing was written to {destination} — a baseline is a snapshot of what a "
+        f"complete run saw, and this run left open: {', '.join(refused)}",
+        err=True,
+    )
+    raise typer.Exit(code=code_for(GateOutcome.INDETERMINATE, result.stopped_by))
 
 
 def _report_health(baseline: Baseline) -> int:
@@ -119,6 +141,7 @@ def create(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; this is
     prof = resolve_profile(profile, preset)
     resolved = resolve_trust(plugins, allow_plugin, prof)
     result = _scan(path, prof, resolved, target, target_option)
+    refuse_an_incomplete_baseline(result, prof.policy, output)
     output.write_text(serialize_baseline(result), encoding="utf-8")
     count = len(result.findings)
     typer.echo(
@@ -126,14 +149,6 @@ def create(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; this is
         f"Edit every 'reason' and 'approved_by', and set an 'expires' date so each "
         f"acceptance is revisited rather than forgotten."
     )
-    errors = result.errors
-    if errors:
-        # A baseline is a snapshot of what the scan saw, so a check that could not
-        # run makes it incomplete — the team would commit a baseline missing
-        # whatever that rule would have found and never be told.
-        for error in errors:
-            typer.echo(f"warning: {error.source} did not run — this baseline cannot cover it")
-        raise typer.Exit(code=ExitCode.INDETERMINATE)
 
 
 def verify(
@@ -188,23 +203,10 @@ def update(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; this is
         typer.echo(f"error: {exc}", err=True)
         raise typer.Exit(code=ExitCode.INVALID_USAGE) from exc
     result = _scan(path, prof, resolved, target, target_option)
-    if result.errors or result.stopped_by is not None:
-        # Nothing is written. This command decides a finding is fixed by not
-        # seeing it, and a rule that could not run produces exactly that absence —
-        # so an incomplete scan would delete a waiver together with the reason and
-        # the approver a person wrote, and report it as "is fixed".
-        for error in result.errors:
-            typer.echo(
-                f"error: {error.source} did not run ({error.stage}): {error.reason}", err=True
-            )
-        if result.stopped_by is not None:
-            typer.echo(f"error: the scan stopped early ({result.stopped_by})", err=True)
-        typer.echo(
-            f"error: {file} was left unchanged — a waiver may only be removed on the evidence "
-            f"of a complete scan, and a check that did not run looks exactly like a fix",
-            err=True,
-        )
-        raise typer.Exit(code=ExitCode.INDETERMINATE)
+    # This command decides a finding is fixed by not seeing it, and a check that did
+    # not run produces exactly that absence, so an incomplete run would delete a
+    # waiver together with the reason and the approver a person wrote.
+    refuse_an_incomplete_baseline(result, prof.policy, file)
     current = {f.fingerprint for f in result.findings}
     kept = [w for w in baseline.waivers if w.fingerprint in current]
     dropped = [w for w in baseline.waivers if w.fingerprint not in current]

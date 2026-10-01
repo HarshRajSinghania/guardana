@@ -79,11 +79,15 @@ policy failure, or a typo in a config file reads as a security finding.
 
 **`7` is honest partiality.** Ctrl-C is neither a pass nor a completed failure.
 Nothing the command had not yet written is written afterwards, and the code says
-the run did not finish. Stopping `guardana monitor` with Ctrl-C exits `7` too.
+the run did not finish. Stopping `guardana monitor` with Ctrl-C exits `7` too, even
+after an alert: the alerts it printed are the record of the cycles that raised them.
 
 ## Which commands produce which
 
-`scan`, `probe` and `monitor` can produce any of them. `diff` has no target to be
+`scan`, `probe` and `monitor` can produce any of them. A `monitor` bounded by
+`--max-cycles` exits with the worst outcome any cycle earned, judged as `probe` judges
+the cycle and as `diff` judges it against the first one; a policy failure outranks a
+stop, and a cycle the endpoint dropped is `4` when nothing worse was seen. `diff` has no target to be
 unavailable, so `4` never occurs there; it uses `2` both for "these runs cannot be
 compared" — including a rule whose trials per case changed between the two runs — and
 for "one of them never finished". `run inspect`, `run migrate`,
@@ -93,8 +97,11 @@ it has no verdict to report and says what is missing in its output instead.
 `analyze-trace` adds one route to `2` the others do not have: demanded coverage that
 was not available, and a security contract that turned out to be about a different
 AI system than the one under test. `baseline create`, `baseline update` and
-`scan --write-baseline` produce `2` when a check did not run, because a snapshot
-taken over a rule that never ran is missing whatever it would have found.
+`scan --write-baseline` write nothing and produce `2` when the run is not entitled
+to a snapshot — any open question the gate refuses, with a check that did not run
+counted whatever `fail_on_error` says — because a snapshot taken over a rule that
+never ran is missing whatever it would have found. A run that stopped exits `6` or
+`7` there, as it does on `scan`.
 
 An unused code is better than a second table.
 
@@ -117,7 +124,8 @@ Two commands did not honour the table it took 0.7 to write.
 - **An unreadable saved run exited `1`.** `run inspect`, `run migrate` and `diff`
   let the manifest reader's own exception escape, so the user got a traceback and
   a code that says "a finding failed the policy" — the one thing a broken input
-  file is not. All three now report `3`.
+  file is not. `run inspect` and `run migrate` now report `3`; `diff` reports `2`,
+  because a comparison with an unreadable side is one that could not be made.
 - **`scan --write-baseline` exited `1` where `baseline create` exited `2`** for
   the identical situation. Codes are read by pipelines that never see the message
   beside them, so a code meaning two things means nothing.

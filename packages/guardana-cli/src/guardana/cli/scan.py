@@ -18,6 +18,7 @@ from guardana.cli._reporting import check_reporter_url, submit_safely
 from guardana.cli._rules_loading import load_custom_rules
 from guardana.cli._run_meta import build_manifest, detect_deployment, target_identity
 from guardana.cli._target_locator import resolve_target
+from guardana.cli.baseline import refuse_an_incomplete_baseline
 from guardana.cli.exit_codes import ExitCode
 from guardana.core.budget import BudgetExhausted
 from guardana.core.gate import gate_outcome
@@ -139,7 +140,10 @@ def scan(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; this is t
         Path | None,
         typer.Option(
             "--write-baseline",
-            help="Write a baseline waiving every current finding to this path, then exit 0.",
+            help=(
+                "Write a baseline waiving every current finding to this path; "
+                "an incomplete run writes none."
+            ),
         ),
     ] = None,
     reporter: Annotated[
@@ -219,32 +223,16 @@ def scan(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; this is t
     result = EvidenceRedactor(prof.privacy).redact_result(result)
 
     if write_baseline is not None:
+        refuse_an_incomplete_baseline(result, prof.policy, write_baseline)
         write_baseline.write_text(serialize_baseline(result), encoding="utf-8")
         typer.echo(
             f"wrote baseline waiving {len(result.findings)} finding(s) to {write_baseline} "
             f"— add a reason to each before committing it.",
             err=True,
         )
-        # A baseline is written from what the scan saw, so a check that could not
-        # run makes the snapshot incomplete: the team would commit a baseline
-        # missing whatever that rule would have found, and never be told. Report
-        # and gate on it before returning.
-        for error in result.errors:
-            typer.echo(
-                f"warning: {error.source} did not run ({error.stage}) — the baseline "
-                f"cannot account for it: {error.reason}",
-                err=True,
-            )
-        # Only the errors gate here, never the findings: snapshotting today's
-        # findings is the whole point of this flag, but a check that never ran
-        # means the snapshot is missing whatever it would have found.
-        #
-        # `INDETERMINATE`, not `POLICY_FAILED`, and the same code `baseline create`
-        # uses for the same situation. Nothing failed a policy here — a question
-        # was left unanswered, and two commands answering it with different codes
-        # is an exit-code table only half the tool honours.
-        blocked = bool(result.errors) and prof.policy.fail_on.fail_on_error
-        raise typer.Exit(code=ExitCode.INDETERMINATE if blocked else ExitCode.OK)
+        # Only the run's completeness gates here, never its findings: snapshotting
+        # today's findings is the whole point of this flag.
+        raise typer.Exit(code=ExitCode.OK)
     if baseline is not None:
         try:
             accepted = read_baseline(baseline)

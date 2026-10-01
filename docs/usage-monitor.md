@@ -92,6 +92,24 @@ exits on its own (unless `--max-cycles` is set) — it's meant to run as a
 long-lived process (e.g. a systemd unit or sidecar container) next to your
 served model.
 
+## Exit codes
+
+A run bounded by `--max-cycles` ends with the worst outcome any of its cycles earned.
+Each cycle is judged twice: as `probe` judges a run, and against the first cycle as
+[`guardana diff`](usage-diff.md#exit-codes) judges a comparison. So a cycle that fails
+the policy exits `1` even when a later cycle is clean, a cycle that verified nothing
+or could not be compared with the first is `2`, and a budget-stopped cycle is `6`. A
+policy failure outranks a stop: each cycle is a complete run, so what one cycle proved
+stays proven whatever cut a later one short. An alert raised only by a change the
+policy's bar does not reach — a regression `diff` would also exit `0` for — leaves the
+exit code at `0`. A cycle a transient endpoint failure prevented verified nothing; if
+no sampled cycle earned anything worse, the run exits `4`. `--max-cycles 0` samples
+nothing and exits `2`.
+
+An unbounded run never ends on its own. Ctrl-C exits `7` whatever the cycles before
+it found — the alerts already printed are the record of those cycles, and the code
+says the watch did not finish. See [`exit-codes.md`](exit-codes.md).
+
 ## Example
 
 ```console

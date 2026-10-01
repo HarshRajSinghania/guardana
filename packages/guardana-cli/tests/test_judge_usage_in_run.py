@@ -429,7 +429,9 @@ def test_every_monitor_cycle_counts_its_own_judge_calls(
         ],
     )
 
-    assert result.exit_code == 0, result.output
+    # Every cycle's suite declines for want of a calibrated judge, so the watch ends
+    # indeterminate, as a probe of the same cycle would.
+    assert result.exit_code == ExitCode.INDETERMINATE, result.output
     cycles = armed[1:]  # the first is wired before the loop, to refuse a bad config early
     assert len(cycles) == 2
     assert [meters.usage() for meters in cycles] == [cycles[0].usage()] * 2

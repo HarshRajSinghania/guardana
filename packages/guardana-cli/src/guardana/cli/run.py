@@ -197,6 +197,7 @@ def migrate(
         raise typer.Exit(code=_INVALID_USAGE)
     version = raw["schema_version"]
     if version == REPORT_SCHEMA_VERSION:
+        _load(path)
         typer.echo(f"{path} is already at schema {REPORT_SCHEMA_VERSION}; nothing to do")
         return
     if version not in MIGRATABLE_VERSIONS:

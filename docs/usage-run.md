@@ -142,6 +142,10 @@ guardana run migrate old-run.json          # in place
 
 This is a convenience, not a requirement. Nothing needs migrating to be compared.
 
+A file that says it is already at the current schema is read the way `run inspect`
+reads it before migrate answers "nothing to do": an object that only claims the version
+is not a run, and exits `3`.
+
 **A migration that cannot carry a field refuses, and writes nothing.** The default
 destination is the file itself, so a half-done migration would overwrite the only copy
 of the evidence. In 0.7.0 a version-1 run that never recorded its target kind was
