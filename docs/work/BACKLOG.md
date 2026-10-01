@@ -211,6 +211,10 @@ The report itself was closed with 0.26.1 (see `CHANGELOG.md`); the lock layout s
 ## Tooling debt
 
 - `site/og.png` is rendered by hand from `scripts/og_card.html` and nothing checks the two agree.
+- **CI is pinned to `ubuntu-24.04`.** On `ubuntu-26.04` the images, the clean install and the
+  example suites pass, but the `test` job cannot install `postgresql-client-16`, which
+  `pg_dump` needs to match the `postgres:16` service. Moving means the PGDG apt repository or
+  a newer service and client together, and the collector's documented PostgreSQL version.
 
 ## Judge-error correction (found shipping `docs/design/judge-error-correction.md`)
 

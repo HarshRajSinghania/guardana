@@ -28,7 +28,7 @@ jobs:
   # No run, a run that did not succeed, or a `gh` that cannot answer all stop here,
   # before the `pypi` approval is requested.
   ci-passed:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 90
     permissions:
       actions: read        # read the CI runs for this commit, nothing else
@@ -59,7 +59,7 @@ jobs:
 
   publish:
     needs: ci-passed
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     environment: pypi
     permissions:
       id-token: write      # OIDC trusted publishing, and signing the provenance
@@ -145,7 +145,7 @@ jobs:
   # never received is a version that exists in one place and not the other.
   images:
     needs: publish
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       packages: write       # push to ghcr.io

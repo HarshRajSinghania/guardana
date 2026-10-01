@@ -421,6 +421,27 @@ def test_no_workflow_calls_an_action_by_a_moving_tag(workflow: str) -> None:
 @pytest.mark.parametrize(
     "workflow", sorted(p.name for p in (Path(__file__).parents[3] / ".github/workflows").iterdir())
 )
+def test_no_workflow_runs_on_a_moving_runner_label(workflow: str) -> None:
+    """A `-latest` label changes image under a job without a commit.
+
+    GitHub moves such a label over several weeks, so the CI run on a commit and the
+    release run on its tag can land on different systems; a runner change must be a
+    reviewed diff.
+    """
+    config = yaml.safe_load(
+        (_repo_root() / ".github" / "workflows" / workflow).read_text(encoding="utf-8")
+    )
+    moving = {
+        name: job["runs-on"]
+        for name, job in config.get("jobs", {}).items()
+        if "latest" in str(job.get("runs-on", ""))
+    }
+    assert not moving, f"{workflow}: jobs on a moving runner label: {moving}"
+
+
+@pytest.mark.parametrize(
+    "workflow", sorted(p.name for p in (Path(__file__).parents[3] / ".github/workflows").iterdir())
+)
 def test_every_workflow_declares_the_token_it_needs(workflow: str) -> None:
     """A workflow with no `permissions:` inherits whatever the repository default is.
 

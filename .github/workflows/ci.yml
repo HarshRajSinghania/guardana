@@ -18,7 +18,9 @@ permissions:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # Ubuntu 26.04's archive carries no postgresql-client-16, and pg_dump has to match
+    # the postgres:16 service below; moving this job means moving both together.
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
@@ -113,7 +115,7 @@ jobs:
     # missing extra or a non-root user that cannot read the mounted volume are
     # failure modes no Python test can see, and finding them while cutting a
     # release is finding them at the worst possible moment.
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -133,7 +135,7 @@ jobs:
     # type. It is the only job that could have caught the defect that made 0.9.0
     # unshippable (`ModuleNotFoundError: click` on every command), and the
     # release workflow runs the same script before it publishes anything.
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -159,7 +161,7 @@ jobs:
     # workspace registers rules through the `guardana.rules` entry point and is
     # discovered. Isolated on purpose — installing it into the main test env
     # would put `acme.*` rules into every discovery and skew the dogfood scan.
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
