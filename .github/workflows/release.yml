@@ -101,11 +101,14 @@ jobs:
       # to "was this wheel built from that source, by that workflow". PyPI gets its
       # own PEP 740 attestation from the publish step below; this one is for the
       # artifacts attached to the GitHub Release and for anyone re-checking a wheel
-      # they already have.
+      # they already have. Named by extension: `uv build` also leaves a
+      # `.gitignore` in `dist/`, which is not something this workflow ships.
       - name: Attest what built these distributions
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
         with:
-          subject-path: "dist/*"
+          subject-path: |
+            dist/*.whl
+            dist/*.tar.gz
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1

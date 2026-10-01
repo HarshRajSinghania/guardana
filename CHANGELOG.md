@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **The distributions' build provenance names only wheels and sdists.** The release workflow attested every file in `dist/`, including the `.gitignore` that `uv build` writes there, so `gh attestation verify` listed eleven subjects for ten distributions.
+
 ## [0.34.0] - 2026-10-01 — breaking plugin trust, Python verification, and checks that refuse missing evidence
 
 ### Changed — breaking

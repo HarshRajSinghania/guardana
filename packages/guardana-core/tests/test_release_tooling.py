@@ -169,6 +169,21 @@ def test_the_release_writes_an_sbom_and_attests_the_distributions() -> None:
     assert build < attest < publish, "the provenance does not cover what is published"
 
 
+def test_the_provenance_names_only_the_distributions() -> None:
+    """A subject is a claim that this workflow built that file.
+
+    `uv build` also writes `dist/.gitignore`, so a bare `dist/*` signs a file that
+    nobody downloads; every subject must be a wheel or an sdist.
+    """
+    steps = _steps(_workflow("release.yml"), "publish")
+    attest = steps[_index_of(steps, "actions/attest-build-provenance")]
+    options = attest["with"]
+    assert isinstance(options, dict)
+    patterns = str(options["subject-path"]).split()
+
+    assert sorted(patterns) == ["dist/*.tar.gz", "dist/*.whl"], patterns
+
+
 def test_the_sboms_are_attached_to_the_release() -> None:
     """An SBOM nobody can download is a file on a runner that no longer exists."""
     steps = _steps(_workflow("release.yml"), "publish")
