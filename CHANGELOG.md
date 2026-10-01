@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **The OpenSSF Best Practices badge, passing level.** The README links [the project's entry](https://www.bestpractices.dev/projects/15119), which publishes the answer and the evidence for every criterion.
 
+### Fixed
+
+- **`guardana diff` now refuses a run that recorded an error (exit `2`).** Previously a run with a refused pack, a rule that raised or an unreadable file compared like a whole run, so a finding that check would have reported read as resolved and the comparison exited `0`. Each side's errors are now listed as a reason the comparison is incomplete, naming their sources, like a stopped run or unmet coverage.
+
 ## [0.33.0] - 2026-09-30 — plugin trust, offline first runs, artifact checks, and signed image provenance
 
 ### Changed — breaking

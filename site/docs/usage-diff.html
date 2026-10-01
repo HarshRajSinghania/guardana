@@ -324,6 +324,9 @@ found nothing wrong are opposite answers, and only one of them is safe to print
 next to a green build. You will see <code>2</code> for a run saved by Guardana 0.5 or
 earlier (no schema version), a truncated file, two different kinds of target, two
 runs with no rule in common, or a pair of arguments passed in the wrong order.</p>
+<p>You will also see <code>2</code> when either run recorded an error — a refused pack, a rule that
+raised, a file nobody could read. Those checks never ran, so a finding missing from that
+run is unknown rather than fixed, and the error's source is named.</p>
 <p>You will also see <code>2</code> when a rule made a different number of attempts per case in the
 two runs — <code>trials changed 1 → 5</code> names it. More attempts find more failures, so the
 difference is sampling, not a regression, and the rule is left out of the comparison

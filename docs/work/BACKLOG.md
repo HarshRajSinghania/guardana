@@ -94,8 +94,6 @@ reproduced; the rest are the sweep's reading with its anchors, not yet reproduce
 - **Stating `builtins` with a pack co-installed leaves every run `indeterminate`**, and the only
   way out, `fail_on_error: false`, turns off all error gating. A refusal the user stated could be
   a visible coverage note instead of an error.
-- **`diff` ignores `result.errors` when it decides whether a run is complete**
-  (`core/diff/compare.py`, `_incomplete`), so a run with a refused pack compares like a whole one.
 - **`diff` calls a finding RESOLVED when its file is simply no longer observed.** Moving the
   starter's pickle into `model/build/`, renaming it to `.bin`, or listing it in
   `.guardanaignore` all read as "resolved"; `diff` should say the component left the scan.

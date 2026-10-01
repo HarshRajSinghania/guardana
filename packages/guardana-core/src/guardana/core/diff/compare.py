@@ -211,6 +211,10 @@ def _incomplete(before: ScanResult, after: ScanResult) -> tuple[str, ...]:
     subtracting them yields no change at all — and `diff` would report "no
     regression" over a run that is `indeterminate` on its own. That is the false
     green this project refuses from every direction, including from a comparison.
+
+    **So does a recorded error**, with no policy switch in front of it: a refused pack
+    or a rule that raised left its findings out of the run, and the comparison cannot
+    tell those absent findings from fixed ones.
     """
     sides = (("first", before), ("second", after))
     return (
@@ -226,7 +230,19 @@ def _incomplete(before: ScanResult, after: ScanResult) -> tuple[str, ...]:
             for label, result in sides
             if result.coverage_shortfall
         ),
+        *(
+            f"the {label} run recorded {len(result.errors)} error(s) "
+            f"({_error_sources(result)}), so what those checks would have found is unknown "
+            f"rather than clean"
+            for label, result in sides
+            if result.errors
+        ),
     )
+
+
+def _error_sources(result: ScanResult) -> str:
+    sources = sorted({error.source for error in result.errors})
+    return f"{', '.join(sources[:3])}{'…' if len(sources) > 3 else ''}"  # noqa: PLR2004
 
 
 def _executed(result: ScanResult) -> frozenset[str]:

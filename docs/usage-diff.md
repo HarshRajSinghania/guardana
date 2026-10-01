@@ -49,6 +49,10 @@ next to a green build. You will see `2` for a run saved by Guardana 0.5 or
 earlier (no schema version), a truncated file, two different kinds of target, two
 runs with no rule in common, or a pair of arguments passed in the wrong order.
 
+You will also see `2` when either run recorded an error — a refused pack, a rule that
+raised, a file nobody could read. Those checks never ran, so a finding missing from that
+run is unknown rather than fixed, and the error's source is named.
+
 You will also see `2` when a rule made a different number of attempts per case in the
 two runs — `trials changed 1 → 5` names it. More attempts find more failures, so the
 difference is sampling, not a regression, and the rule is left out of the comparison
