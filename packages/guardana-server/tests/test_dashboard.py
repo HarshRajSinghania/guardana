@@ -1,8 +1,11 @@
 import pytest
 from fastapi.testclient import TestClient
 from guardana.server import create_app
+from guardana.server.envelope import Submission
 from guardana.server.rule_catalog import rule_catalog
-from guardana.server.store import InMemoryStore
+from guardana.server.stats import STATS_WINDOW
+from guardana.server.store import InMemoryStore, StoredSubmission
+from guardana.server.tenancy import TenantScope
 
 _OK = 200
 _NOT_FOUND = 404
@@ -82,3 +85,54 @@ def test_stats_reflects_stored_findings() -> None:
     assert stats["by_severity"] == {"HIGH": 1}
     assert stats["totals"]["findings"] == 1
     assert stats["by_source"][0]["source"] == "ci#model"
+
+
+class _RecordingStore(InMemoryStore):
+    """An in-memory store that remembers the bound every `records` call asked for."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.limits: list[int | None] = []
+
+    def records(
+        self, scope: TenantScope, source: str | None = None, limit: int | None = None
+    ) -> list[StoredSubmission]:
+        self.limits.append(limit)
+        return super().records(scope, source, limit)
+
+
+def test_stats_never_asks_the_store_for_the_whole_history() -> None:
+    """A durable store has no upper size, so an unbounded read is the whole project's past."""
+    store = _RecordingStore()
+    client = TestClient(create_app(store, dashboard=True, allow_unauthenticated=True))
+    store.limits.clear()
+
+    assert client.get("/stats").status_code == _OK
+
+    assert store.limits
+    assert all(limit is not None and limit <= STATS_WINDOW + 1 for limit in store.limits)
+
+
+def test_stats_says_when_it_aggregated_only_the_newest_window() -> None:
+    """A capped aggregate must not read as everything the collector holds."""
+    store = InMemoryStore()
+    scope = TenantScope.unauthenticated()
+    for index in range(STATS_WINDOW + 1):
+        store.add(scope, Submission(source=f"agent-{index}", schema_version=5))
+    client = TestClient(create_app(store, dashboard=True, allow_unauthenticated=True))
+
+    body = client.get("/stats").json()
+
+    assert body["totals"]["submissions"] == STATS_WINDOW
+    assert body["window"] == {"limit": STATS_WINDOW, "complete": False}
+    assert "agent-0" not in {source["source"] for source in body["by_source"]}
+
+
+def test_the_page_says_when_the_counts_cover_only_the_newest_window() -> None:
+    """A capped aggregate must not read as the whole history on the dashboard either."""
+    from guardana.server.dashboard import render_dashboard  # noqa: PLC0415
+
+    page = render_dashboard(30)
+
+    assert "w && !w.complete" in page
+    assert "newest submissions (of more than" in page

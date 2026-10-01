@@ -189,13 +189,15 @@ function barRow(key, value, max, color, mono) {
     + ` title="${esc(key)}: ${value}"></div><div class="v">${value}</div></div>`;
 }
 
-function renderTiles(t) {
+function renderTiles(t, w) {
   const tile = (n, l, warn) => `<div class="card tile${warn ? " warn" : ""}">`
     + `<div class="n">${n}</div><div class="l">${l}</div></div>`;
   el("tiles").innerHTML = tile(t.findings, "findings")
         + tile(t.errors || 0, "could not run")
     + tile(t.unverified, "unverified", t.unverified > 0)
-    + tile(t.sources, "sources") + tile(t.submissions, "submissions");
+    + tile(t.sources, "sources")
+    + tile(t.submissions, w && !w.complete
+      ? `newest submissions (of more than ${w.limit})` : "submissions");
 }
 
 function renderSeverity(by) {
@@ -318,7 +320,7 @@ async function readJson(path) {
 
 async function loadStats() {
   const s = await readJson("stats");
-  renderTiles(s.totals); renderSeverity(s.by_severity);
+  renderTiles(s.totals, s.window); renderSeverity(s.by_severity);
   renderSources(s.by_source); renderRules(s.by_rule); renderSeries(s.series);
   populateSourceFilter(s.by_source);
   el("updated").textContent = "updated " + new Date().toLocaleTimeString();

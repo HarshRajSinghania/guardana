@@ -23,7 +23,7 @@ from guardana.server.security import (
     guard,
     require_authentication,
 )
-from guardana.server.stats import compute_stats
+from guardana.server.stats import STATS_WINDOW, compute_stats
 from guardana.server.store import InMemoryStore, Store
 from guardana.server.tenancy import TenantScope, UnscopedQueryError
 from pydantic import BaseModel
@@ -111,8 +111,12 @@ def create_app(
     # run time and really is a dependency marker at definition time, and only this
     # form says both. Annotating the marker as the value it produces type-checks
     # and reads as a lie to every human.
-    ingesting = Annotated[Authenticated | None, Depends(guard(database_url, Scope.INGEST))]
-    reading = Annotated[Authenticated | None, Depends(guard(database_url, Scope.READ))]
+    ingesting = Annotated[
+        Authenticated | None, Depends(_noting_acceptance(guard(database_url, Scope.INGEST)))
+    ]
+    reading = Annotated[
+        Authenticated | None, Depends(_noting_acceptance(guard(database_url, Scope.READ)))
+    ]
 
     @app.post("/findings")
     def post_findings(submission: Submission, identity: ingesting) -> dict[str, object]:
@@ -262,11 +266,11 @@ def _migration_state(database_url: str) -> MigrationState:
 def _mount_dashboard(app: FastAPI, store: Store, refresh_seconds: int, reading: object) -> None:
     """Add the read-only dashboard page and its aggregated `/stats` data endpoint.
 
-    The page itself is static HTML and carries no findings; `/stats` carries all of
-    them, so that is where the key is required. `reading` is FastAPI's `Depends`
-    marker rather than an identity — typed as such, because annotating a dependency
-    marker as the value it eventually produces reads as a lie to everybody except
-    the type checker.
+    The page itself is static HTML and carries no findings; `/stats` aggregates the
+    tenant's newest `STATS_WINDOW` submissions, so that is where the key is
+    required. `reading` is FastAPI's `Depends` marker rather than an identity —
+    typed as such, because annotating a dependency marker as the value it
+    eventually produces reads as a lie to everybody except the type checker.
     """
     page = render_dashboard(refresh_seconds)
 
@@ -276,7 +280,10 @@ def _mount_dashboard(app: FastAPI, store: Store, refresh_seconds: int, reading: 
 
     @app.get("/stats")
     def get_stats(identity: reading) -> dict[str, object]:  # type: ignore[valid-type]
-        return asdict(compute_stats(store.records(_scope_of(identity))))
+        # One past the window, so the answer can say whether older submissions
+        # were left out rather than presenting a capped aggregate as the whole.
+        held = store.records(_scope_of(identity), limit=STATS_WINDOW + 1)
+        return asdict(compute_stats(held, window=STATS_WINDOW))
 
     @app.get("/catalog")
     def get_catalog() -> dict[str, dict[str, str]]:
@@ -300,7 +307,8 @@ def _mount_limits(app: FastAPI) -> None:
     async def _bounded(
         request: Request, call_next: Callable[[Request], Awaitable[Response]]
     ) -> Response:
-        caller = _caller(request)
+        credential = _credential(request)
+        caller = limiter.caller_for(_peer(request), credential)
         if not limiter.allows(caller, path=request.url.path):
             return JSONResponse(
                 status_code=_TOO_MANY_REQUESTS,
@@ -310,7 +318,14 @@ def _mount_limits(app: FastAPI) -> None:
         oversized = await _reject_oversized(request, limits.max_body_bytes)
         if oversized is not None:
             return oversized
-        return await call_next(request)
+        request.state.credential_accepted = False
+        response = await call_next(request)
+        if credential is not None:
+            if request.state.credential_accepted:
+                limiter.vouch(credential)
+            else:
+                limiter.forget(credential)
+        return response
 
 
 async def _reject_oversized(request: Request, ceiling: int) -> JSONResponse | None:
@@ -349,18 +364,37 @@ def _too_large(ceiling: int) -> JSONResponse:
     )
 
 
-def _caller(request: Request) -> str:
-    """Who to charge this request to: the credential if there is one, else the peer.
+def _credential(request: Request) -> str | None:
+    """Key the limiter on the credential this request presented, if any.
 
-    The bearer token rather than the resolved key, because the limiter runs before
-    authentication — and a limiter that only bounds *authenticated* callers leaves
-    the unauthenticated path, which is the one an attacker reaches first.
+    A digest of the header rather than the resolved key, because the limiter runs
+    before authentication; the key earns its own allowance only once a route has
+    accepted it.
     """
     authorization = request.headers.get("Authorization", "")
-    if authorization:
-        return f"token:{sha256(authorization.encode()).hexdigest()[:16]}"
+    if not authorization:
+        return None
+    return f"token:{sha256(authorization.encode()).hexdigest()[:16]}"
+
+
+def _peer(request: Request) -> str:
+    """Key the limiter on the address this request came from."""
     client = request.client
     return f"peer:{client.host if client else 'unknown'}"
+
+
+def _noting_acceptance(
+    admit: Callable[[Request], Authenticated | None],
+) -> Callable[[Request], Authenticated | None]:
+    """Wrap a route guard so the rate limiter learns which credentials it accepted."""
+
+    def admitted(request: Request) -> Authenticated | None:
+        identity = admit(request)
+        if identity is not None:
+            request.state.credential_accepted = True
+        return identity
+
+    return admitted
 
 
 def _mount_sessions(app: FastAPI, database_url: str | None) -> None:

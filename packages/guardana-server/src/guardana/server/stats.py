@@ -10,6 +10,13 @@ from dataclasses import dataclass
 
 from guardana.server.store import StoredSubmission
 
+STATS_WINDOW = 1_000
+"""How many of a tenant's newest submissions `/stats` aggregates.
+
+A durable store has no upper size, so aggregating everything would make every
+dashboard refresh load the project's whole history into memory.
+"""
+
 # Ordinal severity, worst last — used to pick a source's worst finding.
 _SEVERITY_ORDER = ("INFO", "LOW", "MEDIUM", "HIGH", "CRITICAL")
 
@@ -63,6 +70,15 @@ class Totals:
 
 
 @dataclass(frozen=True, slots=True)
+class Window:
+    """Which submissions the aggregate covers: at most `limit` of the newest, if any."""
+
+    limit: int | None
+    complete: bool
+    """False when older submissions exist that the aggregate left out."""
+
+
+@dataclass(frozen=True, slots=True)
 class Stats:
     """Everything the dashboard needs, computed server-side so the client never re-aggregates."""
 
@@ -71,13 +87,25 @@ class Stats:
     by_rule: list[RuleStat]
     series: list[TimeBucket]
     totals: Totals
+    window: Window
 
 
 def compute_stats(
-    records: Iterable[StoredSubmission], *, buckets: int = 24, top_rules: int = 10
+    records: Iterable[StoredSubmission],
+    *,
+    buckets: int = 24,
+    top_rules: int = 10,
+    window: int | None = None,
 ) -> Stats:
-    """Aggregate stored submissions into dashboard stats. Pure; safe on empty input."""
+    """Aggregate stored submissions into dashboard stats. Pure; safe on empty input.
+
+    With `window`, only the newest `window` submissions are aggregated, and the
+    result says whether that left anything out.
+    """
     ordered = sorted(records, key=lambda r: r.received_at)
+    complete = window is None or len(ordered) <= window
+    if window is not None and not complete:
+        ordered = ordered[len(ordered) - window :]
     by_severity: dict[str, int] = {}
     by_rule_counts: dict[str, int] = {}
     source_findings: dict[str, int] = {}
@@ -143,6 +171,7 @@ def compute_stats(
             unverified=total_unverified,
             errors=total_errors,
         ),
+        window=Window(limit=window, complete=complete),
     )
 
 

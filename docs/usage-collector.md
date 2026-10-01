@@ -373,8 +373,11 @@ implied, because a limit somebody believes is global and is not is worse than on
 they know to put a reverse proxy in front of. For a real global limit, rate-limit
 at the proxy that already terminates your TLS.
 
-An unauthenticated caller is charged by peer address, an authenticated one by its
-credential — so one noisy agent cannot spend a whole fleet's allowance.
+A credential is charged on its own only after the collector has accepted it; every
+other request — no key, a rejected key, a key no route checked — is charged to the
+peer address. One noisy agent cannot spend a whole fleet's allowance, and a client
+inventing a new token per request cannot buy a fresh one. The limiter tracks at
+most 10,000 callers per process.
 
 ## Choosing where submissions go
 
@@ -483,6 +486,12 @@ proxy ([design](design/panel-sessions.md)).
 A signed-in browser sees exactly what the key sees: one project, and one
 environment when the key is pinned to one. It cannot reach further than a `curl`
 with the same key.
+
+The panel's `/stats` aggregates the newest 1,000 submissions of that project, not
+its whole history, so a refresh costs the same on a collector that has held a
+project for years. The response says which: `window.limit` is the bound, and
+`window.complete` is `false` when older submissions exist that the totals leave
+out. `guardana-collector run list --limit N` still lists the older runs.
 
 ### A database outage is not a rejected key
 

@@ -15,12 +15,16 @@ put a proxy in front of.
 import pytest
 from fastapi.testclient import TestClient
 from guardana.server.app import create_app
+from guardana.server.auth import Scope
 from guardana.server.limits import Limits, RateLimiter
 from guardana.server.store import InMemoryStore
+from test_authentication import _bearer, _issue, _migrated
 
 _TOO_MANY = 429
 _TOO_LARGE = 413
 _OK = 200
+_UNAUTHORIZED = 401
+_UNAVAILABLE = 503
 
 
 @pytest.fixture
@@ -198,3 +202,66 @@ def test_the_limiter_forgets_callers_that_went_quiet() -> None:
     limiter.allows("peer:new", path="/findings")
 
     assert len(limiter._seen) < 10_100
+
+
+def test_the_limiter_stays_bounded_while_every_caller_is_active() -> None:
+    """Callers that are all still inside their minute cannot be swept as quiet ones."""
+    limiter = RateLimiter(Limits(max_body_bytes=1024, requests_per_minute=5), clock=lambda: 0.0)
+
+    for caller in range(10_100):
+        limiter.allows(f"peer:{caller}", path="/findings")
+
+    assert len(limiter._seen) <= 10_000
+
+
+def test_a_credential_earns_its_own_allowance_only_once_it_was_accepted() -> None:
+    limiter = RateLimiter(Limits(max_body_bytes=1024, requests_per_minute=5), clock=lambda: 0.0)
+
+    assert limiter.caller_for("peer:1", "token:a") == "peer:1"
+    limiter.vouch("token:a")
+    assert limiter.caller_for("peer:1", "token:a") == "token:a"
+    limiter.forget("token:a")
+    assert limiter.caller_for("peer:1", "token:a") == "peer:1"
+
+
+def _unverifiable_collector(monkeypatch: pytest.MonkeyPatch, per_minute: int) -> TestClient:
+    """A key-checking collector whose database is down, so no credential is ever accepted."""
+    monkeypatch.setenv("GUARDANA_DATABASE_URL", "postgresql://guardana@127.0.0.1:1/absent")
+    monkeypatch.delenv("GUARDANA_MIGRATE_ON_START", raising=False)
+    monkeypatch.setenv("GUARDANA_RATE_LIMIT_PER_MINUTE", str(per_minute))
+    return TestClient(create_app())
+
+
+def test_rotating_bogus_tokens_does_not_buy_a_fresh_allowance(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A token nobody accepted is no identity, so its requests are charged to the peer."""
+    client = _unverifiable_collector(monkeypatch, per_minute=3)
+
+    statuses = [
+        client.get("/findings", headers={"Authorization": f"Bearer invalid{index}"}).status_code
+        for index in range(6)
+    ]
+
+    assert statuses[:3] == [_UNAVAILABLE] * 3
+    assert statuses[3:] == [_TOO_MANY] * 3
+
+
+def test_an_accepted_key_keeps_its_allowance_while_bogus_tokens_exhaust_the_peer(
+    database_url: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An agent sharing an address with an attacker is not locked out by the attacker."""
+    _migrated(database_url)
+    token = _issue(database_url, "ci", (Scope.READ,))
+    monkeypatch.setenv("GUARDANA_DATABASE_URL", database_url)
+    monkeypatch.setenv("GUARDANA_RATE_LIMIT_PER_MINUTE", "3")
+    client = TestClient(create_app())
+
+    assert client.get("/findings", headers=_bearer(token)).status_code == _OK
+    rejected = [
+        client.get("/findings", headers=_bearer(f"gdn_bogus{index}")).status_code
+        for index in range(3)
+    ]
+
+    assert rejected == [_UNAUTHORIZED, _UNAUTHORIZED, _TOO_MANY]
+    assert client.get("/findings", headers=_bearer(token)).status_code == _OK

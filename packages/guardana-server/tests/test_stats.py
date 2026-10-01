@@ -87,3 +87,26 @@ def test_series_buckets_span_and_counts_are_preserved() -> None:
     series = compute_stats(records, buckets=5).series
     assert len(series) == 5
     assert sum(b.findings for b in series) == 10
+
+
+def test_a_window_keeps_the_newest_submissions_and_says_it_is_incomplete() -> None:
+    records = [
+        _rec(3.0, _sub("newest", [("guardana.x", "HIGH")])),
+        _rec(1.0, _sub("oldest", [("guardana.y", "CRITICAL")])),
+        _rec(2.0, _sub("middle", [])),
+    ]
+
+    stats = compute_stats(records, window=2)
+
+    assert stats.totals.submissions == 2
+    assert {source.source for source in stats.by_source} == {"newest", "middle"}
+    assert stats.by_severity == {"HIGH": 1}
+    assert stats.window.limit == 2
+    assert stats.window.complete is False
+
+
+def test_a_window_that_holds_everything_says_it_is_complete() -> None:
+    stats = compute_stats([_rec(1.0, _sub("a", []))], window=2)
+
+    assert stats.window.complete is True
+    assert compute_stats([]).window.complete is True
