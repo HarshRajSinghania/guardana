@@ -349,29 +349,90 @@ _Records = Iterator[str | _TooLong | _Overflow]
 
 
 def _records(path: Path, handle: TextIO) -> _Records:
-    """Stream a JSONL file line by line, bounded, yielding a marker at each ceiling."""
+    """Stream a JSONL file line by line, bounded, yielding a marker at each ceiling.
+
+    A line is read in pieces no longer than the record ceiling, so neither ceiling can
+    be outrun by a single line: the part of an oversized line past the ceiling is
+    consumed and discarded, never held.
+    """
     read = 0
     try:
-        for line in handle:
-            stripped = line.strip()
-            if not stripped:
+        while True:
+            line = _bounded_line(handle, read)
+            if line is None:
+                return
+            if line.size == 0:
                 continue
-            read += len(line)
+            read += line.size
             if read > MAX_TRACE_BYTES:
                 yield _Overflow()
                 return
-            if len(stripped) > MAX_RECORD_BYTES:
+            if line.text is None:
                 yield _TooLong(
-                    f"record is {len(stripped)} bytes, over the {MAX_RECORD_BYTES}-byte ceiling"
+                    f"record is {line.length} bytes, over the {MAX_RECORD_BYTES}-byte ceiling"
                 )
                 continue
-            yield stripped
+            yield line.text
     except OSError as exc:
         raise TraceLoadError(f"{path} could not be read: {exc}") from exc
     except UnicodeDecodeError as exc:
         raise TraceLoadError(
             f"{path} is not UTF-8 text, so it is not a JSONL trace: {exc}"
         ) from exc
+
+
+@dataclass(frozen=True, slots=True)
+class _Line:
+    """One line read in bounded pieces.
+
+    `size` is the characters it occupies, newline included, and zero for a blank line;
+    `length` is its content without surrounding whitespace; `text` is that content, or
+    `None` when it is over the record ceiling and was therefore never kept.
+    """
+
+    size: int
+    length: int
+    text: str | None
+
+
+def _bounded_line(handle: TextIO, read: int) -> _Line | None:
+    """Read the next line in pieces, keeping its content only while it fits the ceiling.
+
+    Returns `None` at end of file. Reading stops early once the line alone carries the
+    file past the trace ceiling, since the caller stops there anyway.
+    """
+    piece_limit = MAX_RECORD_BYTES + 1
+    size = 0
+    first: int | None = None
+    last = 0
+    kept: list[str] = []
+    kept_length = 0
+    while True:
+        piece = handle.readline(piece_limit)
+        if not piece:
+            break
+        if first is None:
+            body = piece.lstrip()
+            if body:
+                first = size + len(piece) - len(body)
+                kept.append(body)
+                kept_length = len(body)
+        elif kept_length <= MAX_RECORD_BYTES:
+            kept.append(piece)
+            kept_length += len(piece)
+        content = piece.rstrip()
+        if content:
+            last = size + len(content)
+        size += len(piece)
+        if piece.endswith("\n") or (first is not None and read + size > MAX_TRACE_BYTES):
+            break
+    if size == 0:
+        return None
+    if first is None:
+        return _Line(size=0, length=0, text="")
+    length = last - first
+    text = "".join(kept).strip() if length <= MAX_RECORD_BYTES else None
+    return _Line(size=size, length=length, text=text)
 
 
 def _parse(raw: str, number: int) -> object:

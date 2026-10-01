@@ -6,10 +6,13 @@ dimension name nobody defined. Each of those, read leniently, produces a trace t
 grades clean or a rule that accuses a system which did nothing wrong.
 """
 
+import hashlib
+import io
 import json
 from pathlib import Path
 
 import pytest
+from guardana.core.fingerprint import DigestKind
 from guardana.core.trace import (
     TRACE_SCHEMA_VERSION,
     Dialect,
@@ -17,6 +20,7 @@ from guardana.core.trace import (
     TraceLoadError,
     TraceTruncation,
     detect_dialect,
+    load,
     read_trace,
 )
 from guardana.core.trace._native import migrate_header
@@ -286,3 +290,79 @@ def test_a_record_that_is_not_an_object_is_counted_rather_than_refusing_the_file
 
     assert [span.span_id for span in read.trace.spans] == ["s1"]
     assert read.trace.unreadable == 1
+
+
+class _MeteredText(io.StringIO):
+    """Text that remembers the longest piece any reader took from it at once."""
+
+    def __init__(self, text: str) -> None:
+        super().__init__(text)
+        self.longest = 0
+        self.consumed = 0
+
+    def _meter(self, piece: str) -> str:
+        self.longest = max(self.longest, len(piece))
+        self.consumed += len(piece)
+        return piece
+
+    def readline(self, size: int | None = -1, /) -> str:  # type: ignore[override]
+        return self._meter(super().readline(-1 if size is None else size))
+
+    def __next__(self) -> str:  # type: ignore[override]
+        return self._meter(super().__next__())
+
+
+@pytest.fixture
+def small_ceilings(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("guardana.core.trace.load.MAX_RECORD_BYTES", 64)
+    monkeypatch.setattr("guardana.core.trace.load.MAX_TRACE_BYTES", 10_000)
+
+
+@pytest.mark.usefixtures("small_ceilings")
+def test_an_oversized_line_is_skipped_without_ever_being_held_whole() -> None:
+    """The per-record ceiling bounds memory only if it is checked before the line exists."""
+    handle = _MeteredText("x" * 5_000 + '\n{"span_id":"s2"}\n')
+    records = list(load._records(Path("t.jsonl"), handle))
+    assert [type(r).__name__ for r in records] == ["_TooLong", "str"]
+    assert records[1] == '{"span_id":"s2"}'
+    assert handle.longest <= 65
+
+
+@pytest.mark.usefixtures("small_ceilings")
+def test_a_line_past_the_trace_ceiling_stops_the_read_without_reading_the_rest() -> None:
+    handle = _MeteredText("x" * 100_000 + "\n")
+    records = list(load._records(Path("t.jsonl"), handle))
+    assert [type(r).__name__ for r in records] == ["_Overflow"]
+    assert handle.consumed < 11_000
+
+
+@pytest.mark.usefixtures("small_ceilings")
+def test_padding_around_a_record_does_not_count_against_its_ceiling() -> None:
+    padded = " " * 500 + '{"span_id":"s1"}' + " " * 500 + "\n"
+    blank = " " * 500 + "\n"
+    records = list(load._records(Path("t.jsonl"), _MeteredText(padded + blank)))
+    assert records == ['{"span_id":"s1"}']
+
+
+@pytest.mark.usefixtures("small_ceilings")
+def test_whitespace_inside_a_record_counts_against_its_ceiling() -> None:
+    record = '{"a": "' + " " * 100 + '"}'
+    records = list(load._records(Path("t.jsonl"), _MeteredText(record + "\n")))
+    assert len(records) == 1
+    assert isinstance(records[0], load._TooLong)
+    assert f"record is {len(record)} bytes" in records[0].reason
+
+
+def test_an_oversized_line_still_leaves_a_whole_file_digest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Skipping the rest of a line still passes its bytes through the digest."""
+    monkeypatch.setattr("guardana.core.trace.load.MAX_RECORD_BYTES", 200)
+    path = _write(tmp_path, _HEADER, {"span_id": "s1", "name": "x" * 500}, {"span_id": "s2"})
+    read = read_trace(path)
+    document = read.trace.provenance.document
+    assert [s.span_id for s in read.trace.spans] == ["s2"]
+    assert read.trace.unreadable == 1
+    assert document is not None
+    assert document.kind is DigestKind.CONTENT
+    assert document.digest == f"sha256:{hashlib.sha256(path.read_bytes()).hexdigest()}"

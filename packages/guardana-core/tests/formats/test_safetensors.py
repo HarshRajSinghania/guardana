@@ -81,3 +81,38 @@ def test_a_large_but_valid_header_is_read_whole(tmp_path: Path) -> None:
 def test_unreadable_path_is_a_format_error(tmp_path: Path) -> None:
     with pytest.raises(FormatError, match="cannot read"):
         read_safetensors_header(tmp_path / "absent.safetensors")
+
+
+def _raw_header(tmp_path: Path, header: object, data: bytes = b"1234") -> Path:
+    raw = json.dumps(header).encode()
+    return _write(tmp_path, len(raw).to_bytes(8, "little") + raw + data)
+
+
+@pytest.mark.parametrize(
+    "offsets",
+    [[0, 999_999], [0, 5], [4, 2], [-1, 4], [0], [0, 4, 8], "0-4", [0, "4"], [False, 4]],
+)
+def test_rejects_data_offsets_the_payload_cannot_hold(tmp_path: Path, offsets: object) -> None:
+    """A tensor index pointing past the payload describes a container that is not there."""
+    path = _raw_header(tmp_path, {"w": {"dtype": "F32", "shape": [1], "data_offsets": offsets}})
+    with pytest.raises(FormatError, match="data_offsets"):
+        read_safetensors_header(path)
+
+
+def test_rejects_a_tensor_entry_with_no_data_offsets(tmp_path: Path) -> None:
+    path = _raw_header(tmp_path, {"w": {"dtype": "F32", "shape": [1]}})
+    with pytest.raises(FormatError, match="data_offsets"):
+        read_safetensors_header(path)
+
+
+@pytest.mark.parametrize("entry", [[0, 4], "weights", 7, None])
+def test_rejects_a_tensor_entry_that_is_not_an_object(tmp_path: Path, entry: object) -> None:
+    """An entry the reader cannot index is a malformed header, not one tensor fewer."""
+    path = _raw_header(tmp_path, {"w": entry})
+    with pytest.raises(FormatError, match="not a JSON object"):
+        read_safetensors_header(path)
+
+
+def test_offsets_that_end_exactly_at_the_payload_end_are_accepted(tmp_path: Path) -> None:
+    path = _raw_header(tmp_path, {"w": {"dtype": "F32", "shape": [1], "data_offsets": [0, 4]}})
+    assert set(read_safetensors_header(path).tensors) == {"w"}

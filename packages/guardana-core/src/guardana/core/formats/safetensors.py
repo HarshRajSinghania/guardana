@@ -32,9 +32,10 @@ def read_safetensors_header(path: Path, *, limits: Limits = DEFAULT_LIMITS) -> S
 
     Raises `FormatError` when the container is not a well-formed safetensors
     file — including the crafted case where the 8-byte length prefix claims a
-    header larger than the file that carries it.
+    header larger than the file that carries it, and a tensor whose
+    `data_offsets` point outside the payload that follows the header.
     """
-    header_size, raw = _read_header_bytes(path, limits)
+    header_size, raw, payload_size = _read_header_bytes(path, limits)
     try:
         document = json.loads(raw)
     except (json.JSONDecodeError, UnicodeDecodeError) as exc:
@@ -42,7 +43,7 @@ def read_safetensors_header(path: Path, *, limits: Limits = DEFAULT_LIMITS) -> S
     if not isinstance(document, dict):
         raise FormatError("safetensors header is not a JSON object")
     metadata = _metadata(document.pop(_METADATA_KEY, {}))
-    tensors = {name: value for name, value in document.items() if isinstance(value, dict)}
+    tensors = {name: _tensor(name, value, payload_size) for name, value in document.items()}
     return SafetensorsHeader(
         header_size=header_size,
         tensors=MappingProxyType(tensors),
@@ -50,7 +51,7 @@ def read_safetensors_header(path: Path, *, limits: Limits = DEFAULT_LIMITS) -> S
     )
 
 
-def _read_header_bytes(path: Path, limits: Limits) -> tuple[int, bytes]:
+def _read_header_bytes(path: Path, limits: Limits) -> tuple[int, bytes, int]:
     with open_regular(path) as handle:
         try:
             # Size the file through the open handle rather than the path: the two
@@ -61,7 +62,8 @@ def _read_header_bytes(path: Path, limits: Limits) -> tuple[int, bytes]:
         except OSError as exc:
             raise FormatError(f"cannot read {path.name}: {exc}") from exc
         _check_header_size(len(prefix), header_size, file_size, limits)
-        return header_size, handle.read(header_size)
+        payload_size = file_size - _LENGTH_PREFIX_BYTES - header_size
+        return header_size, handle.read(header_size), payload_size
 
 
 def _check_header_size(prefix_len: int, header_size: int, file_size: int, limits: Limits) -> None:
@@ -74,6 +76,24 @@ def _check_header_size(prefix_len: int, header_size: int, file_size: int, limits
         )
     if _LENGTH_PREFIX_BYTES + header_size > file_size:
         raise FormatError("declared safetensors header length exceeds the file size")
+
+
+def _tensor(name: str, entry: object, payload_size: int) -> dict[str, object]:
+    """Check one tensor entry indexes a byte range the payload actually holds."""
+    if not isinstance(entry, dict):
+        raise FormatError(f"safetensors tensor {name!r} is not a JSON object")
+    offsets = entry.get("data_offsets")
+    match offsets:
+        case [int() as begin, int() as end] if (
+            not isinstance(begin, bool)
+            and not isinstance(end, bool)
+            and 0 <= begin <= end <= payload_size
+        ):
+            return entry
+    raise FormatError(
+        f"safetensors tensor {name!r} has data_offsets {offsets!r}, which is not a "
+        f"byte range inside the {payload_size}-byte payload"
+    )
 
 
 def _metadata(block: object) -> dict[str, str]:

@@ -36,7 +36,8 @@ class OnnxSummary:
     """What a static check needs from an ONNX model, without loading the graph.
 
     `truncated` reports that the field budget ran out before the walk finished —
-    a partial view, which a caller must not mistake for a complete one.
+    a partial view, which a caller must not mistake for a complete one. A node or
+    opset import that states its domain more than once contributes every value.
     """
 
     producer: str
@@ -68,10 +69,12 @@ def read_onnx_summary(path: Path, *, limits: Limits = DEFAULT_LIMITS) -> OnnxSum
             if field.number == _MODEL_PRODUCER:
                 producer = reader.text(field, limits.max_string_bytes)
             elif field.number == _MODEL_OPSET:
-                opset_domains.append(_sub_text(reader, field, _OPSET_DOMAIN, limits))
+                opset_domains.extend(_sub_texts(reader, field, _OPSET_DOMAIN, limits))
             elif field.number == _MODEL_METADATA:
                 key, value = _entry(reader, field, limits)
-                metadata[key] = value
+                # A repeated field: the onnx package keeps every entry, so a key stated
+                # twice keeps every value, and one cannot hide the other.
+                metadata[key] = f"{metadata[key]}\n{value}" if key in metadata else value
             elif field.number == _MODEL_GRAPH:
                 _walk_graph(reader, field, limits, node_domains, external)
         return OnnxSummary(
@@ -95,7 +98,7 @@ def _walk_graph(
         if field.wire_type != WIRE_LENGTH:
             continue
         if field.number == _GRAPH_NODE:
-            node_domains.append(_sub_text(reader, field, _NODE_DOMAIN, limits))
+            node_domains.extend(_sub_texts(reader, field, _NODE_DOMAIN, limits))
         elif field.number == _GRAPH_INITIALIZER:
             external.extend(_external_locations(reader, field, limits))
 
@@ -120,9 +123,17 @@ def _entry(reader: ProtoReader, entry: ProtoField, limits: Limits) -> tuple[str,
     return key, value
 
 
-def _sub_text(reader: ProtoReader, parent: ProtoField, number: int, limits: Limits) -> str:
-    """Read one string sub-field; an absent one is the empty protobuf default."""
-    for field in reader.fields(parent.start, parent.end):
-        if field.wire_type == WIRE_LENGTH and field.number == number:
-            return reader.text(field, limits.max_string_bytes)
-    return ""
+def _sub_texts(
+    reader: ProtoReader, parent: ProtoField, number: int, limits: Limits
+) -> tuple[str, ...]:
+    """Read every occurrence of a string sub-field; an absent one is the empty default.
+
+    Protobuf keeps the last of a repeated singular field and other parsers the first,
+    so each stated value is reported rather than betting on one of them.
+    """
+    texts = tuple(
+        reader.text(field, limits.max_string_bytes)
+        for field in reader.fields(parent.start, parent.end)
+        if field.wire_type == WIRE_LENGTH and field.number == number
+    )
+    return texts or ("",)

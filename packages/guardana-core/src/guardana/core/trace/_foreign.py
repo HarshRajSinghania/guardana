@@ -87,7 +87,7 @@ def read_garak(text: str, path: Path) -> ObservationRead:
                     f"know how to read as a verdict or as metadata"
                 )
             continue
-        claims, clean = _garak_eval(record, number)
+        claims, clean = _garak_eval(record, number, unreadable)
         observations.extend(claims)
         passed += clean
     return ObservationRead(
@@ -113,18 +113,38 @@ def _garak_version(record: Mapping[str, Any]) -> str | None:
     return None
 
 
+_GARAK_COUNTS = ("fails", "nones", "passed", "total_evaluated")
+
+
 def _garak_eval(
-    record: Mapping[str, Any], number: int
+    record: Mapping[str, Any], number: int, unreadable: list[str]
 ) -> tuple[tuple[ImportedObservation, ...], int]:
-    """Turn one `eval` record into the claims it makes, and count the clean result."""
+    """Turn one `eval` record into the claims it makes, and count the clean result.
+
+    A record counts as clean only when it states a failure count of zero, directly or
+    through `passed` and the total; a count that is missing or mistyped makes the record
+    unreadable, because a record that says nothing about failures is not a pass.
+    """
     probe = optional_text(record, "probe") or f"record {number}"
     detector = optional_text(record, "detector") or "unknown detector"
+    mistyped = [k for k in _GARAK_COUNTS if k in record and optional_int(record, k) is None]
+    if mistyped:
+        unreadable.append(
+            f"record {number} ({probe}/{detector}) states {', '.join(mistyped)} "
+            f"as something other than an integer"
+        )
+        return (), 0
     fails = optional_int(record, "fails")
     nones = optional_int(record, "nones") or 0
     evaluated = optional_int(record, "total_evaluated")
     passes = optional_int(record, "passed")
     if fails is None and passes is not None and evaluated is not None:
         fails = evaluated - passes - nones
+    if fails is None:
+        unreadable.append(
+            f"record {number} ({probe}/{detector}) states no failure count, and no "
+            f"passed and total_evaluated to derive one from"
+        )
     claims: list[ImportedObservation] = []
     if fails:
         claims.append(
@@ -148,7 +168,7 @@ def _garak_eval(
                 f"not decide, which is not a pass",
             )
         )
-    return tuple(claims), 0 if (fails or nones) else 1
+    return tuple(claims), 0 if (fails is None or fails or nones) else 1
 
 
 def read_promptfoo(text: str, path: Path) -> ObservationRead:

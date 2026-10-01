@@ -128,6 +128,50 @@ def test_garak_fails_are_derived_when_the_record_states_only_passes_and_the_tota
     assert "3 of 4" in (read.observations[0].detail or "")
 
 
+def test_a_garak_eval_record_stating_no_outcome_is_unreadable_never_passed(
+    tmp_path: Path,
+) -> None:
+    """A record with no verdict field says nothing about the probe, so it is not a pass."""
+    record = {"entry_type": "eval", "probe": "p", "detector": "d"}
+    read = read_observations(_jsonl(tmp_path, [record]), ObservationDialect.GARAK)
+    assert read.passed == 0
+    assert read.observations == ()
+    assert len(read.unreadable) == 1
+    assert "states no failure count" in read.unreadable[0]
+
+
+@pytest.mark.parametrize("field", ["fails", "nones", "passed", "total_evaluated"])
+def test_a_garak_verdict_field_of_the_wrong_type_is_unreadable_rather_than_dropped(
+    tmp_path: Path, field: str
+) -> None:
+    """A count written as a string must not vanish and leave the record reading clean."""
+    record: dict[str, object] = {
+        "entry_type": "eval",
+        "probe": "p",
+        "detector": "d",
+        "passed": 1,
+        "fails": 0,
+        "nones": 0,
+        "total_evaluated": 1,
+    }
+    record[field] = "3"
+    read = read_observations(_jsonl(tmp_path, [record]), ObservationDialect.GARAK)
+    assert read.passed == 0
+    assert read.observations == ()
+    assert len(read.unreadable) == 1
+    assert field in read.unreadable[0]
+
+
+def test_a_garak_record_with_undecided_outputs_but_no_failure_count_keeps_both_facts(
+    tmp_path: Path,
+) -> None:
+    record = {"entry_type": "eval", "probe": "p", "detector": "d", "nones": 2}
+    read = read_observations(_jsonl(tmp_path, [record]), ObservationDialect.GARAK)
+    assert read.passed == 0
+    assert [o.outcome for o in read.observations] == [ObservedOutcome.UNDECIDED]
+    assert len(read.unreadable) == 1
+
+
 def _promptfoo(nested: bool) -> dict[str, object]:
     rows = [
         {

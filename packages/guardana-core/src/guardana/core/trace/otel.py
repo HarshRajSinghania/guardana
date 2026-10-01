@@ -30,6 +30,7 @@ from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from typing import Any
 
+from guardana.core.trace._native import _SPAN_KEYS
 from guardana.core.trace._parse import (
     json_value,
     message_from,
@@ -74,6 +75,14 @@ _EVENT_ROLES = {
     "gen_ai.choice": Role.ASSISTANT,
 }
 _MCP_TOOL_METHODS = frozenset({"tools/call"})
+_NATIVE_CONTENT_KEYS = tuple(
+    sorted(_SPAN_KEYS - {"span_id", "parent_span_id", "kind", "name", "started_at", "ended_at"})
+)
+"""Native span fields that no OpenTelemetry encoding carries at the top level of a span.
+
+Derived from the native reader's own keys, so a field the native dialect gains is
+refused here too; the ones left out name a span in both dialects.
+"""
 _NANOS_PER_SECOND = 1_000_000_000
 
 
@@ -83,7 +92,16 @@ def read_span(raw: Mapping[str, Any]) -> tuple[Span, int]:
     The second value is not decoration. A span carrying GenAI message *events* whose
     content this reader could not extract would otherwise arrive with no messages,
     and a rule reading its content would report clean over a turn that was there.
+
+    A record carrying native span fields is refused with `ValueError`: this reader
+    would keep its id and drop the content those fields hold.
     """
+    native = [key for key in _NATIVE_CONTENT_KEYS if key in raw]
+    if native:
+        raise ValueError(
+            f"span carries native-dialect field(s) {', '.join(native)}, which an "
+            f"OpenTelemetry span does not have and this reader would drop"
+        )
     attributes = _attributes(raw)
     span_id = _identifier(raw, "spanId", "span_id") or ""
     if not span_id:
