@@ -135,11 +135,12 @@ class ArtifactTarget(Target):
         return source
 
     def unread_sources(self) -> tuple[UnreadSource, ...]:
-        """Every Python file the scan was prevented from reading, in path order.
+        """Every Python file and directory the scan was prevented from reading, in path order.
 
         The runner turns these into `errors`, because a file nobody could look at
         is a check that did not run — not a clean one. Padding a malicious loader
-        past the read limit would otherwise remove it from the scan silently.
+        past the read limit, or locking the directory it sits in, would otherwise
+        remove it from the scan silently.
         """
         return tuple(self._unread[path] for path in sorted(self._unread))
 
@@ -190,7 +191,7 @@ class ArtifactTarget(Target):
             yield self._root
             return
         matches: list[Path] = []
-        for dirpath, dirnames, filenames in os.walk(self._root):
+        for dirpath, dirnames, filenames in os.walk(self._root, onerror=self._unlisted):
             dirnames[:] = [
                 d
                 for d in sorted(dirnames)
@@ -201,3 +202,10 @@ class ArtifactTarget(Target):
                 if not self._excluded(path):
                     matches.append(path)
         yield from sorted(matches)
+
+    def _unlisted(self, error: OSError) -> None:
+        """Record a directory the walk could not list, which `os.walk` would skip in silence."""
+        path = Path(error.filename) if error.filename else self._root
+        self._unread[path] = UnreadSource(
+            path, f"cannot list directory {path}: {error.strerror or error}"
+        )

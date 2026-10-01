@@ -74,7 +74,7 @@ def _size_attributes(path: Path) -> dict[str, str]:
     # looking examined, while every rule had silently skipped it. Listed anyway
     # when the open fails: an inventory that drops what it could not read lies by
     # omission, which is the same failure as a check reporting clean.
-    if not path.is_file():
+    if not _regular_file(path):
         # A FIFO or a device named like a model blocks a plain open for ever.
         return {"read": "failed"}
     try:
@@ -84,8 +84,19 @@ def _size_attributes(path: Path) -> dict[str, str]:
         return {"read": "failed"}
 
 
+def _regular_file(path: Path) -> bool:
+    """Whether `path` is a regular file this process may open; False when it cannot tell.
+
+    `is_file` raises for an entry inside a directory that can be listed and not entered.
+    """
+    try:
+        return path.is_file()
+    except OSError:
+        return False
+
+
 def _bin_format(path: Path) -> str | None:
-    if not path.is_file():
+    if not _regular_file(path):
         return None
     try:
         with path.open("rb") as handle:

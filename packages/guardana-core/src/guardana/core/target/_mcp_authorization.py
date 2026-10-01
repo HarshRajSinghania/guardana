@@ -19,7 +19,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from urllib.parse import SplitResult, urlsplit, urlunsplit
 
-from guardana.core.target._mcp_client import Negotiation, carries_tools
+from guardana.core.target._mcp_client import REFUSAL_STATUSES, Negotiation, carries_tools
 from guardana.core.target._mcp_http import (
     McpError,
     RawReply,
@@ -111,6 +111,15 @@ class ForeignToken:
     status: int | None = None
     listed_tools: bool = False
     not_attempted_because: str | None = None
+
+    @property
+    def refused(self) -> bool:
+        """Whether the server turned the token away with `401` or `403`, the only answers that do.
+
+        Any other status — a server error, a rate limit, a `200` without a manifest —
+        leaves open whether the token would have been accepted.
+        """
+        return self.attempted and not self.listed_tools and self.status in REFUSAL_STATUSES
 
 
 @dataclass(frozen=True, slots=True)
@@ -284,7 +293,7 @@ class _Probe:
             challenge = handshake.header("WWW-Authenticate")
             session = self._session_id_of(handshake)
             if handshake.status >= _HTTP_ERROR:
-                return Anonymous(status=handshake.status, challenge=challenge)
+                return _refused_handshake(handshake.status, challenge)
         try:
             listing = self._call("tools/list", {}, credential=None, session=session)
         except McpError as exc:
@@ -295,7 +304,10 @@ class _Probe:
             return Anonymous(
                 status=listing.status,
                 challenge=challenge,
-                error="the reply to tools/list could not be read as a manifest or as a refusal",
+                error=(
+                    f"the reply to tools/list (HTTP {listing.status}) could not be read as a "
+                    f"manifest or as a refusal"
+                ),
             )
         return Anonymous(status=listing.status, listed_tools=listed, challenge=challenge)
 
@@ -499,7 +511,9 @@ class _Probe:
         except RedirectRefusedError as exc:
             # A refusal is a finding, not a gap in the evidence: the address was
             # reached for and turned down, which is what `discovery_target` reports.
-            return Document(url=url, refused=f"it redirected to {exc.url}, and {exc.reason}")
+            return Document(
+                url=url, refused=f"it redirected to {display_url(exc.url)}, and {exc.reason}"
+            )
         except McpError as exc:
             return Document(url=url, error=str(exc))
         if reply.status >= _HTTP_ERROR:
@@ -541,6 +555,18 @@ class _Probe:
     def _session_id_of(self, reply: RawReply) -> str | None:
         """Read the session id a reply issued, or None when it issued none."""
         return reply.header("Mcp-Session-Id")
+
+
+def _refused_handshake(status: int, challenge: str | None) -> Anonymous:
+    """Record an error status to the anonymous handshake: a refusal, or a question left open."""
+    if status in REFUSAL_STATUSES:
+        return Anonymous(status=status, challenge=challenge)
+    return Anonymous(
+        status=status,
+        challenge=challenge,
+        error=f"the handshake was answered with HTTP {status}, which is neither a session "
+        f"nor a refusal",
+    )
 
 
 def forged_token() -> str:

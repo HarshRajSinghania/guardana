@@ -4,7 +4,7 @@ from guardana.core.report import Finding
 from guardana.core.rule import RuleMeta
 from guardana.core.safety import Detection, Impact
 from guardana.core.severity import Severity
-from guardana.core.target import Capability, McpAuthorizationView, TargetKind
+from guardana.core.target import Capability, McpAuthorizationView, TargetKind, display_url
 from guardana.core.taxonomy import OWASP_ASI03_2026, OWASP_MCP01_2025, OWASP_MCP07_2025
 from guardana.rules.mcp._base import McpAuthorizationRule
 
@@ -83,7 +83,7 @@ class McpIssuerIdentificationRule(McpAuthorizationRule):
             return
         yield self.finding(
             view,
-            f"the authorization server metadata at {document.url} does not advertise "
+            f"the authorization server metadata at {display_url(document.url)} does not advertise "
             f"'{_ISS_SUPPORTED}', so a client redeeming an authorization code here cannot "
             f"tell that the response came from the issuer it started the flow with "
             f"(RFC 9207)",

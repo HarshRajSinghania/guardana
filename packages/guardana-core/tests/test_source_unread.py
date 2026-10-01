@@ -79,3 +79,75 @@ def test_read_python_source_still_returns_none_without_a_target(tmp_path: Path) 
     # The free function stays the simple public entry point third-party rules use.
     (tmp_path / "huge.py").write_text("x = 1\n" * 50, encoding="utf-8")
     assert read_python_source(tmp_path / "huge.py", limit=8) is None
+
+
+def test_a_directory_that_cannot_be_listed_is_recorded_as_unread(tmp_path: Path) -> None:
+    (tmp_path / "seen.py").write_text("x = 1\n", encoding="utf-8")
+    locked = tmp_path / "locked"
+    locked.mkdir()
+    (locked / "model.pkl").write_bytes(b"not a real pickle")
+    locked.chmod(0o000)
+    try:
+        target = ArtifactTarget(tmp_path)
+        listed = [path.name for path in target.iter_files()]
+        unread = target.unread_sources()
+    finally:
+        locked.chmod(0o755)
+
+    assert listed == ["seen.py"]
+    assert [u.path for u in unread] == [locked]
+    assert "locked" in unread[0].reason
+
+
+def test_a_scan_fails_the_gate_on_a_directory_it_could_not_list(tmp_path: Path) -> None:
+    # A subtree nobody could open must not buy a clean report for everything in it.
+    locked = tmp_path / "models"
+    locked.mkdir()
+    (locked / "loader.py").write_text(_SINK, encoding="utf-8")
+    locked.chmod(0o000)
+    try:
+        result = Runner(
+            registry=Registry.discover(), profile=Profile(name="t", policy=Policy())
+        ).run(ArtifactTarget(tmp_path))
+    finally:
+        locked.chmod(0o755)
+
+    assert [e.source for e in result.errors] == ["guardana.core.source"]
+    assert "models" in result.errors[0].reason
+
+
+def test_an_excluded_directory_is_not_reported_as_unread(tmp_path: Path) -> None:
+    locked = tmp_path / "vendor"
+    locked.mkdir()
+    locked.chmod(0o000)
+    try:
+        target = ArtifactTarget(tmp_path, excludes=("vendor",))
+        list(target.iter_files())
+        unread = target.unread_sources()
+    finally:
+        locked.chmod(0o755)
+
+    assert unread == ()
+
+
+def test_a_directory_that_can_be_listed_but_not_entered_does_not_crash_the_scan(
+    tmp_path: Path,
+) -> None:
+    """Its entries cannot be opened or even stat'ed; the run says so instead of failing."""
+    from guardana.core.profile import Policy, Profile  # noqa: PLC0415
+    from guardana.core.registry import Registry  # noqa: PLC0415
+    from guardana.core.runner import Runner  # noqa: PLC0415
+    from guardana.core.target import ArtifactTarget  # noqa: PLC0415
+
+    locked = tmp_path / "locked"
+    locked.mkdir()
+    (locked / "model.pkl").write_bytes(b"\x80\x04.")
+    locked.chmod(0o400)
+    try:
+        result = Runner(Registry(), Profile(name="t", policy=Policy())).run(
+            ArtifactTarget(tmp_path)
+        )
+    finally:
+        locked.chmod(0o755)
+
+    assert [o.attributes for o in result.observations] == [{"format": "pickle", "read": "failed"}]

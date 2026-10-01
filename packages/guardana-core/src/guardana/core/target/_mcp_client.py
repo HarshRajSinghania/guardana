@@ -14,13 +14,23 @@ gets settled once, by `negotiate`, before any question is asked; how a request i
 then written lives in `_mcp_wire`.
 """
 
+import os
+import selectors
 import subprocess
+import time
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from typing import Any, Protocol
 from urllib.parse import urlsplit
 
-from guardana.core.target._mcp_http import McpError, RawReply, Sender, send
+from guardana.core.target._mcp_http import (
+    MAX_RESPONSE_BYTES,
+    TIMEOUT_SECONDS,
+    McpError,
+    RawReply,
+    Sender,
+    send,
+)
 from guardana.core.target._mcp_wire import (
     COMPLETE,
     LEGACY_WIRE,
@@ -41,6 +51,10 @@ from guardana.core.usage import UsageMeter
 
 _HTTP_ERROR = 400
 _DISCOVER = "server/discover"
+_READ_CHUNK = 64 * 1024
+
+REFUSAL_STATUSES = frozenset({401, 403})
+"""The statuses that mean a server decided this caller may not ask; no other status does."""
 
 
 class McpTransport(Protocol):
@@ -218,12 +232,20 @@ class HttpMcpTransport:
 
 
 class StdioMcpTransport:
-    """Talks JSON-RPC to a server this process **starts**. Executes the thing under test."""
+    """Talks JSON-RPC to a server this process **starts**. Executes the thing under test.
 
-    def __init__(self, command: Sequence[str]) -> None:
+    A reply is read in bounded chunks against a deadline: the child is the code under
+    examination, so a line without end or a reply that never comes has to cost a
+    bounded amount of memory and time, and end in an `McpError`.
+    """
+
+    def __init__(self, command: Sequence[str], *, timeout: float = TIMEOUT_SECONDS) -> None:
         if not command:
             raise McpError("an stdio MCP server needs a command to run")
         self._wire = PROBE_WIRE
+        self._timeout = timeout
+        self._pending = bytearray()
+        self._broken: str | None = None
         try:
             # S603: the command comes from the operator, who had to pass
             # --allow-exec to get here; there is no shell and no interpolation.
@@ -232,7 +254,6 @@ class StdioMcpTransport:
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,
-                text=True,
             )
         except OSError as exc:
             raise McpError(f"could not start MCP server {command[0]!r}: {exc}") from exc
@@ -245,15 +266,52 @@ class StdioMcpTransport:
         """Write one JSON-RPC line and read the reply line."""
         if self._process.stdin is None or self._process.stdout is None:
             raise McpError("MCP server process has no usable pipes")
+        if self._broken is not None:
+            raise McpError(self._broken)
         try:
-            self._process.stdin.write(self._wire.body(method, params).decode("utf-8") + "\n")
+            self._process.stdin.write(self._wire.body(method, params) + b"\n")
             self._process.stdin.flush()
-            reply = self._process.stdout.readline()
+            reply = self._read_line(self._process.stdout.fileno())
         except OSError as exc:
             raise McpError(f"MCP server stopped responding: {exc}") from exc
-        if not reply:
+        if reply is None:
             raise McpError("MCP server closed its output without answering")
-        return result_of(reply.encode("utf-8"), "stdio")
+        return result_of(reply, "stdio")
+
+    def _read_line(self, fd: int) -> bytes | None:
+        """Read one line from the child, or None when it closed its output first.
+
+        Raw reads on the descriptor, never the buffered pipe: a buffered read would
+        block past the deadline, and bytes it buffered would be invisible here.
+        Whatever follows the newline is kept for the next request. After a failed
+        read the position in the stream is unknown, so every later request fails too.
+        """
+        deadline = time.monotonic() + self._timeout
+        buffered = self._pending
+        with selectors.DefaultSelector() as selector:
+            selector.register(fd, selectors.EVENT_READ)
+            while (end := buffered.find(b"\n")) < 0:
+                if len(buffered) > MAX_RESPONSE_BYTES:
+                    raise self._fail(_too_long())
+                remaining = deadline - time.monotonic()
+                if remaining <= 0 or not selector.select(remaining):
+                    raise self._fail(
+                        f"MCP server sent no complete reply within {self._timeout} seconds"
+                    )
+                chunk = os.read(fd, min(_READ_CHUNK, MAX_RESPONSE_BYTES + 1 - len(buffered)))
+                if not chunk:
+                    return None
+                buffered += chunk
+        if end > MAX_RESPONSE_BYTES:
+            raise self._fail(_too_long())
+        line = bytes(buffered[:end])
+        self._pending = buffered[end + 1 :]
+        return line
+
+    def _fail(self, reason: str) -> McpError:
+        self._broken = reason
+        self._pending = bytearray()
+        return McpError(reason)
 
     def close(self) -> None:
         """Stop the server we started; a scanner must not leave a process behind.
@@ -505,19 +563,24 @@ def carries_tools(reply: RawReply) -> bool | None:
     """Say whether this reply is a tool listing — or None when nobody could tell.
 
     Three answers, not two. `True` is a manifest the caller received. `False` is a
-    refusal: a non-`200`, or a `200` carrying a JSON-RPC error, both of which are
-    the server declining on purpose. `None` is a `200` nobody could read as either —
-    an unparseable body, a reply with no result at all, or an interim result asking
-    for input. Folding those into `False` reported a server nobody could read as a
-    server that refused, which is a pass on a question that was never answered.
+    refusal: a `401` or `403`, the server declining on purpose. `None` is everything
+    nobody could read as either — any other error status (`429`, `500`, `503` say the
+    server never got as far as deciding), a success status carrying a JSON-RPC error
+    (`-32603` is the server failing, and no code is reserved for a refusal), an
+    unparseable body, a reply with no result at all, or an interim result asking for
+    input. Folding those into `False` reported a server
+    nobody could read as a server that refused, which is a pass on a question that
+    was never answered.
     """
-    if reply.status != 200:  # noqa: PLR2004 — the HTTP success boundary
+    if reply.status in REFUSAL_STATUSES:
         return False
+    if not 200 <= reply.status < 300:  # noqa: PLR2004 — the HTTP success range
+        return None
     payload = reply.json_object()
     if payload is None:
         return None
     if payload.get("error") is not None:
-        return False
+        return None
     result = payload.get("result")
     if not isinstance(result, dict) or result.get("resultType", COMPLETE) != COMPLETE:
         return None
@@ -537,6 +600,10 @@ def _http_failure(reply: RawReply, ref: str) -> McpError:
     payload = reply.json_object()
     error = payload.get("error") if payload is not None else None
     return error_from(message, error) if error is not None else McpError(message)
+
+
+def _too_long() -> str:
+    return f"a reply line from the stdio MCP server exceeds {MAX_RESPONSE_BYTES} bytes; refusing it"
 
 
 def _reject_unusable_scheme(url: str) -> None:

@@ -10,6 +10,7 @@ from guardana.core.target import (
     Document,
     McpAuthorizationView,
     TargetKind,
+    display_url,
     same_origin,
 )
 from guardana.core.taxonomy import OWASP_ASI03_2026, OWASP_MCP01_2025, OWASP_MCP07_2025
@@ -90,24 +91,26 @@ class McpAuthorizationDiscoveryRule(McpAuthorizationRule):
         self, view: McpAuthorizationView, resource: Document
     ) -> Iterator[Finding]:
         content = resource.content or {}
+        address = display_url(resource.url)
         issuers = content.get("authorization_servers")
         if not isinstance(issuers, list) or not [i for i in issuers if isinstance(i, str) and i]:
             yield self.finding(
                 view,
-                f"the protected resource metadata at {resource.url} names no authorization "
+                f"the protected resource metadata at {address} names no authorization "
                 f"server, which RFC 9728 requires and without which no client can obtain a token",
             )
         declared = content.get("resource")
         if not isinstance(declared, str) or not declared:
             yield self.finding(
                 view,
-                f"the protected resource metadata at {resource.url} declares no 'resource', "
+                f"the protected resource metadata at {address} declares no 'resource', "
                 f"so a client has no canonical identifier to bind a token to",
             )
         elif _different_origin(declared, view.server):
+            shown = display_url(declared)
             yield self.finding(
                 view,
-                f"the protected resource metadata declares resource {declared!r}, which is a "
+                f"the protected resource metadata declares resource {shown!r}, which is a "
                 f"different origin from the server under test; a token bound to it would not "
                 f"be bound to this server",
             )
@@ -129,7 +132,7 @@ class McpAuthorizationDiscoveryRule(McpAuthorizationRule):
         if not methods:
             yield self.finding(
                 view,
-                f"the authorization server metadata at {document.url} advertises no "
+                f"the authorization server metadata at {display_url(document.url)} advertises no "
                 f"'code_challenge_methods_supported', which a conforming MCP client treats as "
                 f"no PKCE support and must refuse to proceed against",
             )
@@ -157,10 +160,11 @@ class McpAuthorizationDiscoveryRule(McpAuthorizationRule):
         )
         if refused is None:
             return
+        named, address = display_url(issuer), display_url(refused.url)
         yield self.unverified(
             view,
-            f"the authorization server this document names ({issuer}) could not be fetched — "
-            f"{refused.url} was refused because {refused.refused} — so whether it advertises "
+            f"the authorization server this document names ({named}) could not be fetched — "
+            f"{address} was refused because {refused.refused} — so whether it advertises "
             f"PKCE was never established; guardana.mcp.discovery_target reports that address "
             f"as a finding",
         )
@@ -175,16 +179,15 @@ class McpAuthorizationDiscoveryRule(McpAuthorizationRule):
                 f"guardana.mcp.discovery_target reports that address as a finding",
             )
             return
+        address = display_url(document.url)
         if document.status is not None:
             yield self.finding(
                 view,
-                f"the {what} is not published: {document.url} answered HTTP {document.status}, "
+                f"the {what} is not published: {address} answered HTTP {document.status}, "
                 f"so a client has no documented way to discover how to authenticate here",
             )
             return
-        yield self.unverified(
-            view, f"the {what} at {document.url} could not be read: {document.error}"
-        )
+        yield self.unverified(view, f"the {what} at {address} could not be read: {document.error}")
 
 
 def _named_issuer(resource: Document | None) -> str | None:

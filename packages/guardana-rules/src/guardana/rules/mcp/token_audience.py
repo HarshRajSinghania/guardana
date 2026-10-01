@@ -72,6 +72,8 @@ class McpTokenAudienceRule(McpAuthorizationRule):
                 "was not validated",
             )
             return
+        if probe.refused:
+            return
         if probe.status == _OK:
             yield self.unverified(
                 view,
@@ -79,3 +81,10 @@ class McpTokenAudienceRule(McpAuthorizationRule):
                 "issued, but returned no tool list, so whether the token was accepted could "
                 "not be settled",
             )
+            return
+        yield self.unverified(
+            view,
+            f"the server answered HTTP {probe.status} to a request carrying a token it could "
+            f"not have issued, which is neither a tool list nor a refusal (401 or 403), so "
+            f"whether the token was accepted could not be settled",
+        )

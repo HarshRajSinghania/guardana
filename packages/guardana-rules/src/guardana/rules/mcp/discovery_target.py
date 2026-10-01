@@ -4,7 +4,7 @@ from guardana.core.report import Finding
 from guardana.core.rule import RuleMeta
 from guardana.core.safety import Detection, Impact
 from guardana.core.severity import Severity
-from guardana.core.target import Capability, McpAuthorizationView, TargetKind
+from guardana.core.target import Capability, McpAuthorizationView, TargetKind, display_url
 from guardana.core.taxonomy import OWASP_ASI03_2026, OWASP_LLM02_2026, OWASP_MCP01_2025
 from guardana.rules.mcp._base import McpAuthorizationRule
 
@@ -57,8 +57,9 @@ class McpDiscoveryTargetRule(McpAuthorizationRule):
             yield blocked
             return
         for document in view.refused_addresses:
+            address = display_url(document.url)
             yield self.finding(
                 view,
-                f"the server directed this client to {document.url} during authorization "
+                f"the server directed this client to {address} during authorization "
                 f"discovery, which was not fetched because {document.refused}",
             )
