@@ -291,7 +291,12 @@ so this page is maintained as carefully as the code.</p>
 <tr>
 <td>Engine + built-in rules</td>
 <td><strong>beta</strong></td>
-<td>Stable enough to gate a build on. The public Python API still moves between minor releases.</td>
+<td>Stable enough to gate a build on. Outside <code>guardana.core.verify</code>, the Python API still moves between minor releases.</td>
+</tr>
+<tr>
+<td>Python API (<code>guardana.core.verify</code>)</td>
+<td><strong>beta</strong></td>
+<td>Runs what <code>guardana scan</code> and <code>guardana probe</code> run and returns every outcome as typed data, failed and stopped runs included. Its supported surface is <code>guardana.core.verify.__all__</code>; a change to it is announced as breaking with what to write instead. Trace analysis, <code>monitor</code> and baselines run from the command line only.</td>
 </tr>
 <tr>
 <td><code>guardana scan</code></td>
@@ -333,7 +338,7 @@ so this page is maintained as carefully as the code.</p>
 <h2 id="released-and-experimental">Released and experimental</h2>
 <p><strong>Released (beta):</strong> Quality suites use the deterministic assessors <code>exact_match</code>, <code>contains</code>, <code>regex</code>, <code>json_valid</code>, and <code>length</code>. They support versioned JSONL datasets (<code>name@version</code>), deterministic sampling (<code>sample: {size, seed}</code>), repeated trials per case, and a suite gate that passes, fails, or declines with <code>min_sample</code>. Runs save a suite summary in the run document and show a Measured block in the human report. JUnit output is available.</p>
 <p><strong>Experimental:</strong> Judge-graded suites use <code>answered</code> and <code>reference_judge</code>. Judge-error correction adjusts trial and suite rates using Rogan–Gladen and a calibration recorded on the team's own corpus with <code>guardana calibrate --record</code>. Without a usable calibration, the suite declines; it never passes on an uncorrected judge rate. Experimental means shipped, but behaviour, thresholds, and saved fields may change in a minor release.</p>
-<p><strong>Not released:</strong> An offline starter (F2), a supported Python result facade (F3), recorded-answer grading and regrading (F5), reproducible team checks on the real application (F6), protocol conformance fixtures (F7), and one redacted export with a webhook (F4) are roadmap items in <code>ROADMAP.md</code>. Pages under <code>docs/design/</code> describe designs, not shipped behaviour.</p>
+<p><strong>Not released:</strong> The five-user first-run study (F2), recorded-answer grading and regrading (F5), reproducible team checks on the real application (F6), protocol conformance fixtures (F7), and one redacted export with a webhook (F4) are roadmap items in <code>ROADMAP.md</code>. Pages under <code>docs/design/</code> describe designs, not shipped behaviour.</p>
 <h2 id="known-limitations">Known limitations</h2>
 <p>Stated plainly, because finding these out after adoption is worse than reading
 them now.</p>
@@ -484,7 +489,7 @@ clean. It has told you it could not look.</p>
 </main>
 </div>
 <footer class="foot"><div class="bar">
-<span class="who">Guardana 0.33.0 · Apache-2.0 ·
+<span class="who">Guardana 0.34.0 · Apache-2.0 ·
 maintained by Konrad Karauda</span>
 <a href="https://github.com/guardana/guardana/blob/main/docs/product-status.md">Edit this page on GitHub</a>
 <a href="https://github.com/guardana/guardana">github.com/guardana</a>

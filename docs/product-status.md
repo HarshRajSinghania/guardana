@@ -17,7 +17,8 @@ so this page is maintained as carefully as the code.
 
 | Component | Maturity | What that means in practice |
 |---|---|---|
-| Engine + built-in rules | **beta** | Stable enough to gate a build on. The public Python API still moves between minor releases. |
+| Engine + built-in rules | **beta** | Stable enough to gate a build on. Outside `guardana.core.verify`, the Python API still moves between minor releases. |
+| Python API (`guardana.core.verify`) | **beta** | Runs what `guardana scan` and `guardana probe` run and returns every outcome as typed data, failed and stopped runs included. Its supported surface is `guardana.core.verify.__all__`; a change to it is announced as breaking with what to write instead. Trace analysis, `monitor` and baselines run from the command line only. |
 | `guardana scan` | **beta** | Deterministic, offline, no false-positive theatre. The most mature part of the product. |
 | `guardana probe` | **beta** | Works against OpenAI-compatible, Ollama, TGI, guarded endpoints and live MCP servers — the last of those on both its tool manifest and its authorization surface, and never by calling a tool. Verdict quality depends on the evaluator you configure. |
 | `guardana monitor` | **beta** | Scheduled **active** verification. Not passive traffic inspection, not inline. |
@@ -32,7 +33,7 @@ so this page is maintained as carefully as the code.
 
 **Experimental:** Judge-graded suites use `answered` and `reference_judge`. Judge-error correction adjusts trial and suite rates using Rogan–Gladen and a calibration recorded on the team's own corpus with `guardana calibrate --record`. Without a usable calibration, the suite declines; it never passes on an uncorrected judge rate. Experimental means shipped, but behaviour, thresholds, and saved fields may change in a minor release.
 
-**Not released:** An offline starter (F2), a supported Python result facade (F3), recorded-answer grading and regrading (F5), reproducible team checks on the real application (F6), protocol conformance fixtures (F7), and one redacted export with a webhook (F4) are roadmap items in `ROADMAP.md`. Pages under `docs/design/` describe designs, not shipped behaviour.
+**Not released:** The five-user first-run study (F2), recorded-answer grading and regrading (F5), reproducible team checks on the real application (F6), protocol conformance fixtures (F7), and one redacted export with a webhook (F4) are roadmap items in `ROADMAP.md`. Pages under `docs/design/` describe designs, not shipped behaviour.
 
 ## Known limitations
 

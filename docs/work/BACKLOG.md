@@ -15,7 +15,6 @@ No remote issues were created; the GitHub open-issue query returned zero.
 | ID | Concrete work | Roadmap | Acceptance evidence |
 |---|---|---|---|
 | B04 | Starter and three short task-oriented recipes | F2 | Clean-install offline run, edited custom check and saved artifact; recorded-answer and actual-application paths clearly distinguish their coverage. |
-| B05 | Supported Python result facade and parity tests | F3 | Failed and partial results remain accessible; trust, local rules, calibration, redaction, budgets and manifest agree with CLI. |
 | B06 | One redacted export and one webhook | F4 | An independently installed package provides both through the common redaction boundary, collision checks, trust modes and locks; delivery status observable; offline use sends nothing. The general plugin contract is deferred. |
 | B07 | Recorded answers and regrading | F5 | No target calls; new grading provenance; declared judge traffic/cost; unavailable evidence remains ungraded. |
 | B08 | Connection/adapter parity across endpoint commands | F6 | One custom endpoint can be planned, inspected, probed, monitored and calibrated with equivalent settings. |
@@ -77,6 +76,27 @@ reproduced; the rest are the sweep's reading with its anchors, not yet reproduce
 - `llm_judge` places the transcript into its prompt unfenced (`core/evaluator/llm_judge.py:26`).
 - Container base images are pinned by tag, not by digest (`deploy/docker/cli.Dockerfile:12`).
 
+## Left by F3 (0.34.0)
+
+- **Should a scan that lists no file pass?** An empty directory, or one whose every file is
+  excluded, passes today; `test_scanning_an_empty_directory_is_still_a_clean_pass` pins "nothing
+  to find is a pass, nothing to look at is not". The false-green hunt on F3 argued for
+  `indeterminate`: a CI job pointed at an empty checkout or a failed artifact download passes,
+  while the same pickle scanned directly fails. Changing it moves a pinned decision and about
+  twenty tests, so it is the owner's call.
+- **Trace analysis, `monitor`, `baseline create` and `import-observations` do not run through
+  `guardana.core.verify`**, so Python gets typed results for `scan` and `probe` only.
+- **A run whose target failed part-way returns no partial result**: `TargetUnavailableError`
+  carries no `ScanResult`, as the CLI's exit `4` carries no report.
+- **A judge that cannot be reached during `probe --mcp` exits `5`, not `4`**: the MCP branch of
+  `cli/probe.py` is not wrapped in `run_against_endpoint`.
+- **A registry given to `Verifier` whole does not load the profile's `rules.paths`**, which is
+  documented; refusing it would need the registry to record which rule directories it loaded.
+- **A `SystemPromptPlanter` view must enforce every budget its base target accepted.** A
+  third-party view that refuses one after the plain pass sent requests leaves the target
+  unclaimed for reuse, and only its meter then stops a second run; the planter contract does
+  not say so yet.
+
 ## Left by F2 (0.33.0)
 
 - **The five first-run sessions.** The owner recruits five people new to Guardana and runs them
@@ -88,8 +108,6 @@ reproduced; the rest are the sweep's reading with its anchors, not yet reproduce
 - **Stating `builtins` with a pack co-installed leaves every run `indeterminate`**, and the only
   way out, `fail_on_error: false`, turns off all error gating. A refusal the user stated could be
   a visible coverage note instead of an error.
-- `probe` records each discovery error once per canary pass, so two refused entry points
-  appear as eight errors.
 - **The starter's end-to-end test runs its README through `/bin/sh`**, so it does not run on
   Windows.
 - Under a stated trust, `taxonomy` words a refused rule or evaluator entry point as "could not
@@ -101,9 +119,6 @@ reproduced; the rest are the sweep's reading with its anchors, not yet reproduce
 - **Formats the inventory does not list as models**: `.npy`/`.npz` (numpy can hold pickles),
   `.msgpack`, a TensorFlow `.pb`. `saved_model_ops` reads `.pb` but nothing observes it, so a
   shortfall cannot name one; a `.bin` holding GGUF or GGML is a shortfall with no reader.
-- **`scan --write-baseline` and `baseline create` write a baseline over a run that is not
-  entitled to one** (a coverage shortfall, nothing verified, a stopped run): both gate only on
-  errors (`cli/scan.py`, `cli/baseline.py`).
 - **The collector envelope carries no coverage shortfall**, so a run that is `indeterminate`
   for an unread component or a missing dimension reaches the collector without its cause.
 - **`left_scan` cannot tell a file deleted from one hidden.** Accepting a deliberate removal
