@@ -10,6 +10,7 @@ from guardana.core.report.shortfall import CoverageShortfall
 from guardana.core.report.skipped import SkippedRule
 from guardana.core.report.stop import StopReason
 from guardana.core.severity import Severity
+from guardana.core.target.scope import FileScope
 from guardana.core.usage import TargetUsage, total
 
 if TYPE_CHECKING:  # the manifest records a result's summaries; the result only carries them
@@ -103,6 +104,13 @@ class ScanResult:
     and every renderer prints the conclusion the gate read.
     """
 
+    scope: FileScope | None = None
+    """Every file a file target listed and the excludes it applied; None for any other run.
+
+    What lets a comparison call a finding resolved only where the later run still listed
+    its file, rather than wherever the finding stopped appearing.
+    """
+
     @classmethod
     def merged(cls, results: Sequence["ScanResult"]) -> "ScanResult":
         """Combine several results into one, carrying every channel.
@@ -158,6 +166,7 @@ class ScanResult:
             protocols={name: v for r in results for name, v in r.protocols.items()},
             trials_per_case={rule: k for r in results for rule, k in r.trials_per_case.items()},
             suites={rule: summary for r in results for rule, summary in r.suites.items()},
+            scope=_merged_scope([r.scope for r in results]),
         )
 
     @property
@@ -220,3 +229,20 @@ class ScanResult:
         score: a broken judge otherwise reports a perfect rate over two cases.
         """
         return tuple(a for a in self.assessments if a.status is AssessmentStatus.INCONCLUSIVE)
+
+
+def _merged_scope(scopes: Sequence[FileScope | None]) -> FileScope | None:
+    """Combine the file scopes of several passes; unknown excludes anywhere stay unknown."""
+    known = [scope for scope in scopes if scope is not None]
+    if not known:
+        return None
+    excludes = [scope.excludes for scope in known]
+    return FileScope(
+        files=tuple(dict.fromkeys(path for scope in known for path in scope.files)),
+        excludes=None
+        if any(e is None for e in excludes)
+        else tuple(dict.fromkeys(p for e in excludes if e is not None for p in e)),
+        ignored_directories=tuple(
+            dict.fromkeys(name for scope in known for name in scope.ignored_directories)
+        ),
+    )

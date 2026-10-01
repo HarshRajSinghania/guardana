@@ -12,6 +12,7 @@ from guardana.core.manifest.serialize import SCHEMA_URL, manifest_to_dict
 from guardana.core.report.check_error import CheckError
 from guardana.core.report.finding import Finding
 from guardana.core.report.result import ScanResult
+from guardana.core.target.scope import FileScope
 
 
 def finding_to_dict(finding: Finding) -> dict[str, object]:
@@ -70,6 +71,19 @@ def error_to_dict(error: CheckError) -> dict[str, object]:
     return {"source": error.source, "stage": error.stage, "reason": error.reason}
 
 
+def scope_to_dict(scope: FileScope | None) -> dict[str, object] | None:
+    """Serialize what a file run listed and excluded; None for any other run."""
+    if scope is None:
+        return None
+    return {
+        "files": list(scope.files),
+        "excludes": None
+        if scope.excludes is None
+        else [{"pattern": e.pattern, "source": str(e.source)} for e in scope.excludes],
+        "ignored_directories": list(scope.ignored_directories),
+    }
+
+
 def run_to_dict(result: ScanResult, manifest: RunManifest) -> dict[str, object]:
     """Serialize one run — its manifest and every finding channel — as one document.
 
@@ -101,4 +115,5 @@ def run_to_dict(result: ScanResult, manifest: RunManifest) -> dict[str, object]:
         # Written even when empty, so "measured nothing" is a fact in the document
         # rather than something a reader infers from a missing key.
         "assessments": [assessment_to_dict(a) for a in result.assessments],
+        "scope": scope_to_dict(result.scope),
     }

@@ -46,9 +46,6 @@ Found by the pre-ship review and the false-green hunt on 2026-09-30; each was re
   nine MCP rules, so `probe --preset release` is `indeterminate` against any single endpoint
   unless a profile selects the rules it serves (documented). Decide whether an MCP rule
   against a chat endpoint, or a chat rule against an MCP server, is `not_applicable`.
-- **`ConfigurationRef.profile_digest` is written by nothing**, so every saved run records
-  `null`; a narrowed profile named like a preset reads the same as the preset in a saved
-  run. Record the profile digest, or at least the `fail_on` switches.
 - **A trace reads as `content_prefix` when `MAX_SPANS` stops a read of a file the buffer
   already held whole.** Conservative: `content` is claimed only after the raw read returned
   end of file.
@@ -85,19 +82,12 @@ reproduced; the rest are the sweep's reading with its anchors, not yet reproduce
 - **The five first-run sessions.** The owner recruits five people new to Guardana and runs them
   as `docs/maintainers/first-run-study.md` describes. The F2 row stays in ROADMAP's "Now" table,
   marked study pending, until `scripts/first_run_measure.py` renders five consented rows.
-- **A saved run does not record the plugin trust in force**, so evidence cannot show "built-in
-  trust only"; the local-scan and real-application recipes say so. Record it beside `profile_digest` (itself written by nothing,
-  above) in run schema 12, with a migration.
 - **The profile has no `schema_version`.** A 0.33 profile using `plugins:` fails loudly on 0.32,
   which is right, but the 1.0 criterion "migrations exercised with older profile documents" needs
   a version to migrate from.
 - **Stating `builtins` with a pack co-installed leaves every run `indeterminate`**, and the only
   way out, `fail_on_error: false`, turns off all error gating. A refusal the user stated could be
   a visible coverage note instead of an error.
-- **`diff` calls a finding RESOLVED when its file is simply no longer observed.** Moving the
-  starter's pickle into `model/build/`, renaming it to `.bin`, or listing it in
-  `.guardanaignore` all read as "resolved"; `diff` should say the component left the scan.
-  A run manifest also records neither the exclude patterns nor `.guardanaignore`.
 - **A model file in a format Guardana does not recognise is not read and not reported.**
   `pytorch_model.bin` (a torch zip holding a pickle) scans clean while the same bytes named
   `model.pt` are flagged, and TFLite is listed as a component that no rule reads. Every observed

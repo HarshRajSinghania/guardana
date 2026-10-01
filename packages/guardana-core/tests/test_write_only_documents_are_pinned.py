@@ -167,10 +167,10 @@ def test_the_published_diff_schema_requires_every_key_the_writer_emits() -> None
     """
     document: Document = json.loads(get_diff_renderer("json").render(_diff()))
 
-    optional = _unrequired(document, "diff-v2.schema.json")
+    optional = _unrequired(document, "diff-v3.schema.json")
 
     assert not optional, (
-        "keys the comparison writes that `diff-v2.schema.json` does not require, so a "
+        "keys the comparison writes that `diff-v3.schema.json` does not require, so a "
         "consumer validating against it is not promised them:\n  " + "\n  ".join(optional)
     )
 

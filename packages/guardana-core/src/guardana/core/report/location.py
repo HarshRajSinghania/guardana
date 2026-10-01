@@ -48,4 +48,11 @@ def relativize_findings(result: ScanResult, base: Path) -> ScanResult:
         # an uploaded report would carry the checkout path the findings beside it
         # were deliberately scrubbed of.
         observations=tuple(replace(o, ref=relativize(o.ref, base)) for o in result.observations),
+        # The listing too, or a finding's location and the file it was found in
+        # would be spelled two ways and every comparison would read the file as gone.
+        scope=None
+        if result.scope is None
+        else replace(
+            result.scope, files=tuple(relativize(path, base) for path in result.scope.files)
+        ),
     )

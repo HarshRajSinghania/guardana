@@ -615,6 +615,10 @@ with no problems. The conformance kit fails on it.</p>
 <p>For a <code>FileReader</code> it also asks <code>iter_files</code> for the suffixes of up to five of the
 target's own files, in lowercase and in capitals, and fails when a file is left out:
 a target that filters <code>.pkl</code> by exact case hands <code>model.PKL</code> to no rule.</p>
+<p>A file run records every path <code>iter_files()</code> listed, so <code>diff</code> can tell a file that
+left the scan from one that was fixed. A target that applies its own excludes can say
+which by implementing <code>file_scope()</code> (<code>guardana.core.target.scope.ReportsFileScope</code>);
+without it the saved run records its excludes as unknown.</p>
 <blockquote>
 <p>Before 0.22.0 this page promised that a target declaring <code>READ_FILES</code> could run
 the artifact rules unmodified. It could not: every rule asked

@@ -60,6 +60,8 @@ class _LoadRecord:
     """The entries of `errors` that record a refusal, the same objects rather than copies."""
     failed: list[tuple[InstalledEntryPoint, CheckError]] = field(default_factory=list)
     """Each admitted entry point that failed to load, with the entry of `errors` it recorded."""
+    trust: PluginTrust | None = None
+    """The trust discovery applied; None for a registry nothing discovered."""
 
     def copied(self) -> "_LoadRecord":
         """Return a copy whose containers are new and whose entries are shared.
@@ -90,6 +92,11 @@ class Registry:
         other: Self = type(self)()
         other._load = self._load.copied()
         return other
+
+    @property
+    def trust(self) -> PluginTrust | None:
+        """The plugin trust `discover` loaded under; None for a registry built by hand."""
+        return self._load.trust
 
     @property
     def load_errors(self) -> tuple[CheckError, ...]:
@@ -332,6 +339,7 @@ class Registry:
         """
         policy = trust if trust is not None else PluginTrust()
         reg = cls()
+        reg._load.trust = policy
         handlers: dict[str, tuple[type | tuple[type, ...], Callable[[Any, Origin], None]]] = {
             TAXONOMY_GROUP: (TaxonomyRef, _ignoring_origin(register_taxonomy)),
             RULE_GROUP: (Rule, reg.register_rule),

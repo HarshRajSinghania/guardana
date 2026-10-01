@@ -16,6 +16,9 @@ class ShortfallKind(StrEnum):
     CONTRACT_NOT_APPLICABLE = "contract_not_applicable"
     """Contracts were loaded and not one of them was about this execution."""
 
+    UNEXAMINED_COMPONENT = "unexamined_component"
+    """A model component the run observed and no rule that completed read."""
+
 
 @dataclass(frozen=True, slots=True)
 class CoverageShortfall:

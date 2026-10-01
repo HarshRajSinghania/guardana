@@ -309,7 +309,7 @@ guardana init --starter first-run  # write a first-run project into ./first-run
 <li><code>guardana scan model --format json --output before.json</code> fails (exit <code>1</code>) on the pickle.</li>
 <li>Replace the pickle with the safetensors file.</li>
 <li><code>guardana scan model --format json --output after.json</code> passes (exit <code>0</code>); <code>after.json</code> saves the evidence.</li>
-<li><code>guardana diff before.json after.json</code> shows that the finding is resolved (exit <code>0</code>).</li>
+<li><code>guardana diff before.json after.json</code> lists the finding as having left the scan (exit <code>1</code>): a comparison never calls a problem resolved when the second run no longer lists its file, and <code>after.json</code> is the evidence of the fix.</li>
 <li><code>guardana doctor</code> lists what an installed pack would execute. On a clean install, it lists nothing.</li>
 <li><code>guardana rule test --rules checks 'starter.*'</code> runs the local check's three samples offline (exit <code>0</code>).</li>
 <li>Edit the check as the README shows and run step 6 again. Four samples pass.</li>

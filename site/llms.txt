@@ -96,9 +96,9 @@ This file is generated from the documentation map; do not edit it by hand.
 
 ## Schemas
 
-- [Guardana Run Comparison v2](https://guardana.dev/schemas/diff/v2.schema.json): What changed between two saved runs.
+- [Guardana Run Comparison v3](https://guardana.dev/schemas/diff/v3.schema.json): What changed between two saved runs.
 - [Guardana Run Plan v3](https://guardana.dev/schemas/plan/v3.schema.json): What a run would cost, worked out without sending a request.
-- [Guardana Saved Run v11](https://guardana.dev/schemas/run/v11.schema.json): One Guardana run written to disk: the manifest (what was verified, against what, under which configuration and limits, at what cost, with what reach, and with what verdict) plus the finding channels.
+- [Guardana Saved Run v12](https://guardana.dev/schemas/run/v12.schema.json): One Guardana run written to disk: the manifest (what was verified, against what, under which configuration and limits, at what cost, with what reach, and with what verdict) plus the finding channels.
 - [Guardana Trace v3](https://guardana.dev/schemas/trace/v3.schema.json): One record of a Guardana native trace file.
 
 ## Related project

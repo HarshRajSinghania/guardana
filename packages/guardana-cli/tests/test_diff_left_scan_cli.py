@@ -1,0 +1,112 @@
+"""`guardana diff` calls a finding resolved only where the later scan still listed its file.
+
+Each case scans a real tree twice through the CLI and compares the two saved runs, the
+way a pipeline does: a pickle that was deleted, moved into a directory every scan skips,
+or listed in `.guardanaignore` left the scan, and only a file the
+second scan read and found clean is resolved.
+"""
+
+import json
+import os
+import pickle
+import shutil
+from pathlib import Path
+
+import pytest
+from guardana.cli.main import app
+from typer.testing import CliRunner
+
+runner = CliRunner()
+
+_REGRESSION = 1
+_NO_REGRESSION = 0
+
+
+class _Evil:
+    def __reduce__(self) -> tuple[object, tuple[str]]:
+        return (os.system, ("echo pwned",))
+
+
+def _scan(root: Path, out: Path) -> None:
+    result = runner.invoke(app, ["scan", str(root), "--format", "json", "--output", str(out)])
+    assert result.exit_code in {0, 1}, result.output
+
+
+def _diff(before: Path, after: Path) -> tuple[int, dict[str, object]]:
+    result = runner.invoke(app, ["diff", str(before), str(after), "--format", "json"])
+    return result.exit_code, json.loads(result.stdout)
+
+
+def _kinds(payload: dict[str, object]) -> list[tuple[str, str]]:
+    return [(c["kind"], c["location"]) for c in payload["changes"]]  # type: ignore[attr-defined]
+
+
+@pytest.fixture
+def scanned(tmp_path: Path) -> tuple[Path, Path]:
+    model = tmp_path / "model"
+    model.mkdir()
+    (model / "weights.pkl").write_bytes(pickle.dumps(_Evil()))
+    before = tmp_path / "before.json"
+    _scan(model, before)
+    return model, before
+
+
+def test_a_pickle_deleted_from_the_tree_left_the_scan(
+    scanned: tuple[Path, Path], tmp_path: Path
+) -> None:
+    model, before = scanned
+    (model / "weights.pkl").unlink()
+    (model / "weights.safetensors").write_bytes(b"\x02\x00\x00\x00\x00\x00\x00\x00{}")
+    after = tmp_path / "after.json"
+    _scan(model, after)
+
+    code, payload = _diff(before, after)
+
+    assert code == _REGRESSION
+    assert _kinds(payload) == [("left_scan", "weights.pkl")]
+    assert "deleted, moved, renamed" in payload["changes"][0]["detail"]  # type: ignore[index]
+
+
+def test_a_pickle_listed_in_guardanaignore_left_the_scan_and_the_pattern_is_named(
+    scanned: tuple[Path, Path], tmp_path: Path
+) -> None:
+    model, before = scanned
+    (model / ".guardanaignore").write_text("weights.pkl\n", encoding="utf-8")
+    after = tmp_path / "after.json"
+    _scan(model, after)
+
+    code, payload = _diff(before, after)
+
+    assert code == _REGRESSION
+    assert _kinds(payload) == [("left_scan", "weights.pkl")]
+    detail = payload["changes"][0]["detail"]  # type: ignore[index]
+    assert "excluded by 'weights.pkl' from .guardanaignore" in detail
+
+
+def test_a_pickle_moved_into_a_directory_every_scan_skips_left_the_scan(
+    scanned: tuple[Path, Path], tmp_path: Path
+) -> None:
+    model, before = scanned
+    (model / "build").mkdir()
+    shutil.move(model / "weights.pkl", model / "build" / "weights.pkl")
+    after = tmp_path / "after.json"
+    _scan(model, after)
+
+    code, payload = _diff(before, after)
+
+    assert code == _REGRESSION
+    assert _kinds(payload) == [("left_scan", "weights.pkl")]
+
+
+def test_a_file_the_second_scan_read_and_found_clean_is_resolved(
+    scanned: tuple[Path, Path], tmp_path: Path
+) -> None:
+    model, before = scanned
+    (model / "weights.pkl").write_bytes(pickle.dumps({"w": [1, 2]}))
+    after = tmp_path / "after.json"
+    _scan(model, after)
+
+    code, payload = _diff(before, after)
+
+    assert code == _NO_REGRESSION
+    assert _kinds(payload) == [("resolved", "weights.pkl")]

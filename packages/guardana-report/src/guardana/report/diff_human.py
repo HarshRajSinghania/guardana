@@ -102,7 +102,11 @@ def _label(change: Change) -> str:
         return "NOT RUN"
     state = change.after or change.before
     severity = state.severity.name if state is not None else "?"
-    return f"{change.kind.value.replace('_', ' ').upper()} · {severity}"
+    name = _NAMES.get(change.kind, change.kind.value.replace("_", " ").upper())
+    return f"{name} · {severity}"
+
+
+_NAMES = {ChangeKind.LEFT_SCAN: "LEFT THE SCAN"}
 
 
 def _where(change: Change) -> str:

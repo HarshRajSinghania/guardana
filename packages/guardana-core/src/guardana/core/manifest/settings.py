@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 
+from guardana.core.plugins import PluginTrust
 from guardana.core.redaction import EvidenceMode
 
 __all__ = [
@@ -31,6 +32,12 @@ class ConfigurationRef:
     retriever_digest: str | None = None
     dataset_digest: str | None = None
     adapter_digest: str | None = None
+    plugins: PluginTrust | None = None
+    """Which installed distributions the run loaded entry points from.
+
+    None when the run did not discover its plugins or the document predates the record,
+    which is unknown, never "built-ins only".
+    """
 
 
 @dataclass(frozen=True, slots=True)

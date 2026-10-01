@@ -351,6 +351,11 @@ For a `FileReader` it also asks `iter_files` for the suffixes of up to five of t
 target's own files, in lowercase and in capitals, and fails when a file is left out:
 a target that filters `.pkl` by exact case hands `model.PKL` to no rule.
 
+A file run records every path `iter_files()` listed, so `diff` can tell a file that
+left the scan from one that was fixed. A target that applies its own excludes can say
+which by implementing `file_scope()` (`guardana.core.target.scope.ReportsFileScope`);
+without it the saved run records its excludes as unknown.
+
 > Before 0.22.0 this page promised that a target declaring `READ_FILES` could run
 > the artifact rules unmodified. It could not: every rule asked
 > `isinstance(target, ArtifactTarget)`. The protocols above are what made the

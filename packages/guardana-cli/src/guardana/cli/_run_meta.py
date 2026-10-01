@@ -56,6 +56,7 @@ from guardana.core.manifest.summary import summarize
 from guardana.core.manifest.usage import JudgeUsage
 from guardana.core.origin import Origin
 from guardana.core.profile import Profile
+from guardana.core.profile.digest import profile_digest
 from guardana.core.registry import Registry
 from guardana.core.report import CoverageShortfall, ScanResult
 from guardana.core.rule import Rule
@@ -430,7 +431,11 @@ def build_manifest(  # noqa: PLR0913 — a manifest is assembled from independen
         deployment=deployment if deployment is not None else DeploymentRef(),
         guardana=ToolInfo(version=__version__),
         target=target,
-        configuration=ConfigurationRef(profile_name=profile.name),
+        configuration=ConfigurationRef(
+            profile_name=profile.name,
+            profile_digest=profile_digest(profile),
+            plugins=registry.trust,
+        ),
         # The ceilings are recorded whether or not the run hit them. Without them a
         # run that exits `6` says it stopped and never says what it hit, which
         # leaves the one number an operator needs — was the budget too small, or is

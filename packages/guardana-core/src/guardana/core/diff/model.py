@@ -16,7 +16,7 @@ from guardana.core.severity import Severity
 
 Outcome = Literal["fail", "unverified"]
 
-DIFF_SCHEMA_VERSION = 2
+DIFF_SCHEMA_VERSION = 3
 """Version of the JSON document `guardana diff --format json` writes.
 
 Its own number rather than the run report's: a comparison and a run are separate
@@ -53,6 +53,14 @@ class ChangeKind(StrEnum):
 
     Its findings would have vanished from the report either way; without this,
     turning a rule off would be indistinguishable from fixing what it found.
+    """
+
+    LEFT_SCAN = "left_scan"
+    """A file that held a problem or an unverified check is not among the files the later
+    run listed.
+
+    Deleted, moved, renamed or excluded: the comparison cannot tell which, so it never
+    calls the problem resolved. The location-level twin of `COVERAGE_LOST`.
     """
 
     RESOLVED = "resolved"
@@ -104,6 +112,7 @@ _REGRESSIONS = frozenset(
         ChangeKind.BLINDED,
         ChangeKind.ESCALATED,
         ChangeKind.COVERAGE_LOST,
+        ChangeKind.LEFT_SCAN,
     }
 )
 

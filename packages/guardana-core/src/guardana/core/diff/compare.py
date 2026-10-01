@@ -112,6 +112,7 @@ def compare(
     digests_after = after_context.rules
 
     retried = _trials_changed(before, after, ran_before & ran_after)
+    listed_after = _listed(after, after_context.root)
 
     changes: list[Change] = []
     unchanged = 0
@@ -128,7 +129,15 @@ def compare(
         if rule_id in retried:
             continue
         was, now = before_states.get(identity), after_states.get(identity)
-        kind, detail = _classify(was, now)
+        kind, detail = (
+            _left_scan(after, location)
+            if was is not None
+            and now is None
+            and listed_after is not None
+            and location
+            and not _is_listed(location, listed_after)
+            else _classify(was, now)
+        )
         if kind is None:
             unchanged += 1
             continue
@@ -166,6 +175,39 @@ def compare(
                 for rule_id, (was, now) in sorted(retried.items())
             ),
         ),
+    )
+
+
+def _listed(result: ScanResult, root: str) -> frozenset[str] | None:
+    """Every file the run listed, keyed like a finding's location; None when it did not say."""
+    if result.scope is None:
+        return None
+    return frozenset(_within(path, root) for path in result.scope.files)
+
+
+def _is_listed(location: str, listed: frozenset[str]) -> bool:
+    """Whether the file a location names was listed, a cell or fragment after it allowed.
+
+    A notebook rule names `nb.ipynb:cell3`, which `split_ref` keeps because the part
+    after the colon is not a line number.
+    """
+    head = location.split("#", 1)[0]
+    return location in listed or head in listed or head.rsplit(":", 1)[0] in listed
+
+
+def _left_scan(after: ScanResult, location: str) -> tuple[ChangeKind, str]:
+    scope = after.scope
+    reason = None if scope is None else scope.exclusion_of(location.split("#", 1)[0])
+    if reason is not None:
+        return (
+            ChangeKind.LEFT_SCAN,
+            f"the second run did not list this file ({reason}), so whether the problem "
+            f"remains is unknown rather than resolved",
+        )
+    return (
+        ChangeKind.LEFT_SCAN,
+        "the second run did not list this file — it was deleted, moved, renamed or left the "
+        "scanned tree — so whether the problem went with it is unknown rather than resolved",
     )
 
 

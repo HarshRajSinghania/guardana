@@ -10,7 +10,7 @@ deeper (a model's architecture, a manifest's resolved versions) costs reads that
 a scan should not pay for twice, and belongs to whoever needs the depth.
 """
 
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from pathlib import Path
 
 from guardana.core.observation import Observation, ObservationKind
@@ -77,8 +77,8 @@ def _classify(path: Path) -> tuple[ObservationKind, dict[str, str]] | None:
     return None
 
 
-def _observe_artifacts(target: FileReader) -> Iterator[Observation]:
-    for path in target.iter_files():
+def _observe_artifacts(target: FileReader, files: Iterable[Path] | None) -> Iterator[Observation]:
+    for path in target.iter_files() if files is None else files:
         classified = _classify(path)
         if classified is None:
             continue
@@ -91,15 +91,18 @@ def _observe_artifacts(target: FileReader) -> Iterator[Observation]:
         )
 
 
-def observe(target: Target) -> tuple[Observation, ...]:
+def observe(target: Target, files: Iterable[Path] | None = None) -> tuple[Observation, ...]:
     """Return every component this target exposes, in a stable order.
+
+    `files` is the target's listing when the caller already took it, so a file target
+    that does not cache its listing is walked once.
 
     Returns nothing for a target type it does not recognise, which is the honest
     answer: a custom `Target` knows its own components and can report them, but
     this must never invent an inventory for one it cannot see into.
     """
     if isinstance(target, FileReader):
-        return tuple(_observe_artifacts(target))
+        return tuple(_observe_artifacts(target, files))
     if isinstance(target, ChatEndpoint):
         return (Observation(kind=ObservationKind.MODEL, name=target.model, ref=target.ref),)
     return ()

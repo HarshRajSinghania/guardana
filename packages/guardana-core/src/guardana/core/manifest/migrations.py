@@ -296,6 +296,30 @@ def migrate_v10(document: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def migrate_v11(document: Mapping[str, Any]) -> dict[str, Any]:
+    """Rewrite a schema-11 saved run as a schema-12 one, recomputing nothing.
+
+    **`scope`** and **`run.configuration.plugins`** arrive null, overwriting whatever the
+    document holds: no version-11 build recorded a listing or the trust in force, so both
+    are unknown, never "listed nothing" or "built-ins only".
+    """
+    run = _mapping(document.get("run"), "run")
+    configuration = run.get("configuration")
+    return {
+        **document,
+        "schema_version": 12,
+        "$schema": schema_url(12),
+        "run": {
+            **run,
+            "configuration": {
+                **(configuration if isinstance(configuration, dict) else {}),
+                "plugins": None,
+            },
+        },
+        "scope": None,
+    }
+
+
 _PER_CLASS_CALIBRATION = (
     "assessor",
     "judge_identity",

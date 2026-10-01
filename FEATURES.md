@@ -50,8 +50,11 @@ budgets, incomplete runs, unreadable artifacts, and incomparable baselines produ
 explicit non-success exit codes; a crash exits `5` and an interrupt `7`. An unverified result is never weighed against a
 severity bar: how bad an unmeasured thing is has no answer, so `fail_on_inconclusive`
 governs all of them or none, and a check that went dark between two runs is a
-regression at any severity. Saved runs carry versions, policy identity,
-target identity, protocol versions, usage, redaction mode, and rule provenance.
+regression at any severity. Saved runs carry versions, policy identity (the profile's digest),
+target identity, the plugin trust in force, protocol versions, usage, redaction mode, rule
+provenance, and for a file scan every file it listed and the excludes it applied with
+their source. `diff` calls a finding resolved only where the second run listed its file;
+one that was deleted, moved, renamed or excluded is a `left_scan` regression.
 Usage keeps the judges configured under `evaluators:` on their own meters, apart from
 the target. `guardana plan probe` prices those judge calls before the run, names what
 it cannot price, and exits `3` when the target or a judge meter could exceed the

@@ -47,6 +47,7 @@ from guardana.core.manifest.settings import (
 )
 from guardana.core.manifest.usage import JudgeUsage, RunUsage
 from guardana.core.observation import Observation, ObservationKind
+from guardana.core.plugins import PluginMode, PluginTrust
 from guardana.core.report.check_error import CheckError
 from guardana.core.report.finding import Evidence, Finding
 from guardana.core.report.result import ScanResult
@@ -54,6 +55,7 @@ from guardana.core.report.shortfall import CoverageShortfall, ShortfallKind
 from guardana.core.report.skipped import SkippedRule, SkipReason
 from guardana.core.severity import Severity
 from guardana.core.target import TargetKind
+from guardana.core.target.scope import ExcludePattern, ExcludeSource, FileScope
 from guardana.core.taxonomy import TaxonomyRef
 from guardana.core.usage import TargetUsage
 
@@ -143,6 +145,7 @@ def run_manifest() -> RunManifest:
             retriever_digest="sha256:5555",
             dataset_digest="sha256:6666",
             adapter_digest="sha256:7777",
+            plugins=PluginTrust(mode=PluginMode.ALLOWLIST, allowed=frozenset({"acme-rules"})),
         ),
         execution=ExecutionSettings(
             concurrency=4,
@@ -363,11 +366,34 @@ def scan_result() -> ScanResult:
         protocols={"mcp": "2026-07-28"},
         trials_per_case={"guardana.prompt.jailbreak": 3},
         suites={"acme.suite.support_answers": _SUITE},
+        scope=FileScope(
+            files=("model/weights.safetensors", "model/config.json"),
+            excludes=(
+                ExcludePattern("model/build/*", ExcludeSource.PROFILE),
+                ExcludePattern("*.bak", ExcludeSource.IGNORE_FILE),
+            ),
+            ignored_directories=(".git", "*.egg-info"),
+        ),
     )
+
+
+def saved_run_at_v11(document: dict[str, Any]) -> dict[str, Any]:
+    """Rewrite a document this build wrote into the shape a version-11 build wrote."""
+    run = document["run"]
+    return {
+        **{k: v for k, v in document.items() if k != "scope"},
+        "schema_version": 11,
+        "$schema": "https://guardana.dev/schemas/run/v11.schema.json",
+        "run": {
+            **run,
+            "configuration": {k: v for k, v in run["configuration"].items() if k != "plugins"},
+        },
+    }
 
 
 def saved_run_at_v10(document: dict[str, Any]) -> dict[str, Any]:
     """Rewrite a document this build wrote into the shape a version-10 build wrote."""
+    document = saved_run_at_v11(document)
     run = document["run"]
     return {
         **document,

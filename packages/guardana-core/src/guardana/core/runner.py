@@ -1,6 +1,7 @@
 import threading
 from collections.abc import Collection, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
+from pathlib import Path
 from urllib.error import URLError
 
 from guardana.core.assessment import Assessment
@@ -18,6 +19,7 @@ from guardana.core.safety import permits
 from guardana.core.source import UnreadSource
 from guardana.core.target import Capability, EndpointError, Target, TargetKind
 from guardana.core.target.protocols import FileReader, TraceReader, unmet_surfaces
+from guardana.core.target.scope import FileScope, ReportsFileScope
 
 DEFAULT_ENDPOINT_CONCURRENCY = 1
 """Rules run one at a time unless a caller asks for more.
@@ -162,6 +164,13 @@ class Runner:
             CheckError(source="guardana.core.source", stage="read", reason=unread.reason)
             for unread in _unread_sources(target)
         )
+        # Taken from the target, not from the rules: if the inventory came out of what
+        # fired, narrowing a profile would quietly shrink the list of components a
+        # report says are deployed.
+        scope = _file_scope(target)
+        observations = observe(
+            target, files=None if scope is None else [Path(path) for path in scope.files]
+        )
         return ScanResult(
             tuple(findings),
             tuple(ran),
@@ -169,10 +178,7 @@ class Runner:
             tuple(unverified),
             errors=tuple(errors),
             assessments=tuple(assessments),
-            # Taken from the target, not from the rules: if the inventory came out
-            # of what fired, narrowing a profile would quietly shrink the list of
-            # components a report says are deployed.
-            observations=observe(target),
+            observations=observations,
             # Taken from the target, which is the only thing that knows what left
             # the machine. A target that does not meter itself reports None, and
             # that travels all the way to the manifest as an explicit unknown.
@@ -190,6 +196,7 @@ class Runner:
                 rule.meta.id: rule.trials_per_case for rule in plan if rule.meta.id in ran
             },
             suites=suites,
+            scope=scope,
         )
 
     def _execute(self, plan: Sequence[Rule], target: Target) -> Iterator[_RuleOutcome]:
@@ -438,6 +445,19 @@ def _unread_sources(target: Target) -> tuple[UnreadSource, ...]:
     if isinstance(target, FileReader):
         return target.unread_sources()
     return ()
+
+
+def _file_scope(target: Target) -> FileScope | None:
+    """Return what a file target listed and excluded; None for a target that lists no files.
+
+    A target that does not report its excludes is listed here, and its excludes are
+    recorded as unknown rather than as none.
+    """
+    if isinstance(target, ReportsFileScope):
+        return target.file_scope()
+    if isinstance(target, FileReader):
+        return FileScope(files=tuple(str(path) for path in target.iter_files()), excludes=None)
+    return None
 
 
 def _coverage_shortfall(profile: Profile, target: Target) -> tuple[CoverageShortfall, ...]:

@@ -75,7 +75,25 @@ def test_a_diff_document_satisfies_its_schema() -> None:
         RunDiff(changes=(), unchanged=0, notes=("a note",), incomplete=())
     )
 
-    Draft202012Validator(_schema("diff-v2.schema.json")).validate(json.loads(rendered))
+    Draft202012Validator(_schema("diff-v3.schema.json")).validate(json.loads(rendered))
+
+
+def test_every_change_kind_satisfies_the_diff_schema() -> None:
+    from guardana.core.diff import Change, ChangeKind, CheckState, RunDiff  # noqa: PLC0415
+    from guardana.core.severity import Severity  # noqa: PLC0415
+    from guardana.report import get_diff_renderer  # noqa: PLC0415
+
+    state = CheckState(
+        outcome="fail", severity=Severity.HIGH, confidence=1.0, count=1, waived=False
+    )
+    changes = tuple(
+        Change(kind=kind, rule_id="r", location="a.py", detail="d", before=state)
+        for kind in ChangeKind
+    )
+
+    rendered = get_diff_renderer("json").render(RunDiff(changes=changes, unchanged=0))
+
+    Draft202012Validator(_schema("diff-v3.schema.json")).validate(json.loads(rendered))
 
 
 def test_an_incomplete_diff_document_satisfies_its_schema() -> None:
@@ -86,7 +104,7 @@ def test_an_incomplete_diff_document_satisfies_its_schema() -> None:
         RunDiff(changes=(), unchanged=0, incomplete=("the second run ran out of budget",))
     )
 
-    Draft202012Validator(_schema("diff-v2.schema.json")).validate(json.loads(rendered))
+    Draft202012Validator(_schema("diff-v3.schema.json")).validate(json.loads(rendered))
 
 
 def test_the_schema_version_in_each_schema_matches_the_code() -> None:
@@ -96,13 +114,13 @@ def test_the_schema_version_in_each_schema_matches_the_code() -> None:
     from guardana.core.manifest.model import MANIFEST_SCHEMA_VERSION  # noqa: PLC0415
     from guardana.core.trace import TRACE_SCHEMA_VERSION  # noqa: PLC0415
 
-    assert _schema("diff-v2.schema.json")["properties"]["schema_version"]["const"] == (  # type: ignore[index]
+    assert _schema("diff-v3.schema.json")["properties"]["schema_version"]["const"] == (  # type: ignore[index]
         DIFF_SCHEMA_VERSION
     )
     assert _schema("plan-v3.schema.json")["properties"]["schema_version"]["const"] == (  # type: ignore[index]
         PLAN_SCHEMA_VERSION
     )
-    assert _schema("run-v11.schema.json")["properties"]["schema_version"]["const"] == (  # type: ignore[index]
+    assert _schema("run-v12.schema.json")["properties"]["schema_version"]["const"] == (  # type: ignore[index]
         MANIFEST_SCHEMA_VERSION
     )
     assert (

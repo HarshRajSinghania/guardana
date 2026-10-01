@@ -102,6 +102,12 @@ def _configuration(configuration: ConfigurationRef) -> dict[str, object]:
         "retriever_digest": configuration.retriever_digest,
         "dataset_digest": configuration.dataset_digest,
         "adapter_digest": configuration.adapter_digest,
+        "plugins": None
+        if configuration.plugins is None
+        else {
+            "mode": str(configuration.plugins.mode),
+            "allowed": sorted(configuration.plugins.allowed),
+        },
     }
 
 

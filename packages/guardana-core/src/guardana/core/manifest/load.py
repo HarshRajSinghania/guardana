@@ -30,6 +30,7 @@ from guardana.core.manifest.records import (
 from guardana.core.manifest.settings import ConfigurationRef, EvidenceMode, ExecutionSettings
 from guardana.core.manifest.settings import PrivacyRecord as _PrivacyRecord
 from guardana.core.manifest.usage import JUDGE_BLOCKS, JudgeUsage, RunUsage
+from guardana.core.plugins import PluginMode, PluginTrust
 from guardana.core.report.shortfall import CoverageShortfall, ShortfallKind
 from guardana.core.report.skipped import SkippedRule, SkipReason
 from guardana.core.report.stop import StopReason
@@ -220,7 +221,32 @@ def _configuration(raw: object) -> ConfigurationRef:
         retriever_digest=_optional_text(block, "retriever_digest"),
         dataset_digest=_optional_text(block, "dataset_digest"),
         adapter_digest=_optional_text(block, "adapter_digest"),
+        plugins=_plugins(block),
     )
+
+
+_PLUGIN_MODES = frozenset(str(mode) for mode in PluginMode)
+
+
+def _plugins(block: dict[str, Any]) -> PluginTrust | None:
+    """Read the plugin trust a run recorded; the key is required, null means unknown."""
+    if "plugins" not in block:
+        raise ManifestLoadError("run.configuration.plugins is missing")
+    raw = block["plugins"]
+    if raw is None:
+        return None
+    if (
+        not isinstance(raw, dict)
+        or set(raw) != {"mode", "allowed"}
+        or raw["mode"] not in _PLUGIN_MODES
+        or not isinstance(raw["allowed"], list)
+        or not all(isinstance(name, str) for name in raw["allowed"])
+    ):
+        raise ManifestLoadError(
+            f"run.configuration.plugins must be null or an object with a mode of "
+            f"{sorted(_PLUGIN_MODES)} and a list of allowed distributions"
+        )
+    return PluginTrust(mode=PluginMode(raw["mode"]), allowed=frozenset(raw["allowed"]))
 
 
 def _execution(raw: object) -> ExecutionSettings:

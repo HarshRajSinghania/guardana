@@ -121,6 +121,11 @@ A schema-10 run migrates to schema 11 with `target.document: null`. No earlier s
 recorded the digest of the document a run read, so nothing is relabelled, and no older run
 is read as carrying a content digest.
 
+A schema-11 run migrates to schema 12 with `scope: null` and `configuration.plugins: null`:
+no earlier schema recorded which files a run listed or which plugin trust it ran under, so
+both are unknown. `diff` against a migrated second run cannot tell a file that left the scan
+from a fixed one, and reads a finding that disappeared the way it did before.
+
 One thing *is* recovered: the **title** of a framework reference, which version 3
 onward records beside its framework and id. It is looked up from the installed
 catalogue for the exact `(framework, id)` pair the document already carries, so
@@ -149,8 +154,8 @@ parametrised over every field a version-1 run could be missing.
 ## The document
 
 The saved-run schema lives at
-[`schemas/run-v11.schema.json`](../schemas/run-v11.schema.json), identified by
-`https://guardana.dev/schemas/run/v11.schema.json`, and the site serves every schema
+[`schemas/run-v12.schema.json`](../schemas/run-v12.schema.json), identified by
+`https://guardana.dev/schemas/run/v12.schema.json`, and the site serves every schema
 at the URL its identifier names. The version is in the identifier,
 so a consumer can tell which contract it is holding before parsing anything; it
 changes whenever the change is not backwards-compatible. A test validates what
@@ -170,16 +175,19 @@ which is what it always counted. Version 8 records the `correction` block on
 `run.rules[].suite`, what a quality suite measured and concluded. Version 10 records
 `run.usage.judge`, what the configured judges spent and whether one of their budgets
 stopped the run. Version 11 records `run.target.document`, the digest of the document the run
-read and what it covers.
+read and what it covers. Version 12 records `scope`, every file a file run listed and the
+excludes it applied, `run.configuration.plugins`, the plugin trust in force, and the
+`unexamined_component` coverage shortfall.
 
 Top level:
 
 | Key | What it is |
 |---|---|
-| `schema_version` | `11`. Stated once, for the whole document. |
+| `schema_version` | `12`. Stated once, for the whole document. |
 | `run` | the manifest — everything below |
 | `findings` / `unverified` / `waived` / `errors` / `observations` | the problem, evidence and inventory channels |
 | `assessments` | what the run *measured*, pass included — see [assessments](#assessments) |
+| `scope` | for a file run, `{files, excludes, ignored_directories}`: every file it listed (so the document grows with the tree), spelled like a finding's location, each exclude pattern with its `source` (`profile` for `rules.paths_exclude`, `ignore_file` for `.guardanaignore`), and the directory names every scan skips; `null` for any other run. `excludes` is `null` when a third-party file target applied filtering it does not report |
 
 Inside `run`:
 
@@ -191,7 +199,7 @@ Inside `run`:
 | `guardana` | which software produced it |
 | `target` | what was examined, with a fingerprint, the fields that fingerprint covers, and the digest of the document the run read |
 | `deployment` | which deployment of which AI system this verifies |
-| `configuration` | which settings produced it, **by digest** |
+| `configuration` | which settings produced it, **by digest**: `profile_digest` covers every setting of the resolved profile except its name, where it was read from and its `plugins:`; `plugins` is the trust in force, `{mode, allowed}` |
 | `execution` | what limits it ran under, and `trials`: the attempts per case the run asked for |
 | `usage` | what it actually consumed, the configured judges on their own meters |
 | `rules` / `evaluators` | what did the checking, with digests, declared request counts, a `trial_summary` for each rule that repeated, a `suite` summary for each quality suite, and calibration. A suite the budget stopped or that raised is listed with its declined summary, though not in `result_summary.rules_run` |

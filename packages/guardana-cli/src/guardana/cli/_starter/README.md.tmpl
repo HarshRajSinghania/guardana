@@ -42,11 +42,12 @@ The scan exits `0`. `after.json` saves which rules ran, which files the scan obs
 ## 4. Compare the two runs
 
 ```console
-$ guardana diff before.json after.json  # exit 0
-[RESOLVED · CRITICAL] guardana.supply_chain.pickle_opcode — weights.pkl
+$ guardana diff before.json after.json  # exit 1
+Worse than the previous run (1)
+  ✖ [LEFT THE SCAN · CRITICAL] guardana.supply_chain.pickle_opcode — weights.pkl
 ```
 
-The comparison exits `0` and lists the finding as resolved.
+The comparison exits `1`, not `0`, as expected here and in step 1, and lists the `weights.pkl` finding as having left the scan. A comparison never calls a problem resolved when the second run no longer lists the file that held it. It cannot tell deletion from a move, rename, or exclusion; moving or renaming the pickle would hide it the same way. Rely on `after.json` from step 3, which shows the scan read `model/weights.safetensors` and found nothing.
 
 ## 5. See what an installed pack would run
 

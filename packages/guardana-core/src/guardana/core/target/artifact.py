@@ -6,6 +6,12 @@ from pathlib import Path
 from guardana.core.budget import BudgetExhausted, Budgets
 from guardana.core.source import MAX_SOURCE_BYTES, PythonSource, UnreadSource, read_source
 from guardana.core.target.base import Capability, Target, TargetKind
+from guardana.core.target.scope import (
+    IGNORED_DIRECTORIES,
+    ExcludePattern,
+    ExcludeSource,
+    FileScope,
+)
 from guardana.core.usage import TargetUsage
 
 # Budget for the parsed-source cache, counted in bytes of *source*. The trees are
@@ -15,30 +21,11 @@ from guardana.core.usage import TargetUsage
 # codebase (an order of magnitude larger than this repo) caches whole.
 _SOURCE_CACHE_BYTES = 8 * 1024 * 1024
 
-_IGNORED_DIRS: frozenset[str] = frozenset(
-    {
-        ".git",
-        ".venv",
-        "venv",
-        "env",
-        "__pycache__",
-        ".mypy_cache",
-        ".ruff_cache",
-        ".pytest_cache",
-        "node_modules",
-        ".tox",
-        ".eggs",
-        "dist",
-        "build",
-        ".idea",
-        ".vscode",
-    }
-)
 _IGNORE_FILE = ".guardanaignore"
 
 
 def _is_ignored(dirname: str) -> bool:
-    return dirname in _IGNORED_DIRS or dirname.endswith(".egg-info")
+    return any(fnmatch(dirname, pattern) for pattern in IGNORED_DIRECTORIES)
 
 
 def _read_ignore_file(root: Path) -> tuple[str, ...]:
@@ -67,8 +54,16 @@ class ArtifactTarget(Target):
     ) -> None:
         self._root = root
         # Profile `rules.paths_exclude` plus any `.guardanaignore` at the root, both
-        # matched (via fnmatch) against each entry's path relative to the root.
-        self._excludes = tuple(excludes) + _read_ignore_file(root)
+        # matched (via fnmatch) against each entry's path relative to the root. A
+        # single-file root is scanned whatever they say, so none is recorded for it.
+        self._excludes: tuple[ExcludePattern, ...] = (
+            ()
+            if root.is_file()
+            else (
+                *(ExcludePattern(p, ExcludeSource.PROFILE) for p in excludes),
+                *(ExcludePattern(p, ExcludeSource.IGNORE_FILE) for p in _read_ignore_file(root)),
+            )
+        )
         self._sources: dict[Path, PythonSource | None] = {}
         self._unread: dict[Path, UnreadSource] = {}
         self._source_budget = source_cache_bytes
@@ -148,11 +143,19 @@ class ArtifactTarget(Target):
         """
         return tuple(self._unread[path] for path in sorted(self._unread))
 
+    def file_scope(self) -> FileScope:
+        """Return every file this scan listed and the excludes it applied while listing."""
+        return FileScope(
+            files=tuple(str(path) for path in self._listing()),
+            excludes=self._excludes,
+            ignored_directories=() if self._root.is_file() else IGNORED_DIRECTORIES,
+        )
+
     def _excluded(self, path: Path) -> bool:
         if not self._excludes:
             return False
         rel = os.path.relpath(path, self._root)
-        return any(fnmatch(rel, pattern) for pattern in self._excludes)
+        return any(fnmatch(rel, exclude.pattern) for exclude in self._excludes)
 
     def iter_files(self, suffixes: tuple[str, ...] | None = None) -> Iterator[Path]:
         """Walk the tree in a stable order, skipping caches, virtualenvs, and excludes.

@@ -371,10 +371,10 @@ def _starter_checks(venv: Path, starter: Path) -> list[Check]:
             cwd=starter,
         ),
         Check(
-            "diff shows the finding resolved",
+            "diff says the pickle left the scan rather than calling it resolved",
             [guardana, "diff", "before.json", "after.json"],
-            0,
-            expect=("RESOLVED", "guardana.supply_chain.pickle_opcode"),
+            1,
+            expect=("LEFT THE SCAN", "guardana.supply_chain.pickle_opcode"),
             cwd=starter,
         ),
         Check(

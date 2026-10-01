@@ -25,6 +25,7 @@ from guardana.core.manifest.migrations import (
     migrate_v8,
     migrate_v9,
     migrate_v10,
+    migrate_v11,
 )
 from guardana.core.manifest.model import RunManifest
 from guardana.core.manifest.usage import RunUsage
@@ -37,6 +38,7 @@ from guardana.core.report.shortfall import CoverageShortfall
 from guardana.core.report.skipped import SkippedRule
 from guardana.core.report.stop import StopReason
 from guardana.core.severity import Severity
+from guardana.core.target.scope import ExcludePattern, ExcludeSource, FileScope
 from guardana.core.taxonomy import TaxonomyRef, resolve_recorded
 from guardana.core.usage import TargetUsage
 
@@ -54,6 +56,7 @@ _MIGRATIONS = {
     8: migrate_v8,
     9: migrate_v9,
     10: migrate_v10,
+    11: migrate_v11,
 }
 """One step forward per version, keyed by the version the document *is*.
 
@@ -187,7 +190,53 @@ def _result(raw: dict[str, Any], manifest: RunManifest, path: Path) -> ScanResul
             if rule.trial_summary is not None
         },
         suites={rule.id: rule.suite for rule in manifest.rules if rule.suite is not None},
+        scope=_scope(raw, path),
     )
+
+
+_EXCLUDE_SOURCES = frozenset(str(source) for source in ExcludeSource)
+
+
+def _scope(raw: dict[str, Any], path: Path) -> FileScope | None:
+    """Read what a file run listed and excluded, refusing a shape no writer produces.
+
+    An absent key reads as unknown, like null, never as "listed nothing": a document
+    written by hand would otherwise turn every finding into one whose file left the scan.
+    """
+    block = raw.get("scope")
+    if block is None:
+        return None
+    if not isinstance(block, dict) or set(block) != {"files", "excludes", "ignored_directories"}:
+        raise ReportLoadError(
+            f"{path}: 'scope' must be null or an object with files, excludes and "
+            f"ignored_directories"
+        )
+    return FileScope(
+        files=_str_tuple(block["files"], "scope.files", path),
+        excludes=None if block["excludes"] is None else _excludes(block["excludes"], path),
+        ignored_directories=_str_tuple(
+            block["ignored_directories"], "scope.ignored_directories", path
+        ),
+    )
+
+
+def _excludes(raw: object, path: Path) -> tuple[ExcludePattern, ...]:
+    if not isinstance(raw, list):
+        raise ReportLoadError(f"{path}: 'scope.excludes' must be null or a list")
+    patterns = []
+    for entry in raw:
+        if (
+            not isinstance(entry, dict)
+            or set(entry) != {"pattern", "source"}
+            or not isinstance(entry["pattern"], str)
+            or entry["source"] not in _EXCLUDE_SOURCES
+        ):
+            raise ReportLoadError(
+                f"{path}: every entry in 'scope.excludes' needs a string pattern and a source "
+                f"of {sorted(_EXCLUDE_SOURCES)}"
+            )
+        patterns.append(ExcludePattern(entry["pattern"], ExcludeSource(entry["source"])))
+    return tuple(patterns)
 
 
 def _assessments(raw: object, path: Path) -> tuple[Assessment, ...]:

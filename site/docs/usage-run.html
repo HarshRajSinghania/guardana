@@ -361,6 +361,10 @@ counted, which is not the same as none being made. <code>inspect</code> prints <
 <p>A schema-10 run migrates to schema 11 with <code>target.document: null</code>. No earlier schema
 recorded the digest of the document a run read, so nothing is relabelled, and no older run
 is read as carrying a content digest.</p>
+<p>A schema-11 run migrates to schema 12 with <code>scope: null</code> and <code>configuration.plugins: null</code>:
+no earlier schema recorded which files a run listed or which plugin trust it ran under, so
+both are unknown. <code>diff</code> against a migrated second run cannot tell a file that left the scan
+from a fixed one, and reads a finding that disappeared the way it did before.</p>
 <p>One thing <em>is</em> recovered: the <strong>title</strong> of a framework reference, which version 3
 onward records beside its framework and id. It is looked up from the installed
 catalogue for the exact <code>(framework, id)</code> pair the document already carries, so
@@ -382,8 +386,8 @@ published was the file. There is now a test that validates the <em>artifact</em>
 parametrised over every field a version-1 run could be missing.</p>
 <h2 id="the-document">The document</h2>
 <p>The saved-run schema lives at
-<a href="https://github.com/guardana/guardana/blob/main/schemas/run-v11.schema.json"><code>schemas/run-v11.schema.json</code></a>, identified by
-<code>https://guardana.dev/schemas/run/v11.schema.json</code>, and the site serves every schema
+<a href="https://github.com/guardana/guardana/blob/main/schemas/run-v12.schema.json"><code>schemas/run-v12.schema.json</code></a>, identified by
+<code>https://guardana.dev/schemas/run/v12.schema.json</code>, and the site serves every schema
 at the URL its identifier names. The version is in the identifier,
 so a consumer can tell which contract it is holding before parsing anything; it
 changes whenever the change is not backwards-compatible. A test validates what
@@ -402,7 +406,9 @@ which is what it always counted. Version 8 records the <code>correction</code> b
 <code>run.rules[].suite</code>, what a quality suite measured and concluded. Version 10 records
 <code>run.usage.judge</code>, what the configured judges spent and whether one of their budgets
 stopped the run. Version 11 records <code>run.target.document</code>, the digest of the document the run
-read and what it covers.</p>
+read and what it covers. Version 12 records <code>scope</code>, every file a file run listed and the
+excludes it applied, <code>run.configuration.plugins</code>, the plugin trust in force, and the
+<code>unexamined_component</code> coverage shortfall.</p>
 <p>Top level:</p>
 <div class="table-wrap"><table>
 <thead>
@@ -414,7 +420,7 @@ read and what it covers.</p>
 <tbody>
 <tr>
 <td><code>schema_version</code></td>
-<td><code>11</code>. Stated once, for the whole document.</td>
+<td><code>12</code>. Stated once, for the whole document.</td>
 </tr>
 <tr>
 <td><code>run</code></td>
@@ -427,6 +433,10 @@ read and what it covers.</p>
 <tr>
 <td><code>assessments</code></td>
 <td>what the run <em>measured</em>, pass included — see <a href="#assessments">assessments</a></td>
+</tr>
+<tr>
+<td><code>scope</code></td>
+<td>for a file run, <code>{files, excludes, ignored_directories}</code>: every file it listed (so the document grows with the tree), spelled like a finding's location, each exclude pattern with its <code>source</code> (<code>profile</code> for <code>rules.paths_exclude</code>, <code>ignore_file</code> for <code>.guardanaignore</code>), and the directory names every scan skips; <code>null</code> for any other run. <code>excludes</code> is <code>null</code> when a third-party file target applied filtering it does not report</td>
 </tr>
 </tbody>
 </table></div>
@@ -465,7 +475,7 @@ read and what it covers.</p>
 </tr>
 <tr>
 <td><code>configuration</code></td>
-<td>which settings produced it, <strong>by digest</strong></td>
+<td>which settings produced it, <strong>by digest</strong>: <code>profile_digest</code> covers every setting of the resolved profile except its name, where it was read from and its <code>plugins:</code>; <code>plugins</code> is the trust in force, <code>{mode, allowed}</code></td>
 </tr>
 <tr>
 <td><code>execution</code></td>

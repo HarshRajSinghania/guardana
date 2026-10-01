@@ -29,7 +29,7 @@ Run the README's steps inside `DIR`:
 1. `guardana scan model --format json --output before.json` fails (exit `1`) on the pickle.
 2. Replace the pickle with the safetensors file.
 3. `guardana scan model --format json --output after.json` passes (exit `0`); `after.json` saves the evidence.
-4. `guardana diff before.json after.json` shows that the finding is resolved (exit `0`).
+4. `guardana diff before.json after.json` lists the finding as having left the scan (exit `1`): a comparison never calls a problem resolved when the second run no longer lists its file, and `after.json` is the evidence of the fix.
 5. `guardana doctor` lists what an installed pack would execute. On a clean install, it lists nothing.
 6. `guardana rule test --rules checks 'starter.*'` runs the local check's three samples offline (exit `0`).
 7. Edit the check as the README shows and run step 6 again. Four samples pass.

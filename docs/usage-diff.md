@@ -73,6 +73,7 @@ the rule itself — which is why swapping `llama3` for `llama4` still compares.
 | `blinded` | A check that used to reach a verdict no longer can. **The finding count falls here**, which is exactly why a comparison that counted would call going blind an improvement. |
 | `escalated` | Same check, higher severity. |
 | `coverage_lost` | A rule that ran before did not run this time. Whatever it would have found is unknown, not absent. |
+| `left_scan` | The file that held a problem, or a check that could not grade, is not among the files the second run listed. Printed as `LEFT THE SCAN`. |
 
 And the other direction, reported but never failing the build: `resolved`,
 `clarified` (a check that could not grade now grades clean), `de_escalated`,
@@ -83,6 +84,15 @@ Two of those deserve their own sentence:
 **A waiver is not a fix.** Adding a finding to a baseline reports as
 `waiver_changed`, never as `resolved`. The problem did not go away; a person
 decided to accept it.
+
+**A file that left the scan is not a fixed one.** Against files, a finding is
+`resolved` only when the second run listed its file and the rule found nothing there.
+A file the second run did not list — deleted, moved into a skipped directory like
+`build/`, renamed, or excluded by `.guardanaignore` or `rules.paths_exclude` — is
+`left_scan`, and the detail names the exclude when one matches. Removing a malicious
+file is a real fix, and the comparison still cannot tell it from hiding the file, so
+the second run is the evidence: it lists what it read. A second run saved before
+schema 12 records no listing, and a finding that disappeared from it reads as before.
 
 **A narrower run is not a better one.** If the second run used a tighter profile,
 its missing findings are `coverage_lost` — a regression — not progress. This is
@@ -104,7 +114,7 @@ check and a regression in its own right.
 The second filter is confidence. Your policy's `min_confidence` applies to
 regressions backed by a graded verdict, so a shaky judge cannot stop a deploy.
 
-**Neither filter applies to `blinded` or `coverage_lost`**, and severity is the one
+**Neither filter applies to `blinded`, `coverage_lost` or `left_scan`**, and severity is the one
 that mattered. An ungraded result carries confidence 0.0 by definition, and it keeps
 whatever severity its rule declares — so an artifact nobody could read is a `LOW`
 that every default `severity` bar filtered away, and the comparison printed "worse"
