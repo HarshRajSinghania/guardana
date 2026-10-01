@@ -6,12 +6,19 @@ against a live-model probe is meaningless, and a pair handed over in the wrong
 order turns a regression into a clean bill of health without anyone noticing.
 """
 
+from collections.abc import Mapping
 from dataclasses import replace
 
-from guardana.core.diff.compare import RunContext, compare
+from guardana.core.assessment import Assessment, AssessmentStatus, UnmeasuredReason
+from guardana.core.diff.compare import Grader, RunContext, compare
 from guardana.core.diff.errors import IncomparableRunsError
 from guardana.core.diff.model import RunDiff
+from guardana.core.fingerprint import DigestKind
+from guardana.core.manifest import RunManifest
+from guardana.core.manifest.records import EvaluatorRecord
 from guardana.core.report import RunReport
+
+_GRADED = frozenset({AssessmentStatus.MEASURED, AssessmentStatus.INCONCLUSIVE})
 
 
 def compare_reports(before: RunReport, after: RunReport) -> RunDiff:
@@ -40,6 +47,7 @@ def compare_reports(before: RunReport, after: RunReport) -> RunDiff:
         + _version_note(before, after)
         + _coverage_note(before, after)
         + _migration_note(before, after)
+        + _shared_execution_note(before, after)
         + diff.notes
     )
     # `replace`, never a fresh `RunDiff`: rebuilding field by field drops whatever
@@ -53,7 +61,76 @@ def _context(report: RunReport) -> RunContext:
         root=report.manifest.target.ref,
         rules={rule.id: rule.digest for rule in report.manifest.rules},
         tool_version=report.manifest.guardana.version,
+        grading=_grading(report),
     )
+
+
+def _grading(report: RunReport) -> dict[str, dict[str, Grader]]:
+    """Map each rule to the assessors its graded trials name, with what the run recorded of each.
+
+    Read from the assessments because a rule record does not say which evaluator its
+    verdicts came from, and an assessment names the one that produced it. A trial
+    nobody graded — not run, or a reply redaction altered — names no grader.
+    """
+    recorded = {evaluator.id: evaluator for evaluator in report.manifest.evaluators}
+    grading: dict[str, dict[str, Grader]] = {}
+    for assessment in report.result.assessments:
+        if _names_a_grader(assessment):
+            grading.setdefault(assessment.rule_id, {})[assessment.assessor] = _grader(
+                assessment.assessor, recorded
+            )
+    return grading
+
+
+def _names_a_grader(assessment: Assessment) -> bool:
+    return assessment.status in _GRADED and assessment.reason is not UnmeasuredReason.REPLY_ALTERED
+
+
+def _grader(assessor: str, recorded: Mapping[str, EvaluatorRecord]) -> Grader:
+    """Find the evaluator record an assessor names: exactly, or before its `@version`."""
+    record = recorded.get(assessor) or recorded.get(assessor.partition("@")[0])
+    if record is None:
+        return Grader()
+    return Grader(version=record.version, digest=record.digest, judge=record.judge)
+
+
+def _shared_execution_note(before: RunReport, after: RunReport) -> tuple[str, ...]:
+    """Say when both runs graded the same recorded replies, naming the recording's digest.
+
+    Nothing more: the two may still differ in tool version, rules, coverage and skips,
+    and each of those has its own note.
+    """
+    digest = _shared_execution(before.manifest, after.manifest)
+    if digest is None:
+        return ()
+    return (
+        f"both runs graded the same recorded replies ({digest}), so a difference between "
+        f"them is not the system answering differently",
+    )
+
+
+def _shared_execution(first: RunManifest, second: RunManifest) -> str | None:
+    """Return the digest two runs' recorded replies share, or None when nothing links them.
+
+    A probe's kept exchanges link to the run that graded them; two graded runs link
+    through the recording they both read.
+    """
+    for kept, graded in ((first, second), (second, first)):
+        document = _whole_document(graded)
+        if kept.exchanges is not None and kept.exchanges.digest == document:
+            return document
+    if first.recording is None or second.recording is None:
+        return None
+    document = _whole_document(first)
+    return document if document is not None and document == _whole_document(second) else None
+
+
+def _whole_document(manifest: RunManifest) -> str | None:
+    """Return the digest of the document a run read, only when it covers every byte of it."""
+    document = manifest.target.document
+    if document is None or document.kind is not DigestKind.CONTENT:
+        return None
+    return document.digest
 
 
 def _coverage_note(before: RunReport, after: RunReport) -> tuple[str, ...]:

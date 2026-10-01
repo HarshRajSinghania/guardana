@@ -14,7 +14,7 @@ from dataclasses import replace
 from datetime import UTC, datetime
 from typing import Any
 
-from guardana.core.assessment import Assessment, AssessmentStatus, Direction
+from guardana.core.assessment import Assessment, AssessmentStatus, Direction, UnmeasuredReason
 from guardana.core.evaluator.base import Verdict
 from guardana.core.fingerprint import DigestKind, DocumentDigest
 from guardana.core.gate import GateOutcome, StopReason
@@ -31,7 +31,10 @@ from guardana.core.manifest.records import (
     CalibrationRecord,
     CorrectionStatus,
     EvaluatorRecord,
+    ExchangesRecord,
     JudgeCorrection,
+    RecordingOriginRecord,
+    RecordingRecord,
     ResultSummary,
     RuleRecord,
     SuiteCorrection,
@@ -187,7 +190,7 @@ def run_manifest() -> RunManifest:
             max_severity="HIGH",
             gate=GateOutcome.FAIL,
             stopped_by=StopReason.BUDGET_EXHAUSTED,
-            assessments=3,
+            assessments=4,
             measured=3,
         ),
         rules=(
@@ -257,6 +260,7 @@ def run_manifest() -> RunManifest:
                     sensitivity=0.9,
                     specificity=0.95,
                 ),
+                judge="model=m;endpoint=sha256:acac;samples=1",
             ),
         ),
         source=RunSource(kind=SourceKind.CI, provider="github", run_url="https://ci.invalid/run/1"),
@@ -287,6 +291,20 @@ def run_manifest() -> RunManifest:
                     name="approval",
                     detail="the adapter records no approval spans",
                 ),
+            ),
+        ),
+        exchanges=ExchangesRecord(digest="sha256:" + "ef" * 32, count=12, altered=2),
+        recording=RecordingRecord(
+            name="support-replies",
+            version="2026.09",
+            subject="checkout-assistant",
+            verbatim=False,
+            origin=RecordingOriginRecord(
+                run_id="5d0c8a1b-3e2f-4a6d-9b7c-1f2e3d4c5b6a",
+                target="http://model.invalid/v1",
+                started_at="2026-08-10T08:00:00Z",
+                stopped_by="budget_exhausted",
+                gate="fail",
             ),
         ),
         migrated_from=4,
@@ -325,6 +343,16 @@ _ASSESSMENT = Assessment(
 )
 
 
+_UNRECORDED = replace(
+    _ASSESSMENT,
+    case_id="guardana.prompt.jailbreak#5e1a0c7d2b44",
+    status=AssessmentStatus.ERROR,
+    trial=1,
+    reason=UnmeasuredReason.NOT_RECORDED,
+)
+"""A trial the recording held no reply for, its other fields set only so a reader must read them."""
+
+
 def scan_result() -> ScanResult:
     """A scan result with every channel occupied — none of them empty, none defaulted.
 
@@ -357,8 +385,12 @@ def scan_result() -> ScanResult:
                 detail="the adapter records no approval spans",
             ),
         ),
-        # Three trials of one case, which is what a rule repeating at K = 3 records.
-        assessments=tuple(replace(_ASSESSMENT, trial=n) for n in (1, 2, 3)),
+        # Three trials of one case, which is what a rule repeating at K = 3 records, and
+        # one trial of another case the recording held no reply for.
+        assessments=(
+            *(replace(_ASSESSMENT, trial=n) for n in (1, 2, 3)),
+            _UNRECORDED,
+        ),
         stopped_by=StopReason.BUDGET_EXHAUSTED,
         usage=TargetUsage(
             requests=42, input_tokens=1200, output_tokens=800, requests_missing_token_counts=3
@@ -377,8 +409,28 @@ def scan_result() -> ScanResult:
     )
 
 
+def saved_run_at_v12(document: dict[str, Any]) -> dict[str, Any]:
+    """Rewrite a document this build wrote into the shape a version-12 build wrote."""
+    run = document["run"]
+    return {
+        **document,
+        "schema_version": 12,
+        "$schema": "https://guardana.dev/schemas/run/v12.schema.json",
+        "assessments": [
+            {k: v for k, v in entry.items() if k != "reason"} for entry in document["assessments"]
+        ],
+        "run": {
+            **{k: v for k, v in run.items() if k not in {"exchanges", "recording"}},
+            "evaluators": [
+                {k: v for k, v in entry.items() if k != "judge"} for entry in run["evaluators"]
+            ],
+        },
+    }
+
+
 def saved_run_at_v11(document: dict[str, Any]) -> dict[str, Any]:
     """Rewrite a document this build wrote into the shape a version-11 build wrote."""
+    document = saved_run_at_v12(document)
     run = document["run"]
     return {
         **{k: v for k, v in document.items() if k != "scope"},

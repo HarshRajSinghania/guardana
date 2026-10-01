@@ -22,6 +22,7 @@ from guardana.core.calibration.store import (
     load_calibrations,
 )
 from guardana.core.evaluator.base import Evaluator
+from guardana.core.fingerprint import DocumentDigest
 from guardana.core.gate import GateOutcome
 from guardana.core.manifest.coverage import (
     CoverageRecord,
@@ -34,6 +35,8 @@ from guardana.core.manifest.model import RunManifest
 from guardana.core.manifest.records import (
     CalibrationRecord,
     EvaluatorRecord,
+    ExchangesRecord,
+    RecordingRecord,
     RuleRecord,
     SuiteSummary,
     TrialSummary,
@@ -48,6 +51,7 @@ from guardana.core.registry import Registry
 from guardana.core.report import CoverageShortfall, ScanResult
 from guardana.core.rule import Rule
 from guardana.core.target import REQUEST_TIMEOUT_SECONDS, Target, TargetKind, TraceReader
+from guardana.core.target.recorded import RecordedTarget
 from guardana.core.taxonomy import catalogs
 from guardana.core.trials import reduce_rule
 from guardana.core.usage import TargetUsage
@@ -72,8 +76,17 @@ def target_identity(target: Target, ref: str) -> TargetIdentity:
         fingerprint=digest_of(str(target.kind), ref),
         fingerprint_inputs=inputs,
         capabilities=tuple(sorted(str(c) for c in target.capabilities())),
-        document=target.trace.provenance.document if isinstance(target, TraceReader) else None,
+        document=_document_of(target),
     )
+
+
+def _document_of(target: Target) -> DocumentDigest | None:
+    """Return the digest of the document a target read: a trace, or a grade's recording."""
+    if isinstance(target, TraceReader):
+        return target.trace.provenance.document
+    if isinstance(target, RecordedTarget):
+        return target.document
+    return None
 
 
 def _run_usage(
@@ -103,7 +116,9 @@ def _run_usage(
 
 
 def _evaluator_records(
-    rules: Sequence[Rule], calibrations: Mapping[str, RecordedCalibration] | None = None
+    rules: Sequence[Rule],
+    calibrations: Mapping[str, RecordedCalibration] | None = None,
+    evaluators: Mapping[str, Evaluator] | None = None,
 ) -> tuple[EvaluatorRecord, ...]:
     """Record the evaluators the rules that ran declared they would grade with.
 
@@ -120,6 +135,9 @@ def _evaluator_records(
     recorded measurement carries `None`, which is what every run said for every
     evaluator until `calibrate --record` existed — honest then and honest now, but
     now distinguishable from "measured, and here is how honest it was".
+
+    The judge identity is the one the registered evaluator states, so a judge swapped
+    under the same id is recorded as a different grader; None when it states none.
     """
     declared = {
         evaluator_id
@@ -128,13 +146,21 @@ def _evaluator_records(
         if evaluator_id
     }
     measured = calibrations or {}
+    registered = evaluators or {}
     return tuple(
         EvaluatorRecord(
             id=evaluator_id,
             calibration=(measured[evaluator_id].as_record() if evaluator_id in measured else None),
+            judge=_stated_judge(registered.get(evaluator_id)),
         )
         for evaluator_id in sorted(declared)
     )
+
+
+def _stated_judge(evaluator: Evaluator | None) -> str | None:
+    """Return the judge identity an evaluator states, or None when it states none."""
+    identity = None if evaluator is None else evaluator.judge_identity
+    return identity if isinstance(identity, str) and identity.strip() else None
 
 
 def load_profile_calibrations(profile: Profile) -> dict[str, RecordedCalibration]:
@@ -216,6 +242,9 @@ def build_run_manifest(  # noqa: PLR0913 — a manifest is assembled from indepe
     source: RunSource | None = None,
     calibrations: Mapping[str, RecordedCalibration] | None = None,
     judge_usage: Mapping[str, JudgeUsage] | None = None,
+    exchanges: ExchangesRecord | None = None,
+    recording: RecordingRecord | None = None,
+    run_id: str | None = None,
 ) -> RunManifest:
     """Describe the run that produced `result`, digesting the rules that actually ran.
 
@@ -235,6 +264,11 @@ def build_run_manifest(  # noqa: PLR0913 — a manifest is assembled from indepe
     and `deployment` are the caller's knowledge — the engine reads no environment — and
     default to a local run of an undeclared deployment. Calibrations left out are read
     from the profile's files, raising `CalibrationStoreError` on one that cannot be read.
+
+    `exchanges` are what a probe kept in its sidecar and `recording` the recording a graded
+    run answered from; both are the caller's to state, and None when there is neither.
+    `run_id` is given by a caller that wrote it into the sidecar before the manifest
+    existed; left out, a fresh one is drawn.
     """
     now = datetime.now(UTC)
     ran = tuple(rule for rule in registry.rules() if rule.meta.id in result.rules_run)
@@ -260,14 +294,14 @@ def build_run_manifest(  # noqa: PLR0913 — a manifest is assembled from indepe
         )
         for rule in ran
     )
-    evaluators = _evaluator_records(ran, calibrations)
+    evaluators = _evaluator_records(ran, calibrations, grading.evaluators)
     target = (
         identity
         if identity is not None
         else TargetIdentity(kind=target_kind, ref=target_ref, fingerprint_inputs=())
     )
     return RunManifest(
-        run_id=str(uuid.uuid4()),
+        run_id=run_id if run_id is not None else str(uuid.uuid4()),
         created_at=now,
         started_at=started_at,
         completed_at=now,
@@ -308,6 +342,8 @@ def build_run_manifest(  # noqa: PLR0913 — a manifest is assembled from indepe
             evidence_mode=profile.privacy.mode,
             redaction_policy_digest=profile.privacy.digest,
         ),
+        exchanges=exchanges,
+        recording=recording,
     )
 
 

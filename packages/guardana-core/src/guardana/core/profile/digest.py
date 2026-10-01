@@ -7,13 +7,14 @@ contents are recorded per rule, by digest, in the manifest's rule records.
 
 import json
 from collections.abc import Mapping
-from dataclasses import fields, is_dataclass
+from dataclasses import Field, fields, is_dataclass
 from datetime import date, time
 from enum import Enum
 from pathlib import Path, PurePath
 
 from guardana.core.fingerprint import digest_of
 from guardana.core.profile.model import Profile
+from guardana.core.redaction import OMITTED_WHEN_DEFAULT
 
 _FORMAT = "profile-v1"
 """Part of every digest, so a change to what is covered changes every digest with it."""
@@ -61,7 +62,11 @@ def _encode(value: object) -> object:  # noqa: PLR0911 — one branch per JSON s
     if isinstance(value, Enum):
         return f"{type(value).__name__}.{value.name}"
     if is_dataclass(value) and not isinstance(value, type):
-        return {member.name: _encode(getattr(value, member.name)) for member in fields(value)}
+        return {
+            member.name: _encode(getattr(value, member.name))
+            for member in fields(value)
+            if not _omitted(member, getattr(value, member.name))
+        }
     if isinstance(value, Mapping):
         return {str(key): _encode(item) for key, item in value.items()}
     if isinstance(value, frozenset | set):
@@ -75,3 +80,8 @@ def _encode(value: object) -> object:  # noqa: PLR0911 — one branch per JSON s
     if isinstance(value, PurePath | Path):
         return value.as_posix()
     raise TypeError(f"cannot digest a profile value of type {type(value).__name__}")
+
+
+def _omitted(member: "Field[object]", value: object) -> bool:
+    """Whether a field marked `OMITTED_WHEN_DEFAULT` holds its default and stays out."""
+    return bool(member.metadata.get(OMITTED_WHEN_DEFAULT)) and value == member.default

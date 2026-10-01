@@ -19,7 +19,10 @@ from guardana.core.manifest.records import (
     CalibrationRecord,
     CorrectionStatus,
     EvaluatorRecord,
+    ExchangesRecord,
     JudgeCorrection,
+    RecordingOriginRecord,
+    RecordingRecord,
     ResultSummary,
     RuleRecord,
     SuiteCorrection,
@@ -661,9 +664,86 @@ def _evaluators(raw: object) -> tuple[EvaluatorRecord, ...]:
             version=_optional_text(entry, "version"),
             digest=_optional_text(entry, "digest"),
             calibration=_calibration(entry),
+            judge=_nullable_text(entry, "judge", "run.evaluators[]"),
         )
         for entry in raw
     )
+
+
+_EXCHANGES_KEYS = frozenset({"digest", "count", "altered"})
+
+
+def _exchanges(run: Mapping[str, Any]) -> ExchangesRecord | None:
+    """Read the exchanges a probe kept, refusing a block absent or malformed.
+
+    The key is required, null included: a sidecar digest read back as absent would drop
+    the only link from a probe to the run that regraded its replies.
+    """
+    what = "run.exchanges"
+    raw = _present(run, "exchanges", "run")
+    if raw is None:
+        return None
+    block = _closed(raw, _EXCHANGES_KEYS, what)
+    try:
+        return ExchangesRecord(
+            digest=_text(block, "digest", what),
+            count=_whole(block, "count", what),
+            altered=_whole(block, "altered", what),
+        )
+    except ValueError as exc:
+        raise ManifestLoadError(f"{what}: {exc}") from exc
+
+
+_RECORDING_KEYS = frozenset({"name", "version", "subject", "verbatim", "origin"})
+_ORIGIN_KEYS = frozenset({"run_id", "target", "started_at", "stopped_by", "gate"})
+
+
+def _recording(run: Mapping[str, Any]) -> RecordingRecord | None:
+    """Read the recording a graded run answered from, refusing a block absent or malformed.
+
+    The key is required, null included: a graded run read back as a live one would hide
+    that nothing was sent to the system it names.
+    """
+    what = "run.recording"
+    raw = _present(run, "recording", "run")
+    if raw is None:
+        return None
+    block = _closed(raw, _RECORDING_KEYS, what)
+    verbatim = _present(block, "verbatim", what)
+    if not isinstance(verbatim, bool):
+        raise ManifestLoadError(f"{what}.verbatim must be true or false")
+    origin = _present(block, "origin", what)
+    return RecordingRecord(
+        name=_text(block, "name", what),
+        version=_text(block, "version", what),
+        subject=_nullable_text(block, "subject", what),
+        verbatim=verbatim,
+        origin=None if origin is None else _origin(origin),
+    )
+
+
+def _origin(raw: object) -> RecordingOriginRecord:
+    what = "run.recording.origin"
+    block = _closed(raw, _ORIGIN_KEYS, what)
+    return RecordingOriginRecord(
+        run_id=_text(block, "run_id", what),
+        target=_text(block, "target", what),
+        started_at=_nullable_text(block, "started_at", what),
+        stopped_by=_nullable_text(block, "stopped_by", what),
+        gate=_nullable_text(block, "gate", what),
+    )
+
+
+def _closed(raw: object, keys: frozenset[str], what: str) -> dict[str, Any]:
+    """Return `raw` as an object holding exactly `keys`, refusing one missing or unknown."""
+    block = _mapping(raw, what)
+    unknown = sorted(set(block) - keys)
+    if unknown:
+        raise ManifestLoadError(f"{what} carries {unknown}, which no writer records")
+    missing = sorted(keys - set(block))
+    if missing:
+        raise ManifestLoadError(f"{what} is missing {missing}; null says a value is unknown")
+    return block
 
 
 def _calibration(entry: object) -> CalibrationRecord | None:
@@ -779,6 +859,8 @@ def manifest_from_dict(raw: object, *, migrated_from: int | None = None) -> RunM
         coverage=_coverage(block.get("coverage")),
         result_summary=_result_summary(block.get("result_summary")),
         privacy=_privacy(block.get("privacy")),
+        exchanges=_exchanges(block),
+        recording=_recording(block),
         migrated_from=(
             migrated_from if migrated_from is not None else _optional_int(block, "migrated_from")
         ),

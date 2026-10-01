@@ -15,7 +15,7 @@ one somebody forgot.
 import re
 from bisect import bisect_right
 from collections.abc import Mapping
-from dataclasses import dataclass, fields, is_dataclass, replace
+from dataclasses import dataclass, field, fields, is_dataclass, replace
 from enum import Enum, StrEnum
 from functools import cache
 from typing import TYPE_CHECKING, Any, ClassVar, Protocol, TypeVar
@@ -47,28 +47,61 @@ DEFAULT_MAX_EVIDENCE_BYTES = 16 * 1024
 """Unbounded evidence is a denial-of-service against a collector and a memory risk
 locally, and a 64 MiB model reply in a report helps nobody."""
 
+OMITTED_WHEN_DEFAULT = "guardana.omitted_when_default"
+"""Field metadata: a setting left out of a profile's digest while it holds its default.
+
+A switch added later marks itself so, and every profile that does not use it keeps the
+digest its saved runs already record.
+"""
+
 _REDACTED = "[redacted:{label}]"
 _TRUNCATED = "… [truncated: evidence exceeded {limit} bytes]"
 _WITHHELD_EVIDENCE = "[evidence withheld: metadata_only]"
 _WITHHELD_SUMMARY = re.compile(r"\[evidence withheld: metadata_only(?::[0-9a-f]{12})?\]")
 _WITHHELD_REASON = "[reason withheld: metadata_only]"
 
+_WORD_START = r"(?<![A-Za-z0-9_])"
+"""Where a secret may start: after anything but an ASCII letter, digit or underscore.
+
+Not `\b`, which treats every Unicode letter as a word character, so a token written
+straight after Chinese or accented text would have no boundary before it and stay.
+"""
+
 # Ordered most specific first: a key that also matches a generic high-entropy
-# pattern should be labelled as the key it is.
+# pattern should be labelled as the key it is. A private key leads because its span
+# holds the whole block, and a shorter match claimed inside the body first would
+# leave the rest of the key material in place. Its body stops at the next BEGIN, so a
+# reply of headers with no END costs one pass rather than one pass per header; a block
+# cut before its END still takes its armor headers (`Proc-Type:`, `Version:`) and the
+# base64 lines after them.
+_PRIVATE_KEY_LABEL = r"[A-Z ]*PRIVATE KEY(?: BLOCK)?"
 _SECRET_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
-    ("aws-key", re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b")),
-    ("github-token", re.compile(r"\bgh[pousr]_[A-Za-z0-9]{16,}\b")),
-    ("slack-token", re.compile(r"\bxox[abprs]-[A-Za-z0-9-]{10,}\b")),
-    ("openai-key", re.compile(r"\bsk-[A-Za-z0-9_-]{16,}\b")),
-    ("anthropic-key", re.compile(r"\bsk-ant-[A-Za-z0-9_-]{16,}\b")),
-    ("google-key", re.compile(r"\bAIza[0-9A-Za-z_-]{35}\b")),
-    ("private-key", re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----")),
-    ("jwt", re.compile(r"\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b")),
-    ("bearer-token", re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._-]{16,}")),
+    (
+        "private-key",
+        re.compile(
+            rf"-----BEGIN {_PRIVATE_KEY_LABEL}-----"
+            rf"(?:(?:(?!-----BEGIN )[\s\S])*?-----END {_PRIVATE_KEY_LABEL}-----"
+            rf"|(?:\s+(?:[A-Za-z-]+:[^\n]*|[A-Za-z0-9+/=]{{16,}}))*)"
+        ),
+    ),
+    ("aws-key", re.compile(rf"{_WORD_START}(?:AKIA|ASIA)[0-9A-Z]{{16}}")),
+    ("github-pat", re.compile(rf"{_WORD_START}github_pat_[A-Za-z0-9_]{{22,}}")),
+    ("github-token", re.compile(rf"{_WORD_START}gh[pousr]_[A-Za-z0-9]{{16,}}")),
+    ("slack-token", re.compile(rf"{_WORD_START}xox[abprs]-[A-Za-z0-9-]{{10,}}")),
+    ("anthropic-key", re.compile(rf"{_WORD_START}sk-ant-[A-Za-z0-9_-]{{16,}}")),
+    ("openai-key", re.compile(rf"{_WORD_START}sk-[A-Za-z0-9_-]{{16,}}")),
+    ("google-key", re.compile(rf"{_WORD_START}AIza[0-9A-Za-z_-]{{35}}")),
+    (
+        "jwt",
+        re.compile(
+            rf"{_WORD_START}eyJ[A-Za-z0-9_-]{{8,}}\.[A-Za-z0-9_-]{{8,}}\.[A-Za-z0-9_-]{{8,}}"
+        ),
+    ),
+    ("bearer-token", re.compile(rf"(?i){_WORD_START}bearer\s+[A-Za-z0-9._-]{{16,}}")),
     (
         "credential-assignment",
         re.compile(
-            r"(?i)\b(?:api[_-]?key|secret|password|passwd|token)\b\s*[:=]\s*"
+            rf"(?i){_WORD_START}(?:api[_-]?key|secret|password|passwd|token)(?![A-Za-z0-9_])\s*[:=]\s*"
             r"[\"']?([A-Za-z0-9/_+.-]{12,})[\"']?"
         ),
     ),
@@ -104,6 +137,26 @@ and an optional twelve-hex digest. Nothing that fits inside it is a secret, an
 address or an IP, because none of those are twelve lower-case hex characters.
 """
 
+_TRUNCATED_MARKER = re.compile(re.escape(_TRUNCATED).replace(re.escape("{limit}"), r"\d+"))
+_WITHHELD_REASON_MARKER = re.compile(re.escape(_WITHHELD_REASON))
+
+
+def holds_redaction_marker(text: str) -> bool:
+    """Tell whether `text` carries a placeholder this redactor writes in place of what it removed.
+
+    Text holding one is no longer what the target said, so whoever grades it is grading
+    the redactor's output. Only the exact shapes this module produces count.
+    """
+    return any(
+        pattern.search(text) is not None
+        for pattern in (
+            _ALREADY_REDACTED,
+            _WITHHELD_SUMMARY,
+            _WITHHELD_REASON_MARKER,
+            _TRUNCATED_MARKER,
+        )
+    )
+
 
 @dataclass(frozen=True, slots=True)
 class RedactionPolicy:
@@ -134,18 +187,35 @@ class RedactionPolicy:
 
     custom_patterns: tuple[str, ...] = ()
     max_evidence_bytes: int = DEFAULT_MAX_EVIDENCE_BYTES
+    keep_exchanges: bool = field(default=False, metadata={OMITTED_WHEN_DEFAULT: True})
+    """Keep a probe's chat exchanges, redacted span by span, beside the saved run."""
+
+    def __post_init__(self) -> None:
+        """Refuse keeping exchanges under `metadata_only`, which forbids what they hold."""
+        if self.keep_exchanges and self.mode is EvidenceMode.METADATA_ONLY:
+            raise ValueError(
+                "keep_exchanges stores what the target said, which evidence mode "
+                "metadata_only forbids; set one of the two differently"
+            )
 
     @property
     def digest(self) -> str:
-        """A digest of this policy, recorded in the manifest alongside the evidence."""
-        return digest_of(
+        """A digest of this policy, recorded in the manifest alongside the evidence.
+
+        `keep_exchanges` joins only when set, so a policy that does not keep exchanges
+        digests as it did before the switch existed.
+        """
+        parts = [
             str(self.mode),
             str(self.redact_emails),
             str(self.redact_ip_addresses),
             str(self.hash_identifiers),
             "|".join(self.custom_patterns),
             str(self.max_evidence_bytes),
-        )
+        ]
+        if self.keep_exchanges:
+            parts.append("keep_exchanges")
+        return digest_of(*parts)
 
 
 class EvidenceRedactor:
@@ -176,6 +246,15 @@ class EvidenceRedactor:
         if mode is EvidenceMode.METADATA_ONLY:
             return ""
         return self._bound(self._apply(text, self._patterns_for(mode)))
+
+    def redact_spans(self, text: str) -> str:
+        """Replace each matched secret or identifier span in `text`, keeping every other character.
+
+        For text that may be graded again: nothing is withheld under `metadata_only` and
+        nothing is cut to a size bound, because an emptied or truncated reply would be
+        graded as something the target never said. Lone surrogates become U+FFFD.
+        """
+        return self._label(text)
 
     def _patterns_for(self, mode: EvidenceMode) -> tuple[tuple[str, re.Pattern[str]], ...]:
         """Every pattern this mode removes, most specific first.
@@ -324,7 +403,7 @@ class EvidenceRedactor:
         of a previous pass claim their spans first, which is what makes redacting
         twice produce the same text as redacting once.
         """
-        text = _without_lone_surrogates(text)
+        text = without_lone_surrogates(text)
         claimed = [(m.start(), m.end(), m.group(0)) for m in _ALREADY_REDACTED.finditer(text)]
         starts = [start for start, _, _ in claimed]
         for label, pattern in patterns:
@@ -386,7 +465,7 @@ def _identifier_types() -> tuple[type, ...]:
 _LONE_SURROGATE = re.compile("[\ud800-\udfff]")
 
 
-def _without_lone_surrogates(text: str) -> str:
+def without_lone_surrogates(text: str) -> str:
     """Replace each unpaired surrogate with U+FFFD, which every encoder downstream accepts.
 
     JSON read from a target can carry one, and a string holding it cannot be encoded as

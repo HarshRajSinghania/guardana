@@ -5,7 +5,7 @@ from contextvars import ContextVar
 from dataclasses import dataclass, replace
 from http.client import HTTPMessage, HTTPResponse
 from time import sleep as _sleep
-from typing import IO, Literal, Protocol, TypeVar, runtime_checkable
+from typing import IO, TYPE_CHECKING, Literal, Protocol, TypeVar, runtime_checkable
 from urllib.error import HTTPError
 from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
@@ -14,6 +14,9 @@ from guardana.core.budget import BudgetExhausted, Budgets
 from guardana.core.target._url import display_url
 from guardana.core.target.base import Capability, Target, TargetKind
 from guardana.core.usage import TargetUsage, TokenUsage, UsageMeter
+
+if TYPE_CHECKING:  # the keeper builds on the recording format, which builds on this module
+    from guardana.core.keeping import ExchangeKeeper
 
 REQUEST_TIMEOUT_SECONDS = 30
 """How long one request to a target may take.
@@ -506,7 +509,11 @@ def _extract_content(payload: object, *, ref: str) -> str:
 
 
 class EndpointTarget(Target):
-    """A live model reachable over an OpenAI-compatible chat API."""
+    """A live model reachable over an OpenAI-compatible chat API.
+
+    With a keeper attached (`keep_exchanges`), each rule's view (`for_rule`) keeps the chat
+    exchanges it completes; the endpoint itself, planted views and tool offers keep nothing.
+    """
 
     kind = TargetKind.ENDPOINT
 
@@ -554,6 +561,8 @@ class EndpointTarget(Target):
             # shared meter was handed, leaving the run bounded only for as long as
             # nobody reorders the runner's call to restore them.
             self.apply_budgets(budgets)
+        self._keeper: ExchangeKeeper | None = None
+        self._kept_rule: str | None = None
 
     def capabilities(self) -> set[Capability]:
         """Declare CHAT, plus PLANT_SYSTEM_PROMPT and CALL_TOOLS when supported."""
@@ -596,11 +605,42 @@ class EndpointTarget(Target):
             if self._system_prompt is None
             else f"{self._system_prompt}\n{system_prompt}"
         )
+        return self._sibling(planted)
+
+    def keep_exchanges(self, keeper: "ExchangeKeeper") -> None:
+        """Keep, in `keeper`, every chat exchange a rule's view of this endpoint completes.
+
+        Attached once: a second keeper would split one run's exchanges between two places.
+        """
+        if self._keeper is not None:
+            raise ValueError(f"{self.ref} already keeps its exchanges in a keeper")
+        self._keeper = keeper
+
+    def stop_keeping(self) -> None:
+        """Detach the keeper, so a run refused before sending leaves the target as it was."""
+        self._keeper = None
+
+    def for_rule(self, rule_id: str) -> "EndpointTarget":
+        """Return the view `rule_id` sends through: this endpoint, keeping what the rule asks.
+
+        Without a keeper this is the endpoint itself. With one, the view shares the meter,
+        the ceilings, the transport and the system prompt, so usage and budgets stay those
+        of the whole run.
+        """
+        if self._keeper is None:
+            return self
+        view = self._sibling(self._system_prompt)
+        view._keeper = self._keeper  # noqa: SLF001 — a view of the same class
+        view._kept_rule = rule_id  # noqa: SLF001
+        return view
+
+    def _sibling(self, system_prompt: str | None) -> "EndpointTarget":
+        """Build another view of this endpoint, on the same meter and transport, keeping nothing."""
         return EndpointTarget(
             self._base_url,
             self._model,
             api_key=self._api_key,
-            system_prompt=planted,
+            system_prompt=system_prompt,
             transport=self._transport,
             meter=self._meter,
         )
@@ -630,7 +670,17 @@ class EndpointTarget(Target):
         return self._meter.snapshot()
 
     def chat(self, messages: Sequence[ChatMessage]) -> str:
-        """Send `messages`, prepending the planted system prompt when one is set."""
+        """Send `messages`, prepending the planted system prompt when one is set.
+
+        A rule's view with a keeper keeps the messages as passed here, without the system
+        prompt, and the reply, once the reply has arrived.
+        """
+        text = self._send_chat(messages)
+        if self._keeper is not None and self._kept_rule is not None:
+            self._keeper.keep(self._kept_rule, messages, text)
+        return text
+
+    def _send_chat(self, messages: Sequence[ChatMessage]) -> str:
         history = self._with_system_prompt(messages)
         transport = self._transport
         if isinstance(transport, UsageReportingTransport):

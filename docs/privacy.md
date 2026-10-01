@@ -26,6 +26,7 @@ privacy:
   hash_identifiers: true
   custom_patterns: []
   max_evidence_bytes: 16384
+  keep_exchanges: false       # true: probe keeps every chat exchange beside the run
 ```
 
 | Mode | What is kept |
@@ -182,6 +183,25 @@ history answerable while protecting nothing.
 If any of those names is itself sensitive in your organisation, do not pass it.
 Every field is optional and absent means "not known" — a run that declares nothing
 still reports its findings.
+
+## Kept exchanges
+
+`keep_exchanges: true`, or `probe --keep-exchanges`, writes every chat exchange of a
+probe's plain pass beside the saved run (`run.json` → `run.exchanges.jsonl`), so
+[`guardana grade`](usage-grade.md) can grade the same replies again. It is off by default
+because that file holds every reply, passes included, and widens what a leaked run
+exposes; whether to keep them is the operator's decision for their data.
+
+- Every input and reply passes this policy's redactor before it is written: matched
+  spans are replaced, with no size bound, because a truncated reply would be graded
+  wrongly later. Secrets are removed at every mode, `full` included.
+- A reply the redactor changed is marked `altered`, and `grade` never grades it: a reply
+  that leaked a secret cannot be regraded into a pass.
+- `keep_exchanges: true` with `evidence_mode: metadata_only` is refused at load time:
+  the two settings contradict each other.
+- The system prompt, canary passes and tool offers are never kept. The collector never
+  receives the file, and the saved run records only its digest, its line count and how
+  many replies were altered.
 
 ## What is not solved yet
 

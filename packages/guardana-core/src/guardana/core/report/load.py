@@ -11,7 +11,7 @@ import json
 from pathlib import Path
 from typing import Any, cast
 
-from guardana.core.assessment import Assessment, AssessmentStatus, Direction
+from guardana.core.assessment import Assessment, AssessmentStatus, Direction, UnmeasuredReason
 from guardana.core.evaluator.base import Outcome, Verdict
 from guardana.core.manifest.load import ManifestLoadError, manifest_from_dict
 from guardana.core.manifest.migrations import (
@@ -26,6 +26,7 @@ from guardana.core.manifest.migrations import (
     migrate_v9,
     migrate_v10,
     migrate_v11,
+    migrate_v12,
 )
 from guardana.core.manifest.model import RunManifest
 from guardana.core.manifest.usage import RunUsage
@@ -45,6 +46,7 @@ from guardana.core.usage import TargetUsage
 _OUTCOMES = frozenset({"pass", "fail", "inconclusive"})
 _ASSESSMENT_STATUSES = frozenset(str(s) for s in AssessmentStatus)
 _DIRECTIONS = frozenset(str(d) for d in Direction)
+_UNMEASURED_REASONS = frozenset(str(r) for r in UnmeasuredReason)
 _MIGRATIONS = {
     1: migrate_v1,
     2: migrate_v2,
@@ -57,6 +59,7 @@ _MIGRATIONS = {
     9: migrate_v9,
     10: migrate_v10,
     11: migrate_v11,
+    12: migrate_v12,
 }
 """One step forward per version, keyed by the version the document *is*.
 
@@ -182,12 +185,21 @@ def _result(raw: dict[str, Any], manifest: RunManifest, path: Path) -> ScanResul
         usage=_target_usage(manifest.usage),
         protocols=dict(manifest.coverage.protocols),
         assessments=_assessments(raw.get("assessments"), path),
-        # Read off the stored summaries, the one place the document records K. A rule
-        # without one made a single attempt per case, which is what an absent key means.
+        # Read off the stored summaries, the places the document records K: a suite that ran
+        # in its own summary, any other repeating rule in its trial summary. A rule with
+        # neither made a single attempt per case, which is what an absent key means; a suite
+        # the run cut off keeps no K, as the run that wrote it kept none.
         trials_per_case={
-            rule.id: rule.trial_summary.trials_per_case
-            for rule in manifest.rules
-            if rule.trial_summary is not None
+            **{
+                rule.id: rule.suite.trials_per_case
+                for rule in manifest.rules
+                if rule.suite is not None and rule.id in rules_run
+            },
+            **{
+                rule.id: rule.trial_summary.trials_per_case
+                for rule in manifest.rules
+                if rule.trial_summary is not None
+            },
         },
         suites={rule.id: rule.suite for rule in manifest.rules if rule.suite is not None},
         scope=_scope(raw, path),
@@ -268,23 +280,27 @@ def _assessment(raw: object, path: Path) -> Assessment:
             f"{path} records an assessment with direction {direction!r}; this build "
             f"knows {sorted(_DIRECTIONS)}"
         )
-    return Assessment(
-        case_id=_str(block, "case_id", path),
-        assessor=_str(block, "assessor", path),
-        subject_ref=_str(block, "subject_ref", path),
-        status=AssessmentStatus(status),
-        rule_id=str(block.get("rule_id") or ""),
-        passed=_optional_bool(block.get("passed")),
-        value=_optional_float(block.get("value")),
-        unit=_optional_str(block.get("unit")),
-        direction=None if direction is None else Direction(str(direction)),
-        threshold=_optional_float(block.get("threshold")),
-        confidence=_optional_float(block.get("confidence")),
-        dataset=_optional_str(block.get("dataset")),
-        rationale=str(block.get("rationale") or ""),
-        tags=_str_tuple(block.get("tags"), "assessments[].tags", path),
-        trial=_trial(block.get("trial"), path),
-    )
+    try:
+        return Assessment(
+            case_id=_str(block, "case_id", path),
+            assessor=_str(block, "assessor", path),
+            subject_ref=_str(block, "subject_ref", path),
+            status=AssessmentStatus(status),
+            rule_id=str(block.get("rule_id") or ""),
+            passed=_optional_bool(block.get("passed")),
+            value=_optional_float(block.get("value")),
+            unit=_optional_str(block.get("unit")),
+            direction=None if direction is None else Direction(str(direction)),
+            threshold=_optional_float(block.get("threshold")),
+            confidence=_optional_float(block.get("confidence")),
+            dataset=_optional_str(block.get("dataset")),
+            rationale=str(block.get("rationale") or ""),
+            tags=_str_tuple(block.get("tags"), "assessments[].tags", path),
+            trial=_trial(block.get("trial"), path),
+            reason=_reason(block, path),
+        )
+    except ValueError as exc:
+        raise ReportLoadError(f"{path}: {exc}") from exc
 
 
 def _trial(raw: object, path: Path) -> int | None:
@@ -298,6 +314,25 @@ def _trial(raw: object, path: Path) -> int | None:
     if isinstance(raw, bool) or not isinstance(raw, int) or raw < 1:
         raise ReportLoadError(f"{path}: an assessment's 'trial' must be 1 or more, got {raw!r}")
     return raw
+
+
+def _reason(block: dict[str, Any], path: Path) -> UnmeasuredReason | None:
+    """Read why an assessment went unmeasured, refusing a reason this build cannot place.
+
+    The key is required, null included: a trial read back without its reason would lose
+    whether the recording lacked a reply or the evaluator declined.
+    """
+    if "reason" not in block:
+        raise ReportLoadError(f"{path}: an assessment's 'reason' is missing; null says unknown")
+    raw = block["reason"]
+    if raw is None:
+        return None
+    if not isinstance(raw, str) or raw not in _UNMEASURED_REASONS:
+        raise ReportLoadError(
+            f"{path} records an assessment with reason {raw!r}; this build knows "
+            f"{sorted(_UNMEASURED_REASONS)} — upgrade whichever side is older"
+        )
+    return UnmeasuredReason(raw)
 
 
 def _optional_bool(raw: object) -> bool | None:

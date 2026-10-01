@@ -126,6 +126,11 @@ no earlier schema recorded which files a run listed or which plugin trust it ran
 both are unknown. `diff` against a migrated second run cannot tell a file that left the scan
 from a fixed one, and reads a finding that disappeared the way it did before.
 
+A schema-12 run migrates to schema 13 with `exchanges: null`, `recording: null`, `judge: null`
+on every evaluator and `reason: null` on every assessment: no earlier schema kept exchanges,
+graded a recording, recorded a judge's identity or said why a trial went unmeasured. A null
+judge is unknown, so `diff` does not read it as a change of judge.
+
 One thing *is* recovered: the **title** of a framework reference, which version 3
 onward records beside its framework and id. It is looked up from the installed
 catalogue for the exact `(framework, id)` pair the document already carries, so
@@ -158,8 +163,8 @@ parametrised over every field a version-1 run could be missing.
 ## The document
 
 The saved-run schema lives at
-[`schemas/run-v12.schema.json`](../schemas/run-v12.schema.json), identified by
-`https://guardana.dev/schemas/run/v12.schema.json`, and the site serves every schema
+[`schemas/run-v13.schema.json`](../schemas/run-v13.schema.json), identified by
+`https://guardana.dev/schemas/run/v13.schema.json`, and the site serves every schema
 at the URL its identifier names. The version is in the identifier,
 so a consumer can tell which contract it is holding before parsing anything; it
 changes whenever the change is not backwards-compatible. A test validates what
@@ -181,13 +186,16 @@ which is what it always counted. Version 8 records the `correction` block on
 stopped the run. Version 11 records `run.target.document`, the digest of the document the run
 read and what it covers. Version 12 records `scope`, every file a file run listed and the
 excludes it applied, `run.configuration.plugins`, the plugin trust in force, and the
-`unexamined_component` coverage shortfall.
+`unexamined_component` coverage shortfall. Version 13 records `run.exchanges`, what a probe
+kept beside the run, `run.recording`, the recording a graded run answered from,
+`run.evaluators[].judge`, each judge's identity, `assessments[].reason`, why a trial was not
+measured, and the `not_recorded` skip reason.
 
 Top level:
 
 | Key | What it is |
 |---|---|
-| `schema_version` | `12`. Stated once, for the whole document. |
+| `schema_version` | `13`. Stated once, for the whole document. |
 | `run` | the manifest — everything below |
 | `findings` / `unverified` / `waived` / `errors` / `observations` | the problem, evidence and inventory channels |
 | `assessments` | what the run *measured*, pass included — see [assessments](#assessments) |
@@ -206,10 +214,12 @@ Inside `run`:
 | `configuration` | which settings produced it, **by digest**: `profile_digest` covers every setting of the resolved profile except its name, where it was read from and its `plugins:`; `plugins` is the trust in force, `{mode, allowed}` |
 | `execution` | what limits it ran under, and `trials`: the attempts per case the run asked for |
 | `usage` | what it actually consumed, the configured judges on their own meters |
-| `rules` / `evaluators` | what did the checking, with digests, declared request counts, a `trial_summary` for each rule that repeated, a `suite` summary for each quality suite, and calibration. A suite the budget stopped or that raised is listed with its declined summary, though not in `result_summary.rules_run` |
+| `rules` / `evaluators` | what did the checking, with digests, declared request counts, a `trial_summary` for each rule that repeated, a `suite` summary for each quality suite, calibration, and `judge`: the identity a judge states (its model, endpoint and samples per verdict), `null` for a deterministic evaluator or when unstated. A suite the budget stopped or that raised is listed with its declined summary, though not in `result_summary.rules_run` |
 | `coverage` | what the run was *able* to check: one fingerprint, the framework catalogues it mapped against by digest, and any protocol versions the target negotiated |
 | `result_summary` | the counts, the gate, and whether the run was cut short |
 | `privacy` | which evidence policy was in force |
+| `exchanges` | for a probe that kept its exchanges ([`probe --keep-exchanges`](usage-probe.md#keeping-the-exchanges)), `{digest, count, altered}`: the SHA-256 of the sidecar file, how many exchanges it holds and how many replies redaction changed; `null` otherwise |
+| `recording` | for a run [`guardana grade`](usage-grade.md) wrote, what the recording says of itself: `{name, version, subject, verbatim, origin}`, with `origin` `{run_id, target, started_at, stopped_by, gate}` when a probe kept it; declared, not verified. `null` otherwise |
 
 Three conventions hold everywhere in it:
 
@@ -227,8 +237,9 @@ says so rather than leaving a reader to assume the stronger reading.
 **A document digest says how much of the document it covers.** `target.document` is
 `null`, or `{digest, kind, bytes}`: `digest` is SHA-256 over the first `bytes` bytes of the
 file the run read, and `kind` is `content` when that was the whole file or
-`content_prefix` when a read ceiling stopped the reader first. `analyze-trace` and
-`import-observations` fill it. `null` means no digest was recorded, never that two
+`content_prefix` when a read ceiling stopped the reader first. `analyze-trace`,
+`import-observations` and `grade` fill it; for `grade` it is the recording's digest, the
+identity of the execution that was graded. `null` means no digest was recorded, never that two
 documents matched.
 
 ## Assessments
@@ -257,7 +268,8 @@ system improved, the test got weaker, or the sample changed.
   "dataset": "5435b77094cde319",
   "rationale": "Response contains a refusal marker.",
   "tags": [],
-  "trial": 1
+  "trial": 1,
+  "reason": null
 }
 ```
 
@@ -270,6 +282,7 @@ system improved, the test got weaker, or the sample changed.
 | `value`, `unit`, `direction`, `threshold` | the numeric reading, which way is better, and the bound applied on *this* run |
 | `confidence` | how much the assessor trusts itself, when it can say. Never invented |
 | `trial` | which attempt at the case this was, from `1`, for a rule that can repeat; `null` for a rule that cannot, and for a run saved before trials existed. Not part of a case's identity: two runs pair on `case_id` |
+| `reason` | why a trial was not measured: `not_recorded` (a recording held no reply for it; status `error`), `reply_altered` (the recorded reply was changed by redaction or not kept verbatim; status `inconclusive`) or `declined` (the evaluator returned no verdict; status `inconclusive`). `null` for a measured trial, and for a run saved before schema 13 |
 | `dataset` | which versioned corpus the case came from. For a YAML rule this is its declaration digest, so an edited expectation makes the two runs incomparable rather than making the model look worse |
 
 `run.result_summary` carries `assessments` and `measured` as two numbers rather

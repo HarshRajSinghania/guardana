@@ -149,6 +149,16 @@ class Evaluator(ABC):
     """
 
     @property
+    def assessor_id(self) -> str:
+        """The `evaluator_id` this evaluator's verdicts carry, known before any verdict exists.
+
+        `id` by default. An evaluator whose verdicts name something more (a versioned
+        rubric) overrides it, so a trial nobody could grade is attributed to the same
+        assessor as the trials it did grade.
+        """
+        return self.id
+
+    @property
     def judge_calls_per_verdict(self) -> int | None:
         """At most how many judge or model calls one `evaluate` makes, or None if unknown.
 

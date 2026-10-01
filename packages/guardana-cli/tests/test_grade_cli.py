@@ -1,0 +1,445 @@
+"""`guardana grade` and `probe --keep-exchanges`: answers graded again without the target."""
+
+import json
+from collections.abc import Sequence
+from pathlib import Path
+from typing import Any
+from urllib.error import URLError
+
+import guardana.cli._endpoint as endpoint_module
+import pytest
+from guardana.cli.exit_codes import ExitCode
+from guardana.cli.main import app
+from guardana.core.target import ChatMessage
+from typer.testing import CliRunner
+
+runner = CliRunner()
+
+_SUITE = "acme.quality.answers"
+_TARGET = "http://app.test/v1"
+_JUDGE = "http://judge.test:8080/v1"
+_ANSWERS = {
+    "How do I reset my password?": "Open Settings, then Security.",
+    "Where is my invoice?": "Billing lists every invoice.",
+    "Can I export my data?": "Settings has an export button.",
+}
+
+
+class _App:
+    """The application: answers each question its own way and counts what reached it."""
+
+    sent = 0
+
+    def send(
+        self, base_url: str, model: str, messages: Sequence[ChatMessage], api_key: str | None
+    ) -> str:
+        """Answer the question, or pass a judge's verdict when the judge is asked."""
+        if "judge" in base_url:
+            return "PASS: it names a place"
+        type(self).sent += 1
+        return _ANSWERS[messages[-1].content]
+
+
+class _JudgeDown(_App):
+    """The application answers; the judge cannot be reached."""
+
+    def send(
+        self, base_url: str, model: str, messages: Sequence[ChatMessage], api_key: str | None
+    ) -> str:
+        """Fail as the judge; answer as the application."""
+        if "judge" in base_url:
+            raise URLError(f"connection refused by {base_url}")
+        return super().send(base_url, model, messages, api_key)
+
+
+def _rules(tmp_path: Path, evaluator: str = "contains", expected: str = "Settings") -> Path:
+    rules = tmp_path / "rules"
+    rules.mkdir(exist_ok=True)
+    header = {"guardana_dataset": 1, "name": "support", "version": "1"}
+    case_expect: dict[str, object] = (
+        {"contains_any": [expected]} if evaluator == "contains" else {"goal": "names a place"}
+    )
+    lines = [json.dumps(header)] + [
+        json.dumps({"input": question, "expect": case_expect}) for question in _ANSWERS
+    ]
+    (rules / "answers.jsonl").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    rule: dict[str, object] = {
+        "id": _SUITE,
+        "title": "The support bot names where to go",
+        "severity": "high",
+        "target_kind": "endpoint",
+        "taxonomy": ["LLM09:2025"],
+        "evaluator": evaluator,
+        "requires": ["chat"],
+        "dataset": "./answers.jsonl",
+        "expect": {"contains_any": []} if evaluator == "contains" else {"goal": "g"},
+        "gate": {"min_pass_rate": 0.5, "min_sample": 3},
+    }
+    (rules / "answers.yaml").write_text(json.dumps(rule), encoding="utf-8")
+    return rules
+
+
+def _profile(tmp_path: Path, *extra: str, judge: bool = False) -> Path:
+    lines = ["rules:", "  include: ['acme.*']", *extra]
+    if judge:
+        lines += ["evaluators:", f"  llm_judge: {{endpoint: '{_JUDGE}', model: j}}"]
+    path = tmp_path / "guardana.yaml"
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return path
+
+
+def _probe_keeping(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, *extra: str) -> Any:  # noqa: ANN401 — typer's Result
+    monkeypatch.setattr(endpoint_module, "transport_factory", _App)
+    return runner.invoke(
+        app,
+        [
+            "probe",
+            "--url",
+            _TARGET,
+            "--model",
+            "m",
+            "--rules",
+            str(_rules(tmp_path)),
+            "--profile",
+            str(_profile(tmp_path)),
+            "--keep-exchanges",
+            *extra,
+        ],
+    )
+
+
+def _kept(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
+    result = _probe_keeping(
+        monkeypatch, tmp_path, "--format", "json", "--output", str(tmp_path / "run.json")
+    )
+    assert result.exit_code == ExitCode.OK, result.output
+    assert f"kept {len(_ANSWERS)} exchange(s) in" in result.stderr
+    return tmp_path / "run.exchanges.jsonl"
+
+
+def test_a_kept_probe_writes_its_exchanges_beside_the_run_and_says_so(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    sidecar = _kept(monkeypatch, tmp_path)
+
+    assert sidecar.is_file()
+    run = json.loads((tmp_path / "run.json").read_text("utf-8"))
+    assert run["run"]["exchanges"]["count"] == len(_ANSWERS)
+
+
+def test_grading_a_kept_probe_sends_nothing_to_the_target(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    sidecar = _kept(monkeypatch, tmp_path)
+    _App.sent = 0
+    graded = tmp_path / "graded.json"
+
+    result = runner.invoke(
+        app,
+        [
+            "grade",
+            str(sidecar),
+            "--rules",
+            str(_rules(tmp_path)),
+            "--profile",
+            str(_profile(tmp_path)),
+            "--format",
+            "json",
+            "--output",
+            str(graded),
+        ],
+    )
+
+    assert result.exit_code == ExitCode.OK, result.output
+    assert _App.sent == 0
+    document = json.loads(graded.read_text("utf-8"))["run"]
+    assert document["usage"]["requests"] == 0
+    assert document["target"]["ref"].startswith("recording:")
+    assert document["recording"]["origin"]["run_id"]
+
+
+def test_a_stricter_rule_fails_the_same_replies(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    sidecar = _kept(monkeypatch, tmp_path)
+    stricter = tmp_path / "stricter"
+    stricter.mkdir()
+
+    result = runner.invoke(
+        app,
+        [
+            "grade",
+            str(sidecar),
+            "--rules",
+            str(_rules(stricter, expected="Billing")),
+            "--profile",
+            str(_profile(tmp_path)),
+        ],
+    )
+
+    assert result.exit_code == ExitCode.POLICY_FAILED, result.output
+
+
+def test_a_hand_written_recording_is_graded(tmp_path: Path) -> None:
+    recording = tmp_path / "answers.jsonl"
+    lines = [
+        {
+            "guardana_recording": 1,
+            "name": "support-bot",
+            "version": "1",
+            "verbatim": True,
+            "rule": _SUITE,
+        }
+    ]
+    lines += [{"input": question, "reply": reply} for question, reply in _ANSWERS.items()]
+    recording.write_text("\n".join(json.dumps(line) for line in lines) + "\n", encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        [
+            "grade",
+            str(recording),
+            "--rules",
+            str(_rules(tmp_path)),
+            "--profile",
+            str(_profile(tmp_path)),
+        ],
+    )
+
+    assert result.exit_code == ExitCode.OK, result.output
+
+
+def test_an_unreadable_recording_is_invalid_usage(tmp_path: Path) -> None:
+    broken = tmp_path / "broken.jsonl"
+    broken.write_text('{"guardana_recording": 1}\n', encoding="utf-8")
+
+    result = runner.invoke(app, ["grade", str(broken)])
+
+    assert result.exit_code == ExitCode.INVALID_USAGE, result.output
+    assert "broken.jsonl" in result.stderr
+
+
+def test_a_judge_graded_grade_states_its_judge_traffic_and_a_dead_judge_exits_4(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    sidecar = _kept(monkeypatch, tmp_path)
+    judged = tmp_path / "judged"
+    judged.mkdir()
+    monkeypatch.setattr(endpoint_module, "transport_factory", _JudgeDown)
+
+    result = runner.invoke(
+        app,
+        [
+            "grade",
+            str(sidecar),
+            "--rules",
+            str(_rules(judged, evaluator="llm_judge")),
+            "--profile",
+            str(_profile(tmp_path, judge=True)),
+        ],
+    )
+
+    assert result.exit_code == ExitCode.TARGET_UNAVAILABLE, result.output
+    assert "evaluators.llm_judge" in result.stderr
+    assert "no request reaches the target" in result.stderr
+    assert "judge calls: at most" in result.stderr
+
+
+@pytest.mark.parametrize(
+    ("extra", "said"),
+    [
+        ((), "--format json --output"),
+        (("--format", "human", "--output", "x.txt"), "--format json"),
+    ],
+)
+def test_keeping_without_a_saved_run_is_refused(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, extra: tuple[str, ...], said: str
+) -> None:
+    result = _probe_keeping(monkeypatch, tmp_path, *extra)
+
+    assert result.exit_code == ExitCode.INVALID_USAGE, result.output
+    assert said in " ".join(result.output.split())
+
+
+def test_keeping_an_mcp_server_is_refused(tmp_path: Path) -> None:
+    result = runner.invoke(
+        app,
+        [
+            "probe",
+            "--mcp",
+            "https://93.184.215.14/mcp",
+            "--keep-exchanges",
+            "--format",
+            "json",
+            "--output",
+            str(tmp_path / "run.json"),
+        ],
+    )
+
+    assert result.exit_code == ExitCode.INVALID_USAGE, result.output
+
+
+def test_keeping_under_metadata_only_is_refused(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(endpoint_module, "transport_factory", _App)
+    profile = _profile(tmp_path, "privacy:", "  evidence_mode: metadata_only")
+
+    result = runner.invoke(
+        app,
+        [
+            "probe",
+            "--url",
+            _TARGET,
+            "--model",
+            "m",
+            "--profile",
+            str(profile),
+            "--keep-exchanges",
+            "--format",
+            "json",
+            "--output",
+            str(tmp_path / "run.json"),
+        ],
+    )
+
+    assert result.exit_code == ExitCode.INVALID_USAGE, result.output
+
+
+def test_grading_at_other_trials_than_kept_is_refused(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    sidecar = _kept(monkeypatch, tmp_path)
+
+    result = runner.invoke(
+        app,
+        [
+            "grade",
+            str(sidecar),
+            "--rules",
+            str(_rules(tmp_path)),
+            "--profile",
+            str(_profile(tmp_path)),
+            "--trials",
+            "3",
+        ],
+    )
+
+    assert result.exit_code == ExitCode.INVALID_USAGE, result.output
+    assert "kept 1, this run grades 3" in result.stderr
+
+
+def test_plan_grade_prices_no_target_request_and_names_what_it_skips(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    sidecar = _kept(monkeypatch, tmp_path)
+    profile = tmp_path / "wide.yaml"
+    profile.write_text("rules:\n  include: ['acme.*', 'guardana.output.*']\n", encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        [
+            "plan",
+            "grade",
+            str(sidecar),
+            "--rules",
+            str(_rules(tmp_path)),
+            "--profile",
+            str(profile),
+            "--format",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    plan = json.loads(result.stdout)
+    assert plan["requests"] == {"min": 0, "max": 0}
+    assert "guardana.output.secrets" in plan["skipped"]
+    assert _SUITE in plan["rules"]
+
+
+def test_rules_the_recording_does_not_answer_are_named_and_refused_by_release(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    sidecar = _kept(monkeypatch, tmp_path)
+    everything = ["grade", str(sidecar), "--rules", str(_rules(tmp_path))]
+
+    default = runner.invoke(app, everything)
+    release = runner.invoke(app, [*everything, "--preset", "release"])
+
+    assert default.exit_code == ExitCode.OK, default.output
+    assert "answers none of their questions" in default.stderr
+    assert release.exit_code == ExitCode.INDETERMINATE, release.output
+
+
+def test_a_profile_shared_with_a_keeping_probe_grades_its_recording(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    sidecar = _kept(monkeypatch, tmp_path)
+    shared = _profile(tmp_path, "privacy:", "  keep_exchanges: true")
+
+    result = runner.invoke(
+        app, ["grade", str(sidecar), "--rules", str(_rules(tmp_path)), "--profile", str(shared)]
+    )
+
+    assert result.exit_code == ExitCode.OK, result.output
+
+
+def test_plan_grade_refuses_other_trials_as_grade_does(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    sidecar = _kept(monkeypatch, tmp_path)
+    selection = ["--rules", str(_rules(tmp_path)), "--profile", str(_profile(tmp_path))]
+
+    planned = runner.invoke(app, ["plan", "grade", str(sidecar), *selection, "--trials", "2"])
+    graded = runner.invoke(app, ["grade", str(sidecar), *selection, "--trials", "2"])
+
+    assert planned.exit_code == graded.exit_code == ExitCode.INVALID_USAGE, planned.output
+    assert "kept 1, this run grades 2" in planned.stderr
+
+
+def test_a_line_for_a_rule_nobody_loaded_is_named_by_the_plan_and_the_run(tmp_path: Path) -> None:
+    recording = tmp_path / "typo.jsonl"
+    lines: list[dict[str, object]] = [
+        {"guardana_recording": 1, "name": "bot", "version": "1", "verbatim": True}
+    ]
+    lines += [{"rule": _SUITE, "input": q, "reply": a} for q, a in _ANSWERS.items()]
+    lines.append({"rule": "acme.typo.answers", "input": "Hi?", "reply": "Hello."})
+    recording.write_text("".join(json.dumps(line) + "\n" for line in lines), encoding="utf-8")
+    selection = ["--rules", str(_rules(tmp_path)), "--profile", str(_profile(tmp_path))]
+
+    planned = runner.invoke(app, ["plan", "grade", str(recording), *selection])
+    graded = runner.invoke(app, ["grade", str(recording), *selection])
+
+    assert planned.exit_code == ExitCode.INVALID_USAGE, planned.output
+    assert "acme.typo.answers" in planned.stderr
+    assert graded.exit_code == ExitCode.INDETERMINATE, graded.output
+
+
+def test_a_later_run_at_the_same_path_removes_the_exchanges_an_earlier_one_kept(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    sidecar = _kept(monkeypatch, tmp_path)
+
+    later = runner.invoke(
+        app,
+        [
+            "probe",
+            "--url",
+            _TARGET,
+            "--model",
+            "m",
+            "--rules",
+            str(_rules(tmp_path)),
+            "--profile",
+            str(_profile(tmp_path)),
+            "--format",
+            "json",
+            "--output",
+            str(tmp_path / "run.json"),
+        ],
+    )
+
+    assert later.exit_code == ExitCode.OK, later.output
+    assert not sidecar.exists()
+    assert "an earlier run at this path kept" in later.stderr

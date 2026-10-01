@@ -60,7 +60,7 @@ Fill in the evaluator's expectation before running this example: `contains` retu
 
 ## Run and read the suite
 
-Run the rule with [`guardana probe`](usage-probe.md). The profile's `trials` or `probe --trials` sets how many times each case is sent. `guardana plan probe` prices cases × K target requests and, for a judge-graded suite, cases × K × `min_agreement` judge calls ([pricing judge calls](usage-plan.md#pricing-judge-calls)). The saved run records what the judge spent in `usage.judge`.
+Run the rule with [`guardana probe`](usage-probe.md), or grade answers your application already gave with [`guardana grade`](usage-grade.md), which sends nothing to it. The profile's `trials` or `probe --trials` sets how many times each case is sent. `guardana plan probe` prices cases × K target requests and, for a judge-graded suite, cases × K × `min_agreement` judge calls ([pricing judge calls](usage-plan.md#pricing-judge-calls)). The saved run records what the judge spent in `usage.judge`.
 
 The human report has a Measured block. A passing line can read:
 

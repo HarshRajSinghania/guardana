@@ -9,7 +9,9 @@ from guardana.core.manifest.model import MANIFEST_SCHEMA_VERSION, RunManifest
 from guardana.core.manifest.records import (
     CalibrationRecord,
     EvaluatorRecord,
+    ExchangesRecord,
     JudgeCorrection,
+    RecordingRecord,
     ResultSummary,
     RuleRecord,
     SuiteCorrection,
@@ -256,6 +258,34 @@ def _evaluator(evaluator: EvaluatorRecord) -> dict[str, object]:
         "version": evaluator.version,
         "digest": evaluator.digest,
         "calibration": None if calibration is None else _calibration(calibration),
+        "judge": evaluator.judge,
+    }
+
+
+def _exchanges(exchanges: ExchangesRecord | None) -> dict[str, object] | None:
+    if exchanges is None:
+        return None
+    return {"digest": exchanges.digest, "count": exchanges.count, "altered": exchanges.altered}
+
+
+def _recording(recording: RecordingRecord | None) -> dict[str, object] | None:
+    if recording is None:
+        return None
+    origin = recording.origin
+    return {
+        "name": recording.name,
+        "version": recording.version,
+        "subject": recording.subject,
+        "verbatim": recording.verbatim,
+        "origin": None
+        if origin is None
+        else {
+            "run_id": origin.run_id,
+            "target": origin.target,
+            "started_at": origin.started_at,
+            "stopped_by": origin.stopped_by,
+            "gate": origin.gate,
+        },
     }
 
 
@@ -339,4 +369,6 @@ def manifest_to_dict(manifest: RunManifest) -> dict[str, object]:
         "coverage": _coverage(manifest.coverage),
         "result_summary": _result_summary(manifest.result_summary),
         "privacy": _privacy(manifest.privacy),
+        "exchanges": _exchanges(manifest.exchanges),
+        "recording": _recording(manifest.recording),
     }

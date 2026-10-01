@@ -94,7 +94,10 @@ for "one of them never finished". `run inspect`, `run migrate`,
 `trace inspect` and `plan` produce `0` or `3` — `plan` exits `3` when the target or a
 judge meter could exceed the request budget — `trace inspect` grades nothing, so
 it has no verdict to report and says what is missing in its output instead.
-`analyze-trace` adds one route to `2` the others do not have: demanded coverage that
+`grade` uses the codes `probe` uses, with no target to be unavailable: `3` also covers
+a recording that cannot be read and one a probe kept at other trials per case than the
+run grades, `4` a judge that cannot be reached, and `2` a run that graded nothing
+([`usage-grade.md`](usage-grade.md)). `analyze-trace` adds one route to `2` the others do not have: demanded coverage that
 was not available, and a security contract that turned out to be about a different
 AI system than the one under test. `baseline create`, `baseline update` and
 `scan --write-baseline` write nothing and produce `2` when the run is not entitled

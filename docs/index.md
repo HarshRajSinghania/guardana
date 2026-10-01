@@ -44,6 +44,7 @@ Start with the root [README](../README.md). Before production use, read [Product
 ## Recorded applications
 
 - [`usage-analyze-trace.md`](usage-analyze-trace.md) — grade a recorded execution
+- [`usage-grade.md`](usage-grade.md) — grade answers your application already gave, without calling it
 - [`usage-trace-inspect.md`](usage-trace-inspect.md) — inspect available evidence dimensions
 - [`usage-contracts.md`](usage-contracts.md) — express application-specific invariants
 - [`usage-import-observations.md`](usage-import-observations.md) — import external tool claims

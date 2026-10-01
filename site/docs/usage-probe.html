@@ -53,6 +53,7 @@
 </ul>
 <h2>Recorded applications</h2><ul>
 <li><a href="usage-analyze-trace.html">guardana analyze-trace</a></li>
+<li><a href="usage-grade.html">guardana grade<span class="tag">beta</span></a></li>
 <li><a href="usage-trace-inspect.html">guardana trace inspect</a></li>
 <li><a href="usage-contracts.html">Security contracts</a></li>
 <li><a href="usage-import-observations.html">guardana import-observations</a></li>
@@ -123,8 +124,9 @@
 <li><a href="design/repeated-trials.html">Repeated trials<span class="tag">implemented</span></a></li>
 <li><a href="design/documentation-site.html">A documentation site<span class="tag">implemented</span></a></li>
 <li><a href="design/judge-error-correction.html">Judge error in a measured rate<span class="tag">implemented</span></a></li>
-<li><a href="design/regrading-stored-exchanges.html">Re-grading stored exchanges<span class="tag">proposed</span></a></li>
+<li><a href="design/regrading-stored-exchanges.html">Re-grading stored exchanges<span class="tag">superseded</span></a></li>
 <li><a href="design/anytime-valid-monitoring.html">Anytime-valid monitoring<span class="tag">proposed</span></a></li>
+<li><a href="design/recorded-answers.html">Recorded answers and regrading<span class="tag">accepted</span></a></li>
 <li><a href="design/run-manifest-v2.html">Run manifest v2<span class="tag">implemented</span></a></li>
 <li><a href="design/privacy-and-redaction.html">Privacy and redaction<span class="tag">implemented</span></a></li>
 <li><a href="design/exit-codes.html">Exit codes and gate semantics<span class="tag">implemented</span></a></li>
@@ -172,6 +174,7 @@
 </ul>
 <h2>Recorded applications</h2><ul>
 <li><a href="usage-analyze-trace.html">guardana analyze-trace</a></li>
+<li><a href="usage-grade.html">guardana grade<span class="tag">beta</span></a></li>
 <li><a href="usage-trace-inspect.html">guardana trace inspect</a></li>
 <li><a href="usage-contracts.html">Security contracts</a></li>
 <li><a href="usage-import-observations.html">guardana import-observations</a></li>
@@ -242,8 +245,9 @@
 <li><a href="design/repeated-trials.html">Repeated trials<span class="tag">implemented</span></a></li>
 <li><a href="design/documentation-site.html">A documentation site<span class="tag">implemented</span></a></li>
 <li><a href="design/judge-error-correction.html">Judge error in a measured rate<span class="tag">implemented</span></a></li>
-<li><a href="design/regrading-stored-exchanges.html">Re-grading stored exchanges<span class="tag">proposed</span></a></li>
+<li><a href="design/regrading-stored-exchanges.html">Re-grading stored exchanges<span class="tag">superseded</span></a></li>
 <li><a href="design/anytime-valid-monitoring.html">Anytime-valid monitoring<span class="tag">proposed</span></a></li>
+<li><a href="design/recorded-answers.html">Recorded answers and regrading<span class="tag">accepted</span></a></li>
 <li><a href="design/run-manifest-v2.html">Run manifest v2<span class="tag">implemented</span></a></li>
 <li><a href="design/privacy-and-redaction.html">Privacy and redaction<span class="tag">implemented</span></a></li>
 <li><a href="design/exit-codes.html">Exit codes and gate semantics<span class="tag">implemented</span></a></li>
@@ -391,6 +395,11 @@ Hugging Face TGI's <code>/generate</code>.</p>
 <td><code>--allow-exec</code></td>
 <td>off</td>
 <td>Permit <code>--mcp</code> to <strong>start</strong> an stdio server, which executes the code under examination</td>
+</tr>
+<tr>
+<td><code>--keep-exchanges</code></td>
+<td>off (or <code>privacy.keep_exchanges</code>)</td>
+<td>Keep every chat exchange of the plain pass, redacted, beside the saved run so <a href="usage-grade.html"><code>guardana grade</code></a> can grade it again without calling the endpoint — see <a href="#keeping-the-exchanges">Keeping the exchanges</a>. Needs <code>--format json --output</code>; refused with <code>--mcp</code>, <code>--target</code> and <code>privacy.evidence_mode: metadata_only</code> (exit <code>3</code>)</td>
 </tr>
 </tbody>
 </table></div>
@@ -753,6 +762,30 @@ are what they are for, and neither has anything to do with <code>diff</code>.</p
 </code></pre>
 <p>Prefer it to a shell redirect: PowerShell redirects write UTF-16, and the reader
 on the other end cannot parse that.</p>
+<h3 id="keeping-the-exchanges">Keeping the exchanges</h3>
+<p><code>--keep-exchanges</code>, or <code>privacy.keep_exchanges: true</code> in the profile, keeps every chat
+exchange of the probe beside the saved run, so the same replies can be graded again with
+a new rule, a sharper expectation or another judge, without a second request:</p>
+<pre><code class="language-bash">guardana probe --url … --model … --keep-exchanges --format json --output run.json
+guardana grade run.exchanges.jsonl --rules rules/ --format json --output regraded.json
+</code></pre>
+<p><code>run.json</code> → <code>run.exchanges.jsonl</code>. Each line holds the messages a rule sent and the
+reply, as a <a href="usage-grade.html#a-recording">recording</a> <code>guardana grade</code> reads. The run
+records the file's SHA-256, its line count and how many replies redaction changed under
+<code>run.exchanges</code>; a sidecar that no longer matches that digest is a different execution to
+<code>guardana diff</code>.</p>
+<ul>
+<li>Only the built-in endpoint's plain pass is kept (<code>--url</code>, with or without <code>--adapter</code>):
+never the system prompt, the canary passes or tool offers, so canary and tool rules are
+not graded again.</li>
+<li>Every input and reply passes the run's redactor, matched spans only and without the
+evidence size bound; a secret is removed under every <code>evidence_mode</code>, <code>full</code> included. A
+reply redaction changed is marked <code>altered</code> and is never graded again: a reply that
+leaked a secret cannot be regraded into a pass.</li>
+<li>Keeping is off by default. The file holds every reply, passes included, so it widens
+what a leaked run exposes; the collector never receives it. See <a href="privacy.html">privacy</a>.</li>
+<li>A probe that kept nothing writes no file and says so on stderr.</li>
+</ul>
 <h2 id="quality-suites">Quality suites</h2>
 <p><a href="usage-suites.html">Quality suites</a> grade a versioned dataset under <code>guardana probe</code>.</p>
 <p>A declined suite exits <code>2</code>, and a failed suite exits <code>1</code>, whatever its severity.</p>

@@ -11,11 +11,13 @@ carried out raises, with a `VerificationError`.
 from the command line compose the same steps in the same order.
 """
 
+import hashlib
 import json
 import threading
+import uuid
 import weakref
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from urllib.error import URLError
@@ -30,8 +32,10 @@ from guardana.core.evaluator.config import (
     default_endpoint_builder,
     wire_config_evaluators,
 )
+from guardana.core.fingerprint import DigestKind, DocumentDigest
 from guardana.core.gate import GateOutcome, OpenQuestion, exit_code_for, gate_outcome
 from guardana.core.gate import open_questions as _open_questions
+from guardana.core.keeping import ExchangeKeeper
 from guardana.core.manifest.build import (
     build_run_manifest,
     load_profile_calibrations,
@@ -39,10 +43,22 @@ from guardana.core.manifest.build import (
 )
 from guardana.core.manifest.identity import DeploymentRef, RunSource, TargetIdentity
 from guardana.core.manifest.model import RunManifest
+from guardana.core.manifest.records import (
+    ExchangesRecord,
+    RecordingOriginRecord,
+    RecordingRecord,
+)
 from guardana.core.manifest.usage import JudgeUsage
 from guardana.core.plugins import PluginTrust
 from guardana.core.probe import run_target_probe
 from guardana.core.profile import Profile, default_profile
+from guardana.core.recording import (
+    Recording,
+    RecordingError,
+    RecordingOrigin,
+    read_recording,
+    render_recording,
+)
 from guardana.core.redaction import EvidenceRedactor
 from guardana.core.registry import Registry
 from guardana.core.report import ScanResult
@@ -50,9 +66,11 @@ from guardana.core.report.baseline import Baseline, apply_baseline
 from guardana.core.report.location import relativize, relativize_findings
 from guardana.core.report.serialize import run_to_dict
 from guardana.core.rule import Rule
-from guardana.core.runner import DEFAULT_ENDPOINT_CONCURRENCY, Runner
+from guardana.core.runner import DEFAULT_ENDPOINT_CONCURRENCY, Runner, select_rules
 from guardana.core.target import ArtifactTarget, EndpointError, Target, TargetKind
+from guardana.core.target.endpoint import EndpointTarget
 from guardana.core.target.mcp import McpServerTarget
+from guardana.core.target.recorded import RecordedTarget
 
 
 class VerificationError(Exception):
@@ -79,9 +97,22 @@ class UnsupportedTargetError(VerificationError):
     """A target this facade does not run, refused rather than run without what it needs."""
 
 
+class RecordingRefusedError(VerificationError):
+    """A recording that cannot be graded as asked: unreadable, or kept at other trials."""
+
+
 class TargetReusedError(VerificationError):
     """A target that already ran, so its usage, budgets or cached reads would describe two runs."""
 
+
+_KEPT_NAME = "guardana-probe"
+"""The name a probe's sidecar recording carries; its version is the run id."""
+
+_NAMED_AT_MOST = 3
+"""How many differing rules a refusal names before it says there are more."""
+
+_CANARY_PROBE = "GUARDANA_CANARY_PLANNING"
+"""A stand-in token, only to ask a rule whether it plants a canary."""
 
 _RAN: "weakref.WeakValueDictionary[int, Target]" = weakref.WeakValueDictionary()
 """Every live target this module has run, by identity; a target is refused the second time."""
@@ -106,6 +137,13 @@ class Verification:
     judge_stops: tuple[str, ...] = ()
     """Each judge whose own ceiling stopped the run, in the words the CLI prints."""
 
+    exchanges: Recording | None = None
+    """The chat exchanges the run kept under `privacy.keep_exchanges`, redacted, or None.
+
+    `manifest.exchanges` records the digest of `render_recording(exchanges)`, which is what
+    `save()` writes beside the run.
+    """
+
     @property
     def exit_code(self) -> int:
         """The exit code `guardana` gives this result: 0, 1, 2 or 6."""
@@ -126,8 +164,23 @@ class Verification:
         return run_to_dict(self.result, self.manifest)
 
     def save(self, path: Path) -> None:
-        """Write the saved-run document to `path`, as `--format json --output` does."""
+        """Write the saved-run document to `path`, as `--format json --output` does.
+
+        Kept exchanges go to `exchanges_path(path)` beside it; a file there from an earlier
+        run is removed when this one kept none, so it never reads as this run's.
+        """
         path.write_text(json.dumps(self.document(), indent=2) + "\n", encoding="utf-8")
+        sidecar = exchanges_path(path)
+        if self.exchanges is not None:
+            sidecar.write_text(render_recording(self.exchanges), encoding="utf-8")
+        elif sidecar.exists():
+            sidecar.unlink()
+
+
+def exchanges_path(run: Path) -> Path:
+    """Where the exchanges a run kept are written beside it: `run.json` → `run.exchanges.jsonl`."""
+    stem = run.stem if run.suffix == ".json" else run.name
+    return run.with_name(f"{stem}.exchanges.jsonl")
 
 
 @dataclass(frozen=True, slots=True)
@@ -245,6 +298,27 @@ class Verifier:
             deployment=deployment,
         )
 
+    def grade(
+        self,
+        path: Path,
+        *,
+        source: RunSource | None = None,
+        deployment: DeploymentRef | None = None,
+    ) -> Verification:
+        """Grade the answers a recording holds, as `guardana grade RECORDING` does; nothing is sent.
+
+        The recording is the execution: its digest becomes `target.document` and its own
+        description the manifest's `recording`. Rules run against a `RecordedTarget`, so a
+        question the recording does not answer, or a reply redaction altered, is never a
+        pass. A recording that cannot be read, or that a probe kept at different trials per
+        case than this profile runs, raises `RecordingRefusedError` before anything runs.
+        """
+        try:
+            recording = read_recording(path)
+        except RecordingError as exc:
+            raise RecordingRefusedError(str(exc)) from exc
+        return self.run(RecordedTarget(recording), source=source, deployment=deployment)
+
     def _verify(  # noqa: PLR0913 — the finish step's inputs, keyword-only
         self,
         target: Target,
@@ -260,6 +334,7 @@ class Verifier:
                 f"{target.ref} is a trace; run `guardana analyze-trace`, which reads its "
                 f"unreadable records and its contracts"
             )
+        keeping = self._keeps(target)
         spent = target.usage()
         if spent is not None and spent.requests:
             raise TargetReusedError(
@@ -267,16 +342,25 @@ class Verifier:
                 f"for each run so its usage and budgets describe this run alone"
             )
         _claim(target)
+        keeper = None
         try:
             calibrations = self._calibrations()
             registry = self._registry().copied()
             registry.apply_trials(self.profile.trials)
+            if isinstance(target, RecordedTarget):
+                refuse_other_trials(target.recording, registry)
             endpoint = target.kind is TargetKind.ENDPOINT
             judges = self._judges(registry) if endpoint else JudgeMeters()
+            if keeping is not None:
+                keeper = ExchangeKeeper()
+                keeping.keep_exchanges(keeper)
+            planned = self._kept_plan(registry, target) if keeper is not None else None
             started_at = datetime.now(UTC)
             result, identity = self._execute(target, registry, calibrations, endpoint=endpoint)
-        except (CalibrationError, UnenforceableBudgetError):
-            # Both are refused before the first request, which leaves the target unused.
+        except (CalibrationError, UnenforceableBudgetError, RecordingRefusedError):
+            # Each is refused before the first request, which leaves the target unused.
+            if keeping is not None:
+                keeping.stop_keeping()
             _release(target)
             raise
         return self._finish(
@@ -293,7 +377,43 @@ class Verifier:
             judges=judges,
             source=source,
             deployment=deployment,
+            kept=None if keeper is None or planned is None else (keeper, planned),
         )
+
+    def _keeps(self, target: Target) -> EndpointTarget | None:
+        """Return the endpoint whose exchanges this run keeps, refusing one that cannot keep them.
+
+        Only an endpoint run has chat exchanges, and a recording is already what it answers
+        from. The built-in endpoint keeps them through its per-rule views; any other endpoint
+        target would keep nothing while the run said it kept everything, so it is refused
+        before anything is sent.
+        """
+        if (
+            not self.profile.privacy.keep_exchanges
+            or target.kind is not TargetKind.ENDPOINT
+            or isinstance(target, RecordedTarget)
+        ):
+            return None
+        if not isinstance(target, EndpointTarget):
+            raise UnsupportedTargetError(
+                f"privacy.keep_exchanges keeps the chat exchanges of the built-in endpoint "
+                f"target (`--url`, `--adapter`); {target.ref} is a {type(target).__name__}, "
+                f"which keeps none"
+            )
+        return target
+
+    def _kept_plan(self, registry: Registry, target: Target) -> dict[str, int]:
+        """Return each rule the plain pass plans, with its trials per case.
+
+        A rule that plants a canary runs in a planted pass whose exchanges are never kept,
+        so it is left out: a regrade cannot plant one either.
+        """
+        chosen, _ = select_rules(registry, self.profile, target)
+        return {
+            rule.meta.id: rule.trials_per_case
+            for rule in chosen
+            if rule.with_canary(_CANARY_PROBE) is None
+        }
 
     def _calibrations(self) -> Mapping[str, RecordedCalibration]:
         if self.calibrations is not None:
@@ -364,6 +484,7 @@ class Verifier:
         judges: JudgeMeters,
         source: RunSource | None,
         deployment: DeploymentRef | None,
+        kept: tuple[ExchangeKeeper, dict[str, int]] | None = None,
     ) -> Verification:
         """Relativize, redact, apply the baseline, gate and describe — in that order.
 
@@ -377,6 +498,19 @@ class Verifier:
         if baseline is not None:
             result = apply_baseline(result, baseline.active())
         gate = gate_outcome(result, self.profile.policy)
+        run_id = str(uuid.uuid4())
+        exchanges = (
+            None
+            if kept is None
+            else self._kept_recording(
+                kept,
+                run_id=run_id,
+                subject=reference,
+                started_at=started_at,
+                gate=gate,
+                result=result,
+            )
+        )
         manifest = build_run_manifest(
             registry,
             self.profile,
@@ -391,6 +525,11 @@ class Verifier:
             source=source,
             calibrations=calibrations,
             judge_usage=judges.usage(),
+            exchanges=None if exchanges is None else _exchanges_record(exchanges),
+            recording=_recording_record(target.recording)
+            if isinstance(target, RecordedTarget)
+            else None,
+            run_id=run_id,
         )
         return Verification(
             result=result,
@@ -398,7 +537,109 @@ class Verifier:
             gate=gate,
             judge_usage=judges.usage(),
             judge_stops=judges.stops(),
+            exchanges=exchanges,
         )
+
+    def _kept_recording(  # noqa: PLR0913 — the facts the sidecar's origin states
+        self,
+        kept: tuple[ExchangeKeeper, dict[str, int]],
+        *,
+        run_id: str,
+        subject: str,
+        started_at: datetime,
+        gate: GateOutcome,
+        result: ScanResult,
+    ) -> Recording | None:
+        """Turn what the keeper collected into the sidecar recording, or None when it holds nothing.
+
+        A recording with no exchange is refused by every reader, so a run that kept none
+        writes no sidecar and records no `exchanges`.
+        """
+        keeper, planned = kept
+        recorded = keeper.recorded(EvidenceRedactor(self.profile.privacy))
+        if not recorded:
+            return None
+        recording = Recording(
+            name=_KEPT_NAME,
+            version=run_id,
+            verbatim=True,
+            subject=subject,
+            origin=RecordingOrigin(
+                run_id=run_id,
+                target=subject,
+                started_at=started_at.isoformat(),
+                stopped_by=None if result.stopped_by is None else str(result.stopped_by),
+                gate=str(gate),
+                trials=planned,
+                rules=tuple(sorted(planned)),
+            ),
+            exchanges=recorded,
+            digest=None,
+        )
+        data = render_recording(recording).encode("utf-8")
+        digest = DocumentDigest(
+            digest=f"sha256:{hashlib.sha256(data).hexdigest()}",
+            kind=DigestKind.CONTENT,
+            bytes=len(data),
+        )
+        return replace(recording, digest=digest)
+
+
+def refuse_other_trials(recording: Recording, registry: Registry) -> None:
+    """Refuse grading a probe's exchanges at other trials per case than it kept.
+
+    Raises `RecordingRefusedError`; `guardana plan grade` asks the same question, so a plan
+    never promises a grade this refuses.
+
+    Fewer trials would leave a kept reply, possibly the failing one, ungraded; more would
+    ask for replies the probe never received.
+    """
+    if recording.origin is None:
+        return
+    rules = {rule.meta.id: rule for rule in registry.rules()}
+    differing = [
+        f"{rule_id} kept {kept}, this run grades {rules[rule_id].trials_per_case}"
+        for rule_id, kept in sorted(recording.origin.trials.items())
+        if rule_id in rules and rules[rule_id].trials_per_case != kept
+    ]
+    if differing:
+        raise RecordingRefusedError(
+            f"the recording kept other trials per case than this run grades "
+            f"({'; '.join(differing[:_NAMED_AT_MOST])}"
+            f"{'…' if len(differing) > _NAMED_AT_MOST else ''}); grade it with "
+            f"the trials the probe ran"
+        )
+
+
+def _recording_record(recording: Recording) -> RecordingRecord:
+    """Describe the recording a graded run answered from, as the recording declares itself."""
+    origin = recording.origin
+    return RecordingRecord(
+        name=recording.name,
+        version=recording.version,
+        subject=recording.subject,
+        verbatim=recording.verbatim,
+        origin=None
+        if origin is None
+        else RecordingOriginRecord(
+            run_id=origin.run_id,
+            target=origin.target,
+            started_at=origin.started_at,
+            stopped_by=origin.stopped_by,
+            gate=origin.gate,
+        ),
+    )
+
+
+def _exchanges_record(recording: Recording) -> ExchangesRecord:
+    """Describe a kept recording in the manifest: its digest, its size, how many were altered."""
+    if recording.digest is None:
+        raise ValueError("a kept recording is digested before the manifest records it")
+    return ExchangesRecord(
+        digest=recording.digest.digest,
+        count=len(recording.exchanges),
+        altered=sum(1 for exchange in recording.exchanges if recording.reply_altered(exchange)),
+    )
 
 
 def _claim(target: Target) -> None:
@@ -429,6 +670,7 @@ __all__ = [
     "CalibrationError",
     "EndpointBuilder",
     "JudgeUnreachableError",
+    "RecordingRefusedError",
     "TargetReusedError",
     "TargetUnavailableError",
     "UnenforceableBudgetError",
@@ -436,4 +678,5 @@ __all__ = [
     "Verification",
     "VerificationError",
     "Verifier",
+    "exchanges_path",
 ]

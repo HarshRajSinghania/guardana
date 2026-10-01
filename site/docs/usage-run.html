@@ -53,6 +53,7 @@
 </ul>
 <h2>Recorded applications</h2><ul>
 <li><a href="usage-analyze-trace.html">guardana analyze-trace</a></li>
+<li><a href="usage-grade.html">guardana grade<span class="tag">beta</span></a></li>
 <li><a href="usage-trace-inspect.html">guardana trace inspect</a></li>
 <li><a href="usage-contracts.html">Security contracts</a></li>
 <li><a href="usage-import-observations.html">guardana import-observations</a></li>
@@ -123,8 +124,9 @@
 <li><a href="design/repeated-trials.html">Repeated trials<span class="tag">implemented</span></a></li>
 <li><a href="design/documentation-site.html">A documentation site<span class="tag">implemented</span></a></li>
 <li><a href="design/judge-error-correction.html">Judge error in a measured rate<span class="tag">implemented</span></a></li>
-<li><a href="design/regrading-stored-exchanges.html">Re-grading stored exchanges<span class="tag">proposed</span></a></li>
+<li><a href="design/regrading-stored-exchanges.html">Re-grading stored exchanges<span class="tag">superseded</span></a></li>
 <li><a href="design/anytime-valid-monitoring.html">Anytime-valid monitoring<span class="tag">proposed</span></a></li>
+<li><a href="design/recorded-answers.html">Recorded answers and regrading<span class="tag">accepted</span></a></li>
 <li><a href="design/run-manifest-v2.html">Run manifest v2<span class="tag">implemented</span></a></li>
 <li><a href="design/privacy-and-redaction.html">Privacy and redaction<span class="tag">implemented</span></a></li>
 <li><a href="design/exit-codes.html">Exit codes and gate semantics<span class="tag">implemented</span></a></li>
@@ -172,6 +174,7 @@
 </ul>
 <h2>Recorded applications</h2><ul>
 <li><a href="usage-analyze-trace.html">guardana analyze-trace</a></li>
+<li><a href="usage-grade.html">guardana grade<span class="tag">beta</span></a></li>
 <li><a href="usage-trace-inspect.html">guardana trace inspect</a></li>
 <li><a href="usage-contracts.html">Security contracts</a></li>
 <li><a href="usage-import-observations.html">guardana import-observations</a></li>
@@ -242,8 +245,9 @@
 <li><a href="design/repeated-trials.html">Repeated trials<span class="tag">implemented</span></a></li>
 <li><a href="design/documentation-site.html">A documentation site<span class="tag">implemented</span></a></li>
 <li><a href="design/judge-error-correction.html">Judge error in a measured rate<span class="tag">implemented</span></a></li>
-<li><a href="design/regrading-stored-exchanges.html">Re-grading stored exchanges<span class="tag">proposed</span></a></li>
+<li><a href="design/regrading-stored-exchanges.html">Re-grading stored exchanges<span class="tag">superseded</span></a></li>
 <li><a href="design/anytime-valid-monitoring.html">Anytime-valid monitoring<span class="tag">proposed</span></a></li>
+<li><a href="design/recorded-answers.html">Recorded answers and regrading<span class="tag">accepted</span></a></li>
 <li><a href="design/run-manifest-v2.html">Run manifest v2<span class="tag">implemented</span></a></li>
 <li><a href="design/privacy-and-redaction.html">Privacy and redaction<span class="tag">implemented</span></a></li>
 <li><a href="design/exit-codes.html">Exit codes and gate semantics<span class="tag">implemented</span></a></li>
@@ -351,6 +355,10 @@ is read as carrying a content digest.</p>
 no earlier schema recorded which files a run listed or which plugin trust it ran under, so
 both are unknown. <code>diff</code> against a migrated second run cannot tell a file that left the scan
 from a fixed one, and reads a finding that disappeared the way it did before.</p>
+<p>A schema-12 run migrates to schema 13 with <code>exchanges: null</code>, <code>recording: null</code>, <code>judge: null</code>
+on every evaluator and <code>reason: null</code> on every assessment: no earlier schema kept exchanges,
+graded a recording, recorded a judge's identity or said why a trial went unmeasured. A null
+judge is unknown, so <code>diff</code> does not read it as a change of judge.</p>
 <p>One thing <em>is</em> recovered: the <strong>title</strong> of a framework reference, which version 3
 onward records beside its framework and id. It is looked up from the installed
 catalogue for the exact <code>(framework, id)</code> pair the document already carries, so
@@ -375,8 +383,8 @@ published was the file. There is now a test that validates the <em>artifact</em>
 parametrised over every field a version-1 run could be missing.</p>
 <h2 id="the-document">The document</h2>
 <p>The saved-run schema lives at
-<a href="https://github.com/guardana/guardana/blob/main/schemas/run-v12.schema.json"><code>schemas/run-v12.schema.json</code></a>, identified by
-<code>https://guardana.dev/schemas/run/v12.schema.json</code>, and the site serves every schema
+<a href="https://github.com/guardana/guardana/blob/main/schemas/run-v13.schema.json"><code>schemas/run-v13.schema.json</code></a>, identified by
+<code>https://guardana.dev/schemas/run/v13.schema.json</code>, and the site serves every schema
 at the URL its identifier names. The version is in the identifier,
 so a consumer can tell which contract it is holding before parsing anything; it
 changes whenever the change is not backwards-compatible. A test validates what
@@ -397,7 +405,10 @@ which is what it always counted. Version 8 records the <code>correction</code> b
 stopped the run. Version 11 records <code>run.target.document</code>, the digest of the document the run
 read and what it covers. Version 12 records <code>scope</code>, every file a file run listed and the
 excludes it applied, <code>run.configuration.plugins</code>, the plugin trust in force, and the
-<code>unexamined_component</code> coverage shortfall.</p>
+<code>unexamined_component</code> coverage shortfall. Version 13 records <code>run.exchanges</code>, what a probe
+kept beside the run, <code>run.recording</code>, the recording a graded run answered from,
+<code>run.evaluators[].judge</code>, each judge's identity, <code>assessments[].reason</code>, why a trial was not
+measured, and the <code>not_recorded</code> skip reason.</p>
 <p>Top level:</p>
 <div class="table-wrap"><table>
 <thead>
@@ -409,7 +420,7 @@ excludes it applied, <code>run.configuration.plugins</code>, the plugin trust in
 <tbody>
 <tr>
 <td><code>schema_version</code></td>
-<td><code>12</code>. Stated once, for the whole document.</td>
+<td><code>13</code>. Stated once, for the whole document.</td>
 </tr>
 <tr>
 <td><code>run</code></td>
@@ -476,7 +487,7 @@ excludes it applied, <code>run.configuration.plugins</code>, the plugin trust in
 </tr>
 <tr>
 <td><code>rules</code> / <code>evaluators</code></td>
-<td>what did the checking, with digests, declared request counts, a <code>trial_summary</code> for each rule that repeated, a <code>suite</code> summary for each quality suite, and calibration. A suite the budget stopped or that raised is listed with its declined summary, though not in <code>result_summary.rules_run</code></td>
+<td>what did the checking, with digests, declared request counts, a <code>trial_summary</code> for each rule that repeated, a <code>suite</code> summary for each quality suite, calibration, and <code>judge</code>: the identity a judge states (its model, endpoint and samples per verdict), <code>null</code> for a deterministic evaluator or when unstated. A suite the budget stopped or that raised is listed with its declined summary, though not in <code>result_summary.rules_run</code></td>
 </tr>
 <tr>
 <td><code>coverage</code></td>
@@ -489,6 +500,14 @@ excludes it applied, <code>run.configuration.plugins</code>, the plugin trust in
 <tr>
 <td><code>privacy</code></td>
 <td>which evidence policy was in force</td>
+</tr>
+<tr>
+<td><code>exchanges</code></td>
+<td>for a probe that kept its exchanges (<a href="usage-probe.html#keeping-the-exchanges"><code>probe --keep-exchanges</code></a>), <code>{digest, count, altered}</code>: the SHA-256 of the sidecar file, how many exchanges it holds and how many replies redaction changed; <code>null</code> otherwise</td>
+</tr>
+<tr>
+<td><code>recording</code></td>
+<td>for a run <a href="usage-grade.html"><code>guardana grade</code></a> wrote, what the recording says of itself: <code>{name, version, subject, verbatim, origin}</code>, with <code>origin</code> <code>{run_id, target, started_at, stopped_by, gate}</code> when a probe kept it; declared, not verified. <code>null</code> otherwise</td>
 </tr>
 </tbody>
 </table></div>
@@ -504,8 +523,9 @@ says so rather than leaving a reader to assume the stronger reading.</p>
 <p><strong>A document digest says how much of the document it covers.</strong> <code>target.document</code> is
 <code>null</code>, or <code>{digest, kind, bytes}</code>: <code>digest</code> is SHA-256 over the first <code>bytes</code> bytes of the
 file the run read, and <code>kind</code> is <code>content</code> when that was the whole file or
-<code>content_prefix</code> when a read ceiling stopped the reader first. <code>analyze-trace</code> and
-<code>import-observations</code> fill it. <code>null</code> means no digest was recorded, never that two
+<code>content_prefix</code> when a read ceiling stopped the reader first. <code>analyze-trace</code>,
+<code>import-observations</code> and <code>grade</code> fill it; for <code>grade</code> it is the recording's digest, the
+identity of the execution that was graded. <code>null</code> means no digest was recorded, never that two
 documents matched.</p>
 <h2 id="assessments">Assessments</h2>
 <p>The channel that is not about problems. Every other one — findings, unverified,
@@ -529,7 +549,8 @@ system improved, the test got weaker, or the sample changed.</p>
   &quot;dataset&quot;: &quot;5435b77094cde319&quot;,
   &quot;rationale&quot;: &quot;Response contains a refusal marker.&quot;,
   &quot;tags&quot;: [],
-  &quot;trial&quot;: 1
+  &quot;trial&quot;: 1,
+  &quot;reason&quot;: null
 }
 </code></pre>
 <div class="table-wrap"><table>
@@ -567,6 +588,10 @@ system improved, the test got weaker, or the sample changed.</p>
 <tr>
 <td><code>trial</code></td>
 <td>which attempt at the case this was, from <code>1</code>, for a rule that can repeat; <code>null</code> for a rule that cannot, and for a run saved before trials existed. Not part of a case's identity: two runs pair on <code>case_id</code></td>
+</tr>
+<tr>
+<td><code>reason</code></td>
+<td>why a trial was not measured: <code>not_recorded</code> (a recording held no reply for it; status <code>error</code>), <code>reply_altered</code> (the recorded reply was changed by redaction or not kept verbatim; status <code>inconclusive</code>) or <code>declined</code> (the evaluator returned no verdict; status <code>inconclusive</code>). <code>null</code> for a measured trial, and for a run saved before schema 13</td>
 </tr>
 <tr>
 <td><code>dataset</code></td>

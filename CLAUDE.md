@@ -12,9 +12,10 @@ Guardana is an open-source AI security verification platform: it scans model and
 application artifacts, probes live endpoints and agents (MCP included), records
 reproducible evidence, detects regressions between deployments and optionally
 aggregates results in a self-hosted collector. One rule engine runs in every one of
-those places, so a verdict does not change because the runner did. Four verbs:
-`scan` (artifacts), `probe` (a deployed system), `monitor` (re-verify), `diff`
-(compare evidence). Design: `docs/how-it-works.md`, `docs/architecture.md`.
+those places, so a verdict does not change because the runner did. Five verbs:
+`scan` (artifacts), `probe` (a deployed system), `grade` (answers already given),
+`monitor` (re-verify), `diff` (compare evidence). Design: `docs/how-it-works.md`,
+`docs/architecture.md`.
 
 Five packages under `packages/`, each a PEP 420 namespace package (`guardana.*`):
 

@@ -49,6 +49,7 @@ _ALLOWED_PRIVACY_KEYS = frozenset(
         "hash_identifiers",
         "custom_patterns",
         "max_evidence_bytes",
+        "keep_exchanges",
     }
 )
 
@@ -232,6 +233,13 @@ def _privacy(raw: dict[str, Any], path: Path) -> RedactionPolicy:
         raise ProfileError(
             f"invalid profile {path}: privacy.max_evidence_bytes must be a positive whole number"
         )
+    keep_exchanges = _flag(raw, "keep_exchanges", False, path)
+    if keep_exchanges and mode is EvidenceMode.METADATA_ONLY:
+        raise ProfileError(
+            f"invalid profile {path}: privacy.keep_exchanges is true and "
+            f"privacy.evidence_mode is metadata_only; keeping exchanges stores what the "
+            f"target said, which metadata_only forbids, so set one of the two differently"
+        )
     return RedactionPolicy(
         mode=mode,
         redact_emails=_flag(raw, "redact_emails", True, path),
@@ -239,6 +247,7 @@ def _privacy(raw: dict[str, Any], path: Path) -> RedactionPolicy:
         hash_identifiers=_flag(raw, "hash_identifiers", True, path),
         custom_patterns=patterns,
         max_evidence_bytes=limit,
+        keep_exchanges=keep_exchanges,
     )
 
 

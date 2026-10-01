@@ -42,6 +42,7 @@ from guardana.core.target.protocols import (
     ToolOfferingEndpoint,
     TraceReader,
 )
+from guardana.core.target.recorded import RecordedTarget, ReplyUnavailable
 from guardana.core.target.trace import TraceTarget, capability_for, dimensions_of
 
 __all__ = [
@@ -69,6 +70,8 @@ __all__ = [
     "McpError",
     "McpServerTarget",
     "McpTool",
+    "RecordedTarget",
+    "ReplyUnavailable",
     "Sender",
     "Sessions",
     "SystemPromptPlanter",

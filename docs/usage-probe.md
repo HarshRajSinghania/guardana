@@ -51,6 +51,7 @@ guardana probe (--url <base-url> --model <name> | --target <scheme://locator>) [
 | `--mcp-pin PATH` | none | Approved MCP manifest to compare the live one against |
 | `--write-mcp-pin PATH` | none | Write the server's current manifest as approved, and exit without reporting |
 | `--allow-exec` | off | Permit `--mcp` to **start** an stdio server, which executes the code under examination |
+| `--keep-exchanges` | off (or `privacy.keep_exchanges`) | Keep every chat exchange of the plain pass, redacted, beside the saved run so [`guardana grade`](usage-grade.md) can grade it again without calling the endpoint — see [Keeping the exchanges](#keeping-the-exchanges). Needs `--format json --output`; refused with `--mcp`, `--target` and `privacy.evidence_mode: metadata_only` (exit `3`) |
 
 `--target` is mutually exclusive with `--url`, `--model`, adapter, credential,
 system-prompt, and MCP connection flags. The plugin owns construction; Guardana
@@ -462,6 +463,34 @@ guardana probe --url … --model …  --format json --output run.json
 
 Prefer it to a shell redirect: PowerShell redirects write UTF-16, and the reader
 on the other end cannot parse that.
+
+### Keeping the exchanges
+
+`--keep-exchanges`, or `privacy.keep_exchanges: true` in the profile, keeps every chat
+exchange of the probe beside the saved run, so the same replies can be graded again with
+a new rule, a sharper expectation or another judge, without a second request:
+
+```bash
+guardana probe --url … --model … --keep-exchanges --format json --output run.json
+guardana grade run.exchanges.jsonl --rules rules/ --format json --output regraded.json
+```
+
+`run.json` → `run.exchanges.jsonl`. Each line holds the messages a rule sent and the
+reply, as a [recording](usage-grade.md#a-recording) `guardana grade` reads. The run
+records the file's SHA-256, its line count and how many replies redaction changed under
+`run.exchanges`; a sidecar that no longer matches that digest is a different execution to
+`guardana diff`.
+
+- Only the built-in endpoint's plain pass is kept (`--url`, with or without `--adapter`):
+  never the system prompt, the canary passes or tool offers, so canary and tool rules are
+  not graded again.
+- Every input and reply passes the run's redactor, matched spans only and without the
+  evidence size bound; a secret is removed under every `evidence_mode`, `full` included. A
+  reply redaction changed is marked `altered` and is never graded again: a reply that
+  leaked a secret cannot be regraded into a pass.
+- Keeping is off by default. The file holds every reply, passes included, so it widens
+  what a leaked run exposes; the collector never receives it. See [privacy](privacy.md).
+- A probe that kept nothing writes no file and says so on stderr.
 
 ## Quality suites
 

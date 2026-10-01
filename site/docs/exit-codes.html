@@ -53,6 +53,7 @@
 </ul>
 <h2>Recorded applications</h2><ul>
 <li><a href="usage-analyze-trace.html">guardana analyze-trace</a></li>
+<li><a href="usage-grade.html">guardana grade<span class="tag">beta</span></a></li>
 <li><a href="usage-trace-inspect.html">guardana trace inspect</a></li>
 <li><a href="usage-contracts.html">Security contracts</a></li>
 <li><a href="usage-import-observations.html">guardana import-observations</a></li>
@@ -123,8 +124,9 @@
 <li><a href="design/repeated-trials.html">Repeated trials<span class="tag">implemented</span></a></li>
 <li><a href="design/documentation-site.html">A documentation site<span class="tag">implemented</span></a></li>
 <li><a href="design/judge-error-correction.html">Judge error in a measured rate<span class="tag">implemented</span></a></li>
-<li><a href="design/regrading-stored-exchanges.html">Re-grading stored exchanges<span class="tag">proposed</span></a></li>
+<li><a href="design/regrading-stored-exchanges.html">Re-grading stored exchanges<span class="tag">superseded</span></a></li>
 <li><a href="design/anytime-valid-monitoring.html">Anytime-valid monitoring<span class="tag">proposed</span></a></li>
+<li><a href="design/recorded-answers.html">Recorded answers and regrading<span class="tag">accepted</span></a></li>
 <li><a href="design/run-manifest-v2.html">Run manifest v2<span class="tag">implemented</span></a></li>
 <li><a href="design/privacy-and-redaction.html">Privacy and redaction<span class="tag">implemented</span></a></li>
 <li><a href="design/exit-codes.html">Exit codes and gate semantics<span class="tag">implemented</span></a></li>
@@ -172,6 +174,7 @@
 </ul>
 <h2>Recorded applications</h2><ul>
 <li><a href="usage-analyze-trace.html">guardana analyze-trace</a></li>
+<li><a href="usage-grade.html">guardana grade<span class="tag">beta</span></a></li>
 <li><a href="usage-trace-inspect.html">guardana trace inspect</a></li>
 <li><a href="usage-contracts.html">Security contracts</a></li>
 <li><a href="usage-import-observations.html">guardana import-observations</a></li>
@@ -242,8 +245,9 @@
 <li><a href="design/repeated-trials.html">Repeated trials<span class="tag">implemented</span></a></li>
 <li><a href="design/documentation-site.html">A documentation site<span class="tag">implemented</span></a></li>
 <li><a href="design/judge-error-correction.html">Judge error in a measured rate<span class="tag">implemented</span></a></li>
-<li><a href="design/regrading-stored-exchanges.html">Re-grading stored exchanges<span class="tag">proposed</span></a></li>
+<li><a href="design/regrading-stored-exchanges.html">Re-grading stored exchanges<span class="tag">superseded</span></a></li>
 <li><a href="design/anytime-valid-monitoring.html">Anytime-valid monitoring<span class="tag">proposed</span></a></li>
+<li><a href="design/recorded-answers.html">Recorded answers and regrading<span class="tag">accepted</span></a></li>
 <li><a href="design/run-manifest-v2.html">Run manifest v2<span class="tag">implemented</span></a></li>
 <li><a href="design/privacy-and-redaction.html">Privacy and redaction<span class="tag">implemented</span></a></li>
 <li><a href="design/exit-codes.html">Exit codes and gate semantics<span class="tag">implemented</span></a></li>
@@ -364,7 +368,10 @@ for &quot;one of them never finished&quot;. <code>run inspect</code>, <code>run 
 <code>trace inspect</code> and <code>plan</code> produce <code>0</code> or <code>3</code> — <code>plan</code> exits <code>3</code> when the target or a
 judge meter could exceed the request budget — <code>trace inspect</code> grades nothing, so
 it has no verdict to report and says what is missing in its output instead.
-<code>analyze-trace</code> adds one route to <code>2</code> the others do not have: demanded coverage that
+<code>grade</code> uses the codes <code>probe</code> uses, with no target to be unavailable: <code>3</code> also covers
+a recording that cannot be read and one a probe kept at other trials per case than the
+run grades, <code>4</code> a judge that cannot be reached, and <code>2</code> a run that graded nothing
+(<a href="usage-grade.html"><code>usage-grade.md</code></a>). <code>analyze-trace</code> adds one route to <code>2</code> the others do not have: demanded coverage that
 was not available, and a security contract that turned out to be about a different
 AI system than the one under test. <code>baseline create</code>, <code>baseline update</code> and
 <code>scan --write-baseline</code> write nothing and produce <code>2</code> when the run is not entitled

@@ -320,6 +320,38 @@ def migrate_v11(document: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def migrate_v12(document: Mapping[str, Any]) -> dict[str, Any]:
+    """Rewrite a schema-12 saved run as a schema-13 one, recomputing nothing.
+
+    **`run.exchanges`**, **`run.recording`**, every **`run.evaluators[].judge`** and every
+    **`assessments[].reason`** arrive null, overwriting whatever the document holds: no
+    version-12 build kept exchanges, graded a recording or recorded a judge identity or why
+    a trial went unmeasured, so each is unknown, never "kept nothing" or "graded live".
+    """
+    run = _mapping(document.get("run"), "run")
+    evaluators = run.get("evaluators")
+    assessments = document.get("assessments")
+    if assessments is not None and not isinstance(assessments, list):
+        raise ManifestLoadError("'assessments' must be a list")
+    return {
+        **document,
+        "schema_version": 13,
+        "$schema": schema_url(13),
+        "assessments": [
+            {**_mapping(entry, "assessments[]"), "reason": None} for entry in (assessments or [])
+        ],
+        "run": {
+            **run,
+            "evaluators": [
+                {**_mapping(entry, "run.evaluators[]"), "judge": None}
+                for entry in (evaluators if isinstance(evaluators, list) else [])
+            ],
+            "exchanges": None,
+            "recording": None,
+        },
+    }
+
+
 _PER_CLASS_CALIBRATION = (
     "assessor",
     "judge_identity",

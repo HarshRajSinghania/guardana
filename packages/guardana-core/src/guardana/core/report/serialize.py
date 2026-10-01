@@ -63,6 +63,7 @@ def assessment_to_dict(assessment: Assessment) -> dict[str, object]:
         "rationale": assessment.rationale,
         "tags": list(assessment.tags),
         "trial": assessment.trial,
+        "reason": None if assessment.reason is None else str(assessment.reason),
     }
 
 

@@ -56,6 +56,7 @@ def _resolved(profile: Profile) -> dict[str, object]:
             "hash_identifiers": privacy.hash_identifiers,
             "custom_patterns": list(privacy.custom_patterns),
             "max_evidence_bytes": privacy.max_evidence_bytes,
+            "keep_exchanges": privacy.keep_exchanges,
             "policy_digest": privacy.digest,
         },
         "safety": {

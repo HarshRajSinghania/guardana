@@ -22,17 +22,17 @@ For dynamic checks, a swappable, versioned **Evaluator** grades whether an attac
 ```mermaid
 flowchart LR
   accTitle: How Guardana checks an AI system
-  accDescr: Model and code artifacts go to guardana scan, a live endpoint, agent or MCP server to guardana probe or monitor, and a recorded agent run to guardana analyze-trace. All three run one rule engine, which writes a saved run with findings, unverified checks, errors and coverage shortfalls. The run gates the build, feeds guardana diff, and renders as SARIF, JSON, JUnit or text.
+  accDescr: Model and code artifacts go to guardana scan, a live endpoint, agent or MCP server to guardana probe or monitor, and a recorded agent run or the answers your application already gave to guardana analyze-trace or guardana grade. All of them run one rule engine, which writes a saved run with findings, unverified checks, errors and coverage shortfalls. The run gates the build, feeds guardana diff, and renders as SARIF, JSON, JUnit or text.
   classDef accent fill:#F0ECFF,stroke:#5B3DF5,color:#4A2FE0
   classDef cmd font-family:monospace
   subgraph IN [What you point it at]
     A[Model and<br>code artifacts]
     B[Endpoint, agent<br>or MCP server]
-    C[Recorded<br>agent run]
+    C[Recorded run<br>or answers]
   end
   A --> S([guardana scan]):::cmd
   B --> P([guardana probe<br>or monitor]):::cmd
-  C --> T([guardana<br>analyze-trace]):::cmd
+  C --> T([guardana<br>analyze-trace<br>or grade]):::cmd
   S ==> E[One rule engine<br>rules · evaluators · profile]:::accent
   P ==> E
   T ==> E
@@ -60,7 +60,7 @@ flowchart LR
 
 `RuleMeta.surface` records the layer. `guardana rules` groups rules by it.
 
-**c) Four ways to run it, one engine underneath.** `scan` runs build rules. `probe` runs runtime rules once. `monitor` re-runs runtime probes on a schedule next to a served model, outside its request path. `analyze-trace` runs trace rules over an execution your application recorded. They use the same rules, findings, and report format. `diff` runs no rules; it compares two saved runs to determine whether the second is worse. The command selects the layer.
+**c) Five ways to run it, one engine underneath.** `scan` runs build rules. `probe` runs runtime rules once. `monitor` re-runs runtime probes on a schedule next to a served model, outside its request path. `analyze-trace` runs trace rules over an execution your application recorded. `grade` runs chat rules over answers your application already gave, sending nothing to it. They use the same rules, findings, and report format. `diff` runs no rules; it compares two saved runs to determine whether the second is worse. The command selects the layer.
 
 **d) A finding is a finding.** YAML and Python checks of files and live models produce the same shape: severity, an OWASP/MITRE/NIST standards tag, evidence, and, for dynamic checks, a graded verdict with confidence. That supports one report format, policy gate, and collector.
 
@@ -209,7 +209,7 @@ A linter or type-checker cannot detect a false all-clear. Evaluators fail closed
 - [`writing-rules.md`](writing-rules.md) — YAML and Python rules.
 - [`extending.md`](extending.md) — evaluators, targets, and entry points.
 - [`profiles.md`](profiles.md) — the `guardana.yaml` schema and presets.
-- [`usage-scan.md`](usage-scan.md) · [`usage-probe.md`](usage-probe.md) · [`usage-monitor.md`](usage-monitor.md) · [`usage-analyze-trace.md`](usage-analyze-trace.md) — the four run modes.
+- [`usage-scan.md`](usage-scan.md) · [`usage-probe.md`](usage-probe.md) · [`usage-monitor.md`](usage-monitor.md) · [`usage-analyze-trace.md`](usage-analyze-trace.md) · [`usage-grade.md`](usage-grade.md) — the five run modes.
 - [`usage-diff.md`](usage-diff.md) — `guardana diff`, saved-run comparison, and why "worse" needs five names rather than a bigger number.
 - [`../FEATURES.md`](../FEATURES.md) — maintained capabilities.
 - [`../SECURITY.md`](../SECURITY.md) — the trust model and `--no-plugins`.

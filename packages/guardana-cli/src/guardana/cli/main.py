@@ -12,6 +12,7 @@ from guardana.cli.config import config_app
 from guardana.cli.diff import diff
 from guardana.cli.doctor import doctor
 from guardana.cli.exit_codes import ExitCode
+from guardana.cli.grade import grade
 from guardana.cli.import_observations import import_observations
 from guardana.cli.init import init
 from guardana.cli.monitor import monitor
@@ -95,6 +96,7 @@ app.command()(init)
 app.command()(rules)
 app.command()(taxonomy)
 app.command()(probe)
+app.command()(grade)
 app.command()(diff)
 app.command()(monitor)
 app.command(name="analyze-trace")(analyze_trace)

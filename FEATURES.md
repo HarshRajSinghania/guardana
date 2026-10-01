@@ -19,6 +19,7 @@ For maturity and known gaps, read [Product status](docs/product-status.md).
 | Scan code and model artifacts | `guardana scan PATH` | deterministic, offline findings |
 | Probe a model, agent, or MCP server | `guardana probe ...` | bounded active checks with graded evidence |
 | Analyze an existing execution | `guardana analyze-trace TRACE` | trace rules over a local file, calling no model or tool |
+| Grade recorded answers | `guardana grade RECORDING` | your rules over answers you supplied or a probe kept, with no target request |
 | Inspect available evidence | `guardana trace inspect TRACE` | recorded dimensions and policy gaps |
 | Compare releases | `guardana diff BEFORE AFTER` | deterioration, improvement, or an explicit refusal to compare |
 | Re-run checks on a schedule | `guardana monitor ...` | each cycle gated and compared with the first cycle |

@@ -190,7 +190,15 @@ Verdict(
 `True` only when the evaluator's verdict does not need judge-error correction, as with
 `canary`; an evaluator that does not declare it is treated as a judge.
 `Evaluator.judge_identity` defaults to `None`. Set it to a string that identifies the
-grader configuration the evaluator id does not name; matching compares it verbatim.
+grader configuration the evaluator id does not name; matching compares it verbatim. A saved
+run records it as `run.evaluators[].judge`, and `guardana diff` leaves out of its comparison
+a rule whose judge identity changed.
+
+`Evaluator.assessor_id` is the `evaluator_id` this evaluator's verdicts carry, known before
+any verdict exists; it defaults to `id`. Override it when your verdicts carry another id (the
+built-in judges answer `llm_judge@<prompt_version>`): a suite trial that could not be graded
+— a recording held no reply for it — is recorded under it, and an ungraded trial under any
+other id would be a second assessor, which judge-error correction refuses.
 
 ```python
 class MyEvaluator(Evaluator):

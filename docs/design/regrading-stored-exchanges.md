@@ -2,12 +2,12 @@
 title: "Re-grading stored exchanges"
 nav_order: 82
 summary: "keeping the redacted exchange behind every assessment so a new assessor can grade an old run without touching the target, why it is opt-in, and why an exchange redaction altered cannot be re-graded into a pass"
-status: proposed
+status: superseded
 ---
 
 # Re-grading stored exchanges: a new judge, the same replies
 
-**Status:** proposed · **Written:** 2026-09-23 · **`ROADMAP.md` "Now", row 3**
+**Status:** superseded by [`recorded-answers.md`](recorded-answers.md) · **Written:** 2026-09-23 · **`ROADMAP.md` "Now", row 3**
 
 ## The question
 

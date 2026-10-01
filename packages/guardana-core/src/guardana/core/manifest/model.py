@@ -3,11 +3,17 @@ from datetime import datetime
 
 from guardana.core.manifest.coverage import CoverageRecord
 from guardana.core.manifest.identity import DeploymentRef, RunSource, TargetIdentity, ToolInfo
-from guardana.core.manifest.records import EvaluatorRecord, ResultSummary, RuleRecord
+from guardana.core.manifest.records import (
+    EvaluatorRecord,
+    ExchangesRecord,
+    RecordingRecord,
+    ResultSummary,
+    RuleRecord,
+)
 from guardana.core.manifest.settings import ConfigurationRef, ExecutionSettings, PrivacyRecord
 from guardana.core.manifest.usage import RunUsage
 
-MANIFEST_SCHEMA_VERSION = 12
+MANIFEST_SCHEMA_VERSION = 13
 """Version of the run document, moved independently of the CLI.
 
 A run written by 0.7.3 and one written by 0.9.0 are the same document if the
@@ -46,6 +52,11 @@ Version 11 records the digest of the document a run read, and what it covers
 
 Version 12 records what a file run listed and excluded (`scope`), the plugin trust in
 force (`configuration.plugins`) and the `unexamined_component` shortfall kind.
+
+Version 13 records which execution a run graded apart from how it graded it: the
+exchanges a probe kept (`exchanges`), the recording a graded run answered from
+(`recording`), the judge identity each evaluator stated (`evaluators[].judge`), why a
+trial went unmeasured (`assessments[].reason`) and the `not_recorded` skip reason.
 """
 
 
@@ -85,6 +96,12 @@ class RunManifest:
     deployment: DeploymentRef = field(default_factory=DeploymentRef)
     privacy: PrivacyRecord = field(default_factory=PrivacyRecord)
     coverage: CoverageRecord = field(default_factory=CoverageRecord)
+    exchanges: ExchangesRecord | None = None
+    """The exchanges this probe kept in its sidecar; None when it kept none."""
+
+    recording: RecordingRecord | None = None
+    """The recording this run graded instead of calling a target; None for a live run."""
+
     schema_version: int = MANIFEST_SCHEMA_VERSION
     migrated_from: int | None = None
     """Which older schema this document was migrated from, if any.

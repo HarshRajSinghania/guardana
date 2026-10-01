@@ -186,6 +186,17 @@ The digest covers a rule's *declaration*. It cannot see a change inside the Pyth
 of a plugin rule; the recorded tool version is what covers that, and a run made by
 a different Guardana version is flagged in the notes.
 
+A rule **graded differently** in the two runs — another evaluator, or a judge whose
+recorded identity (model, endpoint, samples) changed — is left out of the comparison:
+its findings are neither new nor resolved and its measurements are not paired, and the
+comparison is incomplete (exit `2`) with a note naming it, as for a rule whose trials per
+case changed. A judge identity recorded on one side only is unknown, not a change.
+
+When one run is a [`guardana grade`](usage-grade.md) of the exchanges the other kept, or
+both graded the same recording, a note says both runs graded the same recorded replies
+and names the digest: a difference between them is not the system answering differently.
+Only a digest of the whole file counts.
+
 ## In CI
 
 ```yaml

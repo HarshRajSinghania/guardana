@@ -5,10 +5,12 @@ the passes, without which no rate has a denominator. Every test here inverts a
 behaviour: remove the guard and the assertion goes green on a lie.
 """
 
+import pytest
 from guardana.core.assessment import (
     Assessment,
     AssessmentStatus,
     Direction,
+    UnmeasuredReason,
     case_id_for,
     from_verdict,
 )
@@ -97,6 +99,7 @@ def test_an_inconclusive_verdict_becomes_an_absent_reading_never_a_failure() -> 
     assert assessment.status is AssessmentStatus.INCONCLUSIVE
     assert assessment.passed is None
     assert assessment.confidence is None
+    assert assessment.reason is UnmeasuredReason.DECLINED
 
 
 def test_a_confident_pass_keeps_its_confidence() -> None:
@@ -107,6 +110,38 @@ def test_a_confident_pass_keeps_its_confidence() -> None:
     assert assessment.status is AssessmentStatus.MEASURED
     assert assessment.passed is True
     assert assessment.confidence == 0.6
+    assert assessment.reason is None
+
+
+@pytest.mark.parametrize("reason", list(UnmeasuredReason))
+def test_a_measured_case_cannot_carry_a_reason_it_went_unmeasured(
+    reason: UnmeasuredReason,
+) -> None:
+    with pytest.raises(ValueError, match="measured"):
+        _assessment(status=AssessmentStatus.MEASURED, passed=True, reason=reason)
+
+
+@pytest.mark.parametrize(
+    ("status", "reason"),
+    [
+        (AssessmentStatus.ERROR, UnmeasuredReason.NOT_RECORDED),
+        (AssessmentStatus.INCONCLUSIVE, UnmeasuredReason.REPLY_ALTERED),
+        (AssessmentStatus.INCONCLUSIVE, UnmeasuredReason.DECLINED),
+        (AssessmentStatus.SKIPPED, None),
+    ],
+)
+def test_an_unmeasured_case_says_why_or_leaves_it_unknown(
+    status: AssessmentStatus, reason: UnmeasuredReason | None
+) -> None:
+    assert _assessment(status=status, reason=reason).reason is reason
+
+
+def test_the_reason_is_not_part_of_what_two_runs_must_agree_on() -> None:
+    # Why one run could not measure a case says nothing about which case it was.
+    declined = _assessment(status=AssessmentStatus.INCONCLUSIVE, reason=UnmeasuredReason.DECLINED)
+    unrecorded = _assessment(status=AssessmentStatus.ERROR, reason=UnmeasuredReason.NOT_RECORDED)
+
+    assert declined.comparable_key == unrecorded.comparable_key
 
 
 _CHARS = Measurement(812.0, "chars", Direction.LOWER_IS_BETTER, 4000.0)

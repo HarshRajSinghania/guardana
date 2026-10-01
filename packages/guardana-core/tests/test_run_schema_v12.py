@@ -12,18 +12,12 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from _documents import (
-    run_manifest,
-    saved_run_at_v9,
-    saved_run_at_v10,
-    saved_run_at_v11,
-    scan_result,
-)
+from _documents import run_manifest, saved_run_at_v11, saved_run_at_v12, scan_result
 from guardana.core.manifest.load import ManifestLoadError, manifest_from_dict
 from guardana.core.manifest.migrations import migrate_v11
 from guardana.core.manifest.serialize import manifest_to_dict
 from guardana.core.plugins import PluginMode, PluginTrust
-from guardana.core.report.load import ReportLoadError, load_report, migrate_forward
+from guardana.core.report.load import ReportLoadError, load_report
 from guardana.core.report.serialize import run_to_dict
 from guardana.core.target.scope import FileScope
 from jsonschema import Draft202012Validator
@@ -32,6 +26,8 @@ _SCHEMAS = Path(__file__).resolve().parents[3] / "schemas"
 
 
 def _errors(document: dict[str, Any]) -> list[str]:
+    """Validate `document` against the v12 schema, in the shape a version-12 build wrote."""
+    document = saved_run_at_v12(document)
     schema = json.loads((_SCHEMAS / "run-v12.schema.json").read_text(encoding="utf-8"))
     return [error.message for error in Draft202012Validator(schema).iter_errors(document)]
 
@@ -194,18 +190,3 @@ def test_a_loaded_v11_run_says_it_was_migrated_and_records_no_scope(tmp_path: Pa
     assert report.manifest.migrated_from == 11
     assert report.result.scope is None
     assert report.manifest.configuration.plugins is None
-
-
-@pytest.mark.parametrize(
-    ("version", "shape"),
-    [(11, saved_run_at_v11), (10, saved_run_at_v10), (9, saved_run_at_v9)],
-    ids=["v11", "v10", "v9"],
-)
-def test_every_older_version_reaches_12_through_the_chain(
-    version: int, shape: Callable[[dict[str, Any]], dict[str, Any]]
-) -> None:
-    migrated = migrate_forward(shape(_document()), version)
-
-    assert migrated["schema_version"] == 12
-    assert not _errors(migrated)
-    assert migrated["scope"] is None

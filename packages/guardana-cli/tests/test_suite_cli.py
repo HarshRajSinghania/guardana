@@ -125,7 +125,7 @@ def test_a_probe_saves_what_the_suite_concluded_and_reads_it_back(
 
     assert code == 0, output
     document = json.loads(out.read_text(encoding="utf-8"))
-    assert document["schema_version"] == 12
+    assert document["schema_version"] == 13
     record = next(r for r in document["run"]["rules"] if r["id"] == _SUITE_ID)
     assert record["trial_summary"] is None
     assert record["suite"]["outcome"] == "pass"
@@ -135,6 +135,7 @@ def test_a_probe_saves_what_the_suite_concluded_and_reads_it_back(
 
     report = load_report(out)
     assert report.result.suites[_SUITE_ID].outcome is SuiteOutcome.PASS
+    assert report.result.trials_per_case == {_SUITE_ID: 3}
     human = get_renderer("human", run=report.manifest).render(report.result)
     measured = human.split("Measured\n", 1)[1].splitlines()
     assert len(measured) >= 1
@@ -308,11 +309,25 @@ def test_a_judge_over_its_budget_stops_the_run(
         "  llm_judge: {endpoint: 'http://judge.test/v1', model: j, min_agreement: 3}",
     )
     _Answering.sent = 0
+    out = tmp_path / "run.json"
 
-    code, output = _probe(monkeypatch, rules, profile, "--max-requests", "10")
+    code, output = _probe(
+        monkeypatch,
+        rules,
+        profile,
+        "--max-requests",
+        "10",
+        "--format",
+        "json",
+        "--output",
+        str(out),
+    )
 
     assert code == int(ExitCode.BUDGET_EXHAUSTED), output
     assert _Answering.sent <= 5 + 10
+    report = load_report(out)
+    assert _SUITE_ID in report.result.suites
+    assert _SUITE_ID not in report.result.trials_per_case
 
 
 def test_reference_judge_is_registered_exactly_when_llm_judge_is_configured() -> None:

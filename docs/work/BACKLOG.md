@@ -16,7 +16,6 @@ No remote issues were created; the GitHub open-issue query returned zero.
 |---|---|---|---|
 | B04 | Starter and three short task-oriented recipes | F2 | Clean-install offline run, edited custom check and saved artifact; recorded-answer and actual-application paths clearly distinguish their coverage. |
 | B06 | One redacted export and one webhook | F4 | An independently installed package provides both through the common redaction boundary, collision checks, trust modes and locks; delivery status observable; offline use sends nothing. The general plugin contract is deferred. |
-| B07 | Recorded answers and regrading | F5 | No target calls; new grading provenance; declared judge traffic/cost; unavailable evidence remains ungraded. |
 | B08 | Connection/adapter parity across endpoint commands | F6 | One custom endpoint can be planned, inspected, probed, monitored and calibrated with equivalent settings. |
 | B10 | Calibration identity supports several rubric versions and verdict IDs | M1 | Match the actual grader identity. Kept for M1 in 0.30.0: re-keying the store is calibration schema 3 and F5 defines grading identity; the decline already no longer promises an impossible rerun. |
 | B11 | Collector measurement envelope and storage | M3 | Independent envelope migration carries measurements, denominator, trials, uncertainty and missingness, with tenant isolation. |
@@ -27,7 +26,7 @@ No remote issues were created; the GitHub open-issue query returned zero.
 | B21 | Three-outcome fixtures for every built-in | 1.0 | The ratchet in `test_builtin_fixture_coverage.py` (12 of 51 at 0.31.0) reaches every rule that can decline. |
 | B22 | A time bound for `regex` | Later | A crafted reply can make an author's backtracking pattern run for a very long time; the 65,536-character bound limits input, not time. Any fix that adds a dependency needs principle 6's justification. |
 
-B15, B16, B17 and B18 shipped in 0.32.0 (ROADMAP Q1). B01, B02, B03, B09 and B14 shipped in 0.30.0 (ROADMAP F1). The lockfile/gitleaks and
+B07 shipped in 0.35.0 (ROADMAP F5). B15, B16, B17 and B18 shipped in 0.32.0 (ROADMAP Q1). B01, B02, B03, B09 and B14 shipped in 0.30.0 (ROADMAP F1). The lockfile/gitleaks and
 script-parser items shipped in 0.31.0; ONNX metadata grading, ATLAS provenance and the other
 items remain open below. Before closing any item, rerun its reproduction.
 
@@ -75,6 +74,30 @@ reproduced; the rest are the sweep's reading with its anchors, not yet reproduce
   (`server/auth.py:200`), which tells a caller whether a prefix exists.
 - `llm_judge` places the transcript into its prompt unfenced (`core/evaluator/llm_judge.py:26`).
 - Container base images are pinned by tag, not by digest (`deploy/docker/cli.Dockerfile:12`).
+
+## Left by F5 (0.35.0)
+
+- **Grading a budget-stopped probe's sidecar can pass where the probe exited `6`.** A suite
+  counts every unrecorded trial as failed and passes when its bar still holds, as it does for
+  any ungraded trial; the stop survives only in `run.recording.origin.stopped_by` and a stderr
+  note. Whether a stopped origin should make the graded run decline is the owner's call.
+- **Only the built-in endpoint keeps exchanges, and only its plain pass.** A pack's endpoint
+  target would need a protocol to keep them; canary passes and tool offers are not kept, so
+  canary and agent rules cannot be graded again.
+- **`grade` has no `--reporter`**: the collector envelope carries no recording identity.
+- **Two graders of one execution are not compared**: `diff` excludes a rule graded
+  differently; assessor-agreement statistics are M1.
+- A target that writes a redaction placeholder (`[redacted:x]`) into its replies makes them
+  ungradable in a regrade — never a pass, but a way to avoid being graded.
+- A recording answers a question only when the messages match exactly; whitespace drift is an
+  unanswered question (an error). A probe whose kept exchanges pass 64 MiB writes a sidecar
+  `grade` refuses.
+- `monitor` keeps no exchanges and warns when the profile asks it to; JUnit and SARIF do not
+  list `not_recorded` skips, as they list no skip.
+- The runner tells a rule's own `ReplyUnavailable` apart from a later error by its message
+  prefix, which only changes an error's wording when it misses.
+- A probe-versus-regrade `diff` also prints the "different targets" note for the
+  `recording:` reference beside the shared-execution note.
 
 ## Left by F3 (0.34.0)
 

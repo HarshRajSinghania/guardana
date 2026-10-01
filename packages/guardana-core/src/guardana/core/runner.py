@@ -1,10 +1,10 @@
 import threading
 from collections.abc import Collection, Iterator, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from urllib.error import URLError
 
-from guardana.core.assessment import Assessment
+from guardana.core.assessment import Assessment, UnmeasuredReason
 from guardana.core.budget import BudgetExhausted
 from guardana.core.gate import GateOutcome, gate, gate_outcome
 from guardana.core.inventory import observe
@@ -18,7 +18,15 @@ from guardana.core.report.skipped import SkippedRule, SkipReason
 from guardana.core.rule.base import Rule, RuleContext
 from guardana.core.safety import permits
 from guardana.core.source import UnreadSource
-from guardana.core.target import Capability, EndpointError, Target, TargetKind
+from guardana.core.target import (
+    Capability,
+    EndpointError,
+    RecordedTarget,
+    ReplyUnavailable,
+    Target,
+    TargetKind,
+)
+from guardana.core.target._scoped import RuleScoped
 from guardana.core.target.protocols import FileReader, TraceReader, unmet_surfaces
 from guardana.core.target.scope import FileScope, ReportsFileScope
 
@@ -82,7 +90,12 @@ def pre_run_errors(registry: Registry, target: Target) -> tuple[CheckError, ...]
         )
         for unmet in unmet_surfaces(target)
     )
-    return (*contract_errors, *registry.load_errors, *registry.expectation_errors())
+    return (
+        *contract_errors,
+        *registry.load_errors,
+        *registry.expectation_errors(),
+        *_unknown_recorded_rules(registry, target),
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -138,11 +151,13 @@ class Runner:
         # unreachable endpoint yields fewer outcomes than it planned rules — and
         # pairing by position would then attribute results to the wrong rules.
         ran: list[str] = []
+        executed: list[str] = []
         examined: set[str] = set()
         assessments: list[Assessment] = []
         suites: dict[str, SuiteSummary] = {}
         stopped_by: StopReason | None = None
         for outcome in self._execute(plan, target):
+            executed.append(outcome.rule_id)
             # Kept even from a rule the budget cut off: a finding produced before
             # the ceiling is as real as one produced after it, and discarding it
             # would punish the user for the budget they set.
@@ -163,6 +178,8 @@ class Runner:
             # cases it never sent unaccounted for. The rule still stays out of `rules_run`.
             if outcome.suite is not None:
                 suites[outcome.rule_id] = outcome.suite
+        if isinstance(target, RecordedTarget):
+            errors.extend(_ungraded_lines(target, executed))
         # A file the rules were prevented from reading is a check that did not
         # run, so it joins `errors` rather than disappearing. Collected after the
         # rules, because that is when the target knows what it was asked for.
@@ -296,12 +313,20 @@ class Runner:
         Any `Exception` is caught, not just `RuleError`: a third-party rule with an
         ordinary bug in it used to abort the entire scan. `BaseException` is
         deliberately not caught, so Ctrl-C and `SystemExit` still stop the run.
+
+        A target that attributes exchanges is asked for this rule's own view here, in
+        the thread that runs the rule, so nothing about which rule is asking is shared.
         """
         ctx = RuleContext(
             config=dict(self.profile.rule_config.get(rule.meta.id, {})),
             evaluators=self.registry.evaluators(),
             calibrations=self.calibrations,
         )
+        subject = target.for_rule(rule.meta.id) if isinstance(target, RuleScoped) else target
+        return _unanswered(self._run_rule(rule, subject, ctx), target, ctx)
+
+    def _run_rule(self, rule: Rule, target: Target, ctx: RuleContext) -> _RuleOutcome:
+        """Run `rule` against `target`, keeping what it produced before any failure."""
         findings: list[Finding] = []
         unverified: list[Finding] = []
         try:
@@ -380,11 +405,28 @@ def select_rules(
         refusal = safety_refusal(profile, rule) or capability_refusal(
             rule, target.ref, capabilities
         )
+        if refusal is None and isinstance(target, RecordedTarget):
+            refusal = _unrecorded(rule, target)
         if refusal is not None:
             skipped.append(refusal)
             continue
         selected.append(rule)
     return tuple(selected), tuple(skipped)
+
+
+def _unrecorded(rule: Rule, target: RecordedTarget) -> SkippedRule | None:
+    """Skip a rule the recording holds no answer for, before it asks a single question."""
+    if rule.meta.id in target.recorded_rules:
+        return None
+    return SkippedRule(
+        rule_id=rule.meta.id,
+        reason=SkipReason.NOT_RECORDED,
+        missing=(target.ref,),
+        detail=(
+            f"{target.ref} holds no reply for {rule.meta.id} and does not list it among the "
+            f"rules it was recorded for, so the check did not happen"
+        ),
+    )
 
 
 def safety_refusal(profile: Profile, rule: Rule) -> SkippedRule | None:
@@ -460,6 +502,87 @@ def _unread_sources(target: Target) -> tuple[UnreadSource, ...]:
     if isinstance(target, FileReader):
         return target.unread_sources()
     return ()
+
+
+def _unanswered(outcome: _RuleOutcome, target: Target, ctx: RuleContext) -> _RuleOutcome:
+    """Turn a rule that asked a recording for a reply it lacks into an error.
+
+    Read from the target's ledger rather than from what the rule raised: a rule may catch
+    `ReplyUnavailable` and finish as if nothing happened. A rule that concluded a suite is
+    left alone only when it recorded every such trial as ungraded: concluding is open to
+    any rule, and one that concluded over replies it never got would otherwise pass.
+    """
+    if not isinstance(target, RecordedTarget):
+        return outcome
+    missed = target.missed(outcome.rule_id)
+    if not missed:
+        return outcome
+    ungraded = sum(1 for a in outcome.assessments if a.reason in _UNANSWERED)
+    if ctx.concluded() is not None and ungraded >= len(missed):
+        return outcome
+    reason = (
+        f"{len(missed)} request(s) got no gradable reply from the recording, so the rule "
+        f"did not grade what it set out to; the first: {missed[0]}"
+    )
+    if outcome.error is not None and not outcome.error.reason.startswith(ReplyUnavailable.__name__):
+        reason = f"{reason}; then: {outcome.error.reason}"
+    return replace(outcome, error=CheckError(source=outcome.rule_id, stage="run", reason=reason))
+
+
+_UNANSWERED = frozenset({UnmeasuredReason.NOT_RECORDED, UnmeasuredReason.REPLY_ALTERED})
+"""The reasons a trial carries when the recording had no gradable reply for it."""
+
+_NAMED_LINES = 5
+"""How many unread line numbers an error names before it says how many more."""
+
+
+def _ungraded_lines(target: RecordedTarget, executed: Collection[str]) -> tuple[CheckError, ...]:
+    """Return an error per recorded reply nobody graded that someone was meant to.
+
+    A rule that ran and left lines unread may have skipped the failing one. A loaded rule
+    the profile did not select leaves its lines unread on purpose.
+    """
+    errors: list[CheckError] = []
+    for rule_id in executed:
+        unread = target.unread(rule_id)
+        if not unread:
+            continue
+        lines = ", ".join(str(exchange.line) for exchange in unread[:_NAMED_LINES])
+        more = f" and {len(unread) - _NAMED_LINES} more" if len(unread) > _NAMED_LINES else ""
+        errors.append(
+            CheckError(
+                source=rule_id,
+                stage="read",
+                reason=(
+                    f"{len(unread)} recorded repl(ies) of {rule_id} were never asked for "
+                    f"(line {lines}{more}): a reply the recording holds and nobody graded "
+                    f"may be the failing one"
+                ),
+            )
+        )
+    return tuple(errors)
+
+
+def _unknown_recorded_rules(registry: Registry, target: Target) -> tuple[CheckError, ...]:
+    """Return an error per rule a recording answers for that no loaded rule is.
+
+    Known before the first rule runs, so a plan names it too: a renamed rule or a typo in
+    a recording would otherwise leave its replies graded by nothing.
+    """
+    if not isinstance(target, RecordedTarget):
+        return ()
+    loaded = {rule.meta.id for rule in registry.rules()}
+    return tuple(
+        CheckError(
+            source="guardana.core.recording",
+            stage="read",
+            reason=(
+                f"{target.ref} answers for rule {rule_id}, which no loaded rule has, so its "
+                f"replies are graded by nothing"
+            ),
+        )
+        for rule_id in sorted(target.recorded_rules - loaded)
+    )
 
 
 _NAMED_UNEXAMINED = 3

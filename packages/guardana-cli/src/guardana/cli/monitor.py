@@ -242,6 +242,12 @@ def monitor(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; this i
     prof = resolve_profile(profile, preset)
     if trials is not None:
         prof = replace(prof, trials=trials)
+    if prof.privacy.keep_exchanges:
+        typer.echo(
+            "warning: privacy.keep_exchanges is set, and monitor keeps no exchanges; "
+            "`guardana probe --format json --output` keeps them beside a saved run",
+            err=True,
+        )
     resolved = resolve_trust(plugins, allow_plugin, prof)
     registry = Registry.discover(resolved.trust)
     hint_refused_plugins(registry, resolved)

@@ -31,9 +31,12 @@ from guardana.cli._rules_loading import load_custom_rules
 from guardana.cli._run_meta import calibrations_or_exit, detect_deployment, detect_source
 from guardana.cli._safety_flags import parse_impact
 from guardana.cli._target_locator import resolve_target
+from guardana.cli.exit_codes import ExitCode
 from guardana.core.budget import BudgetExhausted
 from guardana.core.manifest import DeploymentRef
 from guardana.core.profile import Profile, ProfileError
+from guardana.core.recording import render_recording
+from guardana.core.redaction import EvidenceMode
 from guardana.core.registry import Registry
 from guardana.core.target import (
     ChatTransport,
@@ -48,8 +51,10 @@ from guardana.core.verify import (
     JudgeUnreachableError,
     TargetUnavailableError,
     UnenforceableBudgetError,
+    UnsupportedTargetError,
     Verification,
     Verifier,
+    exchanges_path,
 )
 from guardana.report import get_renderer
 
@@ -197,6 +202,14 @@ def probe(  # noqa: C901, PLR0913, PLR0917 — Typer surface, target modes
         list[str],
         typer.Option("--target-option", help="Non-secret key=value for --target; repeatable."),
     ] = [],  # noqa: B006 — typer builds the option from a literal default
+    keep_exchanges: Annotated[
+        bool,
+        typer.Option(
+            "--keep-exchanges",
+            help="Keep every chat exchange, redacted, beside the saved run so "
+            "`guardana grade` can grade it again without calling the endpoint.",
+        ),
+    ] = False,
 ) -> None:
     """Run dynamic security checks against a live model endpoint, or an MCP server."""
     check_reporter_url(reporter)
@@ -216,6 +229,7 @@ def probe(  # noqa: C901, PLR0913, PLR0917 — Typer surface, target modes
         ),
         trials=prof.trials if trials is None else trials,
     )
+    prof = _keeping(prof, keep_exchanges, mcp=mcp, target=target, output=output, format=format)
     resolved = resolve_trust(plugins, allow_plugin, prof)
     registry = Registry.discover(resolved.trust)
     hint_refused_plugins(registry, resolved)
@@ -343,6 +357,7 @@ def probe(  # noqa: C901, PLR0913, PLR0917 — Typer surface, target modes
         format=format,
         output=output,
         reporter=reporter,
+        keep=prof.privacy.keep_exchanges,
     )
 
 
@@ -356,10 +371,48 @@ def _carried_out(run: Callable[[], _Run]) -> _Run:
         return run()
     except UnenforceableBudgetError as exc:
         raise refuse_unenforceable_budget(exc) from exc
+    except UnsupportedTargetError as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(code=ExitCode.INVALID_USAGE) from exc
     except (TargetUnavailableError, JudgeUnreachableError) as exc:
         if exc.__cause__ is not None:
             raise exc.__cause__ from None
         raise
+
+
+def _keeping(  # noqa: PLR0913 — the flag and every setting it has to agree with
+    prof: Profile,
+    flag: bool,
+    *,
+    mcp: str | None,
+    target: str | None,
+    output: Path | None,
+    format: OutputFormat,
+) -> Profile:
+    """Turn `--keep-exchanges` into the profile switch and refuse what it cannot honour.
+
+    Kept exchanges are written beside the saved run, so a run that writes none would keep
+    them nowhere; and only the built-in endpoint has exchanges to keep.
+    """
+    if flag:
+        if prof.privacy.mode is EvidenceMode.METADATA_ONLY:
+            raise typer.BadParameter(
+                "--keep-exchanges keeps replies, which privacy.evidence_mode: metadata_only "
+                "withholds; drop one of the two"
+            )
+        prof = replace(prof, privacy=replace(prof.privacy, keep_exchanges=True))
+    if not prof.privacy.keep_exchanges:
+        return prof
+    if mcp is not None or target is not None:
+        raise typer.BadParameter(
+            "keeping exchanges keeps the chat exchanges of --url (with or without --adapter); "
+            "an MCP server or a pack's --target keeps none"
+        )
+    if output is None or format is not OutputFormat.json:
+        raise typer.BadParameter(
+            "kept exchanges are written beside the saved run: pass --format json --output run.json"
+        )
+    return prof
 
 
 def _missing_target() -> Target:
@@ -375,6 +428,7 @@ def _finish_probe(  # noqa: PLR0913 — what the command does with a finished ru
     format: OutputFormat,
     output: Path | None,
     reporter: str | None,
+    keep: bool = False,
 ) -> None:
     """Emit, forward and gate one probe the verifier finished.
 
@@ -386,6 +440,36 @@ def _finish_probe(  # noqa: PLR0913 — what the command does with a finished ru
         typer.echo(f"warning: {stop}", err=True)
     run = verification.manifest
     emit(get_renderer(format.value, run=run).render(verification.result), output, format.value)
+    _write_exchanges(verification, output, keep=keep)
     if reporter:
         submit_safely(reporter, verification.result, source=source, deployment=deployment, run=run)
     exit_with(verification.gate, verification.result)
+
+
+def _write_exchanges(verification: Verification, output: Path | None, *, keep: bool) -> None:
+    """Write the exchanges the run kept beside its saved run, and say where and how many."""
+    kept = verification.exchanges
+    record = verification.manifest.exchanges
+    if output is None or kept is None or record is None:
+        if output is not None and exchanges_path(output).exists():
+            # The run beside it was just overwritten; left in place, the old exchanges
+            # would read as this run's.
+            exchanges_path(output).unlink()
+            typer.echo(
+                f"removed {exchanges_path(output)}, which an earlier run at this path kept",
+                err=True,
+            )
+        if keep and output is not None:
+            typer.echo(
+                "warning: nothing was kept — no rule finished a chat exchange in the plain pass",
+                err=True,
+            )
+        return
+    path = exchanges_path(output)
+    path.write_text(render_recording(kept), encoding="utf-8")
+    altered = (
+        f"; {record.altered} reply(ies) changed by redaction, which `guardana grade` will not grade"
+        if record.altered
+        else ""
+    )
+    typer.echo(f"kept {record.count} exchange(s) in {path}{altered}", err=True)

@@ -7,7 +7,7 @@ status: beta
 
 # Python API
 
-`guardana.core.verify` runs Guardana from Python and returns the run as typed data. `guardana scan` and `guardana probe` run through the same module, so a run from Python and a run from the command line compose the same steps: discovery under a stated plugin trust, local rules, calibrations, the canary passes of a probe, redaction, the baseline, the gate and the saved-run manifest.
+`guardana.core.verify` runs Guardana from Python and returns the run as typed data. `guardana scan`, `guardana probe` and `guardana grade` run through the same module, so a run from Python and a run from the command line compose the same steps: discovery under a stated plugin trust, local rules, calibrations, the canary passes of a probe, redaction, the baseline, the gate and the saved-run manifest.
 
 ```python
 from pathlib import Path
@@ -52,10 +52,13 @@ Budgets, failure bars, redaction and trials come from the profile, as on the com
 ```python
 verification = verifier.scan(path, relative_to=None, baseline=None, source=None, deployment=None)
 verification = verifier.run(target, relative_to=None, baseline=None, source=None, deployment=None)
+verification = verifier.grade(path, source=None, deployment=None)
 ```
 
 - `scan` builds the artifact target over `path` with the profile's excludes. A path that does not exist raises `FileNotFoundError`.
 - `run` takes any target: an `ArtifactTarget` or your own file target, an `EndpointTarget`, your own endpoint target, or an `McpServerTarget`. An endpoint gets one pass per canary rule with a fresh canary planted when it implements `SystemPromptPlanter`. You own the target and close it.
+- `grade` reads a recording ([`guardana grade`](usage-grade.md)) and runs the rules against a `RecordedTarget` built from it, sending nothing to any target. The recording's digest becomes `manifest.target.document` and its own description `manifest.recording`. A recording that cannot be read, or one a probe kept at other trials per case than the profile runs, raises `RecordingRefusedError` before anything runs.
+- With `privacy.keep_exchanges: true` in the profile, `run` keeps the chat exchanges of the built-in `EndpointTarget`'s plain pass in `verification.exchanges` and records their digest in `manifest.exchanges`; `save(path)` writes them to `exchanges_path(path)`. Any other endpoint target is refused with `UnsupportedTargetError` before anything is sent.
 - `relative_to` rewrites file paths in findings, observations and the file listing relative to that directory, as the CLI does against its working directory. `scan` also rewrites the target's own reference; `run` never does, because a third-party target owns its locator.
 - `baseline` is a `Baseline` from `guardana.core.report.baseline.read_baseline(path)`; its findings are waived after redaction and before the gate.
 - `source` (`RunSource`) and `deployment` (`DeploymentRef`) describe where the run came from and which deployment it verifies. Left out, the run is recorded as local and the deployment as undeclared; the engine reads neither from the environment.
@@ -75,7 +78,8 @@ A target runs once. Running the same object again, starting a second run while t
 | `passed` | `True` only when the gate passed. |
 | `open_questions` | Each fact that leaves part of the run's question unanswered, in the order the gate reads them. |
 | `judge_usage`, `judge_stops` | What each judge configured under `evaluators:` spent, and which judge's own ceiling stopped the run. |
-| `document()`, `save(path)` | The saved-run document, in the current run schema ([saved runs](usage-run.md)). |
+| `exchanges` | The `Recording` of the chat exchanges the run kept under `privacy.keep_exchanges`, redacted, or `None`. |
+| `document()`, `save(path)` | The saved-run document, in the current run schema ([saved runs](usage-run.md)); `save` also writes kept exchanges to `exchanges_path(path)` (`run.json` → `run.exchanges.jsonl`). |
 
 SARIF, JUnit and the terminal report are rendered by `guardana-report`: `guardana.report.get_renderer("sarif", run=verification.manifest).render(verification.result)`.
 
@@ -89,13 +93,14 @@ Every error derives from `VerificationError`.
 | `JudgeUnreachableError` | A judge configured under `evaluators:` could not be reached during the run. | `4` |
 | `UnenforceableBudgetError` | The profile sets a budget the target or a judge cannot enforce; refused before anything is sent. | `3` |
 | `CalibrationError` | A calibration file the run was pointed at cannot be read. | `3` |
-| `UnsupportedTargetError` | A trace target. Its unreadable records and its contracts are read by [`guardana analyze-trace`](usage-analyze-trace.md), which this module does not run. | — |
+| `RecordingRefusedError` | `grade` was given a recording that cannot be read, or one a probe kept at other trials per case than this profile runs. | `3` |
+| `UnsupportedTargetError` | A trace target. Its unreadable records and its contracts are read by [`guardana analyze-trace`](usage-analyze-trace.md), which this module does not run. Also an endpoint target other than the built-in one under `privacy.keep_exchanges`. | `3` for `probe --keep-exchanges` |
 | `TargetReusedError` | The target already ran, here or by sending requests elsewhere. | — |
 
 A profile that does not load raises `ProfileError` from `guardana.core.profile`. Ctrl-C propagates as `KeyboardInterrupt`.
 
 ## What is supported
 
-The supported surface is `guardana.core.verify.__all__`: `Verifier`, `Verification`, `EndpointBuilder` and the errors above, with the argument and field names on this page. A test pins their signatures. Everything else is internal and may change in any release: the `Runner`, the registry's load state, `guardana.cli.*`, and every module or name that starts with `_`.
+The supported surface is `guardana.core.verify.__all__`: `Verifier`, `Verification`, `EndpointBuilder`, `exchanges_path` and the errors above, with the argument and field names on this page. A test pins their signatures. Everything else is internal and may change in any release: the `Runner`, the registry's load state, `guardana.cli.*`, and every module or name that starts with `_`.
 
 Until 1.0, a change to the supported surface is announced under "Changed — breaking" in the [changelog](../CHANGELOG.md) with what to write instead, and the old spelling keeps working with a `DeprecationWarning` for at least one minor release wherever that is possible. Not covered yet: `monitor`, `baseline create`, trace analysis and the import of observations run only from the command line, and the partial result of a run whose target failed mid-run is not kept.

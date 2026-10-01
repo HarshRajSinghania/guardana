@@ -24,6 +24,7 @@ so this page is maintained as carefully as the code.
 | `guardana monitor` | **beta** | Scheduled **active** verification. Not passive traffic inspection, not inline. |
 | `guardana diff` | **beta** | Compares two saved runs. The saved-run format is versioned and migratable — `guardana run migrate` reads every earlier schema. |
 | Collector (`guardana-server`) | **beta** | PostgreSQL with reversible migrations, a scoped API key on every route carrying a finding, project isolation on every query, and a record of what each run verified and where. Findings have a lifecycle and expiring waivers; actions are audited; retention and deletion are commands. What it does not yet hold is a quality trend — it aggregates findings, not measurements. |
+| `guardana grade` | **beta** | Grades a recording — answers you supplied, or the exchanges `probe --keep-exchanges` kept — with your rules and no target request. Chat rules only: canary, tool and MCP rules are skipped for a missing capability, and a rule the recording does not answer is skipped as `not_recorded`. |
 | Quality suites | **beta** | Gates pass rates on team-supplied versioned datasets, with repeated trials and judge correction. No numeric aggregate gate or statistical comparison between suite runs. |
 | Extension API | **unstable by design** | Frozen at 1.0, and deliberately not before. `ROADMAP.md` states what 1.0 requires. |
 
@@ -33,7 +34,7 @@ so this page is maintained as carefully as the code.
 
 **Experimental:** Judge-graded suites use `answered` and `reference_judge`. Judge-error correction adjusts trial and suite rates using Rogan–Gladen and a calibration recorded on the team's own corpus with `guardana calibrate --record`. Without a usable calibration, the suite declines; it never passes on an uncorrected judge rate. Experimental means shipped, but behaviour, thresholds, and saved fields may change in a minor release.
 
-**Not released:** The five-user first-run study (F2), recorded-answer grading and regrading (F5), reproducible team checks on the real application (F6), protocol conformance fixtures (F7), and one redacted export with a webhook (F4) are roadmap items in `ROADMAP.md`. Pages under `docs/design/` record decisions; each page's status line says whether it shipped.
+**Not released:** The five-user first-run study (F2), reproducible team checks on the real application (F6), protocol conformance fixtures (F7), and one redacted export with a webhook (F4) are roadmap items in `ROADMAP.md`. Pages under `docs/design/` record decisions; each page's status line says whether it shipped.
 
 ## Known limitations
 
@@ -49,6 +50,15 @@ test of *your* agent, with your framework, your prompts and your tool
 implementations.
 
 `guardana analyze-trace` grades a recorded trace exported from a running agent.
+
+### Recorded answers are matched exactly, and only chat is recorded
+
+`guardana grade` answers a rule's question from a recording only when the recording holds
+exactly the messages the rule sends; whitespace or a reworded question is an unanswered
+question, which errors rather than passes. A probe keeps the chat exchanges of its plain pass
+and nothing else, so canary passes, tool offers and MCP checks cannot be graded again, and a
+pack's own endpoint target cannot keep exchanges. A reply redaction changed is never graded
+again. `grade` sends nothing to the collector.
 
 ### A release gate cannot see a target that holds nothing
 

@@ -1,6 +1,7 @@
 """What did the checking, with what calibration, and what came of it."""
 
 import math
+import re
 from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
@@ -572,6 +573,70 @@ class EvaluatorRecord:
     version: str | None = None
     digest: str | None = None
     calibration: CalibrationRecord | None = None
+    judge: str | None = None
+    """The judge identity the evaluator states: model, endpoint, samples per verdict.
+
+    None for a deterministic evaluator, or one that states nothing. Recorded so a new
+    judge grading old replies reads as a grading change, never as the system changing.
+    """
+
+
+_SHA256 = re.compile(r"sha256:[0-9a-f]{64}")
+
+
+@dataclass(frozen=True, slots=True)
+class ExchangesRecord:
+    """The exchanges a probe kept in its sidecar: their digest, how many, how many altered.
+
+    `digest` is the SHA-256 of the sidecar's bytes, which is what links a graded run back
+    to the probe whose replies it graded.
+    """
+
+    digest: str
+    count: int
+    altered: int
+    """Exchanges whose reply redaction changed, so a regrade cannot grade them."""
+
+    def __post_init__(self) -> None:
+        """Refuse a digest no reader produced and counts that contradict each other."""
+        if not isinstance(self.digest, str) or not _SHA256.fullmatch(self.digest):
+            raise ValueError(
+                f"an exchanges digest is 'sha256:' and 64 lowercase hex digits, not {self.digest!r}"
+            )
+        for name in ("count", "altered"):
+            value = getattr(self, name)
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                raise ValueError(f"{name} must be a whole number of at least 0, got {value!r}")
+        if self.altered > self.count:
+            raise ValueError(f"{self.altered} altered exchanges cannot come from {self.count} kept")
+
+
+@dataclass(frozen=True, slots=True)
+class RecordingOriginRecord:
+    """The probe a recording says it was kept from, as the recording declares it."""
+
+    run_id: str
+    target: str
+    started_at: str | None
+    stopped_by: str | None
+    gate: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class RecordingRecord:
+    """The recording a graded run answered from, as the recording declares it.
+
+    Declared, not verified: only the recording's digest in `target.document` links runs.
+    """
+
+    name: str
+    version: str
+    subject: str | None
+    verbatim: bool
+    """Whether the recording says every reply is exactly what the system returned."""
+
+    origin: RecordingOriginRecord | None
+    """The probe it was kept from; None for a recording written by hand."""
 
 
 @dataclass(frozen=True, slots=True)

@@ -31,6 +31,7 @@
   <url><loc>https://guardana.dev/docs/design/panel-sessions</loc></url>
   <url><loc>https://guardana.dev/docs/design/privacy-and-redaction</loc></url>
   <url><loc>https://guardana.dev/docs/design/quality-suites</loc></url>
+  <url><loc>https://guardana.dev/docs/design/recorded-answers</loc></url>
   <url><loc>https://guardana.dev/docs/design/regrading-stored-exchanges</loc></url>
   <url><loc>https://guardana.dev/docs/design/repeated-trials</loc></url>
   <url><loc>https://guardana.dev/docs/design/run-manifest-v2</loc></url>
@@ -201,6 +202,7 @@
   <url><loc>https://guardana.dev/docs/usage-contracts</loc></url>
   <url><loc>https://guardana.dev/docs/usage-diff</loc></url>
   <url><loc>https://guardana.dev/docs/usage-doctor</loc></url>
+  <url><loc>https://guardana.dev/docs/usage-grade</loc></url>
   <url><loc>https://guardana.dev/docs/usage-import-observations</loc></url>
   <url><loc>https://guardana.dev/docs/usage-init</loc></url>
   <url><loc>https://guardana.dev/docs/usage-monitor</loc></url>

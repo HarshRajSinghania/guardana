@@ -1,0 +1,367 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Recorded answers and regrading — Guardana documentation</title>
+<meta name="description" content="grading answers an application already gave — supplied or kept by a probe — through a target that answers from a recording, with the execution&#x27;s identity kept apart from the grading&#x27;s, and missing evidence never read as a pass">
+<link rel="canonical" href="https://guardana.dev/docs/design/recorded-answers">
+<link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../../assets/brand/v1/tokens.css">
+<link rel="stylesheet" href="../docs.css">
+</head>
+<body>
+<header class="top"><div class="bar">
+<a class="mark" href="../../"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z" style="color:var(--brand)"/><path d="m8.6 12.1 2.4 2.4 4.5-4.8"/></svg><span class="w">guard<b>ana</b></span></a>
+<nav>
+<a href="../index.html">Documentation</a>
+<a href="../rules/index.html">Rules</a>
+<a href="https://github.com/guardana/guardana">GitHub</a>
+</nav>
+</div></header>
+<div class="shell">
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="../index.html">Overview</a></li></ul>
+<h2>First run</h2><ul>
+<li><a href="../usage-init.html">guardana init</a></li>
+<li><a href="../recipe-local-scan.html">Recipe: scan your own project</a></li>
+<li><a href="../recipe-recorded-answers.html">Recipe: check a run your application recorded</a></li>
+<li><a href="../recipe-real-application.html">Recipe: probe your real application</a></li>
+<li><a href="../how-it-works.html">How Guardana works</a></li>
+<li><a href="../install.html">Installing</a></li>
+<li><a href="../usage-testing.html">In your test suite</a></li>
+<li><a href="../python-api.html">Python API<span class="tag">beta</span></a></li>
+<li><a href="../usage-scan.html">guardana scan</a></li>
+<li><a href="../usage-probe.html">guardana probe</a></li>
+</ul>
+<h2>Run and policy</h2><ul>
+<li><a href="../safe-testing.html">Safe active testing</a></li>
+<li><a href="../usage-doctor.html">guardana doctor</a></li>
+<li><a href="../usage-target.html">guardana target inspect</a></li>
+<li><a href="../usage-plan.html">guardana plan</a></li>
+<li><a href="../exit-codes.html">Exit codes</a></li>
+<li><a href="../profiles.html">Profiles — guardana.yaml</a></li>
+</ul>
+<h2>Evidence and regression</h2><ul>
+<li><a href="../usage-baseline.html">guardana baseline</a></li>
+<li><a href="../usage-diff.html">guardana diff</a></li>
+<li><a href="../usage-monitor.html">guardana monitor</a></li>
+<li><a href="../usage-run.html">guardana run</a></li>
+<li><a href="../usage-calibrate.html">guardana calibrate</a></li>
+<li><a href="../usage-suites.html">Quality suites<span class="tag">beta</span></a></li>
+<li><a href="../privacy.html">Evidence and redaction</a></li>
+</ul>
+<h2>Recorded applications</h2><ul>
+<li><a href="../usage-analyze-trace.html">guardana analyze-trace</a></li>
+<li><a href="../usage-grade.html">guardana grade<span class="tag">beta</span></a></li>
+<li><a href="../usage-trace-inspect.html">guardana trace inspect</a></li>
+<li><a href="../usage-contracts.html">Security contracts</a></li>
+<li><a href="../usage-import-observations.html">guardana import-observations</a></li>
+<li><a href="../writing-an-integrator.html">Writing an integrator<span class="tag">beta</span></a></li>
+</ul>
+<h2>Rules and extensions</h2><ul>
+<li><a href="../usage-rules.html">guardana rules</a></li>
+<li><a href="../usage-taxonomy.html">guardana taxonomy</a></li>
+<li><a href="../writing-rules.html">Writing rules</a></li>
+<li><a href="../usage-rule-test.html">guardana rule test</a></li>
+<li><a href="../usage-new-pack.html">guardana new-pack</a></li>
+<li><a href="../usage-pack.html">guardana pack</a></li>
+<li><a href="../extending.html">Extending Guardana</a></li>
+<li><a href="../model-formats.html">Reading model formats</a></li>
+</ul>
+<h2>Collector and deployment</h2><ul>
+<li><a href="../integrations.html">CI and pre-commit</a></li>
+<li><a href="../deployment.html">Deploying the collector<span class="tag">beta</span></a></li>
+<li><a href="../usage-collector.html">The collector<span class="tag">beta</span></a></li>
+</ul>
+<h2>Architecture and security</h2><ul>
+<li><a href="../product-status.html">Product status</a></li>
+<li><a href="../threat-model.html">Threat model</a></li>
+<li><a href="../architecture.html">Architecture</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="../rules/index.html">Rule explorer</a></li>
+<li><a href="../generated/rule-summary.html">Rule summary</a></li>
+<li><a href="../generated/rule-catalog.html">Rule catalog</a></li>
+<li><a href="../generated/evaluator-catalog.html">Evaluator catalog</a></li>
+<li><a href="../generated/taxonomy-coverage.html">Taxonomy coverage</a></li>
+<li><a href="../generated/detection-limits.html">Detection limits</a></li>
+<li><a href="../generated/first-run.html">First-run measure</a></li>
+</ul>
+<h2>Design documents</h2><ul>
+<li><a href="../design/README.html">How these are written</a></li>
+</ul>
+<h2>Project direction</h2><ul>
+<li><a href="../design/guardana-and-control.html">Guardana and Guardana Control<span class="tag">accepted</span></a></li>
+<li><a href="../design/non-executing-packs.html">Non-executing packs and the default plugin trust<span class="tag">accepted</span></a></li>
+<li><a href="../design/audit-0.31-direction.html">Direction audit after 0.31<span class="tag">accepted</span></a></li>
+</ul>
+<h2>Maintainers</h2><ul>
+<li><a href="../maintainers/github-setup.html">GitHub repository setup</a></li>
+<li><a href="../maintainers/ops-catalogue.html">Operations catalogue</a></li>
+<li><a href="../maintainers/lessons.html">Lessons</a></li>
+<li><a href="../maintainers/first-run-study.html">First-run study</a></li>
+</ul>
+<h2>Also here</h2><ul>
+<li><a href="../design/trace-domain-model.html">The Trace domain model<span class="tag">implemented</span></a></li>
+<li><a href="../design/trace-producer.html">Producing a trace<span class="tag">implemented</span></a></li>
+<li><a href="../design/framework-adapters.html">Framework adapters<span class="tag">implemented</span></a></li>
+<li><a href="../design/assessment-channel.html">The assessment channel<span class="tag">implemented</span></a></li>
+<li><a href="../design/capability-protocols.html">Capability protocols<span class="tag">implemented</span></a></li>
+<li><a href="../design/security-contracts.html">Security contracts<span class="tag">implemented</span></a></li>
+<li><a href="../design/mcp-protocol-eras.html">MCP has two eras<span class="tag">implemented</span></a></li>
+<li><a href="../design/mcp-authorization-depth.html">MCP authorization depth<span class="tag">implemented</span></a></li>
+<li><a href="../design/taxonomy-editions.html">Taxonomy editions<span class="tag">implemented</span></a></li>
+<li><a href="../design/extension-author-tooling.html">Extension author tooling<span class="tag">implemented</span></a></li>
+<li><a href="../design/target-locators.html">Target locators<span class="tag">implemented</span></a></li>
+<li><a href="../design/output-plugins.html">Output plugins<span class="tag">proposed</span></a></li>
+<li><a href="../design/quality-suites.html">Quality suites<span class="tag">implemented</span></a></li>
+<li><a href="../design/paired-regression-statistics.html">Paired regression statistics<span class="tag">proposed</span></a></li>
+<li><a href="../design/attack-techniques.html">Attack techniques<span class="tag">proposed</span></a></li>
+<li><a href="../design/namespaced-extension-ids.html">Namespaced extension ids<span class="tag">proposed</span></a></li>
+<li><a href="../design/declarative-fixtures.html">Declarative fixtures for scenarios and agent runs<span class="tag">implemented</span></a></li>
+<li><a href="../design/pack-scaffolding.html">Scaffolding a pack<span class="tag">implemented</span></a></li>
+<li><a href="../design/repeated-trials.html">Repeated trials<span class="tag">implemented</span></a></li>
+<li><a href="../design/documentation-site.html">A documentation site<span class="tag">implemented</span></a></li>
+<li><a href="../design/judge-error-correction.html">Judge error in a measured rate<span class="tag">implemented</span></a></li>
+<li><a href="../design/regrading-stored-exchanges.html">Re-grading stored exchanges<span class="tag">superseded</span></a></li>
+<li><a href="../design/anytime-valid-monitoring.html">Anytime-valid monitoring<span class="tag">proposed</span></a></li>
+<li><a href="../design/recorded-answers.html" aria-current="page">Recorded answers and regrading<span class="tag">accepted</span></a></li>
+<li><a href="../design/run-manifest-v2.html">Run manifest v2<span class="tag">implemented</span></a></li>
+<li><a href="../design/privacy-and-redaction.html">Privacy and redaction<span class="tag">implemented</span></a></li>
+<li><a href="../design/exit-codes.html">Exit codes and gate semantics<span class="tag">implemented</span></a></li>
+<li><a href="../design/collector-persistence.html">Collector persistence<span class="tag">implemented</span></a></li>
+<li><a href="../design/collector-tenancy.html">Collector tenancy<span class="tag">implemented</span></a></li>
+<li><a href="../design/ai-systems-and-deployments.html">AI systems and deployments<span class="tag">implemented</span></a></li>
+<li><a href="../design/collector-runs-and-findings.html">Runs and findings<span class="tag">implemented</span></a></li>
+<li><a href="../design/finding-lifecycle-and-waivers.html">Finding lifecycle and waivers<span class="tag">implemented</span></a></li>
+<li><a href="../design/audit-retention-and-deletion.html">Audit, retention and deletion<span class="tag">implemented</span></a></li>
+<li><a href="../design/panel-sessions.html">Panel sessions<span class="tag">implemented</span></a></li>
+</ul>
+</nav>
+<details class="mnav">
+<summary>Menu · <b>Recorded answers and regrading</b></summary>
+<nav class="inner" aria-label="Documentation">
+<ul class="home"><li><a href="../index.html">Overview</a></li></ul>
+<h2>First run</h2><ul>
+<li><a href="../usage-init.html">guardana init</a></li>
+<li><a href="../recipe-local-scan.html">Recipe: scan your own project</a></li>
+<li><a href="../recipe-recorded-answers.html">Recipe: check a run your application recorded</a></li>
+<li><a href="../recipe-real-application.html">Recipe: probe your real application</a></li>
+<li><a href="../how-it-works.html">How Guardana works</a></li>
+<li><a href="../install.html">Installing</a></li>
+<li><a href="../usage-testing.html">In your test suite</a></li>
+<li><a href="../python-api.html">Python API<span class="tag">beta</span></a></li>
+<li><a href="../usage-scan.html">guardana scan</a></li>
+<li><a href="../usage-probe.html">guardana probe</a></li>
+</ul>
+<h2>Run and policy</h2><ul>
+<li><a href="../safe-testing.html">Safe active testing</a></li>
+<li><a href="../usage-doctor.html">guardana doctor</a></li>
+<li><a href="../usage-target.html">guardana target inspect</a></li>
+<li><a href="../usage-plan.html">guardana plan</a></li>
+<li><a href="../exit-codes.html">Exit codes</a></li>
+<li><a href="../profiles.html">Profiles — guardana.yaml</a></li>
+</ul>
+<h2>Evidence and regression</h2><ul>
+<li><a href="../usage-baseline.html">guardana baseline</a></li>
+<li><a href="../usage-diff.html">guardana diff</a></li>
+<li><a href="../usage-monitor.html">guardana monitor</a></li>
+<li><a href="../usage-run.html">guardana run</a></li>
+<li><a href="../usage-calibrate.html">guardana calibrate</a></li>
+<li><a href="../usage-suites.html">Quality suites<span class="tag">beta</span></a></li>
+<li><a href="../privacy.html">Evidence and redaction</a></li>
+</ul>
+<h2>Recorded applications</h2><ul>
+<li><a href="../usage-analyze-trace.html">guardana analyze-trace</a></li>
+<li><a href="../usage-grade.html">guardana grade<span class="tag">beta</span></a></li>
+<li><a href="../usage-trace-inspect.html">guardana trace inspect</a></li>
+<li><a href="../usage-contracts.html">Security contracts</a></li>
+<li><a href="../usage-import-observations.html">guardana import-observations</a></li>
+<li><a href="../writing-an-integrator.html">Writing an integrator<span class="tag">beta</span></a></li>
+</ul>
+<h2>Rules and extensions</h2><ul>
+<li><a href="../usage-rules.html">guardana rules</a></li>
+<li><a href="../usage-taxonomy.html">guardana taxonomy</a></li>
+<li><a href="../writing-rules.html">Writing rules</a></li>
+<li><a href="../usage-rule-test.html">guardana rule test</a></li>
+<li><a href="../usage-new-pack.html">guardana new-pack</a></li>
+<li><a href="../usage-pack.html">guardana pack</a></li>
+<li><a href="../extending.html">Extending Guardana</a></li>
+<li><a href="../model-formats.html">Reading model formats</a></li>
+</ul>
+<h2>Collector and deployment</h2><ul>
+<li><a href="../integrations.html">CI and pre-commit</a></li>
+<li><a href="../deployment.html">Deploying the collector<span class="tag">beta</span></a></li>
+<li><a href="../usage-collector.html">The collector<span class="tag">beta</span></a></li>
+</ul>
+<h2>Architecture and security</h2><ul>
+<li><a href="../product-status.html">Product status</a></li>
+<li><a href="../threat-model.html">Threat model</a></li>
+<li><a href="../architecture.html">Architecture</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="../rules/index.html">Rule explorer</a></li>
+<li><a href="../generated/rule-summary.html">Rule summary</a></li>
+<li><a href="../generated/rule-catalog.html">Rule catalog</a></li>
+<li><a href="../generated/evaluator-catalog.html">Evaluator catalog</a></li>
+<li><a href="../generated/taxonomy-coverage.html">Taxonomy coverage</a></li>
+<li><a href="../generated/detection-limits.html">Detection limits</a></li>
+<li><a href="../generated/first-run.html">First-run measure</a></li>
+</ul>
+<h2>Design documents</h2><ul>
+<li><a href="../design/README.html">How these are written</a></li>
+</ul>
+<h2>Project direction</h2><ul>
+<li><a href="../design/guardana-and-control.html">Guardana and Guardana Control<span class="tag">accepted</span></a></li>
+<li><a href="../design/non-executing-packs.html">Non-executing packs and the default plugin trust<span class="tag">accepted</span></a></li>
+<li><a href="../design/audit-0.31-direction.html">Direction audit after 0.31<span class="tag">accepted</span></a></li>
+</ul>
+<h2>Maintainers</h2><ul>
+<li><a href="../maintainers/github-setup.html">GitHub repository setup</a></li>
+<li><a href="../maintainers/ops-catalogue.html">Operations catalogue</a></li>
+<li><a href="../maintainers/lessons.html">Lessons</a></li>
+<li><a href="../maintainers/first-run-study.html">First-run study</a></li>
+</ul>
+<h2>Also here</h2><ul>
+<li><a href="../design/trace-domain-model.html">The Trace domain model<span class="tag">implemented</span></a></li>
+<li><a href="../design/trace-producer.html">Producing a trace<span class="tag">implemented</span></a></li>
+<li><a href="../design/framework-adapters.html">Framework adapters<span class="tag">implemented</span></a></li>
+<li><a href="../design/assessment-channel.html">The assessment channel<span class="tag">implemented</span></a></li>
+<li><a href="../design/capability-protocols.html">Capability protocols<span class="tag">implemented</span></a></li>
+<li><a href="../design/security-contracts.html">Security contracts<span class="tag">implemented</span></a></li>
+<li><a href="../design/mcp-protocol-eras.html">MCP has two eras<span class="tag">implemented</span></a></li>
+<li><a href="../design/mcp-authorization-depth.html">MCP authorization depth<span class="tag">implemented</span></a></li>
+<li><a href="../design/taxonomy-editions.html">Taxonomy editions<span class="tag">implemented</span></a></li>
+<li><a href="../design/extension-author-tooling.html">Extension author tooling<span class="tag">implemented</span></a></li>
+<li><a href="../design/target-locators.html">Target locators<span class="tag">implemented</span></a></li>
+<li><a href="../design/output-plugins.html">Output plugins<span class="tag">proposed</span></a></li>
+<li><a href="../design/quality-suites.html">Quality suites<span class="tag">implemented</span></a></li>
+<li><a href="../design/paired-regression-statistics.html">Paired regression statistics<span class="tag">proposed</span></a></li>
+<li><a href="../design/attack-techniques.html">Attack techniques<span class="tag">proposed</span></a></li>
+<li><a href="../design/namespaced-extension-ids.html">Namespaced extension ids<span class="tag">proposed</span></a></li>
+<li><a href="../design/declarative-fixtures.html">Declarative fixtures for scenarios and agent runs<span class="tag">implemented</span></a></li>
+<li><a href="../design/pack-scaffolding.html">Scaffolding a pack<span class="tag">implemented</span></a></li>
+<li><a href="../design/repeated-trials.html">Repeated trials<span class="tag">implemented</span></a></li>
+<li><a href="../design/documentation-site.html">A documentation site<span class="tag">implemented</span></a></li>
+<li><a href="../design/judge-error-correction.html">Judge error in a measured rate<span class="tag">implemented</span></a></li>
+<li><a href="../design/regrading-stored-exchanges.html">Re-grading stored exchanges<span class="tag">superseded</span></a></li>
+<li><a href="../design/anytime-valid-monitoring.html">Anytime-valid monitoring<span class="tag">proposed</span></a></li>
+<li><a href="../design/recorded-answers.html" aria-current="page">Recorded answers and regrading<span class="tag">accepted</span></a></li>
+<li><a href="../design/run-manifest-v2.html">Run manifest v2<span class="tag">implemented</span></a></li>
+<li><a href="../design/privacy-and-redaction.html">Privacy and redaction<span class="tag">implemented</span></a></li>
+<li><a href="../design/exit-codes.html">Exit codes and gate semantics<span class="tag">implemented</span></a></li>
+<li><a href="../design/collector-persistence.html">Collector persistence<span class="tag">implemented</span></a></li>
+<li><a href="../design/collector-tenancy.html">Collector tenancy<span class="tag">implemented</span></a></li>
+<li><a href="../design/ai-systems-and-deployments.html">AI systems and deployments<span class="tag">implemented</span></a></li>
+<li><a href="../design/collector-runs-and-findings.html">Runs and findings<span class="tag">implemented</span></a></li>
+<li><a href="../design/finding-lifecycle-and-waivers.html">Finding lifecycle and waivers<span class="tag">implemented</span></a></li>
+<li><a href="../design/audit-retention-and-deletion.html">Audit, retention and deletion<span class="tag">implemented</span></a></li>
+<li><a href="../design/panel-sessions.html">Panel sessions<span class="tag">implemented</span></a></li>
+</ul>
+</nav>
+</details>
+<main>
+<h1>Recorded answers and regrading<span class="status accepted">accepted</span></h1><p class="lede">grading answers an application already gave — supplied or kept by a probe — through a target that answers from a recording, with the execution's identity kept apart from the grading's, and missing evidence never read as a pass</p><p><strong>Status:</strong> accepted, implemented — ships in the next release · <strong>Written:</strong> 2026-10-01 ·
+<strong>Serves:</strong> ROADMAP F5, backlog B07 · <strong>Supersedes:</strong>
+<a href="regrading-stored-exchanges.html"><code>regrading-stored-exchanges.md</code></a></p>
+<h2 id="the-question">The question</h2>
+<p>A team has answers its application already gave: a file of questions and replies, or the
+replies a probe received. It wants to grade them with its rules without calling the
+application again, and to grade the same replies again when a rule, an expectation or a
+judge changes. Two things must hold: a new grader on old replies is never read as the system
+changing, and an answer that is missing, or that redaction changed, is never read as a pass.
+The <a href="regrading-stored-exchanges.html">earlier design</a> answered the second half for kept
+exchanges; this one answers both halves with one mechanism.</p>
+<h2 id="decisions">Decisions</h2>
+<h3 id="1-one-recording-format-beside-the-dataset">1. One recording format, beside the dataset</h3>
+<p>A recording (<code>guardana_recording: 1</code>, JSONL) holds what answered: a header with <code>name</code>,
+<code>version</code> and a required <code>verbatim</code>, and one line per answer naming the rule whose question it
+answers. The same format carries answers a team supplies and the exchanges
+<code>probe --keep-exchanges</code> keeps. The dataset stays the grading side (questions and
+expectations, versioned by their author); the recording is the execution side.</p>
+<p>Rejected: an <code>answer</code> on dataset lines, which could then not run live and would let a probe
+rewrite the team's dataset; answers inside <code>run.json</code>, which gives replies and verdicts one
+retention period.</p>
+<h3 id="2-replay-through-a-target">2. Replay through a target</h3>
+<p><code>RecordedTarget</code> is a built-in endpoint target that declares <code>chat</code> only and answers each rule
+from the recording. Every rule runs unchanged, so suite gates, findings, trials and judge-error
+correction behave as in a probe; rules that need a planted canary, tool offers or an MCP server
+are skipped for a missing capability, as on any endpoint that lacks it.</p>
+<p>Rejected: re-evaluating stored assessments without the rules, which needs stored expectations
+and a second code path for every gate and finding.</p>
+<h3 id="3-per-rule-views-not-ambient-state">3. Per-rule views, not ambient state</h3>
+<p>The runner asks a target that implements <code>RuleScoped</code> for a view per rule. The recorded
+target's view answers only that rule's lines, matched by the digest of the messages the rule
+sends (<code>key</code>, written by a probe) or by its exact <code>input</code>; repeated lines are trials in order.
+The built-in endpoint's view keeps that rule's exchanges when keeping is on. Neither depends on
+which thread a rule runs in.</p>
+<h3 id="4-missing-or-altered-evidence-is-never-a-pass">4. Missing or altered evidence is never a pass</h3>
+<ul>
+<li>A rule no line names, and that the recording's origin does not list, is skipped
+<code>not_recorded</code> by rule selection, so <code>plan</code> and the run agree; it is a coverage gap.</li>
+<li>A recorded rule that asks an unrecorded question or reaches an altered reply is logged on the
+target. A suite records that trial ungraded (<code>not_recorded</code> as an error, <code>reply_altered</code> as
+inconclusive) and keeps it in its denominator; any other rule ends as an error, even if it
+swallowed the exception.</li>
+<li>Lines of a rule that ran but were never read, and lines naming a rule no loaded rule has, are
+errors.</li>
+<li><code>verbatim: false</code>, a line marked <code>altered</code>, and a reply holding a placeholder Guardana's
+redactor writes are altered replies.</li>
+<li>A probe's recording graded at other trials per case than it kept is refused before grading.</li>
+</ul>
+<h3 id="5-keeping-is-opt-in-and-narrow">5. Keeping is opt-in and narrow</h3>
+<p><code>privacy.keep_exchanges</code> or <code>probe --keep-exchanges</code> keeps the built-in endpoint's plain pass,
+as each rule sent it, never the system prompt, canary passes or tool offers. Inputs and replies
+pass the run's redactor, matched spans only and without the size bound; a secret is removed at
+every mode. The key is taken before redaction. A changed reply is marked altered; a changed
+input needs no mark, because a regrade re-sends the rule's own input and matches by key.
+Keeping refuses <code>metadata_only</code>, an MCP server and a pack's target.</p>
+<h3 id="6-two-identities">6. Two identities</h3>
+<p>The execution is the recording's SHA-256: <code>target.document</code> in a graded run, <code>exchanges.digest</code>
+in the probe that kept it. The grading is <code>rules[]</code> and <code>evaluators[]</code>, which record each
+judge's identity. The <code>recording</code> block is what the recording declares, not verified; only
+digests link two runs. <code>source.kind</code> stays the launcher, and a graded run's target reference is
+<code>recording:&lt;subject&gt;</code>, so it never shares a fingerprint or a baseline waiver with a live
+target.</p>
+<h3 id="7-traffic-is-declared">7. Traffic is declared</h3>
+<p><code>grade</code> sends nothing to the target. Judges are built, metered and bounded as in a probe;
+<code>grade</code> states where their calls go and how many there can be before the first, and
+<code>plan grade</code> prices them without making any.</p>
+<h3 id="8-diff-never-reads-a-grading-change-as-a-system-change">8. <code>diff</code> never reads a grading change as a system change</h3>
+<p>A rule graded by another evaluator or judge identity is left out of finding and measurement
+comparison, and the comparison is incomplete, as for a changed trial count. Two runs sharing an
+execution digest get a note saying so. Agreement statistics between two graders wait for M1.</p>
+<h2 id="the-contract-m1-builds-on">The contract M1 builds on</h2>
+<p>Two assessments are compatible only when their <code>case_id</code>, rule digest, dataset identity and
+digest, assessor and judge identity, and trials per case are equal. Equal execution digests say
+a difference is the grader's; unequal ones that it may be the system's. Every trial that was not
+measured carries a status and a <code>reason</code> (<code>not_recorded</code>, <code>reply_altered</code>, <code>declined</code>), so a
+pairing can tell evidence that was never there from evidence nobody could grade.</p>
+<h2 id="not-done-here">Not done here</h2>
+<ul>
+<li>Third-party endpoint targets keeping exchanges: they would need a protocol of their own.</li>
+<li>Keeping tool offers and canary passes, and so regrading agent and canary rules.</li>
+<li>The collector receiving recordings or graded runs: its tenancy and retention were designed for
+findings and measurements.</li>
+<li>Labelling a slice of kept replies for judge-error correction.</li>
+</ul>
+<h2 id="see-also">See also</h2>
+<ul>
+<li><a href="../usage-grade.html"><code>usage-grade.md</code></a> — the command and the recording format</li>
+<li><a href="privacy-and-redaction.html"><code>privacy-and-redaction.md</code></a> — the redactor every kept reply passes</li>
+<li><a href="assessment-channel.html"><code>assessment-channel.md</code></a> — the assessments a pairing reads</li>
+<li><a href="paired-regression-statistics.html"><code>paired-regression-statistics.md</code></a> — what M1 builds on this</li>
+</ul>
+
+</main>
+</div>
+<footer class="foot"><div class="bar">
+<span class="who">Guardana 0.34.0 · Apache-2.0 ·
+maintained by Konrad Karauda</span>
+<a href="https://github.com/guardana/guardana/blob/main/docs/design/recorded-answers.md">Edit this page on GitHub</a>
+<a href="https://github.com/guardana/guardana">github.com/guardana</a>
+<a href="../../llms.txt">llms.txt</a>
+</div></footer>
+</body>
+</html>

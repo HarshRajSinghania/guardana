@@ -1,7 +1,7 @@
 ---
 title: "Recipe: check a run your application recorded"
 nav_order: 14
-summary: "grade an execution your application already performed from its trace, offline, and what recorded answers do not cover yet"
+summary: "grade an execution your application already performed, from its trace or from the answers it gave, offline and without calling it"
 status: stable
 ---
 
@@ -17,4 +17,16 @@ guardana analyze-trace trace.jsonl --format json --output run.json
 1. `trace inspect` shows what evidence the trace records. It also shows which rules cannot run because the trace lacks evidence they need.
 2. `analyze-trace` grades the recorded execution and saves the run. If the trace lacks a type of evidence a rule needs, that rule does not run. The output identifies those rules; it never counts them as passed.
 
-This does not grade answers you supply yourself, such as a file of questions and replies from your application. That is a separate roadmap item (F5) and is not available yet. `analyze-trace` grades what a trace records, as described in [`usage-analyze-trace.md`](usage-analyze-trace.md).
+## Answers you supply yourself
+
+When what your application recorded is its answers rather than a trace — a file of questions and replies — grade them with [`guardana grade`](usage-grade.md). It runs your suites and other chat rules over the answers and sends nothing to your application.
+
+```bash
+guardana grade answers.jsonl --rules rules/ --profile guardana.yaml --format json --output run.json
+```
+
+1. Write the answers as a [recording](usage-grade.md#a-recording): a header naming them and stating whether the replies are verbatim, then one line per question with your application's reply, naming the rule whose question it answers.
+2. `grade` grades every recorded reply. A question the recording does not answer, a reply marked altered, and a reply nobody asked for leave the run indeterminate; none of them is counted as passed.
+3. To grade a live probe's replies again — a new rule, a sharper expectation, another judge — run the probe once with `--keep-exchanges` and grade the file it keeps beside the run.
+
+`analyze-trace` grades what a trace records, as described in [`usage-analyze-trace.md`](usage-analyze-trace.md).

@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.error import URLError
 
@@ -226,3 +227,30 @@ def test_ctrl_c_after_an_alert_exits_interrupted(
 
     assert stopped.value.code == int(ExitCode.INTERRUPTED)
     assert "ALERT" in capsys.readouterr().out
+
+
+def test_monitor_says_it_keeps_no_exchanges_when_the_profile_asks(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(endpoint_module, "transport_factory", RefusingTransport)
+    profile = tmp_path / "guardana.yaml"
+    profile.write_text("privacy:\n  keep_exchanges: true\n", encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        [
+            "monitor",
+            "--url",
+            "http://fake",
+            "--model",
+            "m",
+            "--max-cycles",
+            "1",
+            "--interval",
+            "0",
+            "--profile",
+            str(profile),
+        ],
+    )
+
+    assert "monitor keeps no exchanges" in result.stderr

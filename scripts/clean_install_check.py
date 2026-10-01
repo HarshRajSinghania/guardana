@@ -20,6 +20,7 @@ Run it before every tag. CI runs it on every push (`clean-install` job).
 """
 
 import argparse
+import json
 import os
 import re
 import shutil
@@ -344,6 +345,70 @@ def _checks(venv: Path, clean_directory: Path, trace_file: Path) -> list[Check]:
             0,
             expect=("dimension", "declared", "records", "needed by", "unlocks", "effects"),
         ),
+    ]
+
+
+def _recorded_answers(workspace: Path) -> tuple[Path, Path, Path]:
+    """Write a team's suite, its profile and a recording of the answers its application gave."""
+    rules = workspace / "recorded" / "rules"
+    rules.mkdir(parents=True)
+    questions = {
+        "How do I reset my password?": "Open Settings, then Security.",
+        "Where is my invoice?": "Settings lists every invoice.",
+    }
+    dataset = [{"guardana_dataset": 1, "name": "support", "version": "1"}]
+    dataset += [
+        {"input": question, "expect": {"contains_any": ["Settings"]}} for question in questions
+    ]
+    (rules / "answers.jsonl").write_text(
+        "".join(json.dumps(line) + "\n" for line in dataset), encoding="utf-8"
+    )
+    rule = {
+        "id": "acme.quality.answers",
+        "title": "The support bot names where to go",
+        "severity": "high",
+        "target_kind": "endpoint",
+        "taxonomy": ["LLM09:2025"],
+        "evaluator": "contains",
+        "requires": ["chat"],
+        "dataset": "./answers.jsonl",
+        "expect": {"contains_any": []},
+        "gate": {"min_pass_rate": 0.5, "min_sample": 2},
+    }
+    (rules / "answers.yaml").write_text(json.dumps(rule), encoding="utf-8")
+    profile = workspace / "recorded" / "guardana.yaml"
+    profile.write_text("rules:\n  include: ['acme.*']\n", encoding="utf-8")
+    header = {
+        "guardana_recording": 1,
+        "name": "support-bot",
+        "version": "1",
+        "verbatim": True,
+        "rule": "acme.quality.answers",
+    }
+    lines = [header] + [{"input": q, "reply": a} for q, a in questions.items()]
+    recording = workspace / "recorded" / "answers.jsonl"
+    recording.write_text("".join(json.dumps(line) + "\n" for line in lines), encoding="utf-8")
+    return rules, profile, recording
+
+
+def _recorded_checks(venv: Path, workspace: Path) -> list[Check]:
+    guardana = str(venv / _BIN / "guardana")
+    rules, profile, recording = _recorded_answers(workspace)
+    selection = ["--rules", str(rules), "--profile", str(profile)]
+    return [
+        Check(
+            "grade of recorded answers",
+            [guardana, "grade", str(recording), *selection],
+            0,
+            expect=("2 of 2 cases measured",),
+        ),
+        Check(
+            "plan grade sends nothing",
+            [guardana, "plan", "grade", str(recording), *selection],
+            0,
+            expect=("nothing reaches the target",),
+        ),
+        Check("grade of a missing recording", [guardana, "grade", "/no/such.jsonl"], 3),
     ]
 
 
@@ -875,6 +940,7 @@ def main(argv: list[str] | None = None) -> int:
         checks = [
             *_checks(venv, clean_directory, trace_file),
             *_starter_checks(venv, workspace / "starter"),
+            *_recorded_checks(venv, workspace),
             *_trust_checks(venv, clean_directory, pack, marker),
         ]
         for check in checks:

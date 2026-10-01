@@ -40,8 +40,11 @@ from guardana.core.entrypoints import InstalledEntryPoint
 from guardana.core.gate import OpenQuestion
 from guardana.core.plan import JudgePlan, RunPlan, build_plan
 from guardana.core.profile import Profile, ProfileError
+from guardana.core.recording import RecordingError, read_recording
 from guardana.core.registry import Registry
 from guardana.core.target import ArtifactTarget, Target, TargetKind
+from guardana.core.target.recorded import RecordedTarget
+from guardana.core.verify import RecordingRefusedError, refuse_other_trials
 
 PLAN_SCHEMA_VERSION = 3
 
@@ -51,9 +54,14 @@ plan_app = typer.Typer(
 )
 
 
-def _render_human(run_plan: RunPlan, kind: TargetKind) -> str:
+def _render_human(run_plan: RunPlan, kind: TargetKind, *, replayed: bool = False) -> str:
     lines = [f"{len(run_plan.rules)} rule(s) would run, {len(run_plan.skipped)} skipped."]
-    if run_plan.requests_complete and run_plan.max_requests == 0:
+    if replayed:
+        lines.append(
+            "requests: 0 — every answer comes from the recording; nothing reaches the target"
+        )
+        lines.append(f"trials: {run_plan.trials} attempt(s) per case, each read from the recording")
+    elif run_plan.requests_complete and run_plan.max_requests == 0:
         if kind is TargetKind.ARTIFACT:
             lines.append("requests: 0 — every selected rule declares it sends nothing")
         else:
@@ -67,7 +75,7 @@ def _render_human(run_plan: RunPlan, kind: TargetKind) -> str:
                 else f" — plus {len(run_plan.unknown_cost)} of unknown cost"
             )
         )
-    if kind is not TargetKind.ARTIFACT:
+    if kind is not TargetKind.ARTIFACT and not replayed:
         lines.append(
             f"trials: {run_plan.trials} attempt(s) per case, counted in the requests above"
         )
@@ -173,18 +181,19 @@ def _render_json(run_plan: RunPlan) -> str:
     )
 
 
-def _emit(
+def _emit(  # noqa: PLR0913 — the plan, how to print it, and what it was planned against
     run_plan: RunPlan,
     output_format: OutputFormat,
     kind: TargetKind,
     *,
     profile: Profile,
     registry: Registry,
+    replayed: bool = False,
 ) -> None:
     if output_format is OutputFormat.json:
         typer.echo(_render_json(run_plan))
     else:
-        typer.echo(_render_human(run_plan, kind))
+        typer.echo(_render_human(run_plan, kind, replayed=replayed))
     cannot_pass = _explain_what_the_run_cannot_pass(run_plan, profile, registry)
     _note_what_only_the_run_can_tell(run_plan, profile, kind)
     if run_plan.exceeds_budget or cannot_pass:
@@ -478,6 +487,91 @@ def plan_probe(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; thi
     )
 
 
+def plan_grade(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; this is the command's surface
+    recording: Annotated[Path, typer.Argument(help="The recording `guardana grade` would grade.")],
+    profile: Annotated[Path | None, typer.Option(help="guardana.yaml path")] = None,
+    preset: Annotated[str | None, typer.Option(help=PRESET_HELP)] = None,
+    format: Annotated[OutputFormat, typer.Option(help="human|json")] = OutputFormat.human,
+    rules: Annotated[
+        list[Path], typer.Option("--rules", help="Directory or file of custom YAML rules.")
+    ] = [],  # noqa: B006 — typer builds the option from a literal default
+    plugins: PluginsOption = None,
+    allow_plugin: AllowPluginOption = None,
+    trials: Annotated[
+        int | None,
+        typer.Option(
+            "--trials",
+            min=1,
+            help="Attempts per case for rules that grade a sampled reply; overrides `trials:`.",
+        ),
+    ] = None,
+    max_requests: Annotated[
+        int | None,
+        typer.Option("--max-requests", min=1, help="Request ceiling each judge is held to."),
+    ] = None,
+) -> None:
+    """Report what grading a recording would cost: the judge calls, and no target request.
+
+    The rules are selected as `guardana grade` selects them, so a rule the recording does
+    not answer is listed as skipped `not_recorded`. Each judge `evaluators:` configures is
+    built and never asked anything, and its calls are priced against the request budget
+    on a meter of its own.
+    """
+    prof = resolve_profile(profile, preset)
+    resolved = resolve_trust(plugins, allow_plugin, prof)
+    calibrations_or_exit(prof)
+    prof = replace(
+        prof,
+        budgets=override(prof.budgets, max_requests=max_requests),
+        trials=prof.trials if trials is None else trials,
+    )
+    target = recorded_target_or_exit(recording)
+    registry = Registry.discover(resolved.trust)
+    judge_meters = _wire_judges(registry, prof)
+    warn_about_load_errors(registry, resolved, what="rule")
+    hint_refused_plugins(registry, resolved)
+    load_custom_rules(registry, prof, rules)
+    registry.apply_trials(prof.trials)
+    try:
+        refuse_other_trials(target.recording, registry)
+    except RecordingRefusedError as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(code=ExitCode.INVALID_USAGE) from exc
+    _emit(
+        build_plan(registry, prof, target, judge_meters=judge_meters),
+        format,
+        target.kind,
+        profile=prof,
+        registry=registry,
+        replayed=True,
+    )
+
+
+def recorded_target_or_exit(path: Path) -> RecordedTarget:
+    """Read a recording into a target, or exit `3` naming what makes it unreadable."""
+    try:
+        return RecordedTarget(read_recording(path))
+    except RecordingError as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(code=ExitCode.INVALID_USAGE) from exc
+
+
+def judge_traffic(registry: Registry, profile: Profile, target: Target) -> list[str]:
+    """Say which judges a run against `target` would call and how often, or nothing if none.
+
+    Priced on a copy of `registry` with the judges wired as the run wires them, so the
+    registry the run uses is left as it was.
+    """
+    priced = registry.copied()
+    meters = _wire_judges(priced, profile)
+    if not meters:
+        return []
+    judge = build_plan(priced, profile, target, judge_meters=meters).judge
+    if judge is None or (judge.is_complete and judge.max_calls == 0):
+        return []
+    return _judge_lines(judge, profile.budgets)
+
+
 def _wire_judges(registry: Registry, profile: Profile) -> tuple[tuple[str, ...], ...]:
     """Register the judges `profile` configures, and group their ids by the meter they share.
 
@@ -543,3 +637,4 @@ def _system_prompt_the_probe_will_send(named: Path | None) -> str:
 
 plan_app.command(name="scan")(plan_scan)
 plan_app.command(name="probe")(plan_probe)
+plan_app.command(name="grade")(plan_grade)

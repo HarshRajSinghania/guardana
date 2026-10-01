@@ -11,7 +11,12 @@ from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from functools import cache
 
-from guardana.core.assessment import Assessment, from_verdict
+from guardana.core.assessment import (
+    Assessment,
+    AssessmentStatus,
+    UnmeasuredReason,
+    from_verdict,
+)
 from guardana.core.budget import BudgetExhausted
 from guardana.core.calibration.corpus import bundled_corpus
 from guardana.core.calibration.store import corpus_digest
@@ -23,7 +28,7 @@ from guardana.core.rule.base import Rule, RuleContext, RuleMeta
 from guardana.core.rule.errors import RuleError, RuleLoadError
 from guardana.core.rule.fixture import DeclaredFixture, RuleFixture, materialise
 from guardana.core.suite import SuiteGate, describe, measure_suite
-from guardana.core.target import ChatMessage, Target
+from guardana.core.target import ChatMessage, ReplyUnavailable, Target
 from guardana.core.target.protocols import ChatEndpoint
 from guardana.core.trials import check_trials
 
@@ -144,7 +149,23 @@ class SuiteRule(Rule):
         failing: dict[str, str] = {}
         for case in self.cases:
             for trial in range(1, self.trials_per_case + 1):
-                reply = target.chat(list(case.messages))
+                try:
+                    reply = target.chat(list(case.messages))
+                except ReplyUnavailable as exc:
+                    # Kept in the denominator as ungraded, under the assessor the graded
+                    # trials carry, so one missing reply never splits the suite's grading.
+                    ctx.record(
+                        _unavailable(
+                            exc,
+                            case=case,
+                            assessor=evaluator.assessor_id,
+                            subject_ref=target.ref,
+                            rule_id=self.meta.id,
+                            dataset=self.dataset,
+                            trial=trial,
+                        )
+                    )
+                    continue
                 # A case may script assistant turns; only the model's reply is graded.
                 exchange = Exchange(
                     (*case.messages, ChatMessage(role="assistant", content=reply)),
@@ -194,6 +215,37 @@ class SuiteRule(Rule):
                 evaluator_id=assessor,
             ),
         )
+
+
+def _unavailable(  # noqa: PLR0913 — one keyword per fact the exception cannot supply
+    exc: ReplyUnavailable,
+    *,
+    case: SuiteCase,
+    assessor: str,
+    subject_ref: str,
+    rule_id: str,
+    dataset: str,
+    trial: int,
+) -> Assessment:
+    """Record a trial the recording could not answer: never graded, never a pass."""
+    status = (
+        AssessmentStatus.ERROR
+        if exc.reason is UnmeasuredReason.NOT_RECORDED
+        else AssessmentStatus.INCONCLUSIVE
+    )
+    return Assessment(
+        case_id=case.case_id,
+        assessor=assessor,
+        subject_ref=subject_ref,
+        status=status,
+        rule_id=rule_id,
+        passed=None,
+        dataset=dataset,
+        rationale=str(exc),
+        tags=case.tags,
+        trial=trial,
+        reason=exc.reason,
+    )
 
 
 def _stopped_reason(summary: SuiteSummary) -> str:

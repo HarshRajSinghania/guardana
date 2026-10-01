@@ -109,6 +109,7 @@ Guardana verifies artifacts, deployed systems, and recorded evidence:
 | **Verify artifacts** | [`guardana scan <path>`](docs/usage-scan.md) | Static checks for code and model artifacts; offline without a reporter. |
 | **Verify a deployed system** | [`guardana probe --url … --model …`](docs/usage-probe.md) | Active checks against a model, agent, or MCP server. |
 | **Verify a recorded run** | [`guardana analyze-trace trace.jsonl`](docs/usage-analyze-trace.md) | Checks a recorded execution, as OpenTelemetry GenAI spans or Guardana's native trace format, against built-ins and your [security contract](docs/usage-contracts.md); offline without a reporter. |
+| **Grade recorded answers** | [`guardana grade answers.jsonl`](docs/usage-grade.md) | Grades answers your application already gave, or a probe kept with `--keep-exchanges`, with your rules; sends nothing to the target. |
 | **Inspect available evidence** | [`guardana trace inspect trace.jsonl`](docs/usage-trace-inspect.md) | Shows recorded evidence dimensions and policy gaps. |
 | **Continuously re-verify** | [`guardana monitor --url … --model …`](docs/usage-monitor.md) | Re-runs active checks on a schedule and compares each cycle with the first cycle, not an accepted saved-run baseline. |
 | **Compare evidence** | [`guardana diff a.json b.json`](docs/usage-diff.md) | Reports whether the later saved run is worse, or refuses an invalid comparison. |

@@ -175,6 +175,19 @@ starting it, and starting the thing under examination is the one thing this
 command must not do. `guardana probe --mcp … --allow-exec` is where that intent is
 stated out loud.
 
+## Pricing a grade
+
+`plan grade RECORDING` previews [`guardana grade`](usage-grade.md): it selects the rules
+the grade would run, lists every rule the recording does not answer as skipped
+`not_recorded`, prices the judge calls, and counts no target request, because every answer
+comes from the recording. It takes `--profile`, `--preset`, `--rules`, `--plugins`,
+`--allow-plugin`, `--trials`, `--max-requests` and `--format`, and refuses an unreadable
+recording with exit `3`.
+
+```bash
+guardana plan grade answers.jsonl --rules rules/ --profile guardana.yaml
+```
+
 ## When the plan does not know
 
 A rule that declares no request count — anything third-party that has not

@@ -28,6 +28,12 @@ class SkipReason(StrEnum):
     a pile of these.
     """
 
+    NOT_RECORDED = "not_recorded"
+    """The recording a run grades holds no answer to any of this rule's questions.
+
+    Only a recorded target produces it. The check did not happen, so it is a coverage gap.
+    """
+
 
 @dataclass(frozen=True, slots=True)
 class SkippedRule:

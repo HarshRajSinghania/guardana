@@ -53,6 +53,7 @@
 </ul>
 <h2>Recorded applications</h2><ul>
 <li><a href="usage-analyze-trace.html">guardana analyze-trace</a></li>
+<li><a href="usage-grade.html">guardana grade<span class="tag">beta</span></a></li>
 <li><a href="usage-trace-inspect.html">guardana trace inspect</a></li>
 <li><a href="usage-contracts.html">Security contracts</a></li>
 <li><a href="usage-import-observations.html">guardana import-observations</a></li>
@@ -123,8 +124,9 @@
 <li><a href="design/repeated-trials.html">Repeated trials<span class="tag">implemented</span></a></li>
 <li><a href="design/documentation-site.html">A documentation site<span class="tag">implemented</span></a></li>
 <li><a href="design/judge-error-correction.html">Judge error in a measured rate<span class="tag">implemented</span></a></li>
-<li><a href="design/regrading-stored-exchanges.html">Re-grading stored exchanges<span class="tag">proposed</span></a></li>
+<li><a href="design/regrading-stored-exchanges.html">Re-grading stored exchanges<span class="tag">superseded</span></a></li>
 <li><a href="design/anytime-valid-monitoring.html">Anytime-valid monitoring<span class="tag">proposed</span></a></li>
+<li><a href="design/recorded-answers.html">Recorded answers and regrading<span class="tag">accepted</span></a></li>
 <li><a href="design/run-manifest-v2.html">Run manifest v2<span class="tag">implemented</span></a></li>
 <li><a href="design/privacy-and-redaction.html">Privacy and redaction<span class="tag">implemented</span></a></li>
 <li><a href="design/exit-codes.html">Exit codes and gate semantics<span class="tag">implemented</span></a></li>
@@ -172,6 +174,7 @@
 </ul>
 <h2>Recorded applications</h2><ul>
 <li><a href="usage-analyze-trace.html">guardana analyze-trace</a></li>
+<li><a href="usage-grade.html">guardana grade<span class="tag">beta</span></a></li>
 <li><a href="usage-trace-inspect.html">guardana trace inspect</a></li>
 <li><a href="usage-contracts.html">Security contracts</a></li>
 <li><a href="usage-import-observations.html">guardana import-observations</a></li>
@@ -242,8 +245,9 @@
 <li><a href="design/repeated-trials.html">Repeated trials<span class="tag">implemented</span></a></li>
 <li><a href="design/documentation-site.html">A documentation site<span class="tag">implemented</span></a></li>
 <li><a href="design/judge-error-correction.html">Judge error in a measured rate<span class="tag">implemented</span></a></li>
-<li><a href="design/regrading-stored-exchanges.html">Re-grading stored exchanges<span class="tag">proposed</span></a></li>
+<li><a href="design/regrading-stored-exchanges.html">Re-grading stored exchanges<span class="tag">superseded</span></a></li>
 <li><a href="design/anytime-valid-monitoring.html">Anytime-valid monitoring<span class="tag">proposed</span></a></li>
+<li><a href="design/recorded-answers.html">Recorded answers and regrading<span class="tag">accepted</span></a></li>
 <li><a href="design/run-manifest-v2.html">Run manifest v2<span class="tag">implemented</span></a></li>
 <li><a href="design/privacy-and-redaction.html">Privacy and redaction<span class="tag">implemented</span></a></li>
 <li><a href="design/exit-codes.html">Exit codes and gate semantics<span class="tag">implemented</span></a></li>
@@ -273,6 +277,7 @@ telemetry, no account, and the collector is opt-in in both directions.</p>
   hash_identifiers: true
   custom_patterns: []
   max_evidence_bytes: 16384
+  keep_exchanges: false       # true: probe keeps every chat exchange beside the run
 </code></pre>
 <div class="table-wrap"><table>
 <thead>
@@ -412,6 +417,24 @@ history answerable while protecting nothing.</p>
 <p>If any of those names is itself sensitive in your organisation, do not pass it.
 Every field is optional and absent means &quot;not known&quot; — a run that declares nothing
 still reports its findings.</p>
+<h2 id="kept-exchanges">Kept exchanges</h2>
+<p><code>keep_exchanges: true</code>, or <code>probe --keep-exchanges</code>, writes every chat exchange of a
+probe's plain pass beside the saved run (<code>run.json</code> → <code>run.exchanges.jsonl</code>), so
+<a href="usage-grade.html"><code>guardana grade</code></a> can grade the same replies again. It is off by default
+because that file holds every reply, passes included, and widens what a leaked run
+exposes; whether to keep them is the operator's decision for their data.</p>
+<ul>
+<li>Every input and reply passes this policy's redactor before it is written: matched
+spans are replaced, with no size bound, because a truncated reply would be graded
+wrongly later. Secrets are removed at every mode, <code>full</code> included.</li>
+<li>A reply the redactor changed is marked <code>altered</code>, and <code>grade</code> never grades it: a reply
+that leaked a secret cannot be regraded into a pass.</li>
+<li><code>keep_exchanges: true</code> with <code>evidence_mode: metadata_only</code> is refused at load time:
+the two settings contradict each other.</li>
+<li>The system prompt, canary passes and tool offers are never kept. The collector never
+receives the file, and the saved run records only its digest, its line count and how
+many replies were altered.</li>
+</ul>
 <h2 id="what-is-not-solved-yet">What is not solved yet</h2>
 <p>The redactor is not an extension point, and that is deliberate: a pluggable
 redactor is also a pluggable <em>un</em>-redactor, and a third-party implementation that

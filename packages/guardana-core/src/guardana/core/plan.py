@@ -16,6 +16,7 @@ from guardana.core.registry import Registry
 from guardana.core.report import CheckError, ScanResult, SkippedRule
 from guardana.core.rule import Rule, RuleLoadError
 from guardana.core.target import Target, TargetKind
+from guardana.core.target.recorded import RecordedTarget
 
 
 @dataclass(frozen=True, slots=True)
@@ -172,6 +173,8 @@ def build_plan(
     # profile would otherwise list every artifact rule as declining something it
     # was never asked to do.
     repeats = target.kind is TargetKind.ENDPOINT
+    # A recorded target answers from its file: a rule asks it, and nothing is sent.
+    replayed = isinstance(target, RecordedTarget)
     selected: list[str] = []
     single_attempt: list[str] = []
     skipped: list[SkippedRule] = []
@@ -187,6 +190,8 @@ def build_plan(
         graded.append(rule)
         if repeats and rule.trials_per_case < profile.trials:
             single_attempt.append(meta.id)
+        if replayed:
+            continue
         declared = rule.estimated_requests
         if declared is None:
             # A rule that sends and did not say how much sends at least once.

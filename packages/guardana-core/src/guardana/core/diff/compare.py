@@ -60,6 +60,20 @@ def _within(path: str, root: str) -> str:
 
 
 @dataclass(frozen=True, slots=True)
+class Grader:
+    """One evaluator a rule graded with, as its run recorded it; None where nothing was.
+
+    Each field is compared only when both runs recorded it: a migrated run, or an
+    evaluator that states no judge, is unknown rather than different.
+    """
+
+    version: str | None = None
+    digest: str | None = None
+    judge: str | None = None
+    """The judge identity the evaluator stated: model, endpoint, samples per verdict."""
+
+
+@dataclass(frozen=True, slots=True)
 class RunContext:
     """What one run examined, and with which rules.
 
@@ -86,6 +100,12 @@ class RunContext:
     changed, and a note that asserted the first would be confidently wrong every
     time the second happened."""
 
+    grading: Mapping[str, Mapping[str, Grader]] = field(default_factory=dict)
+    """Each rule that graded something, mapped to the assessors its verdicts name.
+
+    A rule absent here graded nothing on record, which is unknown rather than
+    unchanged; the monitor leaves it empty because one process grades both cycles."""
+
 
 _NO_CONTEXT = RunContext()
 """What the monitor gets: two cycles of one process, one target, one rule set."""
@@ -111,7 +131,10 @@ def compare(
     digests_before = before_context.rules
     digests_after = after_context.rules
 
-    retried = _trials_changed(before, after, ran_before & ran_after)
+    shared = ran_before & ran_after
+    retried = _trials_changed(before, after, shared)
+    regraded = _grading_changed(shared, before_context.grading, after_context.grading)
+    excluded = retried.keys() | regraded
     listed_after = _listed(after, after_context.root)
 
     changes: list[Change] = []
@@ -125,8 +148,10 @@ def compare(
             continue
         # Nor where the two runs made a different number of attempts at each case:
         # a failure found in five tries and missed in one is more sampling, not a
-        # regression, and the refusal below says so instead.
-        if rule_id in retried:
+        # regression. Nor where another evaluator or judge graded it: a verdict that
+        # moved with the grader says nothing about the system. The refusals below
+        # name both.
+        if rule_id in excluded:
             continue
         was, now = before_states.get(identity), after_states.get(identity)
         kind, detail = (
@@ -154,8 +179,8 @@ def compare(
         )
     changes.extend(_coverage_changes(ran_before, ran_after))
     measurement = measure(
-        [a for a in before.assessments if a.rule_id not in retried],
-        [a for a in after.assessments if a.rule_id not in retried],
+        [a for a in before.assessments if a.rule_id not in excluded],
+        [a for a in after.assessments if a.rule_id not in excluded],
         before_trials=before.trials_per_case,
         after_trials=after.trials_per_case,
     )
@@ -163,7 +188,7 @@ def compare(
         changes=tuple(changes),
         unchanged=unchanged,
         notes=(
-            *_notes(ran_before & ran_after, before_context, after_context),
+            *_notes(shared, before_context, after_context),
             *measurement.notes(),
         ),
         measurement=measurement,
@@ -174,6 +199,7 @@ def compare(
                 f"to one question and it was not compared"
                 for rule_id, (was, now) in sorted(retried.items())
             ),
+            *_regraded_reason(regraded),
         ),
     )
 
@@ -226,6 +252,49 @@ def _trials_changed(
         if was != now:
             moved[rule_id] = (was, now)
     return moved
+
+
+def _grading_changed(
+    shared: frozenset[str],
+    before: Mapping[str, Mapping[str, Grader]],
+    after: Mapping[str, Mapping[str, Grader]],
+) -> frozenset[str]:
+    """Return the rules both runs ran whose grading is known on both sides and differs."""
+    return frozenset(
+        rule_id
+        for rule_id in shared
+        if _graded_differently(before.get(rule_id, {}), after.get(rule_id, {}))
+    )
+
+
+def _graded_differently(before: Mapping[str, Grader], after: Mapping[str, Grader]) -> bool:
+    """Whether one rule's graders moved between two runs.
+
+    A grader one run has and the other lacks is not enough on its own: a scenario
+    that stopped early graded fewer steps, so one side's set inside the other's is
+    the system's doing. Each side holding a grader the other lacks is a swap.
+    """
+    if not before or not after:
+        return False
+    if before.keys() - after.keys() and after.keys() - before.keys():
+        return True
+    return any(_differs(before[name], after[name]) for name in before.keys() & after.keys())
+
+
+def _differs(was: Grader, now: Grader) -> bool:
+    pairs = ((was.version, now.version), (was.digest, now.digest), (was.judge, now.judge))
+    return any(a is not None and b is not None and a != b for a, b in pairs)
+
+
+def _regraded_reason(regraded: frozenset[str]) -> tuple[str, ...]:
+    if not regraded:
+        return ()
+    ordered = sorted(regraded)
+    named = f"{', '.join(ordered[:3])}{'…' if len(ordered) > 3 else ''}"  # noqa: PLR2004
+    return (
+        f"{len(ordered)} rule(s) were graded differently ({named}) — a different evaluator "
+        f"or judge — so their findings and measurements are not compared",
+    )
 
 
 _STOP_EXPLANATIONS = {

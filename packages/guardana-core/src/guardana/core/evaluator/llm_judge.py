@@ -103,6 +103,11 @@ class LlmJudgeEvaluator(Evaluator):
         self._evaluator_id = f"{self.id}@{prompt_version}"
 
     @property
+    def assessor_id(self) -> str:
+        """`<id>@<prompt version>`: the rubric is part of who graded."""
+        return self._evaluator_id
+
+    @property
     def judge_calls_per_verdict(self) -> int:
         """`min_agreement`: every verdict asks the judge that many times."""
         return self._min_agreement

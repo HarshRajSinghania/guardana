@@ -37,6 +37,19 @@ class AssessmentStatus(StrEnum):
     """The case was not applicable here — an explicit absence, not a low score."""
 
 
+class UnmeasuredReason(StrEnum):
+    """Why a case recorded no measurement, beside the status that says it did not."""
+
+    NOT_RECORDED = "not_recorded"
+    """The recording held no reply for this trial. Recorded with status `ERROR`."""
+
+    REPLY_ALTERED = "reply_altered"
+    """The recorded reply was changed by redaction or not kept verbatim. Status `INCONCLUSIVE`."""
+
+    DECLINED = "declined"
+    """The evaluator returned inconclusive."""
+
+
 class Direction(StrEnum):
     """Which way is better, for a numeric measurement.
 
@@ -103,6 +116,20 @@ class Assessment:
     trial 3 of one run and trial 3 of another are not the same observation.
     """
 
+    reason: UnmeasuredReason | None = None
+    """Why the case went unmeasured; None when it was measured or when nobody said.
+
+    Not part of `comparable_key`: why one run could not measure a case does not change
+    which case it was.
+    """
+
+    def __post_init__(self) -> None:
+        """Refuse a measured case that also says why it went unmeasured."""
+        if self.status is AssessmentStatus.MEASURED and self.reason is not None:
+            raise ValueError(
+                f"a measured assessment carries no reason it went unmeasured, got {self.reason!r}"
+            )
+
     @property
     def comparable_key(self) -> "ComparableKey":
         """Return what two runs must agree on before their values may be compared.
@@ -153,7 +180,7 @@ def from_verdict(  # noqa: PLR0913 — one keyword per fact the verdict cannot s
     `passed` is `None` for an inconclusive verdict, never `False`: a judge that
     could not read the reply has not observed a failure, and counting it as one
     makes a broken grader look like a worsening model. For the same reason an
-    inconclusive verdict records no measurement.
+    inconclusive verdict records no measurement, and says the evaluator declined.
     """
     inconclusive = verdict.outcome == "inconclusive"
     measurement = None if inconclusive else verdict.measurement
@@ -173,4 +200,5 @@ def from_verdict(  # noqa: PLR0913 — one keyword per fact the verdict cannot s
         rationale=verdict.rationale,
         tags=tags,
         trial=trial,
+        reason=UnmeasuredReason.DECLINED if inconclusive else None,
     )

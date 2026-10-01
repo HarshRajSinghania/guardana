@@ -53,6 +53,7 @@
 </ul>
 <h2>Recorded applications</h2><ul>
 <li><a href="usage-analyze-trace.html">guardana analyze-trace</a></li>
+<li><a href="usage-grade.html">guardana grade<span class="tag">beta</span></a></li>
 <li><a href="usage-trace-inspect.html">guardana trace inspect</a></li>
 <li><a href="usage-contracts.html">Security contracts</a></li>
 <li><a href="usage-import-observations.html">guardana import-observations</a></li>
@@ -123,8 +124,9 @@
 <li><a href="design/repeated-trials.html">Repeated trials<span class="tag">implemented</span></a></li>
 <li><a href="design/documentation-site.html">A documentation site<span class="tag">implemented</span></a></li>
 <li><a href="design/judge-error-correction.html">Judge error in a measured rate<span class="tag">implemented</span></a></li>
-<li><a href="design/regrading-stored-exchanges.html">Re-grading stored exchanges<span class="tag">proposed</span></a></li>
+<li><a href="design/regrading-stored-exchanges.html">Re-grading stored exchanges<span class="tag">superseded</span></a></li>
 <li><a href="design/anytime-valid-monitoring.html">Anytime-valid monitoring<span class="tag">proposed</span></a></li>
+<li><a href="design/recorded-answers.html">Recorded answers and regrading<span class="tag">accepted</span></a></li>
 <li><a href="design/run-manifest-v2.html">Run manifest v2<span class="tag">implemented</span></a></li>
 <li><a href="design/privacy-and-redaction.html">Privacy and redaction<span class="tag">implemented</span></a></li>
 <li><a href="design/exit-codes.html">Exit codes and gate semantics<span class="tag">implemented</span></a></li>
@@ -172,6 +174,7 @@
 </ul>
 <h2>Recorded applications</h2><ul>
 <li><a href="usage-analyze-trace.html">guardana analyze-trace</a></li>
+<li><a href="usage-grade.html">guardana grade<span class="tag">beta</span></a></li>
 <li><a href="usage-trace-inspect.html">guardana trace inspect</a></li>
 <li><a href="usage-contracts.html">Security contracts</a></li>
 <li><a href="usage-import-observations.html">guardana import-observations</a></li>
@@ -242,8 +245,9 @@
 <li><a href="design/repeated-trials.html">Repeated trials<span class="tag">implemented</span></a></li>
 <li><a href="design/documentation-site.html">A documentation site<span class="tag">implemented</span></a></li>
 <li><a href="design/judge-error-correction.html">Judge error in a measured rate<span class="tag">implemented</span></a></li>
-<li><a href="design/regrading-stored-exchanges.html">Re-grading stored exchanges<span class="tag">proposed</span></a></li>
+<li><a href="design/regrading-stored-exchanges.html">Re-grading stored exchanges<span class="tag">superseded</span></a></li>
 <li><a href="design/anytime-valid-monitoring.html">Anytime-valid monitoring<span class="tag">proposed</span></a></li>
+<li><a href="design/recorded-answers.html">Recorded answers and regrading<span class="tag">accepted</span></a></li>
 <li><a href="design/run-manifest-v2.html">Run manifest v2<span class="tag">implemented</span></a></li>
 <li><a href="design/privacy-and-redaction.html">Privacy and redaction<span class="tag">implemented</span></a></li>
 <li><a href="design/exit-codes.html">Exit codes and gate semantics<span class="tag">implemented</span></a></li>
@@ -258,7 +262,7 @@
 </nav>
 </details>
 <main>
-<h1>Python API<span class="status beta">beta</span></h1><p class="lede"><code>guardana.core.verify</code>: run what <code>guardana scan</code> and <code>guardana probe</code> run, and read every outcome as typed data</p><p><code>guardana.core.verify</code> runs Guardana from Python and returns the run as typed data. <code>guardana scan</code> and <code>guardana probe</code> run through the same module, so a run from Python and a run from the command line compose the same steps: discovery under a stated plugin trust, local rules, calibrations, the canary passes of a probe, redaction, the baseline, the gate and the saved-run manifest.</p>
+<h1>Python API<span class="status beta">beta</span></h1><p class="lede"><code>guardana.core.verify</code>: run what <code>guardana scan</code> and <code>guardana probe</code> run, and read every outcome as typed data</p><p><code>guardana.core.verify</code> runs Guardana from Python and returns the run as typed data. <code>guardana scan</code>, <code>guardana probe</code> and <code>guardana grade</code> run through the same module, so a run from Python and a run from the command line compose the same steps: discovery under a stated plugin trust, local rules, calibrations, the canary passes of a probe, redaction, the baseline, the gate and the saved-run manifest.</p>
 <pre><code class="language-python">from pathlib import Path
 
 from guardana.core.plugins import PluginMode, PluginTrust
@@ -325,10 +329,13 @@ verification.save(Path(&quot;run.json&quot;))  # the document `--format json --o
 <h2 id="run-a-target">Run a target</h2>
 <pre><code class="language-python">verification = verifier.scan(path, relative_to=None, baseline=None, source=None, deployment=None)
 verification = verifier.run(target, relative_to=None, baseline=None, source=None, deployment=None)
+verification = verifier.grade(path, source=None, deployment=None)
 </code></pre>
 <ul>
 <li><code>scan</code> builds the artifact target over <code>path</code> with the profile's excludes. A path that does not exist raises <code>FileNotFoundError</code>.</li>
 <li><code>run</code> takes any target: an <code>ArtifactTarget</code> or your own file target, an <code>EndpointTarget</code>, your own endpoint target, or an <code>McpServerTarget</code>. An endpoint gets one pass per canary rule with a fresh canary planted when it implements <code>SystemPromptPlanter</code>. You own the target and close it.</li>
+<li><code>grade</code> reads a recording (<a href="usage-grade.html"><code>guardana grade</code></a>) and runs the rules against a <code>RecordedTarget</code> built from it, sending nothing to any target. The recording's digest becomes <code>manifest.target.document</code> and its own description <code>manifest.recording</code>. A recording that cannot be read, or one a probe kept at other trials per case than the profile runs, raises <code>RecordingRefusedError</code> before anything runs.</li>
+<li>With <code>privacy.keep_exchanges: true</code> in the profile, <code>run</code> keeps the chat exchanges of the built-in <code>EndpointTarget</code>'s plain pass in <code>verification.exchanges</code> and records their digest in <code>manifest.exchanges</code>; <code>save(path)</code> writes them to <code>exchanges_path(path)</code>. Any other endpoint target is refused with <code>UnsupportedTargetError</code> before anything is sent.</li>
 <li><code>relative_to</code> rewrites file paths in findings, observations and the file listing relative to that directory, as the CLI does against its working directory. <code>scan</code> also rewrites the target's own reference; <code>run</code> never does, because a third-party target owns its locator.</li>
 <li><code>baseline</code> is a <code>Baseline</code> from <code>guardana.core.report.baseline.read_baseline(path)</code>; its findings are waived after redaction and before the gate.</li>
 <li><code>source</code> (<code>RunSource</code>) and <code>deployment</code> (<code>DeploymentRef</code>) describe where the run came from and which deployment it verifies. Left out, the run is recorded as local and the deployment as undeclared; the engine reads neither from the environment.</li>
@@ -373,8 +380,12 @@ verification = verifier.run(target, relative_to=None, baseline=None, source=None
 <td>What each judge configured under <code>evaluators:</code> spent, and which judge's own ceiling stopped the run.</td>
 </tr>
 <tr>
+<td><code>exchanges</code></td>
+<td>The <code>Recording</code> of the chat exchanges the run kept under <code>privacy.keep_exchanges</code>, redacted, or <code>None</code>.</td>
+</tr>
+<tr>
 <td><code>document()</code>, <code>save(path)</code></td>
-<td>The saved-run document, in the current run schema (<a href="usage-run.html">saved runs</a>).</td>
+<td>The saved-run document, in the current run schema (<a href="usage-run.html">saved runs</a>); <code>save</code> also writes kept exchanges to <code>exchanges_path(path)</code> (<code>run.json</code> → <code>run.exchanges.jsonl</code>).</td>
 </tr>
 </tbody>
 </table></div>
@@ -411,9 +422,14 @@ verification = verifier.run(target, relative_to=None, baseline=None, source=None
 <td><code>3</code></td>
 </tr>
 <tr>
+<td><code>RecordingRefusedError</code></td>
+<td><code>grade</code> was given a recording that cannot be read, or one a probe kept at other trials per case than this profile runs.</td>
+<td><code>3</code></td>
+</tr>
+<tr>
 <td><code>UnsupportedTargetError</code></td>
-<td>A trace target. Its unreadable records and its contracts are read by <a href="usage-analyze-trace.html"><code>guardana analyze-trace</code></a>, which this module does not run.</td>
-<td>—</td>
+<td>A trace target. Its unreadable records and its contracts are read by <a href="usage-analyze-trace.html"><code>guardana analyze-trace</code></a>, which this module does not run. Also an endpoint target other than the built-in one under <code>privacy.keep_exchanges</code>.</td>
+<td><code>3</code> for <code>probe --keep-exchanges</code></td>
 </tr>
 <tr>
 <td><code>TargetReusedError</code></td>
@@ -424,7 +440,7 @@ verification = verifier.run(target, relative_to=None, baseline=None, source=None
 </table></div>
 <p>A profile that does not load raises <code>ProfileError</code> from <code>guardana.core.profile</code>. Ctrl-C propagates as <code>KeyboardInterrupt</code>.</p>
 <h2 id="what-is-supported">What is supported</h2>
-<p>The supported surface is <code>guardana.core.verify.__all__</code>: <code>Verifier</code>, <code>Verification</code>, <code>EndpointBuilder</code> and the errors above, with the argument and field names on this page. A test pins their signatures. Everything else is internal and may change in any release: the <code>Runner</code>, the registry's load state, <code>guardana.cli.*</code>, and every module or name that starts with <code>_</code>.</p>
+<p>The supported surface is <code>guardana.core.verify.__all__</code>: <code>Verifier</code>, <code>Verification</code>, <code>EndpointBuilder</code>, <code>exchanges_path</code> and the errors above, with the argument and field names on this page. A test pins their signatures. Everything else is internal and may change in any release: the <code>Runner</code>, the registry's load state, <code>guardana.cli.*</code>, and every module or name that starts with <code>_</code>.</p>
 <p>Until 1.0, a change to the supported surface is announced under &quot;Changed — breaking&quot; in the <a href="https://github.com/guardana/guardana/blob/main/CHANGELOG.md">changelog</a> with what to write instead, and the old spelling keeps working with a <code>DeprecationWarning</code> for at least one minor release wherever that is possible. Not covered yet: <code>monitor</code>, <code>baseline create</code>, trace analysis and the import of observations run only from the command line, and the partial result of a run whose target failed mid-run is not kept.</p>
 
 </main>

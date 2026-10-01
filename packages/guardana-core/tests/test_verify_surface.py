@@ -13,6 +13,7 @@ _SURFACE = {
     "CalibrationError",
     "EndpointBuilder",
     "JudgeUnreachableError",
+    "RecordingRefusedError",
     "TargetReusedError",
     "TargetUnavailableError",
     "UnenforceableBudgetError",
@@ -20,6 +21,7 @@ _SURFACE = {
     "Verification",
     "VerificationError",
     "Verifier",
+    "exchanges_path",
 }
 
 
@@ -29,6 +31,7 @@ def test_the_supported_names_are_exactly_the_documented_ones() -> None:
 
 def test_every_error_derives_from_one_base() -> None:
     errors = [getattr(verify, name) for name in _SURFACE if name.endswith("Error")]
+    assert errors
 
     assert all(issubclass(error, verify.VerificationError) for error in errors)
 
@@ -50,12 +53,14 @@ def test_the_verifier_takes_the_documented_arguments_and_trust_is_required() -> 
     assert parameters["trust"].default is inspect.Parameter.empty
 
 
-def test_scan_and_run_take_the_documented_keywords() -> None:
+def test_scan_run_and_grade_take_the_documented_keywords() -> None:
     scan = inspect.signature(verify.Verifier.scan).parameters
     run = inspect.signature(verify.Verifier.run).parameters
+    grade = inspect.signature(verify.Verifier.grade).parameters
 
     assert list(scan) == ["self", "path", "relative_to", "baseline", "source", "deployment"]
     assert list(run) == ["self", "target", "relative_to", "baseline", "source", "deployment"]
+    assert list(grade) == ["self", "path", "source", "deployment"]
 
 
 def test_a_verification_holds_the_documented_fields() -> None:
@@ -65,6 +70,7 @@ def test_a_verification_holds_the_documented_fields() -> None:
         "gate",
         "judge_usage",
         "judge_stops",
+        "exchanges",
     ]
     for member in ("exit_code", "passed", "open_questions", "document", "save"):
         assert hasattr(verify.Verification, member), member
