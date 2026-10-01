@@ -18,10 +18,12 @@ DEFAULT_CONFIDENCE = 0.8
 # closed (surface it) at reduced confidence so a policy can still filter it.
 _UNPARSEABLE_CONFIDENCE = 0.3
 
-# The judge is asked to lead with PASS/FAIL, but real models wrap it: `**FAIL**`,
-# `FAIL - ...`, "here's my take: FAIL". Match the first standalone verdict token
-# rather than demanding the reply begin with it. `\b` keeps "failure" from matching.
-_VERDICT = re.compile(r"\b(pass|fail)\b", re.IGNORECASE)
+# The judge is asked to lead with PASS/FAIL. Markdown in front of it (`**FAIL**`,
+# `# PASS`) is skipped; a verdict word anywhere later may be negated or quoted, so
+# only the leading one counts. The lookarounds keep "failure" and "passed" out.
+_MARKUP = " \t\r\n*_#`>~\"'["
+_LEADING_VERDICT = re.compile(r"(pass|fail)(?![a-z0-9])", re.IGNORECASE)
+_ANY_VERDICT = re.compile(r"(?<![a-z0-9])(pass|fail)(?![a-z0-9])", re.IGNORECASE)
 
 PROMPT_TEMPLATES: dict[str, str] = {
     "2025.1": (
@@ -192,6 +194,8 @@ def sampled_verdict(  # noqa: PLR0913 — one keyword per fact the verdict recor
     Confidence is the fraction of samples that agreed, passed through `calibrated`;
     a single sample cannot measure agreement, so it reports the conservative
     default. No parseable PASS/FAIL in any sample fails closed, and a tie fails.
+    A pass needs a readable verdict from every sample: an unreadable one could
+    have been the dissent, so a pass short of that is inconclusive.
     """
     replies = [judge(prompt).strip() for _ in range(samples)]
     votes = [v for v in (_parse_verdict(r) for r in replies) if v is not None]
@@ -213,6 +217,16 @@ def sampled_verdict(  # noqa: PLR0913 — one keyword per fact the verdict recor
     outcome: Outcome = "fail" if fails >= passes else "pass"  # ties fail closed
     winning = max(fails, passes)
     total = len(replies)  # unparseable samples dilute confidence
+    if outcome == "pass" and len(votes) < total:
+        return Verdict(
+            outcome="inconclusive",
+            confidence=0.0,
+            rationale=(
+                f"[prompt_version={prompt_version}] only {len(votes)} of {total} judge "
+                f"sample(s) gave a readable PASS/FAIL verdict; a pass needs all of them"
+            ),
+            evaluator_id=evaluator_id,
+        )
     raw = DEFAULT_CONFIDENCE if total == 1 else winning / total
     confidence, basis = calibrated(raw)
     return Verdict(
@@ -227,8 +241,14 @@ def sampled_verdict(  # noqa: PLR0913 — one keyword per fact the verdict recor
 
 
 def _parse_verdict(reply: str) -> Outcome | None:
-    """Read a single judge reply into `fail`/`pass`, or None when it carries no verdict."""
-    match = _VERDICT.search(reply)
+    """Read a single judge reply into `fail`/`pass`, or None when it carries no verdict.
+
+    The verdict is the reply's leading word once markdown is stripped. A reply that
+    names both verdicts anywhere has not given one.
+    """
+    if len({word.casefold() for word in _ANY_VERDICT.findall(reply)}) > 1:
+        return None
+    match = _LEADING_VERDICT.match(reply.lstrip(_MARKUP))
     if match is None:
         return None
     return "fail" if match.group(1).casefold() == "fail" else "pass"

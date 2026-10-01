@@ -239,18 +239,42 @@ def test_a_consent_that_never_recorded_its_scopes_makes_the_rule_decline_by_name
     assert "agent" in inconclusive(results)[0].evidence.summary
 
 
-def test_a_hop_that_never_recorded_its_scopes_is_not_compared() -> None:
+def test_a_hop_that_never_recorded_its_scopes_makes_the_rule_decline_by_name() -> None:
+    """The hop may have used any scope, so "nothing ungranted was used" is unprovable."""
     trace = trace_of(
         span("s1", consents=(Consent(client="agent", granted=True, scopes=("read",)),)),
         span("s2", delegations=(Delegation(actor="agent", boundary="a->b", scopes=None),)),
     )
-    assert graded(ConsentScopeExceededRule(), trace) == ()
+    results = graded(ConsentScopeExceededRule(), trace)
+    assert findings(results) == ()
+    assert len(inconclusive(results)) == 1
+    assert "'a->b'" in inconclusive(results)[0].evidence.summary
 
 
-def test_a_hop_by_a_client_with_no_consent_record_at_all_is_not_compared() -> None:
+def test_a_scope_used_by_a_client_with_no_consent_record_at_all_is_a_finding() -> None:
+    """Consent is recorded in this trace, and none of it is for this client: nothing granted."""
     trace = trace_of(
         span("s1", consents=(Consent(client="other", granted=True, scopes=("read",)),)),
         span("s2", delegations=(Delegation(actor="agent", boundary="a->b", scopes=("write",)),)),
+    )
+    found = findings(graded(ConsentScopeExceededRule(), trace))
+    assert len(found) == 1
+    assert "no consent" in found[0].evidence.summary
+    assert "write" in found[0].evidence.summary
+
+
+def test_a_scope_used_where_the_trace_records_consent_and_holds_none_is_a_finding() -> None:
+    """A declared dimension is believed: a consent-recording producer that saw none saw none."""
+    trace = trace_of(
+        span("s2", delegations=(Delegation(actor="agent", boundary="a->b", scopes=("write",)),)),
+    )
+    assert len(findings(graded(ConsentScopeExceededRule(), trace))) == 1
+
+
+def test_a_hop_using_no_scope_needs_no_consent_record() -> None:
+    trace = trace_of(
+        span("s1", consents=(Consent(client="other", granted=True, scopes=("read",)),)),
+        span("s2", delegations=(Delegation(actor="agent", boundary="a->b", scopes=()),)),
     )
     assert graded(ConsentScopeExceededRule(), trace) == ()
 
@@ -691,6 +715,24 @@ def test_a_handoff_that_did_not_record_its_scopes_declines_by_name() -> None:
 
     assert findings(results) == ()
     assert len(inconclusive(results)) == 1
+
+
+def test_a_receiver_delegation_that_did_not_record_its_scopes_declines_by_name() -> None:
+    """The receiver may have used anything on that hop, so staying inside is unprovable."""
+    trace = trace_of(
+        _handoff_span(("docs:read",)),
+        span(
+            "s2",
+            agent=AgentRef(name="writer"),
+            delegations=(Delegation(actor="writer", boundary="writer->db", scopes=None),),
+        ),
+    )
+
+    results = graded(HandoffAuthorityExpansionRule(), trace)
+
+    assert findings(results) == ()
+    assert len(inconclusive(results)) == 1
+    assert "'writer->db'" in inconclusive(results)[0].evidence.summary
 
 
 def test_a_handoff_carrying_no_scopes_at_all_still_bounds_the_receiver() -> None:

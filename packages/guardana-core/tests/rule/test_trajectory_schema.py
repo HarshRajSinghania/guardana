@@ -120,13 +120,14 @@ def test_a_rule_built_in_python_with_a_provable_delivery_is_built(tmp_path: Path
     assert rule.expectation.get("payload_marker") == "audit-sync@evil.example"
 
 
-def test_the_delivery_checks_belong_to_tool_call_only(tmp_path: Path) -> None:
+def test_the_delivery_checks_hold_whichever_evaluator_grades(tmp_path: Path) -> None:
+    # The rule, not the evaluator, proves the payload arrived, so a rule graded by
+    # anything else is held to the same delivery it would be under `tool_call`.
     rule = _hand_built(tmp_path)
 
-    built = replace(
-        rule,
-        meta=replace(rule.meta, evaluator="acme.grader"),
-        expectation=Expectation(fields={"delivered_by": "recall"}),
-    )
-
-    assert built.meta.evaluator == "acme.grader"
+    with pytest.raises(RuleLoadError, match="payload_marker"):
+        replace(
+            rule,
+            meta=replace(rule.meta, evaluator="acme.grader"),
+            expectation=Expectation(fields={"delivered_by": "recall"}),
+        )

@@ -42,11 +42,12 @@ class HandoffAuthorityExpansionRule(TraceRule):
     def examine(self, trace: Trace) -> Iterator[Finding]:
         """Compare what crossed each handoff against what the receiving agent then used.
 
-        Three ways this declines, and each is a different unknown. A handoff whose
+        Four ways this declines, and each is a different unknown. A handoff whose
         `carried_scopes` is `None` did not record what crossed, which is not a record
         that nothing did. A trace whose spans carry no actor cannot attribute later
         work to the receiver at all — the common shape of an OpenTelemetry export that
-        never set `gen_ai.agent.name`. And a receiver that performed no recorded
+        never set `gen_ai.agent.name`. A receiver's delegation whose `scopes` is `None`
+        did not record what it used. And a receiver that performed no recorded
         delegation used no authority this build can see, which is silence rather than a
         pass only because there is genuinely nothing to compare.
         """
@@ -88,16 +89,22 @@ class HandoffAuthorityExpansionRule(TraceRule):
             )
 
     def _after(self, trace: Trace, handoff_span: Span) -> Iterator[Finding]:
-        """Grade every delegation the receiving agent made once the work reached it."""
+        """Grade every delegation the receiving agent made once the work reached it.
+
+        A delegation that did not record its scopes may have used any of them, so it
+        declines by name rather than counting as one that stayed inside the ceiling.
+        """
         handoff = handoff_span.handoff
         if handoff is None or handoff.carried_scopes is None:
             return
         carried = set(handoff.carried_scopes)
+        unrecorded: list[str] = []
         for span in trace.after(handoff_span.span_id):
             if span.agent is None or span.agent.name != handoff.to_agent:
                 continue
             for hop in span.delegations:
                 if hop.scopes is None:
+                    unrecorded.append(f"{hop.boundary!r} in span {span.span_id}")
                     continue
                 gained = sorted(set(hop.scopes) - carried)
                 if not gained:
@@ -109,3 +116,10 @@ class HandoffAuthorityExpansionRule(TraceRule):
                     f"{', '.join(gained)} across {hop.boundary!r} in span {span.span_id}",
                     span=span,
                 )
+        if unrecorded:
+            yield self.unverified(
+                trace,
+                f"{handoff.to_agent} received work from {handoff.from_agent} and then "
+                f"delegated across {'; '.join(unrecorded)} without recording which scopes it "
+                f"used, so {self.claim} for those hops",
+            )

@@ -36,39 +36,53 @@ class ConsentScopeExceededRule(TraceRule):
     claim = "whether an ungranted scope was exercised is not established"
 
     def examine(self, trace: Trace) -> Iterator[Finding]:
-        """Compare exercised scopes against granted ones, declining where a grant is silent.
+        """Compare exercised scopes against granted ones, declining where either is silent.
 
         A consent that says nothing about its scopes makes "this scope was never granted"
-        unprovable for that client, so the rule declines by name for it rather than
-        treating an unrecorded grant as a grant of nothing. A grant of `()` is different
-        and is believed: it says the client was granted no scopes, and a hop exercising
-        one then is a finding.
+        unprovable for that client, and a hop that says nothing about the scopes it used
+        makes "nothing ungranted was used" unprovable for that hop; the rule declines by
+        name for both. A grant of `()` is different and is believed, and so is the
+        absence of any consent for a client in a trace that records consent: either
+        way the client was granted nothing, and a hop exercising a scope is a finding.
         """
         granted, silent = self._grants(trace)
-        if not granted:
-            return
         if silent:
             yield self.unverified(
                 trace,
                 f"the consent record(s) for {', '.join(sorted(silent))} do not say which "
                 f"scopes were granted, so {self.claim} for them",
             )
+        unrecorded: list[str] = []
         for span in trace.spans:
             for hop in span.delegations:
-                if hop.scopes is None or hop.actor in silent or hop.actor not in granted:
+                if hop.actor in silent:
                     continue
-                allowed = granted[hop.actor]
-                exceeded = sorted(set(hop.scopes) - allowed)
+                if hop.scopes is None:
+                    unrecorded.append(f"{hop.actor} across {hop.boundary!r} in span {span.span_id}")
+                    continue
+                allowed = granted.get(hop.actor)
+                exceeded = sorted(set(hop.scopes) - (allowed or set()))
                 if not exceeded:
                     continue
+                if allowed is None:
+                    grant = "no consent is recorded for that client"
+                else:
+                    grant = (
+                        f"the consent recorded for that client grants "
+                        f"{', '.join(sorted(allowed)) if allowed else 'nothing'}"
+                    )
                 yield self.finding(
                     trace,
                     f"{hop.actor} exercised scope(s) {', '.join(exceeded)} across "
-                    f"{hop.boundary!r} in span {span.span_id}, and the consent recorded for "
-                    f"that client grants "
-                    f"{', '.join(sorted(allowed)) if allowed else 'nothing'}",
+                    f"{hop.boundary!r} in span {span.span_id}, and {grant}",
                     span=span,
                 )
+        if unrecorded:
+            yield self.unverified(
+                trace,
+                f"the delegation(s) by {'; '.join(unrecorded)} do not say which scopes were "
+                f"used, so {self.claim} for them",
+            )
 
     def _grants(self, trace: Trace) -> tuple[dict[str, set[str]], set[str]]:
         """Collect what each client was granted, and which clients' grants stayed silent.

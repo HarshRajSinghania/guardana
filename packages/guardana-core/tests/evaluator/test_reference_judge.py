@@ -53,6 +53,22 @@ def test_an_unparseable_judge_fails_closed() -> None:
     assert verdict.confidence == 0.3
 
 
+def test_a_pass_named_beside_a_fail_is_not_read_as_pass() -> None:
+    verdict = ReferenceJudgeEvaluator(lambda p: "Do not PASS; FAIL: says Lyon").evaluate(
+        Exchange.single_reply("Lyon"), _EXPECT
+    )
+    assert verdict.outcome != "pass"
+    assert "could not read" in verdict.rationale
+
+
+def test_an_unreadable_sample_beside_a_pass_is_inconclusive() -> None:
+    replies = iter(["PASS: matches", "hard to say"])
+    verdict = ReferenceJudgeEvaluator(lambda p: next(replies), min_agreement=2).evaluate(
+        Exchange.single_reply("Paris"), _EXPECT
+    )
+    assert verdict.outcome == "inconclusive"
+
+
 def test_confidence_is_the_share_of_samples_that_agreed() -> None:
     replies = iter(["PASS", "PASS", "FAIL", "PASS"])
     verdict = ReferenceJudgeEvaluator(lambda p: next(replies), min_agreement=4).evaluate(

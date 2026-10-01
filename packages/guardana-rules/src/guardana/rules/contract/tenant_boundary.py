@@ -37,6 +37,9 @@ class TenantBoundaryRule(ContractRule[TenantBoundary]):
         A store glob is free text — nothing at load time can tell `kb://*` from a
         typo — and an assertion scoped to a store this execution never touched
         verified nothing, however green it looks.
+
+        A query or a document that names no tenant is unattributed: one named tenant
+        elsewhere says nothing about which tenant it served, so it declines by name.
         """
         sources = self.assertion.sources
         selected = [
@@ -64,6 +67,14 @@ class TenantBoundaryRule(ContractRule[TenantBoundary]):
             )
             return
         yield from self._crossings(trace, tenants)
+        unnamed = [span.span_id for span, retrieval in selected if retrieval.tenant is None]
+        if unnamed:
+            yield self.unverified(
+                trace,
+                f"{len(unnamed)} retrieval(s) record no tenant on its query (span(s) "
+                f"{', '.join(unnamed)}), so whether those queries were made for this "
+                f"execution's tenant is not established",
+            )
         unattributed = sum(
             1 for _span, retrieval in selected for d in retrieval.documents if d.tenant is None
         )
