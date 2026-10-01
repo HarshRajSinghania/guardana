@@ -173,7 +173,8 @@ def test_the_adapter_default_fetch_names_the_endpoint_without_its_query(
             self.close()
 
     monkeypatch.setattr(
-        "guardana.core.target.adapter.urlopen", lambda *args, **kwargs: _Response(b"not json")
+        "guardana.core.target.adapter.open_unredirected",
+        lambda *args, **kwargs: _Response(b"not json"),
     )
     config = AdapterConfig(
         url=f"https://api.example.com/chat?key={_MARKER}",

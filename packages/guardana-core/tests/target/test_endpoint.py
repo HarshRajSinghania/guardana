@@ -125,7 +125,7 @@ class _CannedResponse:
 
 def test_non_json_response_raises_endpoint_error(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "guardana.core.target.endpoint.urlopen",
+        "guardana.core.target.endpoint.open_unredirected",
         lambda request, timeout: _CannedResponse(b"<html>502 Bad Gateway</html>"),
     )
     with pytest.raises(EndpointError, match="non-JSON"):
@@ -142,7 +142,7 @@ def test_openai_v1_base_url_is_not_doubled(monkeypatch: pytest.MonkeyPatch) -> N
         seen["url"] = request.full_url
         return _CannedResponse(b'{"choices": [{"message": {"content": "ok"}}]}')
 
-    monkeypatch.setattr("guardana.core.target.endpoint.urlopen", fake_urlopen)
+    monkeypatch.setattr("guardana.core.target.endpoint.open_unredirected", fake_urlopen)
 
     target = EndpointTarget("https://api.openai.com/v1", "m")
     reply = target.chat([ChatMessage("user", "hi")])
@@ -163,7 +163,7 @@ def test_urllib_transport_posts_openai_chat_shape(monkeypatch: pytest.MonkeyPatc
         seen["body"] = json.loads(body)
         return _CannedResponse(b'{"choices": [{"message": {"content": "ok"}}]}')
 
-    monkeypatch.setattr("guardana.core.target.endpoint.urlopen", fake_urlopen)
+    monkeypatch.setattr("guardana.core.target.endpoint.open_unredirected", fake_urlopen)
 
     reply = UrllibTransport().send("http://x", "m", [ChatMessage("user", "hi")], "k")
 

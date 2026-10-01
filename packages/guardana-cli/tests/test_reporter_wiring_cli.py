@@ -178,7 +178,7 @@ def test_the_reporter_carries_the_collector_token_when_one_is_set(
 
     reporter = reporter_from_url("server://http://collector")
     monkeypatch.setattr(
-        "guardana.core.reporter.urlopen",
+        "guardana.core.reporter.open_unredirected",
         lambda request, timeout: _record(sent, request),
     )
     reporter.submit(ScanResult((), (), ()), source="test")
@@ -195,7 +195,7 @@ def test_no_token_means_no_authorization_header(monkeypatch: pytest.MonkeyPatch)
 
     reporter = reporter_from_url("server://http://collector")
     monkeypatch.setattr(
-        "guardana.core.reporter.urlopen",
+        "guardana.core.reporter.open_unredirected",
         lambda request, timeout: _record(sent, request),
     )
     reporter.submit(ScanResult((), (), ()), source="test")

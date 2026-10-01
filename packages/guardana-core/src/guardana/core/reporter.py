@@ -1,19 +1,21 @@
 import json
 from collections.abc import Callable
+from dataclasses import replace
 from datetime import datetime
 from typing import Protocol
 from urllib.parse import SplitResult, urlsplit, urlunsplit
-from urllib.request import Request, urlopen
+from urllib.request import Request
 
 from guardana.core.diff.compare import finding_identity
 from guardana.core.fingerprint import digest_of
 from guardana.core.manifest.identity import DeploymentRef
 from guardana.core.manifest.model import RunManifest
-from guardana.core.redaction import EvidenceRedactor
+from guardana.core.redaction import EvidenceMode, EvidenceRedactor
 from guardana.core.report import Finding
 from guardana.core.report.result import ScanResult
 from guardana.core.report.serialize import finding_to_dict
 from guardana.core.target import private_url_parts
+from guardana.core.target.endpoint import open_unredirected
 
 _TIMEOUT_SECONDS = 30
 
@@ -181,11 +183,13 @@ def _serialize(
     source: str,
     deployment: DeploymentRef | None,
     run: RunManifest | None,
+    shown_source: str | None = None,
 ) -> bytes:
+    """Build the envelope; identities use `source`, the wire shows `shown_source` when given."""
     max_sev = result.max_severity()
     payload: dict[str, object] = {
         "schema_version": ENVELOPE_SCHEMA_VERSION,
-        "source": source,
+        "source": source if shown_source is None else shown_source,
         "findings": [_identified(f, source) for f in result.findings],
         # Never dropped: a check that ran but could not grade is not a pass. The
         # collector must see it, or a dashboard renders a false all-clear on a
@@ -220,7 +224,7 @@ def _urllib_transport(url: str, payload: bytes, *, api_key: str | None) -> None:
         headers["Authorization"] = f"Bearer {api_key}"
     # S310 x2: the scheme is validated to be http/https in HttpReporter.__init__.
     request = Request(url, data=payload, headers=headers, method="POST")  # noqa: S310
-    with urlopen(request, timeout=_TIMEOUT_SECONDS):  # noqa: S310
+    with open_unredirected(request, timeout=_TIMEOUT_SECONDS):
         pass
 
 
@@ -256,15 +260,29 @@ class HttpReporter:
         # Applied here rather than by the caller: this is the path that leaves the
         # machine, and it must not depend on whoever wired the reporter up.
         self._redactor = redactor if redactor is not None else EvidenceRedactor()
+        # The source is the collector's grouping key, so `metadata_only` must not
+        # blank it; it is redacted as strictly as anything that is kept.
+        policy = self._redactor.policy
+        self._source_redactor = (
+            EvidenceRedactor(replace(policy, mode=EvidenceMode.REDACTED))
+            if policy.mode is EvidenceMode.METADATA_ONLY
+            else self._redactor
+        )
 
     def _default_transport(self, url: str, payload: bytes) -> None:
         _urllib_transport(url, payload, api_key=self._api_key)
 
     def submit(self, result: ScanResult, *, source: str) -> None:
-        """POST the normalized envelope to the collector."""
+        """POST the normalized envelope to the collector, its source redacted like its findings.
+
+        A finding's cross-run identity is still computed from the source as given: it
+        leaves the machine only as a digest, and has to match the one a local diff
+        computes.
+        """
         payload = _serialize(
             self._redactor.redact_result(result),
             source=source,
+            shown_source=self._source_redactor.redact_text(source),
             deployment=self._deployment,
             run=self._run,
         )

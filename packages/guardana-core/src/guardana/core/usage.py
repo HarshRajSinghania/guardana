@@ -111,6 +111,8 @@ class UsageMeter:
         self._output_tokens = 0
         self._missing_token_counts = 0
         self._any_tokens_reported = False
+        self._input_uncounted = False
+        self._output_uncounted = False
 
     def apply(self, budgets: "Budgets") -> None:
         """Adopt new ceilings without forgetting what has already been spent.
@@ -147,6 +149,7 @@ class UsageMeter:
         with self._lock:
             if budgets.max_requests is not None and self._reserved >= budgets.max_requests:
                 raise BudgetExhausted(f"request budget of {budgets.max_requests} is spent")
+            self._refuse_an_unenforceable_ceiling(budgets)
             self._reserved += 1
             input_tokens, output_tokens = self._input_tokens, self._output_tokens
         elapsed = self._clock() - self._started_at
@@ -167,6 +170,36 @@ class UsageMeter:
             self._any_tokens_reported = True
             self._input_tokens += tokens.input_tokens or 0
             self._output_tokens += tokens.output_tokens or 0
+
+    def record_reply(self, tokens: TokenUsage | None) -> None:
+        """Record one model reply, stopping the run if it leaves a token ceiling blind.
+
+        A reply without the count a ceiling is checked against adds nothing to that
+        sum, so every later request would pass the ceiling however much it cost. The
+        reply is counted and then refused with `BudgetExhausted`, and so is every
+        later claim on this meter: the run stops as one whose budget can no longer be
+        held, rather than finishing unbounded.
+        """
+        self.record(tokens)
+        with self._lock:
+            if tokens is None or tokens.input_tokens is None:
+                self._input_uncounted = True
+            if tokens is None or tokens.output_tokens is None:
+                self._output_uncounted = True
+            self._refuse_an_unenforceable_ceiling(self._budgets)
+
+    def _refuse_an_unenforceable_ceiling(self, budgets: Budgets) -> None:
+        """Raise when a token ceiling is set over a sum some reply left out of."""
+        if budgets.max_input_tokens is not None and self._input_uncounted:
+            raise BudgetExhausted(
+                f"a reply carried no input token count, so the budget of "
+                f"{budgets.max_input_tokens} input tokens cannot be enforced"
+            )
+        if budgets.max_output_tokens is not None and self._output_uncounted:
+            raise BudgetExhausted(
+                f"a reply carried no output token count, so the budget of "
+                f"{budgets.max_output_tokens} output tokens cannot be enforced"
+            )
 
     def snapshot(self) -> TargetUsage:
         """Return what has been spent so far.

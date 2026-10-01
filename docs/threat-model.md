@@ -106,7 +106,9 @@ operator *types*, and they are answered differently.
   permitted hop used to hand the bearer token from `--mcp-token-env` to whatever
   origin the server named — the same confused deputy as the address, aimed at the
   credential. A hop to a different scheme, host or port now carries no
-  `Authorization` and no `Mcp-Session-Id`.
+  `Authorization` and no `Mcp-Session-Id`. The model endpoint, an `--adapter`
+  endpoint and the collector follow no redirect at all: a `3xx` there is an
+  unavailable target or a rejected submission, never a request sent elsewhere.
 - **Typed by the operator — unrestricted, deliberately.** `--url` and `--mcp` go
   where they are pointed, including at internal and loopback addresses. That is
   not an oversight and it is not pending work: scanning an internal endpoint is the

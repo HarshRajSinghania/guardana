@@ -13,11 +13,17 @@ path does not resolve to text, is an error, never a silent empty exchange.
 import json
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
+from urllib.error import HTTPError
 from urllib.parse import urlsplit
-from urllib.request import Request, urlopen
+from urllib.request import Request
 
 from guardana.core.target._url import display_url
-from guardana.core.target.endpoint import ChatMessage, EndpointError
+from guardana.core.target.endpoint import (
+    ChatMessage,
+    EndpointError,
+    open_unredirected,
+    redirect_refusal,
+)
 
 _TIMEOUT_SECONDS = 30
 _MAX_RESPONSE_BYTES = 8 * 1024 * 1024
@@ -110,8 +116,14 @@ def extract_path(payload: object, path: str, *, ref: str) -> str:
 def _default_fetch(url: str, data: bytes, headers: Mapping[str, str]) -> object:
     # S310: the scheme is validated to be http/https in HttpAdapterTransport.__init__.
     request = Request(url, data=data, headers=dict(headers), method="POST")  # noqa: S310
-    with urlopen(request, timeout=_TIMEOUT_SECONDS) as response:  # noqa: S310
-        raw = response.read(_MAX_RESPONSE_BYTES + 1)
+    try:
+        with open_unredirected(request, timeout=_TIMEOUT_SECONDS) as response:
+            raw = response.read(_MAX_RESPONSE_BYTES + 1)
+    except HTTPError as exc:
+        refusal = redirect_refusal(exc, display_url(url))
+        if refusal is not None:
+            raise refusal from exc
+        raise
     if len(raw) > _MAX_RESPONSE_BYTES:
         raise EndpointError(
             f"response from {display_url(url)} exceeds {_MAX_RESPONSE_BYTES} bytes; refusing it"

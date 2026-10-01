@@ -1,12 +1,14 @@
 import json
 import math
-from collections.abc import Sequence
-from dataclasses import dataclass
+from collections.abc import Callable, Sequence
+from contextvars import ContextVar
+from dataclasses import dataclass, replace
+from http.client import HTTPMessage, HTTPResponse
 from time import sleep as _sleep
-from typing import Literal, Protocol, runtime_checkable
+from typing import IO, Literal, Protocol, TypeVar, runtime_checkable
 from urllib.error import HTTPError
 from urllib.parse import urlsplit
-from urllib.request import Request, urlopen
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from guardana.core.budget import BudgetExhausted, Budgets
 from guardana.core.target._url import display_url
@@ -53,7 +55,68 @@ def _retry_delay(attempt: int, retry_after: str | None) -> float:
 
 
 class EndpointError(Exception):
-    """Raised when an endpoint is unusable: bad URL, or a reply guardana can't parse."""
+    """Raised when an endpoint is unusable: bad URL, a redirect, or a reply guardana can't parse."""
+
+
+_T = TypeVar("_T")
+
+_BEFORE_RETRY: ContextVar[Callable[[], None] | None] = ContextVar("_BEFORE_RETRY", default=None)
+"""What the target sending this request does before a retry goes out.
+
+A retry is another request to the model, so it has to pass the run's request
+ceiling and appear in its usage. Only the target owns the meter, and the transport
+protocol it calls through has no room to carry one.
+"""
+
+
+class _RefuseRedirects(HTTPRedirectHandler):
+    """Hands a redirect back as the `HTTPError` it is, instead of following it.
+
+    urllib re-sends a redirected POST as a GET carrying every header, the
+    credential included, to whatever origin `Location` names, and returns that
+    host's reply as if the configured address had sent it.
+    """
+
+    def redirect_request(  # noqa: PLR0913, PLR0917 — the signature urllib calls
+        self,
+        req: Request,
+        fp: IO[bytes],
+        code: int,
+        msg: str,
+        headers: HTTPMessage,
+        newurl: str,
+    ) -> Request | None:
+        """Decline every hop, so urllib raises the redirect as an error."""
+        return None
+
+
+_UNREDIRECTED = build_opener(_RefuseRedirects)
+
+
+def open_unredirected(request: Request, *, timeout: float) -> HTTPResponse:
+    """Send `request` and return the reply of the address it names, never of another.
+
+    A `3xx` raises `HTTPError` carrying the redirect's status. Shared by every
+    client that sends a credential to a configured address: the model endpoint, an
+    adapted product endpoint and the collector.
+    """
+    response: HTTPResponse = _UNREDIRECTED.open(request, timeout=timeout)
+    return response
+
+
+def redirect_refusal(exc: HTTPError, ref: str) -> EndpointError | None:
+    """Return the error a redirect from a target becomes, or None for any other status.
+
+    An endpoint that answers only somewhere else is unavailable at the address under
+    test; following it would grade another host's reply as this model's.
+    """
+    if not 300 <= exc.code < 400:  # noqa: PLR2004 — the redirect status class
+        return None
+    exc.close()
+    return EndpointError(
+        f"{ref} answered with a redirect (HTTP {exc.code}); redirects are not followed, "
+        f"so configure the address that answers directly"
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -142,10 +205,12 @@ class ToolCallReply:
     `text` is `None` when the model replied with tool calls and no prose — that is
     normal here (unlike the text-only path, where no content is a fail-closed
     error), because the tool calls are the signal an agency check grades.
+    `usage` is what the provider said the turn cost, or None when it said nothing.
     """
 
     text: str | None
     tool_calls: tuple[ToolCall, ...]
+    usage: TokenUsage | None = None
 
     @property
     def is_silent(self) -> bool:
@@ -228,12 +293,19 @@ def _read_with_retry(request: Request, ref: str) -> bytes:
     """
     for attempt in range(_MAX_ATTEMPTS):
         try:
-            with urlopen(request, timeout=REQUEST_TIMEOUT_SECONDS) as response:  # noqa: S310
+            with open_unredirected(request, timeout=REQUEST_TIMEOUT_SECONDS) as response:
                 raw: bytes = response.read(_MAX_RESPONSE_BYTES + 1)
         except HTTPError as exc:
+            refusal = redirect_refusal(exc, ref)
+            if refusal is not None:
+                raise refusal from exc
             last_attempt = attempt == _MAX_ATTEMPTS - 1
             if exc.code not in _RETRY_STATUSES or last_attempt:
                 raise
+            exc.close()
+            before_retry = _BEFORE_RETRY.get()
+            if before_retry is not None:
+                before_retry()
             _sleep(_retry_delay(attempt, exc.headers.get("Retry-After")))
         else:
             return raw
@@ -328,7 +400,7 @@ class UrllibTransport:
             api_key,
             ref,
         )
-        return _extract_tool_reply(payload, ref=ref)
+        return replace(_extract_tool_reply(payload, ref=ref), usage=extract_token_usage(payload))
 
 
 def extract_token_usage(payload: object) -> TokenUsage | None:
@@ -560,18 +632,22 @@ class EndpointTarget(Target):
     def chat(self, messages: Sequence[ChatMessage]) -> str:
         """Send `messages`, prepending the planted system prompt when one is set."""
         history = self._with_system_prompt(messages)
-        self._meter.reserve()
-        if isinstance(self._transport, UsageReportingTransport):
-            reply = self._transport.send_reporting_usage(
-                self._base_url, self._model, history, self._api_key
+        transport = self._transport
+        if isinstance(transport, UsageReportingTransport):
+            reply = self._spend(
+                lambda: transport.send_reporting_usage(
+                    self._base_url, self._model, history, self._api_key
+                )
             )
-            self._meter.record(reply.usage)
+            self._meter.record_reply(reply.usage)
             return reply.text
-        text = self._transport.send(self._base_url, self._model, history, self._api_key)
+        text = self._spend(
+            lambda: transport.send(self._base_url, self._model, history, self._api_key)
+        )
         # Recorded with no token counts rather than not recorded: the request was
         # sent and cost something, and the run should say it does not know how
         # much instead of implying it was free.
-        self._meter.record(None)
+        self._meter.record_reply(None)
         return text
 
     def offer_tools(
@@ -582,17 +658,40 @@ class EndpointTarget(Target):
         Requires a tool-calling transport (the `CALL_TOOLS` capability); the runner
         only runs a tool-using rule against a target that has it.
         """
-        if not isinstance(self._transport, ToolCallingTransport):
+        transport = self._transport
+        if not isinstance(transport, ToolCallingTransport):
             raise EndpointError(f"transport for {self.ref} does not support tool calling")
-        self._meter.reserve()
-        reply = self._transport.send_tools(
-            self._base_url, self._model, self._with_system_prompt(messages), self._api_key, tools
+        history = self._with_system_prompt(messages)
+        reply = self._spend(
+            lambda: transport.send_tools(self._base_url, self._model, history, self._api_key, tools)
         )
         # An agent probe spends most of its budget here, not in `chat`. Counting
         # only one of the two paths would under-report the most expensive thing
         # Guardana does.
-        self._meter.record(None)
+        self._meter.record_reply(reply.usage)
         return reply
+
+    def _spend(self, send: Callable[[], _T]) -> _T:
+        """Send one request through the meter, counting every attempt it takes.
+
+        An attempt that fails is counted too: it reached the endpoint, and a run it
+        aborted must not report having spent less than it did.
+        """
+        self._meter.reserve()
+        token = _BEFORE_RETRY.set(self._before_retry)
+        try:
+            return send()
+        except BudgetExhausted:
+            raise
+        except Exception:
+            self._meter.record(None)
+            raise
+        finally:
+            _BEFORE_RETRY.reset(token)
+
+    def _before_retry(self) -> None:
+        self._meter.record(None)
+        self._meter.reserve()
 
     def _with_system_prompt(self, messages: Sequence[ChatMessage]) -> list[ChatMessage]:
         if self._system_prompt is None:

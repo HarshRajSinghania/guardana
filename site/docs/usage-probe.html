@@ -299,7 +299,7 @@ Hugging Face TGI's <code>/generate</code>.</p>
 <tr>
 <td><code>--url TEXT</code></td>
 <td>—</td>
-<td>Base URL of the OpenAI-compatible endpoint. Required unless <code>--mcp</code> names an MCP server instead</td>
+<td>Base URL of the OpenAI-compatible endpoint. Required unless <code>--mcp</code> names an MCP server instead. A redirect is never followed: an endpoint that answers <code>3xx</code> is unavailable (exit <code>4</code>)</td>
 </tr>
 <tr>
 <td><code>--model TEXT</code></td>
@@ -374,7 +374,7 @@ Hugging Face TGI's <code>/generate</code>.</p>
 <tr>
 <td><code>--concurrency INTEGER</code></td>
 <td><code>4</code></td>
-<td>How many rules may query the model at once. The probe is almost entirely spent waiting on the model, so overlapping rules is the biggest speed-up available; results stay in rule order, so two runs match. Rate limits (429) are retried with backoff — lower this if an endpoint keeps refusing.</td>
+<td>How many rules may query the model at once. The probe is almost entirely spent waiting on the model, so overlapping rules is the biggest speed-up available; results stay in rule order, so two runs match. Rate limits (429) are retried with backoff — lower this if an endpoint keeps refusing. Each retry counts against <code>--max-requests</code> and in the run's usage.</td>
 </tr>
 <tr>
 <td><code>--reporter TEXT</code></td>

@@ -356,7 +356,9 @@ credential. <code>urllib</code> copies every request header onto a redirected re
 permitted hop used to hand the bearer token from <code>--mcp-token-env</code> to whatever
 origin the server named — the same confused deputy as the address, aimed at the
 credential. A hop to a different scheme, host or port now carries no
-<code>Authorization</code> and no <code>Mcp-Session-Id</code>.</li>
+<code>Authorization</code> and no <code>Mcp-Session-Id</code>. The model endpoint, an <code>--adapter</code>
+endpoint and the collector follow no redirect at all: a <code>3xx</code> there is an
+unavailable target or a rejected submission, never a request sent elsewhere.</li>
 <li><strong>Typed by the operator — unrestricted, deliberately.</strong> <code>--url</code> and <code>--mcp</code> go
 where they are pointed, including at internal and loopback addresses. That is
 not an oversight and it is not pending work: scanning an internal endpoint is the

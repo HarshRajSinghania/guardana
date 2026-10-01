@@ -165,7 +165,7 @@ Both blocks share the endpoint keys:
 | Key | Default | Meaning |
 |---|---|---|
 | `prompt_version` | `"2025.1"` | Which judging-prompt version to use; stamped into each finding's `evaluator_id` (`llm_judge@2025.1`) so results stay reproducible as the rubric evolves |
-| `min_agreement` | `1` | Samples per verdict. With more than one, confidence is the fraction of samples agreeing — a measured, judge-aware number instead of a flat constant. A reply with no parseable PASS/FAIL verdict fails closed at reduced confidence. |
+| `min_agreement` | `1` | Samples per verdict. With more than one, confidence is the fraction of samples agreeing — a measured, judge-aware number instead of a flat constant. The verdict is the first word of the judge's reply (markdown stripped); a reply with no such PASS/FAIL, or naming both, fails closed at reduced confidence, and a pass with fewer readable samples than `min_agreement` asked for is `inconclusive`. |
 
 `guard` — an external safety classifier (Llama Guard / Granite Guardian
 style) — takes only the endpoint keys. It is **opt-in on purpose** and grades
@@ -269,8 +269,13 @@ Every ceiling is optional, and `probe` takes the same four as flags
 names — it never clears one the profile configured.
 
 Ceilings are checked **before each request**, so `max_requests: 200` means 200
-requests were sent and never 201. Token and duration ceilings can only be checked
+requests were sent and never 201. A retry is a request: a call that is rate-limited
+twice and then answered spends three. Token and duration ceilings can only be checked
 once a request has been answered, so they stop the *next* one.
+
+A token ceiling is held only while replies report their token counts. The first
+reply that leaves out a count a ceiling depends on stops the run as an exhausted
+budget, exit `6`, because no later request could be measured against it.
 
 **The ceiling belongs to the run, not to a pass of it.** `probe` runs each
 canary-planting rule against a target of its own — the marker has to be in that

@@ -29,7 +29,7 @@ guardana probe (--url <base-url> --model <name> | --target <scheme://locator>) [
 
 | Flag | Default | Meaning |
 |---|---|---|
-| `--url TEXT` | — | Base URL of the OpenAI-compatible endpoint. Required unless `--mcp` names an MCP server instead |
+| `--url TEXT` | — | Base URL of the OpenAI-compatible endpoint. Required unless `--mcp` names an MCP server instead. A redirect is never followed: an endpoint that answers `3xx` is unavailable (exit `4`) |
 | `--model TEXT` | — | Model name to send in each request. Required unless `--mcp` names an MCP server instead |
 | `--target SCHEME://LOCATOR` | none | Build a trusted installed endpoint target instead of the built-in endpoint or MCP flags |
 | `--target-option KEY=VALUE` | none | Repeatable, non-secret configuration passed to that target |
@@ -44,7 +44,7 @@ guardana probe (--url <base-url> --model <name> | --target <scheme://locator>) [
 | `--plugins [all\|builtins\|allowlist\|disabled]` | `builtins`, or the profile's `plugins:` | Which installed plugins (entry-point rules, evaluators, targets, taxonomies) to load. `builtins` loads Guardana's own distributions and refuses every other installed pack before importing it; each refusal is an error, so under the default `fail_on_error` the run is `indeterminate` while a pack stays refused. See [plugin trust](profiles.md#plugin-trust-plugins) and [`SECURITY.md`](../SECURITY.md#the-plugin-trust-model). |
 | `--allow-plugin TEXT` | none | Distribution to trust; repeatable, needs `--plugins allowlist` |
 | `--trials INTEGER` | `1` (or `trials:` in the profile) | Independent attempts per case for rules that grade a sampled reply — see [Repeated trials](#repeated-trials). Every preset uses `1`; we recommend `5` for a release gate, which is also garak's default number of generations per prompt |
-| `--concurrency INTEGER` | `4` | How many rules may query the model at once. The probe is almost entirely spent waiting on the model, so overlapping rules is the biggest speed-up available; results stay in rule order, so two runs match. Rate limits (429) are retried with backoff — lower this if an endpoint keeps refusing. |
+| `--concurrency INTEGER` | `4` | How many rules may query the model at once. The probe is almost entirely spent waiting on the model, so overlapping rules is the biggest speed-up available; results stay in rule order, so two runs match. Rate limits (429) are retried with backoff — lower this if an endpoint keeps refusing. Each retry counts against `--max-requests` and in the run's usage. |
 | `--reporter TEXT` | none | Forward findings to a collector, e.g. `server://https://collector.example.com` |
 | `--mcp TEXT` | none | Examine an **MCP server** instead of a chat model — see [Probing an MCP server](#probing-an-mcp-server) |
 | `--mcp-token-env TEXT` | none | Name of an environment variable holding a bearer token for the MCP server |

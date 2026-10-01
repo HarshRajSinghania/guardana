@@ -57,7 +57,7 @@ def _install(
             raise outcome
         return outcome
 
-    monkeypatch.setattr("guardana.core.target.endpoint.urlopen", fake_urlopen)
+    monkeypatch.setattr("guardana.core.target.endpoint.open_unredirected", fake_urlopen)
     return calls
 
 
