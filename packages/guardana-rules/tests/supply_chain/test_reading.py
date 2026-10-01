@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 
 import pytest
-from guardana.rules.supply_chain._reading import MAX_SCAN_BYTES, read_text_bounded
+from guardana.rules.supply_chain._reading import MAX_SCAN_BYTES, read_text_bounded, read_text_prefix
 
 
 def test_reads_a_normal_file() -> None:
@@ -59,3 +59,11 @@ def test_a_multibyte_char_split_by_the_bound_is_truncated_not_skipped(tmp_path: 
     assert text is not None
     assert len(text) <= MAX_SCAN_BYTES
     assert text.startswith("aaa")
+
+
+def test_the_text_prefix_says_when_the_file_ran_past_the_bound(tmp_path: Path) -> None:
+    (tmp_path / "small.txt").write_text("abc", encoding="utf-8")
+    (tmp_path / "big.txt").write_text("abcdef", encoding="utf-8")
+
+    assert read_text_prefix(tmp_path / "small.txt", limit=3) == ("abc", False)
+    assert read_text_prefix(tmp_path / "big.txt", limit=3) == ("abc", True)

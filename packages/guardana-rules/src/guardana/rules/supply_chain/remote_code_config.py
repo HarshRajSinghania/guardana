@@ -16,8 +16,8 @@ from guardana.core.taxonomy import (
     OWASP_LLM04_2026,
 )
 from guardana.rules._base import ArtifactRule
-from guardana.rules.supply_chain._leads import lead_verdict
-from guardana.rules.supply_chain._reading import read_text_bounded
+from guardana.rules.supply_chain._leads import lead_verdict, unscanned_verdict
+from guardana.rules.supply_chain._reading import MAX_SCAN_BYTES, read_text_prefix
 
 # A Hugging Face config that carries `auto_map` (or `custom_pipelines`) is wired to
 # import and run Python that ships in the model repo when it is loaded with
@@ -102,12 +102,22 @@ class RemoteCodeConfigRule(ArtifactRule):
                 yield from self._scan(path)
 
     def _scan(self, path: Path) -> Iterator[Finding]:
-        raw = read_text_bounded(path, errors="ignore")
-        if raw is None:
+        prefix = read_text_prefix(path, errors="ignore")
+        if prefix is None:
+            yield self._unscanned(path, "the file could not be read")
+            return
+        raw, truncated = prefix
+        if truncated:
+            # A loader reads the whole file, so a key past the bound still applies.
+            yield self._unscanned(
+                path, f"the file is larger than the {MAX_SCAN_BYTES}-byte read bound"
+            )
             return
         try:
             doc = json.loads(raw)
         except ValueError:
+            # A loader cannot parse it either, so it configures nothing; `tsconfig.json`
+            # with comments is the common case.
             return
         if not isinstance(doc, dict):
             return
@@ -165,4 +175,17 @@ class RemoteCodeConfigRule(ArtifactRule):
                 detail=f"file={path.name}; references={', '.join(references) or '(none)'}",
             ),
             verdict=None if code_present else lead_verdict(summary),
+        )
+
+    def _unscanned(self, path: Path, reason: str) -> Finding:
+        return Finding(
+            rule_id=self.meta.id,
+            severity=Severity.LOW,
+            title="Model config not scanned",
+            taxonomy=self.meta.taxonomy,
+            target_ref=str(path),
+            evidence=Evidence(
+                summary=f"model config not scanned: {reason}", detail=f"file={path.name}"
+            ),
+            verdict=unscanned_verdict("the config could not be read whole, so nothing was cleared"),
         )

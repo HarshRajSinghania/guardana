@@ -362,11 +362,11 @@ reads kilobytes. <code>STANDARD_ONNX_DOMAINS</code> is exported alongside it: an
 in <code>node_domains</code> means the runtime must register a native operator library
 before the model will run.</p>
 <p><code>truncated</code> is the honest half of the bound — it says the field budget ran out
-before the walk finished. <strong>A partial walk that found nothing has not cleared
-the model</strong>, and a rule must say so:</p>
-<pre><code class="language-python">findings = list(self._graded(path, summary))
-yield from findings
-if summary.truncated and not findings:
+before the walk finished. <strong>A partial walk has not cleared the model, whatever
+it found</strong>: a lead in the fields it reached says nothing about a worse one past
+the budget. A rule reports the findings it has and says the walk was partial:</p>
+<pre><code class="language-python">yield from self._graded(path, summary)
+if summary.truncated:
     yield self._unscanned(path, &quot;the graph was too large to walk within the budget&quot;)
 </code></pre>
 <h3 id="limits">Limits</h3>
@@ -407,6 +407,8 @@ class UnapprovedOperatorRule(Rule):
             unknown = set(summary.node_domains) - STANDARD_ONNX_DOMAINS - APPROVED
             if unknown:
                 yield Finding(...)
+            if summary.truncated:
+                yield unscanned(path, &quot;the field budget ran out&quot;)   # a partial walk
 </code></pre>
 <p><code>examples/custom_rule/src/acme_rules/approved_model.py</code> is the runnable version
 of this — a complete third-party rule, tested, whose entire body is policy.</p>

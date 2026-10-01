@@ -21,7 +21,8 @@ from guardana.rules._secrets import (
     is_scannable_text,
     redact,
 )
-from guardana.rules.supply_chain._reading import read_bytes_bounded
+from guardana.rules.supply_chain._leads import unscanned_verdict
+from guardana.rules.supply_chain._reading import MAX_SCAN_BYTES, read_bytes_bounded
 
 _RULE_ID = "guardana.supply_chain.hardcoded_secret"
 
@@ -202,8 +203,10 @@ class HardcodedSecretRule(ArtifactRule):
     def _scan(self, path: Path, *, entropy: bool) -> Iterator[Finding]:
         prefix = read_bytes_bounded(path)
         if prefix is None:
+            yield self._unscanned(path, "the file could not be read")
             return
-        text = prefix[0].decode("utf-8", errors="ignore")
+        raw, truncated = prefix
+        text = raw.decode("utf-8", errors="ignore")
         for where, label, secret in _scan_prefixed(text):
             yield self._finding(
                 path,
@@ -221,6 +224,21 @@ class HardcodedSecretRule(ArtifactRule):
                     rationale="high-entropy value assigned to a secret-named variable",
                     confidence=0.75,
                 )
+        if truncated:
+            yield self._unscanned(
+                path, f"only the first {MAX_SCAN_BYTES} bytes were read (the read bound)"
+            )
+
+    def _unscanned(self, path: Path, reason: str) -> Finding:
+        return Finding(
+            rule_id=self.meta.id,
+            severity=Severity.LOW,
+            title="File not scanned for secrets",
+            taxonomy=self.meta.taxonomy,
+            target_ref=str(path),
+            evidence=Evidence(summary=f"not scanned for secrets: {reason}", detail=path.name),
+            verdict=unscanned_verdict("the file was not read whole, so nothing in it was cleared"),
+        )
 
     def _finding(
         self, path: Path, where: _Where, *, summary: str, rationale: str, confidence: float

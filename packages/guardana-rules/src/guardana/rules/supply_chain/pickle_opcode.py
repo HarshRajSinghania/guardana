@@ -3,7 +3,7 @@ import pickletools
 import re
 import zipfile
 from collections.abc import Generator, Iterable, Iterator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
 
@@ -29,7 +29,96 @@ _SUFFIXES = (".pkl", ".pickle", ".pt", ".pth", ".ckpt", ".joblib", ".dill")
 _BIN_SUFFIX = ".bin"
 """Read by content: `pytorch_model.bin` is a torch zip, and a `.bin` that is neither a
 zip nor a pickle stream is some other file this rule has nothing to say about."""
-_ALLOWED_MODULES = frozenset({"torch", "numpy", "collections"})
+_TORCH_STORAGES = frozenset(
+    f"{kind}Storage"
+    for kind in (
+        "Bool",
+        "Byte",
+        "Char",
+        "Short",
+        "Int",
+        "Long",
+        "Half",
+        "Float",
+        "Double",
+        "BFloat16",
+        "ComplexFloat",
+        "ComplexDouble",
+        "QUInt8",
+        "QInt8",
+        "QInt32",
+        "QUInt4x2",
+        "QUInt2x4",
+        "Untyped",
+    )
+)
+_TORCH_VALUES = frozenset(
+    {
+        "Size",
+        "device",
+        "dtype",
+        "float16",
+        "float32",
+        "float64",
+        "bfloat16",
+        "half",
+        "float",
+        "double",
+        "complex64",
+        "complex128",
+        "uint8",
+        "int8",
+        "int16",
+        "int32",
+        "int64",
+        "short",
+        "int",
+        "long",
+        "bool",
+        "strided",
+        "sparse_coo",
+        "contiguous_format",
+        "channels_last",
+        "preserve_format",
+    }
+)
+_SAFE_GLOBALS: frozenset[tuple[str, str]] = frozenset(
+    {
+        *(("torch", name) for name in _TORCH_STORAGES | _TORCH_VALUES),
+        *(
+            ("torch._utils", name)
+            for name in (
+                "_rebuild_tensor",
+                "_rebuild_tensor_v2",
+                "_rebuild_tensor_v3",
+                "_rebuild_parameter",
+                "_rebuild_parameter_with_state",
+                "_rebuild_qtensor",
+                "_rebuild_sparse_tensor",
+                "_rebuild_nested_tensor",
+                "_rebuild_meta_tensor_no_storage",
+            )
+        ),
+        ("torch._tensor", "_rebuild_from_type_v2"),
+        ("torch.serialization", "_get_layout"),
+        *(("collections", name) for name in ("OrderedDict", "defaultdict", "deque", "Counter")),
+        *(
+            (module, name)
+            for module in ("numpy.core.multiarray", "numpy._core.multiarray")
+            for name in ("_reconstruct", "scalar")
+        ),
+        ("numpy.core.numeric", "_frombuffer"),
+        ("numpy._core.numeric", "_frombuffer"),
+        ("numpy", "ndarray"),
+        ("numpy", "dtype"),
+    }
+)
+"""Exactly the callables a tensor, array or plain container is rebuilt from.
+
+Pairs, never modules: `numpy.testing._private.utils.runstring` and `torch.hub.load`
+live under the same top-level names as the tensors and run whatever they are given.
+"""
+_NUMPY_DTYPE_MODULE = "numpy.dtypes"
 _BUILTIN_MODULES = frozenset({"builtins", "__builtin__"})
 _SAFE_BUILTINS = frozenset(
     {
@@ -64,6 +153,15 @@ _STRING_OPS = frozenset(
 # Memo stores: MEMOIZE takes the next free index; the others carry it as the arg.
 _MEMO_PUT_INDEXED = frozenset({"BINPUT", "LONG_BINPUT", "PUT"})
 _MEMO_GET = frozenset({"BINGET", "LONG_BINGET", "GET"})
+_IMPORTS_BY_ARG = frozenset({"GLOBAL", "INST"})
+# An extension code names a global through the loading process's copyreg registry,
+# which is empty unless that process filled it, so an unpickler refuses the code and a
+# file cannot change that. Failing closed here would flag random tensor bytes, three of
+# whose 256 values are extension opcodes.
+_EXTENSION_OPS = frozenset({"EXT1", "EXT2", "EXT4"})
+# The C unpickler reaches the list or dict under these items without honouring the
+# MARK fence, so the model does the same rather than stopping where it would not.
+_UNFENCED_OPS = frozenset({"APPEND", "SETITEM"})
 
 # Modern torch.save() writes a ZIP; a leading `PK\x03\x04` means the pickle is a
 # member inside. nullifAI evaded torch.load AND picklescan with a 7z archive,
@@ -101,55 +199,148 @@ class _ShortStackError(UnparseableStreamError):
     """
 
 
+class _RefusedError(Exception):
+    """An opcode an unpickler raises on: too few operands, or no MARK to pop to.
+
+    The load stops there, so nothing after it runs; every import before it has
+    already been recorded.
+    """
+
+
 def _is_allowed(module: str, qualname: str) -> bool:
     if module in _BUILTIN_MODULES:
         return qualname in _SAFE_BUILTINS
-    return module in _ALLOWED_MODULES
+    if module == _NUMPY_DTYPE_MODULE:
+        return qualname.endswith("DType") and qualname.isidentifier()
+    return (module, qualname) in _SAFE_GLOBALS
 
 
-def _maybe_dangerous(ref: str) -> Iterator[str]:
-    module, _, qualname = ref.partition(".")
+def _maybe_dangerous(module: str, qualname: str) -> Iterator[str]:
     if not _is_allowed(module, qualname):
-        yield ref
+        yield f"{module}.{qualname}"
 
 
-def _resolve_stack_global(stack: list[str | None]) -> str:
-    # STACK_GLOBAL pops the qualname (top) then the module. Fail closed: a stream
-    # that reaches here without two resolvable strings on top (memo miss, non-str
-    # operand, short stack) is not provably clean.
-    if len(stack) < _STACK_GLOBAL_ARGC:
-        raise _ShortStackError("STACK_GLOBAL with fewer than two stack operands")
-    qualname = stack.pop()
-    module = stack.pop()
-    if not isinstance(module, str) or not isinstance(qualname, str):
-        raise UnparseableStreamError("STACK_GLOBAL operands are not both resolvable strings")
-    return f"{module}.{qualname}"
+@dataclass(slots=True)
+class _PickleMachine:
+    """The object stack, MARK positions and memo of one unpickler, read statically.
 
+    Every opcode moves the stack by the effect `pickletools` declares for it, so
+    STACK_GLOBAL takes the operands an unpickler would. `None` is an object whose
+    value is not tracked; a string is kept only while it is the string an unpickler
+    holds. MARKs are kept apart from the objects, as the C unpickler keeps them: a
+    pop never reaches below the newest one.
+    """
 
-def _step(
-    name: str, arg: object, stack: list[str | None], memo: dict[int, str | None], refs: list[str]
-) -> None:
-    # A minimal pickle machine: enough stack and memo modelling that STACK_GLOBAL
-    # sees the operands an unpickler would, not merely the last two string loads.
-    # `None` marks a slot whose value we don't track (a memo miss or a resolved
-    # object), which fails the str check in `_resolve_stack_global`.
-    if name in _STRING_OPS and isinstance(arg, str):
-        stack.append(arg)
-    elif name == "MEMOIZE" and stack:
-        memo[len(memo)] = stack[-1]
-    elif name in _MEMO_PUT_INDEXED and isinstance(arg, int) and stack:
-        memo[arg] = stack[-1]
-    elif name in _MEMO_GET and isinstance(arg, int):
-        stack.append(memo.get(arg))
-    elif name == "GLOBAL" and isinstance(arg, str):
-        stack.append(None)  # the resolved object; not a string
-        refs.extend(_maybe_dangerous(arg.replace(" ", ".")))
-    elif name == "STACK_GLOBAL":
-        ref = _resolve_stack_global(stack)
-        stack.append(None)  # the resolved object; not a string
-        refs.extend(_maybe_dangerous(ref))
-    # Any other opcode leaves the stack untouched: a deliberate over-approximation,
-    # safe because it only ever adds noise, never hides a global.
+    refs: list[str]
+    stack: list[str | None] = field(default_factory=list)
+    marks: list[int] = field(default_factory=list)
+    memo: dict[int, str | None] = field(default_factory=dict)
+
+    def step(self, op: pickletools.OpcodeInfo, arg: object) -> None:
+        """Apply one opcode; raise where an unpickler would, or where this cannot follow."""
+        name = op.name
+        if name in _STRING_OPS:
+            self.stack.append(arg if isinstance(arg, str) else None)
+        elif name == "STACK_GLOBAL":
+            self.refs.extend(_maybe_dangerous(*self._stack_global()))
+            self.stack.append(None)
+        elif name in _EXTENSION_OPS:
+            raise _RefusedError(f"{name} names a global through an unseen registry")
+        elif not self._step_marks_and_memo(name, arg):
+            if name in _IMPORTS_BY_ARG and isinstance(arg, str):
+                module, _, qualname = arg.partition(" ")
+                self.refs.extend(_maybe_dangerous(module, qualname))
+            self._apply_declared_effect(op)
+
+    def _step_marks_and_memo(self, name: str, arg: object) -> bool:
+        """Apply an opcode whose declared stack effect is not its whole effect.
+
+        Returns False for any other opcode, which the declared effect describes.
+        """
+        if name == "MARK":
+            self.marks.append(len(self.stack))
+        elif name == "POP":
+            self._pop_object_or_mark()
+        elif name == "DUP":
+            self.stack.append(self._top())
+        elif name in _MEMO_GET:
+            self.stack.append(self.memo.get(arg) if isinstance(arg, int) else None)
+        elif name in _MEMO_PUT_INDEXED:
+            self._memo_put(arg if isinstance(arg, int) else None)
+        elif name == "MEMOIZE":
+            self._memo_put(len(self.memo))
+        else:
+            return False
+        return True
+
+    def _fence(self) -> int:
+        return self.marks[-1] if self.marks else 0
+
+    def _pop(self) -> str | None:
+        if len(self.stack) <= self._fence():
+            raise _RefusedError(f"stack underflow at a {len(self.stack)}-deep stack")
+        return self.stack.pop()
+
+    def _top(self) -> str | None:
+        if len(self.stack) <= self._fence():
+            raise _RefusedError("no object above the newest MARK")
+        return self.stack[-1]
+
+    def _pop_mark(self) -> int:
+        if not self.marks:
+            raise _RefusedError("no MARK to pop to")
+        return self.marks.pop()
+
+    def _pop_object_or_mark(self) -> None:
+        if self.marks and self.marks[-1] == len(self.stack):
+            self.marks.pop()
+        else:
+            self._pop()
+
+    def _memo_put(self, index: int | None) -> None:
+        # Every put takes its slot even for an untracked object: MEMOIZE numbers the
+        # next slot by how many are filled, so a skipped one shifts every later index.
+        value = self._top()
+        if index is not None:
+            self.memo[index] = value
+
+    def _stack_global(self) -> tuple[str, str]:
+        # Fail closed: two operands that are not both tracked strings (a memo miss, a
+        # constructed object) may well resolve to something dangerous.
+        if len(self.stack) - self._fence() < _STACK_GLOBAL_ARGC:
+            raise _ShortStackError("STACK_GLOBAL with fewer than two stack operands")
+        qualname = self.stack.pop()
+        module = self.stack.pop()
+        if not isinstance(module, str) or not isinstance(qualname, str):
+            raise UnparseableStreamError("STACK_GLOBAL operands are not both resolvable strings")
+        return module, qualname
+
+    def _apply_declared_effect(self, op: pickletools.OpcodeInfo) -> None:
+        before = op.stack_before
+        if op.name in _UNFENCED_OPS:
+            self._reach_under(len(before) - 1)
+        elif pickletools.markobject in before:
+            at = before.index(pickletools.markobject)
+            mark = self._pop_mark()
+            # The slice after the MARK must hold what the opcode names past it (OBJ's class).
+            if len(self.stack) - mark < len(before) - at - 2:
+                raise _RefusedError(f"{op.name} with too few items after its MARK")
+            del self.stack[mark:]
+            if at:
+                self._reach_under(0, below=at)
+        else:
+            for _ in before:
+                self._pop()
+        self.stack.extend(None for _ in op.stack_after)
+        if self.marks and self.marks[-1] > len(self.stack):
+            raise UnparseableStreamError(f"{op.name} left a MARK above the top of the stack")
+
+    def _reach_under(self, items: int, *, below: int = 1) -> None:
+        """Consume `items` objects and the `below` container under them, MARK or not."""
+        keep = len(self.stack) - items - below
+        if keep < 0:
+            raise _RefusedError("no container under the items")
+        del self.stack[keep:]
 
 
 class ParseEnd(StrEnum):
@@ -158,7 +349,8 @@ class ParseEnd(StrEnum):
     The distinctions exist because "I could not read this" has three meanings, and
     only two of them are evidence of something unexamined. A member of a real
     checkpoint is raw tensor data and is `NOT_PICKLE` within its first few bytes —
-    reporting that would put a finding on every tensor in every honest model. A
+    reporting that would put a finding on every tensor in every honest model, and so
+    is a stream an unpickler would refuse part-way, since nothing after that runs. A
     stream that was still parsing when the buffer ended (`RAN_OUT`), or one the
     pickle machine could not model an operand for (`UNRESOLVABLE`), is a pickle this
     rule did not finish proving clean.
@@ -260,8 +452,7 @@ def _scan_one(stream: io.BytesIO, size: int, refs: list[str]) -> tuple[ParseEnd,
 
     Returns how it ended, and whether an `UNRESOLVABLE` end was for lack of operands.
     """
-    stack: list[str | None] = []
-    memo: dict[int, str | None] = {}
+    machine = _PickleMachine(refs)
     ops = pickletools.genops(stream)
     while True:
         try:
@@ -274,7 +465,9 @@ def _scan_one(stream: io.BytesIO, size: int, refs: list[str]) -> tuple[ParseEnd,
             # was reading something that is not an opcode stream at all.
             return (ParseEnd.RAN_OUT if stream.tell() >= size else ParseEnd.NOT_PICKLE), False
         try:
-            _step(op.name, arg, stack, memo, refs)
+            machine.step(op, arg)
+        except _RefusedError:
+            return ParseEnd.NOT_PICKLE, False
         except _ShortStackError:
             return ParseEnd.UNRESOLVABLE, True
         except UnparseableStreamError:

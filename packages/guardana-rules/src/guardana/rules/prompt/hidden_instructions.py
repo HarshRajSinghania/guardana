@@ -19,7 +19,7 @@ from guardana.core.taxonomy import (
 from guardana.rules._base import ArtifactRule
 from guardana.rules.prompt._injection_markers import OVERRIDE_PHRASE, has_smuggled_char
 from guardana.rules.supply_chain._leads import unscanned_verdict
-from guardana.rules.supply_chain._reading import read_text_bounded
+from guardana.rules.supply_chain._reading import MAX_SCAN_BYTES, read_text_prefix
 
 # Files an AI coding assistant or a model loader reads as *instructions* or as
 # trusted context: agent rule files, and Markdown docs / model cards. A payload
@@ -136,18 +136,27 @@ class HiddenInstructionsRule(ArtifactRule):
             yield from self._scan_safetensors(path)
 
     def _scan_text(self, path: Path) -> Iterator[Finding]:
-        text = read_text_bounded(path, errors="ignore")
-        if text is None or not has_smuggled_char(text):
+        read = read_text_prefix(path, errors="ignore")
+        if read is None:
+            yield self._unscanned(path, "the file could not be read", what="text")
             return
+        text, truncated = read
+        if has_smuggled_char(text):
+            yield self._graded_text(path, text)
+        if truncated:
+            yield self._unscanned(
+                path, f"only the first {MAX_SCAN_BYTES} bytes were read", what="text"
+            )
+
+    def _graded_text(self, path: Path, text: str) -> Finding:
         shape = _payload_shape(text)
         if shape is None:
-            yield self._present(
+            return self._present(
                 path,
                 "invisible characters present, not shaped like an instruction payload",
                 f"file={path.name}",
             )
-            return
-        yield self._finding(
+        return self._finding(
             path,
             f"invisible instruction-smuggling character (bidi/zero-width/tag): {shape}",
             f"file={path.name}",
@@ -206,7 +215,7 @@ class HiddenInstructionsRule(ArtifactRule):
             evidence=Evidence(summary=summary, detail=detail),
         )
 
-    def _unscanned(self, path: Path, reason: str) -> Finding:
+    def _unscanned(self, path: Path, reason: str, *, what: str = "model metadata") -> Finding:
         return Finding(
             rule_id=self.meta.id,
             severity=Severity.LOW,
@@ -214,10 +223,10 @@ class HiddenInstructionsRule(ArtifactRule):
             taxonomy=self.meta.taxonomy,
             target_ref=str(path),
             evidence=Evidence(
-                summary=f"model metadata not scanned for hidden instructions: {reason}",
+                summary=f"{what} not scanned for hidden instructions: {reason}",
                 detail=f"file={path.name}",
             ),
             verdict=unscanned_verdict(
-                "the metadata block could not be read, so nothing was cleared"
+                f"the {what} could not be read whole, so nothing was cleared"
             ),
         )

@@ -93,11 +93,10 @@ class OnnxGraphRule(ArtifactRule):
         except FormatError as exc:
             yield self._unscanned(path, str(exc))
             return
-        findings = list(self._graded(path, summary))
-        yield from findings
-        # A partial walk that found nothing has not cleared the model — it ran
-        # out of budget before it finished looking.
-        if summary.truncated and not findings:
+        yield from self._graded(path, summary)
+        # A partial walk has not cleared the model, whatever it found: a lead in the
+        # fields it reached says nothing about a worse one past the budget.
+        if summary.truncated:
             yield self._unscanned(path, "the graph was too large to walk within the field budget")
 
     def _graded(self, path: Path, summary: OnnxSummary) -> Iterator[Finding]:

@@ -34,13 +34,19 @@ def read_bytes_bounded(path: Path, limit: int = MAX_SCAN_BYTES) -> tuple[bytes, 
     return raw[:limit], len(raw) > limit
 
 
-def read_text_bounded(path: Path, *, errors: str = "strict") -> str | None:
-    """Read a text file for scanning; None means skip (not a regular file, unreadable, undecodable).
+def read_text_prefix(
+    path: Path, *, errors: str = "strict", limit: int = MAX_SCAN_BYTES
+) -> tuple[str, bool] | None:
+    """Read a text file for scanning; the flag reports a file longer than the bound.
+
+    None means the file was not read at all: not a regular file, unreadable, or not
+    UTF-8. Both outcomes leave text unexamined, so a rule that grades the file says
+    so for either, rather than reporting what it did see as the whole file.
 
     Always decodes as UTF-8 — Python source is UTF-8 by default (PEP 3120), and
     locale-dependent decoding would make findings platform-dependent.
     """
-    prefix = read_bytes_bounded(path)
+    prefix = read_bytes_bounded(path, limit)
     if prefix is None:
         return None
     raw, truncated = prefix
@@ -49,6 +55,16 @@ def read_text_bounded(path: Path, *, errors: str = "strict") -> str | None:
         # decoding would raise and skip the whole file — drop the dangling bytes
         # instead. A file that fits keeps the caller's strict decode, so a genuinely
         # non-UTF-8 source is still correctly skipped.
-        return raw.decode("utf-8", errors="ignore" if truncated else errors)
+        return raw.decode("utf-8", errors="ignore" if truncated else errors), truncated
     except UnicodeDecodeError:
         return None
+
+
+def read_text_bounded(path: Path, *, errors: str = "strict") -> str | None:
+    """Read a text file for scanning, dropping whatever lies past the bound unannounced.
+
+    Prefer `read_text_prefix`: a caller of this one cannot tell a whole file from
+    its first `MAX_SCAN_BYTES`, so it cannot report the rest as unexamined.
+    """
+    prefix = read_text_prefix(path, errors=errors)
+    return None if prefix is None else prefix[0]

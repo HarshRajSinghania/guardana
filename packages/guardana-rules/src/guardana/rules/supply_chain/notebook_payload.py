@@ -20,7 +20,7 @@ from guardana.core.taxonomy import (
 from guardana.rules._base import ArtifactRule
 from guardana.rules.supply_chain._code_sinks import code_sinks
 from guardana.rules.supply_chain._leads import unscanned_verdict
-from guardana.rules.supply_chain._reading import read_text_bounded
+from guardana.rules.supply_chain._reading import MAX_SCAN_BYTES, read_text_prefix
 
 # Fetching a script and piping it straight into a shell (`curl … | sh`) is the
 # classic notebook payload — a channel the `.py` AST scanners never see.
@@ -101,16 +101,21 @@ class NotebookPayloadRule(ArtifactRule):
             yield from self._scan(path)
 
     def _scan(self, path: Path) -> Iterator[Finding]:
-        raw = read_text_bounded(path, errors="ignore")
-        if raw is None:
+        prefix = read_text_prefix(path, errors="ignore")
+        if prefix is None:
+            yield self._unscanned(path, "the file could not be read")
+            return
+        raw, truncated = prefix
+        if truncated:
+            yield self._unscanned(
+                path, f"the file is larger than the {MAX_SCAN_BYTES}-byte read bound"
+            )
             return
         try:
             doc = json.loads(raw)
         except ValueError:
-            # Malformed, or cut off by the read bound — the rule cannot tell which
-            # and does not need to. Either way not one cell was examined, and
-            # returning here made a notebook too large to read indistinguishable
-            # from a notebook with nothing in it.
+            # Not one cell was examined, so a malformed notebook is no cleaner than
+            # one that holds a payload.
             yield self._unscanned(path, "the notebook could not be parsed as JSON")
             return
         cells = doc.get("cells") if isinstance(doc, dict) else None

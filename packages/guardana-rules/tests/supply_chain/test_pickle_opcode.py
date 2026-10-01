@@ -1,3 +1,4 @@
+import collections
 import io
 import os
 import pickle
@@ -13,7 +14,7 @@ from guardana.core.runner import Runner
 from guardana.core.severity import Severity
 from guardana.core.target import ArtifactTarget
 from guardana.rules.supply_chain import pickle_opcode
-from guardana.rules.supply_chain.pickle_opcode import PickleOpcodeRule
+from guardana.rules.supply_chain.pickle_opcode import PickleOpcodeRule, _scan_opcodes
 
 
 def _zip_with(member_name: str, payload: bytes) -> bytes:
@@ -349,3 +350,176 @@ def test_a_medium_gate_asking_for_inconclusive_refuses_an_unread_artifact(tmp_pa
     )
 
     assert gate_outcome(result, policy) is not GateOutcome.PASS
+
+
+def _s(text: str) -> bytes:
+    return _short_binunicode(text)
+
+
+_REDUCE_ID = _s("id") + b"\x85R."  # SHORT_BINUNICODE 'id', TUPLE1, REDUCE, STOP
+_OS_SYSTEM = b"\x80\x04" + _s("os") + _s("system")
+
+
+@pytest.mark.parametrize(
+    "stream",
+    [
+        _OS_SYSTEM + _s("builtins") + _s("str") + b"00\x93" + _REDUCE_ID,
+        _OS_SYSTEM + b"(" + _s("builtins") + _s("str") + b"1\x93" + _REDUCE_ID,
+        _OS_SYSTEM + b"(" + _s("builtins") + _s("str") + b"t0\x93" + _REDUCE_ID,
+        _OS_SYSTEM + _s("torch") + _s("nn") + b"\x860\x93" + _REDUCE_ID,
+        _OS_SYSTEM + _s("torch") + b"200\x93" + _REDUCE_ID,
+        b"\x80\x04}\x94"
+        + _s("os")
+        + b"\x94"
+        + _s("torch")
+        + b"\x94"
+        + _s("system")
+        + b"\x94"
+        + _s("x")
+        + b"\x94h\x01h\x03\x93"
+        + _REDUCE_ID,
+    ],
+    ids=["pop", "pop-mark", "tuple", "tuple2", "dup", "memoize-a-dict"],
+)
+def test_stack_global_takes_the_operands_an_unpickler_would(tmp_path: Path, stream: bytes) -> None:
+    """Every opcode that pops or pushes moves the operands STACK_GLOBAL reads.
+
+    A model that tracked only string loads resolved stale, allowlisted decoys here
+    while an unpickler resolves `os.system`, so the stream scanned clean.
+    """
+    (tmp_path / "model.pkl").write_bytes(stream)
+
+    findings = list(PickleOpcodeRule().run(ArtifactTarget(tmp_path), RuleContext()))
+
+    assert [f.severity.name for f in findings] == ["CRITICAL"]
+    assert findings[0].evidence.summary.endswith(": os.system")
+
+
+def test_a_popped_decoy_inside_a_checkpoint_zip_is_critical_too(tmp_path: Path) -> None:
+    stream = _OS_SYSTEM + _s("builtins") + _s("str") + b"00\x93" + _REDUCE_ID
+    (tmp_path / "model.pt").write_bytes(_zip_with("archive/data.pkl", stream))
+
+    findings = list(PickleOpcodeRule().run(ArtifactTarget(tmp_path), RuleContext()))
+
+    assert [f.severity.name for f in findings] == ["CRITICAL"]
+    assert findings[0].evidence.summary.endswith(": os.system")
+
+
+def test_inst_imports_its_class_like_global(tmp_path: Path) -> None:
+    """Protocol 0's INST names a callable and calls it with the marked arguments."""
+    (tmp_path / "model.pkl").write_bytes(b"(S'id'\nios\nsystem\n.")
+
+    findings = list(PickleOpcodeRule().run(ArtifactTarget(tmp_path), RuleContext()))
+
+    assert [f.severity.name for f in findings] == ["CRITICAL"]
+    assert findings[0].evidence.summary.endswith(": os.system")
+
+
+def test_an_allowlisted_inst_is_clean(tmp_path: Path) -> None:
+    (tmp_path / "ok.pkl").write_bytes(b"(icollections\nOrderedDict\n.")
+
+    assert list(PickleOpcodeRule().run(ArtifactTarget(tmp_path), RuleContext())) == []
+
+
+def test_an_append_to_a_list_under_a_mark_is_followed_as_the_c_unpickler_does(
+    tmp_path: Path,
+) -> None:
+    """The C unpickler's APPEND reaches under the MARK, so the MARK stays and fences
+    nothing the model could mistake for a refusal."""
+    stream = b"\x80\x02](Na" + _s("os") + _s("system") + b"\x93" + _REDUCE_ID
+    (tmp_path / "model.pkl").write_bytes(stream)
+
+    findings = list(PickleOpcodeRule().run(ArtifactTarget(tmp_path), RuleContext()))
+
+    assert [f.severity.name for f in findings] == ["CRITICAL"]
+    assert findings[0].evidence.summary.endswith(": os.system")
+
+
+@pytest.mark.parametrize(
+    "stream",
+    [
+        b"\x80\x02]N(a" + _s("os") + _s("system") + b"\x93" + _REDUCE_ID,
+        b"\x80\x02\x82\x01.",
+    ],
+    ids=["mark-left-above-the-stack", "extension-code"],
+)
+def test_a_stream_the_model_cannot_follow_to_its_end_is_unscanned(
+    tmp_path: Path, stream: bytes
+) -> None:
+    (tmp_path / "model.pkl").write_bytes(stream)
+
+    findings = list(PickleOpcodeRule().run(ArtifactTarget(tmp_path), RuleContext()))
+
+    assert [f.title for f in findings] == ["Unscanned model file"]
+
+
+def test_a_mark_left_above_the_stack_inside_a_zip_is_unscanned(tmp_path: Path) -> None:
+    stream = b"\x80\x02]N(a" + _s("os") + _s("system") + b"\x93" + _REDUCE_ID
+    (tmp_path / "model.pt").write_bytes(_zip_with("archive/data.pkl", stream))
+
+    findings = list(PickleOpcodeRule().run(ArtifactTarget(tmp_path), RuleContext()))
+
+    assert [f.title for f in findings] == ["Unscanned model file"]
+
+
+def test_real_pickles_of_every_protocol_stay_clean(tmp_path: Path) -> None:
+    """The negative half: modelling every opcode adds no noise to an honest pickle."""
+    shared = ["same"]
+    value = {
+        "weights": [1.5, 2, None, True, (1,), (1, 2), (1, 2, 3), ()],
+        "names": collections.OrderedDict(a=frozenset({1}), b={2, 3}),
+        "shared": [shared, shared, 2**70, "x" * 300],
+    }
+    for protocol in range(pickle.HIGHEST_PROTOCOL + 1):
+        (tmp_path / f"p{protocol}.pkl").write_bytes(pickle.dumps(value, protocol=protocol))
+
+    assert list(PickleOpcodeRule().run(ArtifactTarget(tmp_path), RuleContext())) == []
+
+
+_GADGETS_UNDER_ALLOWED_ROOTS = [
+    ("numpy.testing._private.utils", "runstring"),
+    ("torch.hub", "load"),
+    ("torch.serialization", "load"),
+    ("collections", "namedtuple"),
+    ("numpy", "load"),
+]
+
+
+@pytest.mark.parametrize(
+    ("module", "name"),
+    _GADGETS_UNDER_ALLOWED_ROOTS,
+    ids=[f"{m}.{n}" for m, n in _GADGETS_UNDER_ALLOWED_ROOTS],
+)
+def test_a_callable_under_an_allowed_top_level_package_is_still_dangerous(
+    module: str, name: str
+) -> None:
+    """The allowlist names exact callables; `numpy` or `torch` alone names nothing safe."""
+    by_global = f"c{module}\n{name}\n(S'x'\ntR.".encode()
+    by_stack = (
+        b"\x80\x04"
+        + b"\x8c"
+        + bytes([len(module)])
+        + module.encode()
+        + b"\x8c"
+        + bytes([len(name)])
+        + name.encode()
+        + b"\x93\x8c\x01x\x85R."
+    )
+
+    for stream in (by_global, by_stack):
+        assert _scan_opcodes(stream).refs == [f"{module}.{name}"]
+
+
+def test_the_callables_a_tensor_or_array_is_rebuilt_from_stay_allowed() -> None:
+    honest = [
+        ("torch._utils", "_rebuild_tensor_v2"),
+        ("torch", "FloatStorage"),
+        ("collections", "OrderedDict"),
+        ("numpy.core.multiarray", "_reconstruct"),
+        ("numpy._core.multiarray", "scalar"),
+        ("numpy", "dtype"),
+        ("numpy.dtypes", "Float64DType"),
+    ]
+    for module, name in honest:
+        stream = f"c{module}\n{name}\n.".encode()
+        assert _scan_opcodes(stream).refs == [], f"{module}.{name}"

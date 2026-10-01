@@ -22,8 +22,8 @@ from guardana.core.taxonomy import (
 )
 from guardana.rules._base import ArtifactRule
 from guardana.rules.prompt._injection_markers import OVERRIDE_PHRASE, has_hidden_char
-from guardana.rules.supply_chain._leads import lead_verdict
-from guardana.rules.supply_chain._reading import read_text_bounded
+from guardana.rules.supply_chain._leads import lead_verdict, unscanned_verdict
+from guardana.rules.supply_chain._reading import MAX_SCAN_BYTES, read_text_prefix
 
 # An MCP tool description is fed to the agent's model as trusted context, so
 # instructions hidden in it are indirect prompt injection ("tool poisoning"). The
@@ -86,8 +86,15 @@ class McpToolPoisoningRule(ArtifactRule):
             yield from self._scan(path)
 
     def _scan(self, path: Path) -> Iterator[Finding]:
-        raw = read_text_bounded(path, errors="ignore")
-        if raw is None:
+        # Whether a JSON file is a tool manifest is only known once it is read whole,
+        # so one that could not be is unverified whatever its first bytes say.
+        read = read_text_prefix(path, errors="ignore")
+        if read is None:
+            yield self._unscanned(path, "the file could not be read")
+            return
+        raw, truncated = read
+        if truncated:
+            yield self._unscanned(path, f"only the first {MAX_SCAN_BYTES} bytes were read")
             return
         try:
             doc = json.loads(raw)
@@ -112,6 +119,22 @@ class McpToolPoisoningRule(ArtifactRule):
                 Severity.MEDIUM,
                 lead=True,
             )
+
+    def _unscanned(self, path: Path, reason: str) -> Finding:
+        return Finding(
+            rule_id=self.meta.id,
+            severity=Severity.LOW,
+            title="JSON file not scanned for MCP tool poisoning",
+            taxonomy=self.meta.taxonomy,
+            target_ref=str(path),
+            evidence=Evidence(
+                summary=f"a JSON file that may be an MCP tool manifest was not scanned: {reason}",
+                detail=f"file={path.name}",
+            ),
+            verdict=unscanned_verdict(
+                "the manifest could not be read whole, so nothing was cleared"
+            ),
+        )
 
     def _finding(
         self, path: Path, summary: str, severity: Severity, *, lead: bool = False

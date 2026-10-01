@@ -97,3 +97,16 @@ def test_a_graph_too_large_to_walk_is_not_cleared(tmp_path: Path) -> None:
     rule = OnnxGraphRule(max_entries=20)
     findings = [f.severity for f in rule.run(ArtifactTarget(tmp_path), RuleContext())]
     assert findings == [Severity.LOW]
+
+
+def test_a_lead_found_before_the_budget_ran_out_does_not_hide_the_unread_rest(
+    tmp_path: Path,
+) -> None:
+    """A MEDIUM lead says nothing about a HIGH path traversal past the field budget."""
+    nodes = (("Custom", "vendor.custom"), *(("Conv", "") for _ in range(400)))
+    _write(tmp_path, build_onnx(nodes=nodes, external_paths=("../../etc/passwd",)))
+
+    findings = list(OnnxGraphRule(max_entries=20).run(ArtifactTarget(tmp_path), RuleContext()))
+
+    assert [f.severity for f in findings] == [Severity.MEDIUM, Severity.LOW]
+    assert findings[1].title == "ONNX model not scanned"

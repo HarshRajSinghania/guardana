@@ -20,7 +20,8 @@ from guardana.core.taxonomy import (
     OWASP_LLM10_2026,
 )
 from guardana.rules._base import ArtifactRule
-from guardana.rules.supply_chain._reading import read_bytes_bounded
+from guardana.rules.supply_chain._leads import unscanned_verdict
+from guardana.rules.supply_chain._reading import MAX_SCAN_BYTES, read_bytes_bounded
 
 _RULE_ID = "guardana.supply_chain.model_format"
 
@@ -105,6 +106,20 @@ def _scan_safetensors(path: Path) -> Iterator[Finding]:
         )
 
 
+def _unscanned(path: Path, reason: str) -> Finding:
+    return Finding(
+        rule_id=_RULE_ID,
+        severity=Severity.LOW,
+        title="XML model file not scanned",
+        taxonomy=(OWASP_LLM03_2025, OWASP_LLM04_2026, NIST_SUPPLY_CHAIN),
+        target_ref=str(path),
+        evidence=Evidence(
+            summary=f"XML model file not scanned: {reason}", detail=f"file={path.name}"
+        ),
+        verdict=unscanned_verdict("the document could not be read whole, so nothing was cleared"),
+    )
+
+
 # Content detectors get a bounded prefix of the file (an XML prolog lives near
 # the start; the bound keeps a crafted multi-GB file from stalling the scan).
 # Whole-file detectors manage their own reading because the interesting region
@@ -160,4 +175,11 @@ class ModelFormatRule(ArtifactRule):
         prefix = read_bytes_bounded(path)
         if prefix is None:
             return False
-        return (yield from _CONTENT_DETECTORS[path.suffix.lower()](path, prefix[0]))
+        data, truncated = prefix
+        examined = yield from _CONTENT_DETECTORS[path.suffix.lower()](path, data)
+        if truncated:
+            # A parser reads the whole document, and a prolog of comments can push a
+            # DOCTYPE past the bound.
+            yield _unscanned(path, f"the file is larger than the {MAX_SCAN_BYTES}-byte read bound")
+            return False
+        return examined

@@ -1,9 +1,13 @@
+import os
 from pathlib import Path
 
+import pytest
+from guardana.core.report import Finding
 from guardana.core.rule import RuleContext
 from guardana.core.severity import Severity
 from guardana.core.target import ArtifactTarget
 from guardana.rules.supply_chain._advisories import Advisory
+from guardana.rules.supply_chain._reading import MAX_SCAN_BYTES
 from guardana.rules.supply_chain.malicious_dependency import MaliciousDependencyRule
 
 
@@ -156,3 +160,49 @@ def test_a_custom_advisory_dataset_is_honoured(tmp_path: Path) -> None:
     rule = MaliciousDependencyRule(advisories=advisories)
     findings = list(rule.run(ArtifactTarget(tmp_path), RuleContext()))
     assert [f.severity for f in findings] == [Severity.CRITICAL]
+
+
+def _unverified(findings: list[Finding]) -> list[Finding]:
+    return [f for f in findings if f.verdict is not None and f.verdict.outcome == "inconclusive"]
+
+
+def _run(tmp_path: Path) -> list[Finding]:
+    return list(MaliciousDependencyRule().run(ArtifactTarget(tmp_path), RuleContext()))
+
+
+def test_a_pin_padded_past_the_read_bound_leaves_the_manifest_unverified(tmp_path: Path) -> None:
+    manifest = "numpy==1.26.0\n" + "#" * MAX_SCAN_BYTES + "\nultralytics==8.3.41\n"
+    (tmp_path / "requirements.txt").write_text(manifest, encoding="utf-8")
+
+    findings = _run(tmp_path)
+
+    assert [f.title for f in findings] == ["Dependency manifest not scanned"]
+    assert _unverified(findings) == findings
+
+
+def test_a_pin_before_the_bound_is_reported_with_the_unread_rest(tmp_path: Path) -> None:
+    manifest = "ultralytics==8.3.41\n" + "#" * MAX_SCAN_BYTES + "\n"
+    (tmp_path / "requirements.txt").write_text(manifest, encoding="utf-8")
+
+    findings = _run(tmp_path)
+
+    assert [f.severity.name for f in findings] == ["HIGH", "LOW"]
+    assert len(_unverified(findings)) == 1
+
+
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="mkfifo is POSIX-only")
+@pytest.mark.parametrize("name", ["requirements.txt", "setup.py"])
+def test_an_unreadable_manifest_is_unverified_not_clean(tmp_path: Path, name: str) -> None:
+    os.mkfifo(tmp_path / name)
+
+    assert len(_unverified(_run(tmp_path))) == 1
+
+
+def test_a_setup_py_padded_past_the_read_bound_is_unverified_not_clean(tmp_path: Path) -> None:
+    source = "#" * MAX_SCAN_BYTES + "\nimport urllib.request\nurllib.request.urlopen('x')\n"
+    (tmp_path / "setup.py").write_text(source, encoding="utf-8")
+
+    findings = _run(tmp_path)
+
+    assert [f.title for f in findings] == ["setup.py not scanned"]
+    assert _unverified(findings) == findings

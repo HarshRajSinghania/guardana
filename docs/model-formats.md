@@ -100,13 +100,13 @@ in `node_domains` means the runtime must register a native operator library
 before the model will run.
 
 `truncated` is the honest half of the bound — it says the field budget ran out
-before the walk finished. **A partial walk that found nothing has not cleared
-the model**, and a rule must say so:
+before the walk finished. **A partial walk has not cleared the model, whatever
+it found**: a lead in the fields it reached says nothing about a worse one past
+the budget. A rule reports the findings it has and says the walk was partial:
 
 ```python
-findings = list(self._graded(path, summary))
-yield from findings
-if summary.truncated and not findings:
+yield from self._graded(path, summary)
+if summary.truncated:
     yield self._unscanned(path, "the graph was too large to walk within the budget")
 ```
 
@@ -155,6 +155,8 @@ class UnapprovedOperatorRule(Rule):
             unknown = set(summary.node_domains) - STANDARD_ONNX_DOMAINS - APPROVED
             if unknown:
                 yield Finding(...)
+            if summary.truncated:
+                yield unscanned(path, "the field budget ran out")   # a partial walk
 ```
 
 `examples/custom_rule/src/acme_rules/approved_model.py` is the runnable version

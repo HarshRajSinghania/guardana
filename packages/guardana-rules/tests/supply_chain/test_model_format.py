@@ -1,8 +1,10 @@
 import json
 from pathlib import Path
 
+from guardana.core.report import Finding
 from guardana.core.rule import RuleContext
 from guardana.core.target import ArtifactTarget
+from guardana.rules.supply_chain._reading import MAX_SCAN_BYTES
 from guardana.rules.supply_chain.model_format import ModelFormatRule
 
 
@@ -95,3 +97,29 @@ def test_safetensors_absurd_header_length_is_bounded(tmp_path: Path) -> None:
     findings = list(ModelFormatRule().run(ArtifactTarget(tmp_path), RuleContext()))
     assert len(findings) == 1
     assert findings[0].severity.name == "INFO"
+
+
+def _unverified(findings: list[Finding]) -> list[Finding]:
+    return [f for f in findings if f.verdict is not None and f.verdict.outcome == "inconclusive"]
+
+
+_XXE = b'<!DOCTYPE r [<!ENTITY x SYSTEM "file:///etc/passwd">]><r>&x;</r>'
+
+
+def test_an_xml_model_padded_past_the_read_bound_is_unverified_not_clean(tmp_path: Path) -> None:
+    """A comment longer than the bound pushes the DOCTYPE out of the part that is read."""
+    (tmp_path / "model.pmml").write_bytes(b"<!--" + b"x" * MAX_SCAN_BYTES + b"-->" + _XXE)
+
+    findings = list(ModelFormatRule().run(ArtifactTarget(tmp_path), RuleContext()))
+
+    assert [f.title for f in findings] == ["XML model file not scanned"]
+    assert _unverified(findings) == findings
+
+
+def test_a_truncated_xml_model_reports_what_it_saw_and_what_it_did_not(tmp_path: Path) -> None:
+    (tmp_path / "model.pmml").write_bytes(_XXE + b"<!--" + b"x" * MAX_SCAN_BYTES + b"-->")
+
+    findings = list(ModelFormatRule().run(ArtifactTarget(tmp_path), RuleContext()))
+
+    assert [f.severity.name for f in findings] == ["HIGH", "LOW"]
+    assert [f.title for f in _unverified(findings)] == ["XML model file not scanned"]

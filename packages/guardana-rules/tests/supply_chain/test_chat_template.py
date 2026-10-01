@@ -7,6 +7,7 @@ from guardana.core.rule import RuleContext
 from guardana.core.severity import Severity
 from guardana.core.target import ArtifactTarget, EndpointTarget
 from guardana.core.testing import RefusingTransport, build_gguf
+from guardana.rules.supply_chain._reading import MAX_SCAN_BYTES
 from guardana.rules.supply_chain.chat_template import ChatTemplateRule
 from guardana.rules.supply_chain.model_format import ModelFormatRule
 
@@ -202,3 +203,22 @@ def test_model_format_no_longer_reports_on_gguf(tmp_path: Path) -> None:
     # findings with different severities for a single fact.
     (tmp_path / "m.gguf").write_bytes(build_gguf({_KEY: _PAYLOAD}))
     assert list(ModelFormatRule().run(ArtifactTarget(tmp_path), RuleContext())) == []
+
+
+def test_a_gadget_before_the_read_bound_does_not_hide_the_unread_rest(tmp_path: Path) -> None:
+    (tmp_path / "chat_template.jinja").write_text("{% include 'x' %}\n" + " " * MAX_SCAN_BYTES)
+
+    findings = list(ChatTemplateRule().run(ArtifactTarget(tmp_path), RuleContext()))
+
+    assert [f.severity for f in findings] == [Severity.HIGH, Severity.LOW]
+    assert findings[1].title == "Chat template not scanned"
+
+
+def test_a_tokenizer_config_past_the_read_bound_says_so(tmp_path: Path) -> None:
+    document = {"pad": "x" * MAX_SCAN_BYTES, "chat_template": _PAYLOAD}
+    (tmp_path / "tokenizer_config.json").write_text(json.dumps(document))
+
+    findings = list(ChatTemplateRule().run(ArtifactTarget(tmp_path), RuleContext()))
+
+    assert [f.severity for f in findings] == [Severity.LOW]
+    assert "read bound" in findings[0].evidence.summary

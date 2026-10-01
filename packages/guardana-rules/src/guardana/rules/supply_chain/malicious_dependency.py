@@ -17,8 +17,8 @@ from guardana.core.taxonomy import (
 )
 from guardana.rules._base import ArtifactRule
 from guardana.rules.supply_chain._advisories import Advisory, load_advisories
-from guardana.rules.supply_chain._leads import lead_verdict
-from guardana.rules.supply_chain._reading import read_text_bounded
+from guardana.rules.supply_chain._leads import lead_verdict, unscanned_verdict
+from guardana.rules.supply_chain._reading import MAX_SCAN_BYTES, read_text_prefix
 
 _MANIFEST_SUFFIXES = (".txt", ".toml", ".lock", ".cfg", ".in")
 _MANIFEST_NAMES = frozenset({"pipfile"})
@@ -47,6 +47,8 @@ _TOML_PIN = re.compile(
 # a resolved dependency, and that a same-line-only scan misses entirely.
 _LOCK_NAME = re.compile(r"""^\s*name\s*=\s*["']([^"']+)["']""")
 _LOCK_VERSION = re.compile(r"""^\s*version\s*=\s*["']([^"']+)["']""")
+_PAST_THE_BOUND = f"only the first {MAX_SCAN_BYTES} bytes were read (the read bound)"
+_SETUP_UNSCANNED = "setup.py not scanned"
 
 
 def _is_manifest(path: Path) -> bool:
@@ -136,14 +138,18 @@ class MaliciousDependencyRule(ArtifactRule):
                 yield from self._scan_setup(path)
 
     def _scan_manifest(self, path: Path) -> Iterator[Finding]:
-        text = read_text_bounded(path, errors="ignore")
-        if text is None:
+        prefix = read_text_prefix(path, errors="ignore")
+        if prefix is None:
+            yield self._unscanned(path, "Dependency manifest not scanned", "it could not be read")
             return
+        text, truncated = prefix
         pins = _exact_pins(text)
         for advisory in self._advisories:
             version = self._affected_version(advisory, text, pins)
             if version is not None:
                 yield self._finding(path, advisory, version)
+        if truncated:
+            yield self._unscanned(path, "Dependency manifest not scanned", _PAST_THE_BOUND)
 
     @staticmethod
     def _affected_version(advisory: Advisory, text: str, pins: set[tuple[str, str]]) -> str | None:
@@ -185,9 +191,11 @@ class MaliciousDependencyRule(ArtifactRule):
         )
 
     def _scan_setup(self, path: Path) -> Iterator[Finding]:
-        source = read_text_bounded(path)
-        if source is None:
+        prefix = read_text_prefix(path)
+        if prefix is None:
+            yield self._unscanned(path, _SETUP_UNSCANNED, "it could not be read as UTF-8")
             return
+        source, truncated = prefix
         for lineno in _setup_network_calls(source):
             yield Finding(
                 rule_id=self.meta.id,
@@ -201,3 +209,16 @@ class MaliciousDependencyRule(ArtifactRule):
                 ),
                 verdict=lead_verdict("network fetch in setup.py; a lead, not a certainty"),
             )
+        if truncated:
+            yield self._unscanned(path, _SETUP_UNSCANNED, _PAST_THE_BOUND)
+
+    def _unscanned(self, path: Path, title: str, reason: str) -> Finding:
+        return Finding(
+            rule_id=self.meta.id,
+            severity=Severity.LOW,
+            title=title,
+            taxonomy=self.meta.taxonomy,
+            target_ref=str(path),
+            evidence=Evidence(summary=f"{title}: {reason}", detail=f"file={path.name}"),
+            verdict=unscanned_verdict("the file was not read whole, so nothing in it was cleared"),
+        )

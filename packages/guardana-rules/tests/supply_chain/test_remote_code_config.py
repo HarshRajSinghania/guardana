@@ -1,9 +1,13 @@
 import json
+import os
 from pathlib import Path
 
+import pytest
+from guardana.core.report import Finding
 from guardana.core.rule import RuleContext
 from guardana.core.severity import Severity
 from guardana.core.target import ArtifactTarget
+from guardana.rules.supply_chain._reading import MAX_SCAN_BYTES
 from guardana.rules.supply_chain.remote_code_config import RemoteCodeConfigRule
 
 
@@ -110,3 +114,36 @@ def test_kernel_injection_and_auto_map_are_reported_separately(tmp_path: Path) -
     (tmp_path / "config.json").write_text(json.dumps(document))
     findings = list(RemoteCodeConfigRule().run(ArtifactTarget(tmp_path), RuleContext()))
     assert sorted(f.severity for f in findings) == sorted([Severity.MEDIUM, Severity.CRITICAL])
+
+
+def _unverified(findings: list[Finding]) -> list[Finding]:
+    return [f for f in findings if f.verdict is not None and f.verdict.outcome == "inconclusive"]
+
+
+def _run(tmp_path: Path) -> list[Finding]:
+    return list(RemoteCodeConfigRule().run(ArtifactTarget(tmp_path), RuleContext()))
+
+
+def test_a_config_padded_past_the_read_bound_is_unverified_not_clean(tmp_path: Path) -> None:
+    """A loader reads the whole file, so the key behind the padding is applied."""
+    document = {"pad": "x" * MAX_SCAN_BYTES, "_attn_implementation_internal": "attacker/kernel"}
+    (tmp_path / "config.json").write_text(json.dumps(document), encoding="utf-8")
+
+    findings = _run(tmp_path)
+
+    assert [f.title for f in _unverified(findings)] == ["Model config not scanned"]
+    assert "read bound" in findings[0].evidence.summary
+
+
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="mkfifo is POSIX-only")
+def test_an_unreadable_config_is_unverified_not_clean(tmp_path: Path) -> None:
+    os.mkfifo(tmp_path / "config.json")
+
+    assert [f.title for f in _unverified(_run(tmp_path))] == ["Model config not scanned"]
+
+
+def test_a_config_that_is_not_json_configures_nothing_and_stays_quiet(tmp_path: Path) -> None:
+    """`tsconfig.json` allows comments; no model loader reads a file JSON cannot parse."""
+    (tmp_path / "tsconfig.json").write_text('{\n  // strict\n  "strict": true\n}\n')
+
+    assert _run(tmp_path) == []

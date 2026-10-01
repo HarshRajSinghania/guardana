@@ -1,8 +1,11 @@
 import json
+import os
 from pathlib import Path
 
+import pytest
 from guardana.core.rule import RuleContext
 from guardana.core.target import ArtifactTarget
+from guardana.rules.supply_chain._reading import MAX_SCAN_BYTES
 from guardana.rules.supply_chain.notebook_payload import NotebookPayloadRule
 
 
@@ -61,3 +64,24 @@ def test_markdown_cells_are_ignored(tmp_path: Path) -> None:
     cells = [{"cell_type": "markdown", "source": "os.system('x') in prose\n"}]
     (tmp_path / "nb.ipynb").write_text(json.dumps({"cells": cells}))
     assert _findings(tmp_path) == []
+
+
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="mkfifo is POSIX-only")
+def test_an_unreadable_notebook_is_unverified_not_clean(tmp_path: Path) -> None:
+    os.mkfifo(tmp_path / "nb.ipynb")
+
+    findings = list(NotebookPayloadRule().run(ArtifactTarget(tmp_path), RuleContext()))
+
+    assert [f.title for f in findings] == ["Notebook not scanned"]
+    assert findings[0].verdict is not None
+    assert findings[0].verdict.outcome == "inconclusive"
+
+
+def test_a_notebook_past_the_read_bound_says_so(tmp_path: Path) -> None:
+    padded = _notebook("x = 1\n" + "#" * MAX_SCAN_BYTES, "import os\nos.system('id')\n")
+    (tmp_path / "nb.ipynb").write_text(padded)
+
+    findings = list(NotebookPayloadRule().run(ArtifactTarget(tmp_path), RuleContext()))
+
+    assert [f.title for f in findings] == ["Notebook not scanned"]
+    assert "read bound" in findings[0].evidence.summary

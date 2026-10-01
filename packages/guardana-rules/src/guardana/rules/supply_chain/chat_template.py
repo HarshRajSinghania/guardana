@@ -20,10 +20,15 @@ from guardana.core.taxonomy import (
 from guardana.rules._base import ArtifactRule
 from guardana.rules.supply_chain._jinja_gadgets import Gadget, jinja_gadgets
 from guardana.rules.supply_chain._leads import unscanned_verdict
-from guardana.rules.supply_chain._reading import read_bytes_bounded, read_text_bounded
+from guardana.rules.supply_chain._reading import (
+    MAX_SCAN_BYTES,
+    read_bytes_bounded,
+    read_text_prefix,
+)
 
 _RULE_ID = "guardana.supply_chain.chat_template"
 _UNSCANNED_TITLE = "Chat template not scanned"
+_PAST_THE_BOUND = f"the file is larger than the {MAX_SCAN_BYTES}-byte read bound"
 
 # The same template ships in up to four places for one model, and a scanner that
 # knows only one of them reports the other three clean: inside GGUF metadata, in
@@ -94,16 +99,19 @@ class ChatTemplateRule(ArtifactRule):
             yield self._unscanned(path, "file could not be read")
             return
         raw, truncated = prefix
-        findings = list(self._graded(path, path.name, raw.decode("utf-8", errors="ignore")))
-        yield from findings
-        # Padding a template past the read bound to push the gadget out of view is
-        # the obvious evasion once a scanner is known, so a partial read that found
-        # nothing reports what it is: a partial read.
-        if truncated and not findings:
-            yield self._unscanned(path, "the template is larger than the read bound")
+        yield from self._graded(path, path.name, raw.decode("utf-8", errors="ignore"))
+        # Padding a template past the read bound to push a gadget out of view is the
+        # obvious evasion once a scanner is known, and a gadget found in the part that
+        # was read says nothing about a worse one after it.
+        if truncated:
+            yield self._unscanned(path, _PAST_THE_BOUND)
 
     def _scan_config(self, path: Path) -> Iterator[Finding]:
-        document = self._config_document(path)
+        prefix = read_text_prefix(path, errors="ignore")
+        if prefix is not None and prefix[1]:
+            yield self._unscanned(path, _PAST_THE_BOUND)
+            return
+        document = None if prefix is None else _json_object(prefix[0])
         if document is None:
             yield self._unscanned(path, "not a readable JSON object")
             return
@@ -115,17 +123,6 @@ class ChatTemplateRule(ArtifactRule):
             return
         for label, template in templates:
             yield from self._graded(path, label, template)
-
-    @staticmethod
-    def _config_document(path: Path) -> dict[str, object] | None:
-        raw = read_text_bounded(path, errors="ignore")
-        if raw is None:
-            return None
-        try:
-            document = json.loads(raw)
-        except ValueError:
-            return None
-        return document if isinstance(document, dict) else None
 
     def _graded(self, path: Path, label: str, template: str) -> Iterator[Finding]:
         gadgets = list(jinja_gadgets(template))
@@ -159,6 +156,14 @@ class ChatTemplateRule(ArtifactRule):
             ),
             verdict=unscanned_verdict("the template could not be read, so nothing was cleared"),
         )
+
+
+def _json_object(raw: str) -> dict[str, object] | None:
+    try:
+        document = json.loads(raw)
+    except ValueError:
+        return None
+    return document if isinstance(document, dict) else None
 
 
 def _summary(gadgets: list[Gadget]) -> str:

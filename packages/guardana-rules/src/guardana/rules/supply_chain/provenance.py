@@ -10,8 +10,8 @@ from guardana.core.source import PythonSource
 from guardana.core.target import Capability, FileReader, Target, TargetKind
 from guardana.core.taxonomy import NIST_SUPPLY_CHAIN, OWASP_LLM03_2025, OWASP_LLM04_2026
 from guardana.rules._base import ArtifactRule
-from guardana.rules.supply_chain._leads import lead_verdict
-from guardana.rules.supply_chain._reading import read_text_bounded
+from guardana.rules.supply_chain._leads import lead_verdict, unscanned_verdict
+from guardana.rules.supply_chain._reading import MAX_SCAN_BYTES, read_text_prefix
 
 _RULE_ID = "guardana.supply_chain.provenance"
 _DOWNLOAD_CALLS = frozenset({"from_pretrained", "hf_hub_download"})
@@ -92,23 +92,39 @@ class ProvenanceRule(ArtifactRule):
             )
 
     def _scan_license(self, path: Path) -> Iterator[Finding]:
-        text = read_text_bounded(path, errors="ignore")
-        if text is None:
+        prefix = read_text_prefix(path, errors="ignore")
+        if prefix is None:
+            yield self._unscanned(path, "the file could not be read")
             return
+        text, truncated = prefix
         marker = _license_lead(text)
-        if marker is None:
-            return
-        yield Finding(
+        if marker is not None:
+            yield Finding(
+                rule_id=self.meta.id,
+                severity=Severity.LOW,
+                title="Risky license marker in model card",
+                taxonomy=self.meta.taxonomy,
+                target_ref=str(path),
+                evidence=Evidence(
+                    summary=f"risky license marker in model card ({marker})",
+                    detail=f"file={path.name}",
+                ),
+                verdict=lead_verdict(
+                    f"risky license marker ({marker}); worth a second look, not a verdict"
+                ),
+            )
+        if truncated:
+            yield self._unscanned(path, f"only the first {MAX_SCAN_BYTES} bytes were read")
+
+    def _unscanned(self, path: Path, reason: str) -> Finding:
+        return Finding(
             rule_id=self.meta.id,
             severity=Severity.LOW,
-            title="Risky license marker in model card",
+            title="Model card not scanned",
             taxonomy=self.meta.taxonomy,
             target_ref=str(path),
             evidence=Evidence(
-                summary=f"risky license marker in model card ({marker})",
-                detail=f"file={path.name}",
+                summary=f"model card not scanned: {reason}", detail=f"file={path.name}"
             ),
-            verdict=lead_verdict(
-                f"risky license marker ({marker}); worth a second look, not a verdict"
-            ),
+            verdict=unscanned_verdict("the model card was not read whole, so nothing was cleared"),
         )
