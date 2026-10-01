@@ -9,9 +9,10 @@ from guardana.core.budget import BudgetExhausted
 from guardana.core.gate import GateOutcome, gate, gate_outcome
 from guardana.core.inventory import observe
 from guardana.core.manifest.records import CalibrationRecord, SuiteSummary
+from guardana.core.observation import Observation, ObservationKind
 from guardana.core.profile.model import Profile
 from guardana.core.registry import Registry
-from guardana.core.report import CheckError, Finding, ScanResult, StopReason
+from guardana.core.report import CheckError, Finding, ScanResult, StopReason, split_ref
 from guardana.core.report.shortfall import CoverageShortfall, ShortfallKind
 from guardana.core.report.skipped import SkippedRule, SkipReason
 from guardana.core.rule.base import Rule, RuleContext
@@ -41,6 +42,9 @@ class _RuleOutcome:
     error: CheckError | None = None
     suite: SuiteSummary | None = None
     """What a suite concluded, carried from its context; None for every other rule."""
+
+    examined: frozenset[str] = frozenset()
+    """The files this rule examined in its own format, those it reported on included."""
 
     stopped_by: StopReason | None = None
     """Set when the run ran out of budget part-way through this rule.
@@ -134,6 +138,7 @@ class Runner:
         # unreachable endpoint yields fewer outcomes than it planned rules — and
         # pairing by position would then attribute results to the wrong rules.
         ran: list[str] = []
+        examined: set[str] = set()
         assessments: list[Assessment] = []
         suites: dict[str, SuiteSummary] = {}
         stopped_by: StopReason | None = None
@@ -152,6 +157,7 @@ class Runner:
                 errors.append(outcome.error)
             else:
                 ran.append(outcome.rule_id)
+                examined.update(outcome.examined)
             # Carried from an errored or cut-off suite too: it concluded that it did not
             # finish, over every case it planned, and dropping that decline would leave the
             # cases it never sent unaccounted for. The rule still stays out of `rules_run`.
@@ -190,7 +196,10 @@ class Runner:
             # Computed here rather than in a command, because a run whose verdict is
             # `indeterminate` for a reason that is not in its own document leaves
             # `diff` and the collector holding a conclusion with no cause.
-            coverage_shortfall=_coverage_shortfall(self.profile, target),
+            coverage_shortfall=(
+                *_coverage_shortfall(self.profile, target),
+                *_unexamined_components(target, observations, examined),
+            ),
             stopped_by=stopped_by,
             trials_per_case={
                 rule.meta.id: rule.trials_per_case for rule in plan if rule.meta.id in ran
@@ -341,8 +350,14 @@ class Runner:
                 error=CheckError.from_exception(rule.meta.id, "run", exc),
                 suite=ctx.concluded(),
             )
+        reported = {split_ref(f.target_ref)[0] for f in (*findings, *unverified)}
         return _RuleOutcome(
-            rule.meta.id, tuple(findings), tuple(unverified), ctx.recorded(), suite=ctx.concluded()
+            rule.meta.id,
+            tuple(findings),
+            tuple(unverified),
+            ctx.recorded(),
+            suite=ctx.concluded(),
+            examined=ctx.examined_paths() | reported,
         )
 
 
@@ -445,6 +460,42 @@ def _unread_sources(target: Target) -> tuple[UnreadSource, ...]:
     if isinstance(target, FileReader):
         return target.unread_sources()
     return ()
+
+
+_NAMED_UNEXAMINED = 3
+"""How many unexamined components a shortfall names before it says how many more."""
+
+
+def _unexamined_components(
+    target: Target, observations: Sequence[Observation], examined: Collection[str]
+) -> tuple[CoverageShortfall, ...]:
+    """Return one shortfall per model format the run observed and no completed rule read.
+
+    Only a file target is asked: an endpoint's model is the thing every rule talks to,
+    not a file one of them has to open.
+    """
+    if not isinstance(target, FileReader):
+        return ()
+    unread: dict[str, list[str]] = {}
+    for observation in observations:
+        if observation.kind is ObservationKind.MODEL and observation.ref not in examined:
+            unread.setdefault(observation.attributes.get("format", "unknown"), []).append(
+                observation.ref
+            )
+    return tuple(
+        CoverageShortfall(
+            kind=ShortfallKind.UNEXAMINED_COMPONENT,
+            name=model_format,
+            detail=(
+                f"{len(refs)} {model_format} model component(s) that no rule which ran reads: "
+                f"{', '.join(refs[:_NAMED_UNEXAMINED])}"
+                f"{' and more' if len(refs) > _NAMED_UNEXAMINED else ''} — whether they are "
+                f"safe is unknown; exclude them from the scan or add a rule that reads "
+                f"{model_format}"
+            ),
+        )
+        for model_format, refs in sorted(unread.items())
+    )
 
 
 def _file_scope(target: Target) -> FileScope | None:

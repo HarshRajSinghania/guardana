@@ -2,7 +2,7 @@
 
 Each case scans a real tree twice through the CLI and compares the two saved runs, the
 way a pipeline does: a pickle that was deleted, moved into a directory every scan skips,
-or listed in `.guardanaignore` left the scan, and only a file the
+renamed to `.bin` or listed in `.guardanaignore` left the scan, and only a file the
 second scan read and found clean is resolved.
 """
 
@@ -96,6 +96,20 @@ def test_a_pickle_moved_into_a_directory_every_scan_skips_left_the_scan(
 
     assert code == _REGRESSION
     assert _kinds(payload) == [("left_scan", "weights.pkl")]
+
+
+def test_a_pickle_renamed_to_bin_is_still_found_under_its_new_name(
+    scanned: tuple[Path, Path], tmp_path: Path
+) -> None:
+    model, before = scanned
+    (model / "weights.pkl").rename(model / "weights.bin")
+    after = tmp_path / "after.json"
+    _scan(model, after)
+
+    code, payload = _diff(before, after)
+
+    assert code == _REGRESSION
+    assert sorted(_kinds(payload)) == [("appeared", "weights.bin"), ("left_scan", "weights.pkl")]
 
 
 def test_a_file_the_second_scan_read_and_found_clean_is_resolved(

@@ -42,7 +42,8 @@ A run keeps separate channels for:
 - findings: a check reached a negative verdict;
 - unverified results: the check ran but could not decide;
 - errors: the check could not run;
-- coverage shortfalls: policy-required evidence was unavailable;
+- coverage shortfalls: policy-required evidence was unavailable, or a model file the
+  scan observed was read by no rule that ran;
 - assessments: what was measured, including passes.
 
 Unknown counts and costs remain unknown rather than becoming zero. Exhausted

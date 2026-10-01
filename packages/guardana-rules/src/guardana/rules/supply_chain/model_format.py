@@ -1,5 +1,5 @@
 import re
-from collections.abc import Callable, Iterable, Iterator
+from collections.abc import Callable, Generator, Iterable, Iterator
 from pathlib import Path
 from xml.etree.ElementTree import ParseError
 
@@ -28,7 +28,8 @@ _XXE_DOCTYPE = re.compile(rb"<!DOCTYPE", re.IGNORECASE)
 _XXE_ENTITY = re.compile(rb"<!ENTITY", re.IGNORECASE)
 
 
-def _scan_pmml(path: Path, data: bytes) -> Iterator[Finding]:
+def _scan_pmml(path: Path, data: bytes) -> Generator[Finding, None, bool]:
+    """Grade a PMML/XML file and return whether it was read as XML at all."""
     doctype = _XXE_DOCTYPE.search(data)
     entity = _XXE_ENTITY.search(data)
     if doctype is not None or entity is not None:
@@ -50,7 +51,7 @@ def _scan_pmml(path: Path, data: bytes) -> Iterator[Finding]:
                 detail=f"file={path.name}",
             ),
         )
-        return
+        return True
     # Belt-and-braces: defusedxml with forbid_dtd=True explicitly rejects
     # DTD/entity-bearing documents even when our lightweight byte-scan above
     # missed a variant. Combined with the regex pre-filter above, this ensures
@@ -75,8 +76,11 @@ def _scan_pmml(path: Path, data: bytes) -> Iterator[Finding]:
                 detail=f"file={path.name}",
             ),
         )
-    except ParseError:  # not XML (or truncated by the bounded read) — not this rule's concern
-        return
+    except ParseError:
+        # Not XML, or cut by the bounded read: nothing here was read as a model, so the
+        # file is not examined, and an observed `.pmml` stays a coverage shortfall.
+        return False
+    return True
 
 
 def _scan_safetensors(path: Path) -> Iterator[Finding]:
@@ -105,7 +109,7 @@ def _scan_safetensors(path: Path) -> Iterator[Finding]:
 # the start; the bound keeps a crafted multi-GB file from stalling the scan).
 # Whole-file detectors manage their own reading because the interesting region
 # can legitimately exceed that bound.
-_CONTENT_DETECTORS: dict[str, Callable[[Path, bytes], Iterator[Finding]]] = {
+_CONTENT_DETECTORS: dict[str, Callable[[Path, bytes], Generator[Finding, None, bool]]] = {
     ".pmml": _scan_pmml,
     ".xml": _scan_pmml,
 }
@@ -144,14 +148,16 @@ class ModelFormatRule(ArtifactRule):
         if not isinstance(target, FileReader):
             return
         for path in target.iter_files((*_CONTENT_DETECTORS, *_WHOLE_FILE_DETECTORS)):
-            yield from self._scan(path)
+            if (yield from self._scan(path)):
+                ctx.examined(path)
 
-    def _scan(self, path: Path) -> Iterator[Finding]:
+    def _scan(self, path: Path) -> Generator[Finding, None, bool]:
+        """Scan one file and return whether it could be read at all."""
         whole_file_detector = _WHOLE_FILE_DETECTORS.get(path.suffix.lower())
         if whole_file_detector is not None:
             yield from whole_file_detector(path)
-            return
+            return True
         prefix = read_bytes_bounded(path)
         if prefix is None:
-            return
-        yield from _CONTENT_DETECTORS[path.suffix.lower()](path, prefix[0])
+            return False
+        return (yield from _CONTENT_DETECTORS[path.suffix.lower()](path, prefix[0]))

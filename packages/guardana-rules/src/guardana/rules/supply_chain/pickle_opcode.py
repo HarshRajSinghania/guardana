@@ -1,7 +1,8 @@
 import io
 import pickletools
+import re
 import zipfile
-from collections.abc import Iterable, Iterator
+from collections.abc import Generator, Iterable, Iterator
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
@@ -25,6 +26,9 @@ from guardana.rules.supply_chain._leads import unscanned_verdict
 from guardana.rules.supply_chain._reading import read_bytes_bounded
 
 _SUFFIXES = (".pkl", ".pickle", ".pt", ".pth", ".ckpt", ".joblib", ".dill")
+_BIN_SUFFIX = ".bin"
+"""Read by content: `pytorch_model.bin` is a torch zip, and a `.bin` that is neither a
+zip nor a pickle stream is some other file this rule has nothing to say about."""
 _ALLOWED_MODULES = frozenset({"torch", "numpy", "collections"})
 _BUILTIN_MODULES = frozenset({"builtins", "__builtin__"})
 _SAFE_BUILTINS = frozenset(
@@ -89,6 +93,14 @@ class UnparseableStreamError(Exception):
     """Raised when the byte stream is not a valid pickle opcode stream."""
 
 
+class _ShortStackError(UnparseableStreamError):
+    """STACK_GLOBAL with fewer than two operands.
+
+    What a byte of raw data parsing as an opcode looks like, as opposed to a pickle
+    hiding its operands.
+    """
+
+
 def _is_allowed(module: str, qualname: str) -> bool:
     if module in _BUILTIN_MODULES:
         return qualname in _SAFE_BUILTINS
@@ -106,7 +118,7 @@ def _resolve_stack_global(stack: list[str | None]) -> str:
     # that reaches here without two resolvable strings on top (memo miss, non-str
     # operand, short stack) is not provably clean.
     if len(stack) < _STACK_GLOBAL_ARGC:
-        raise UnparseableStreamError("STACK_GLOBAL with fewer than two stack operands")
+        raise _ShortStackError("STACK_GLOBAL with fewer than two stack operands")
     qualname = stack.pop()
     module = stack.pop()
     if not isinstance(module, str) or not isinstance(qualname, str):
@@ -158,6 +170,31 @@ class ParseEnd(StrEnum):
     UNRESOLVABLE = "unresolvable"
 
 
+_PICKLE_HEADERS = (b"\x80\x02", b"\x80\x03", b"\x80\x04", b"\x80\x05")
+_IDENTIFIER = re.compile(r"[A-Za-z_][\w]*(?:\.[A-Za-z_][\w]*)+")
+_BIN_PROBE_BYTES = 64 * 1024
+"""How much of a `.bin` is read to decide whether it is a pickle at all."""
+
+
+def _bin_verdict(head: bytes, scan: "_OpcodeScan", *, cut: bool) -> bool | None:
+    """Whether a file of no known format is a pickle: True, False, or None to read on.
+
+    A pickle of protocol 2 to 5 says so in its first two bytes. One without that header is
+    taken for a pickle when it imports a callable with a real dotted name, or hides the
+    operands of an import, because a few random bytes in a thousand parse as some
+    opcode stream and those end on a short stack instead.
+    """
+    if head.startswith(_PICKLE_HEADERS):
+        return scan.end is not ParseEnd.NOT_PICKLE or bool(scan.refs)
+    if any(_IDENTIFIER.fullmatch(ref) for ref in scan.refs):
+        return True
+    if scan.end is ParseEnd.UNRESOLVABLE and not scan.short_stack:
+        return True
+    if scan.end is ParseEnd.RAN_OUT and cut:
+        return None
+    return False
+
+
 def _left_a_pickle_unproven(end: ParseEnd, *, cut: bool) -> bool:
     """Whether this member is a pickle the rule stopped short of clearing.
 
@@ -178,6 +215,8 @@ class _OpcodeScan:
 
     refs: list[str]
     end: ParseEnd
+    short_stack: bool = False
+    """Whether an `UNRESOLVABLE` end came from too few operands rather than hidden ones."""
 
     @property
     def truncated(self) -> bool:
@@ -186,33 +225,60 @@ class _OpcodeScan:
 
 
 def _scan_opcodes(data: bytes) -> _OpcodeScan:
-    """Read `data` as a pickle opcode stream, keeping whatever it proves.
+    """Read `data` as one or more pickle opcode streams, keeping whatever they prove.
 
     Parses opcodes lazily and keeps what it found even if the stream breaks
     mid-way: pickle executes opcodes as encountered, so a dangerous global before
     a deliberately-broken tail (Exception-Oriented Programming) still runs and
     must still be reported — never masked by a LOW "unscanned".
+
+    Reads on past a STOP: a legacy `torch.save` file is several pickles back to back
+    before its raw tensor bytes, and the one that builds the model is the fourth.
+    Bytes after a complete pickle that are not a pickle are data, not a parse failure,
+    and so is a byte of that data that parses as STACK_GLOBAL with nothing to pop.
     """
     refs: list[str] = []
+    stream = io.BytesIO(data)
+    complete = 0
+    while True:
+        start = stream.tell()
+        end, short_stack = _scan_one(stream, len(data), refs)
+        if end is not ParseEnd.COMPLETE:
+            trailing_data = end is ParseEnd.NOT_PICKLE or (
+                end is ParseEnd.UNRESOLVABLE and short_stack
+            )
+            if complete and trailing_data:
+                return _OpcodeScan(refs, ParseEnd.COMPLETE)
+            return _OpcodeScan(refs, end, short_stack=short_stack)
+        complete += 1
+        if stream.tell() >= len(data) or stream.tell() == start:
+            return _OpcodeScan(refs, ParseEnd.COMPLETE)
+
+
+def _scan_one(stream: io.BytesIO, size: int, refs: list[str]) -> tuple[ParseEnd, bool]:
+    """Read one pickle from `stream`'s position to its STOP, with its own stack and memo.
+
+    Returns how it ended, and whether an `UNRESOLVABLE` end was for lack of operands.
+    """
     stack: list[str | None] = []
     memo: dict[int, str | None] = {}
-    stream = io.BytesIO(data)
     ops = pickletools.genops(stream)
     while True:
         try:
             op, arg, _pos = next(ops)
         except StopIteration:
-            return _OpcodeScan(refs, ParseEnd.COMPLETE)
+            return ParseEnd.COMPLETE, False
         except (ValueError, OSError):
             # `genops` reads through the buffer as it goes, so a parse sitting at the
             # end of it wanted bytes the caller did not have; one that broke earlier
             # was reading something that is not an opcode stream at all.
-            ran_out = stream.tell() >= len(data)
-            return _OpcodeScan(refs, ParseEnd.RAN_OUT if ran_out else ParseEnd.NOT_PICKLE)
+            return (ParseEnd.RAN_OUT if stream.tell() >= size else ParseEnd.NOT_PICKLE), False
         try:
             _step(op.name, arg, stack, memo, refs)
+        except _ShortStackError:
+            return ParseEnd.UNRESOLVABLE, True
         except UnparseableStreamError:
-            return _OpcodeScan(refs, ParseEnd.UNRESOLVABLE)
+            return ParseEnd.UNRESOLVABLE, False
 
 
 class PickleOpcodeRule(ArtifactRule):
@@ -244,34 +310,58 @@ class PickleOpcodeRule(ArtifactRule):
     )
 
     def run(self, target: Target, ctx: RuleContext) -> Iterable[Finding]:
-        """Scan every pickle-shaped file under the target."""
+        """Scan every pickle-shaped file under the target, and every `.bin` that is one."""
         if not isinstance(target, FileReader):
             return
         for path in target.iter_files(_SUFFIXES):
             yield from self._scan(path)
+            ctx.examined(path)
+        for path in target.iter_files((_BIN_SUFFIX,)):
+            if (yield from self._scan(path, by_content=True)):
+                ctx.examined(path)
 
-    def _scan(self, path: Path) -> Iterator[Finding]:
+    def _scan(self, path: Path, *, by_content: bool = False) -> Generator[Finding, None, bool]:
+        """Scan one file and return whether it was a pickle or a zip this rule read.
+
+        `by_content` is for a suffix that names no format: a file that is neither a zip
+        nor a pickle stream is left alone, without a finding, and reported as unread.
+        """
         sniffed = read_bytes_bounded(path, _MAGIC_SNIFF_BYTES)
         if sniffed is None:
-            # Not a regular file (a FIFO named `model.pkl` blocks a plain read
-            # forever) or unreadable. Either way it is unexamined, not clean.
-            yield self._unscanned(path, "not a readable regular file; not scanned")
-            return
+            if not by_content:
+                # Not a regular file (a FIFO named `model.pkl` blocks a plain read
+                # forever) or unreadable. Either way it is unexamined, not clean.
+                yield self._unscanned(path, "not a readable regular file; not scanned")
+            return False
         magic = sniffed[0]
         if magic.startswith(_ZIP_MAGIC):
             yield from self._scan_zip(path)
-            return
+            return True
         if magic.startswith(_7Z_MAGIC):
             yield self._unscanned(
                 path, "7z-compressed archive; cannot decompress to scan — treat as suspicious"
             )
-            return
+            return True
+        return (yield from self._scan_stream(path, by_content=by_content))
+
+    def _scan_stream(self, path: Path, *, by_content: bool) -> Generator[Finding, None, bool]:
+        """Read `path` as a raw pickle stream; see `_scan` for `by_content`."""
+        if by_content:
+            probe = read_bytes_bounded(path, _BIN_PROBE_BYTES)
+            if probe is None:
+                return False
+            verdict = _bin_verdict(probe[0], _scan_opcodes(probe[0]), cut=probe[1])
+            if verdict is False:
+                return False
         prefix = read_bytes_bounded(path, _MAX_PICKLE_BYTES)
         if prefix is None:
-            yield self._unscanned(path, "not a readable regular file; not scanned")
-            return
+            if not by_content:
+                yield self._unscanned(path, "not a readable regular file; not scanned")
+            return False
         data, oversized = prefix
         scan = _scan_opcodes(data)
+        if by_content and not _bin_verdict(data, scan, cut=oversized):
+            return False
         refs, truncated = scan.refs, scan.truncated
         if refs:
             yield from (self._critical(path, ref) for ref in refs)
@@ -284,6 +374,7 @@ class PickleOpcodeRule(ArtifactRule):
                 path,
                 "could not parse as a pickle stream (may be a zip-based container); not scanned",
             )
+        return True
 
     def _scan_zip(self, path: Path) -> Iterator[Finding]:
         # Opened from the path, not from bytes in memory: a checkpoint for a 7B

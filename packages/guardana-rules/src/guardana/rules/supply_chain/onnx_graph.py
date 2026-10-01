@@ -85,6 +85,7 @@ class OnnxGraphRule(ArtifactRule):
             return
         for path in target.iter_files((".onnx",)):
             yield from self._scan(path)
+            ctx.examined(path)
 
     def _scan(self, path: Path) -> Iterator[Finding]:
         try:

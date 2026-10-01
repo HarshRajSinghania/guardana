@@ -738,6 +738,17 @@ the name in any case too (<code>path.name.lower() == &quot;setup.py&quot;</code>
 for this rule id (<code>ctx.get(key, default)</code>). Built-in readers include
 <code>guardana.supply_chain.hardcoded_secret</code>, which reads <code>entropy</code>, and the MCP
 server manifest rule, which reads <code>pin</code>.</p>
+<p><strong>Say which model files you read.</strong> A model file the scan observes and no rule that
+ran read is a coverage shortfall, and the run is <code>indeterminate</code>
+(<a href="usage-scan.html#model-files-no-rule-reads"><code>guardana scan</code></a>). A rule that reads a model
+format calls <code>ctx.examined(path)</code> once it parsed a file or reported on it; a file the
+rule yielded a finding or an unverified result for counts without the call. A rule
+that reads every file for something else, as a secret scanner does, does not call it:
+reading bytes for secrets says nothing about whether the model is safe to load.</p>
+<pre><code class="language-python">for path in target.iter_files((&quot;.tflite&quot;,)):
+    yield from self._scan(path)
+    ctx.examined(path)
+</code></pre>
 <p><strong>Ask the target for parsed source — never parse it yourself.</strong> A scan runs
 every rule over the same tree, so a rule that reads and parses a file for itself
 multiplies the cost of the whole scan by the number of rules:</p>

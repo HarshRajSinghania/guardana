@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar
 
 from guardana.core.assessment import Assessment
@@ -93,6 +94,7 @@ class RuleContext:
 
     _assessments: list[Assessment] = field(default_factory=list, repr=False)
     _conclusions: list["SuiteSummary"] = field(default_factory=list, repr=False)
+    _examined: set[str] = field(default_factory=set, repr=False)
 
     def get(self, key: str, default: object) -> object:
         """Read one config value, falling back to `default`."""
@@ -125,6 +127,21 @@ class RuleContext:
     def concluded(self) -> "SuiteSummary | None":
         """Return the last conclusion `conclude` was given; None for a rule that is no suite."""
         return self._conclusions[-1] if self._conclusions else None
+
+    def examined(self, path: Path | str) -> None:
+        """Record that this rule read `path` in its own format and reached a conclusion.
+
+        Called by a rule that understands a component — a pickle, an ONNX graph — once
+        it parsed the file or reported on it, never by a rule that merely reads every
+        file for something else. A model component the run observed and no completed
+        rule examined is a coverage shortfall; a file this rule reported on counts
+        without the call.
+        """
+        self._examined.add(str(path))
+
+    def examined_paths(self) -> frozenset[str]:
+        """Every path `examined` was given."""
+        return frozenset(self._examined)
 
 
 class Rule(ABC):

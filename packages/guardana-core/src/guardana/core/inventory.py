@@ -29,6 +29,7 @@ _MODEL_SUFFIXES: dict[str, str] = {
     ".keras": "keras",
     ".pkl": "pickle",
     ".pickle": "pickle",
+    ".dill": "pickle",
     ".joblib": "joblib",
     ".pmml": "pmml",
     ".tflite": "tflite",
@@ -45,6 +46,23 @@ _MANIFEST_NAMES = frozenset(
         "conda.yaml",
     }
 )
+_BIN_SUFFIX = ".bin"
+_BIN_SIGNATURES: tuple[tuple[bytes, str], ...] = (
+    (b"PK\x03\x04", "pytorch"),
+    (b"\x80\x02", "pickle"),
+    (b"\x80\x03", "pickle"),
+    (b"\x80\x04", "pickle"),
+    (b"\x80\x05", "pickle"),
+    (b"GGUF", "gguf"),
+    (b"lmgg", "ggml"),
+    (b"fmgg", "ggml"),
+    (b"tjgg", "ggml"),
+)
+"""What a `.bin` holds when it is a model, by its first bytes.
+
+`.bin` names model weights, firmware and test data alike, so it is a component only
+when its first bytes say which model container it is; one that says nothing is not
+listed."""
 _DATASET_SUFFIXES = frozenset({".parquet", ".jsonl", ".arrow"})
 _MANIFEST_PREFIX = "requirements"
 
@@ -56,6 +74,9 @@ def _size_attributes(path: Path) -> dict[str, str]:
     # looking examined, while every rule had silently skipped it. Listed anyway
     # when the open fails: an inventory that drops what it could not read lies by
     # omission, which is the same failure as a check reporting clean.
+    if not path.is_file():
+        # A FIFO or a device named like a model blocks a plain open for ever.
+        return {"read": "failed"}
     try:
         with path.open("rb"):
             return {"size_bytes": str(path.stat().st_size)}
@@ -63,11 +84,25 @@ def _size_attributes(path: Path) -> dict[str, str]:
         return {"read": "failed"}
 
 
+def _bin_format(path: Path) -> str | None:
+    if not path.is_file():
+        return None
+    try:
+        with path.open("rb") as handle:
+            head = handle.read(4)
+    except OSError:
+        return None
+    return next((name for magic, name in _BIN_SIGNATURES if head.startswith(magic)), None)
+
+
 def _classify(path: Path) -> tuple[ObservationKind, dict[str, str]] | None:
     suffix = path.suffix.lower()
     name = path.name.lower()
     if suffix in _MODEL_SUFFIXES:
         return ObservationKind.MODEL, {"format": _MODEL_SUFFIXES[suffix]}
+    if suffix == _BIN_SUFFIX:
+        bin_format = _bin_format(path)
+        return None if bin_format is None else (ObservationKind.MODEL, {"format": bin_format})
     if name in _MANIFEST_NAMES or (name.startswith(_MANIFEST_PREFIX) and suffix == ".txt"):
         return ObservationKind.DEPENDENCY_MANIFEST, {}
     if suffix in _DATASET_SUFFIXES:

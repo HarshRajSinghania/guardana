@@ -88,10 +88,6 @@ reproduced; the rest are the sweep's reading with its anchors, not yet reproduce
 - **Stating `builtins` with a pack co-installed leaves every run `indeterminate`**, and the only
   way out, `fail_on_error: false`, turns off all error gating. A refusal the user stated could be
   a visible coverage note instead of an error.
-- **A model file in a format Guardana does not recognise is not read and not reported.**
-  `pytorch_model.bin` (a torch zip holding a pickle) scans clean while the same bytes named
-  `model.pt` are flagged, and TFLite is listed as a component that no rule reads. Every observed
-  model component should be read by at least one rule or reported UNVERIFIED, and a scan target no rule claimed should be a coverage shortfall.
 - `probe` records each discovery error once per canary pass, so two refused entry points
   appear as eight errors.
 - **The starter's end-to-end test runs its README through `/bin/sh`**, so it does not run on
@@ -99,6 +95,19 @@ reproduced; the rest are the sweep's reading with its anchors, not yet reproduce
 - Under a stated trust, `taxonomy` words a refused rule or evaluator entry point as "could not
   load a taxonomy provider"; and `rule test` prints a load failure twice, on stderr and in its
   report.
+
+## Left by run schema 12 (the `left_scan` and `unexamined_component` fixes)
+
+- **Formats the inventory does not list as models**: `.npy`/`.npz` (numpy can hold pickles),
+  `.msgpack`, a TensorFlow `.pb`. `saved_model_ops` reads `.pb` but nothing observes it, so a
+  shortfall cannot name one; a `.bin` holding GGUF or GGML is a shortfall with no reader.
+- **`scan --write-baseline` and `baseline create` write a baseline over a run that is not
+  entitled to one** (a coverage shortfall, nothing verified, a stopped run): both gate only on
+  errors (`cli/scan.py`, `cli/baseline.py`).
+- **The collector envelope carries no coverage shortfall**, so a run that is `indeterminate`
+  for an unread component or a missing dimension reaches the collector without its cause.
+- **`left_scan` cannot tell a file deleted from one hidden.** Accepting a deliberate removal
+  needs a way that is recorded, not a neutral change kind.
 
 ## Accepted designs the roadmap does not carry
 

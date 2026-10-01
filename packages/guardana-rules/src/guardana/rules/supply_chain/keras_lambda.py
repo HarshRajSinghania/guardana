@@ -85,8 +85,10 @@ class KerasLambdaRule(ArtifactRule):
             return
         for path in target.iter_files((".keras",)):
             yield from self._scan_keras(path)
+            ctx.examined(path)
         for path in target.iter_files((".h5", ".hdf5")):
             yield from self._byte_scan(path, fallback_reason=None)
+            ctx.examined(path)
 
     def _scan_keras(self, path: Path) -> Iterator[Finding]:
         config = _read_keras_config(path)

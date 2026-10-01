@@ -48,6 +48,30 @@ Only rules whose `target_kind` is `artifact` and whose declared
 system-prompt leak, output-secrets) are silently skipped against `scan` —
 they need a live model, so use `guardana probe` for those.
 
+## Model files no rule reads
+
+Every model file the scan observes must be read by a rule that ran. One that no rule
+read is a coverage shortfall named `unexamined_component`, one per format, so the run
+is `indeterminate` (exit `2`) and never clean. There is no switch: exclude the file
+with `.guardanaignore` or `rules.paths_exclude`, which the saved run then records, or
+install a rule that reads the format.
+
+| Observed as a model | Read by |
+|---|---|
+| `.pkl`, `.pickle`, `.dill`, `.joblib`, `.pt`, `.pth`, `.ckpt` | `guardana.supply_chain.pickle_opcode` |
+| `.bin` whose first bytes are a zip or a pickle stream (`pytorch_model.bin`) | `guardana.supply_chain.pickle_opcode` |
+| `.onnx` | `guardana.supply_chain.onnx_graph` |
+| `.keras`, `.h5`, `.hdf5` | `guardana.supply_chain.keras_lambda` |
+| `.gguf` | `guardana.supply_chain.chat_template` |
+| `.safetensors`, `.pmml` | `guardana.supply_chain.model_format` |
+| `.tflite`, a `.bin` that starts like GGUF or GGML | no built-in rule |
+
+A `.bin` whose first bytes match none of those is not listed as a model. A rule left
+out by the profile reads nothing, so a profile that excludes
+`guardana.supply_chain.pickle_opcode` leaves every pickle unread. A third-party rule
+counts a file as read by reporting on it, or by calling `ctx.examined(path)`
+([writing rules](writing-rules.md)).
+
 Guardana dogfoods itself in CI by scanning its own source, which must stay
 clean:
 

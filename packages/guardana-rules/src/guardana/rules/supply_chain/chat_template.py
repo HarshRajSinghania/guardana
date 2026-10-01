@@ -68,6 +68,7 @@ class ChatTemplateRule(ArtifactRule):
             return
         for path in target.iter_files((".gguf",)):
             yield from self._scan_gguf(path)
+            ctx.examined(path)
         for path in target.iter_files(_TEMPLATE_SUFFIXES):
             if path.stem.lower().startswith(_TEMPLATE_STEM):
                 yield from self._scan_template_file(path)

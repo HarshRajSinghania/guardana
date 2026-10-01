@@ -382,6 +382,55 @@ targets and refuses a mismatched kind before any rule runs.</p>
 <code>read_files</code>) execute. Endpoint-only rules (prompt injection, jailbreak,
 system-prompt leak, output-secrets) are silently skipped against <code>scan</code> —
 they need a live model, so use <code>guardana probe</code> for those.</p>
+<h2 id="model-files-no-rule-reads">Model files no rule reads</h2>
+<p>Every model file the scan observes must be read by a rule that ran. One that no rule
+read is a coverage shortfall named <code>unexamined_component</code>, one per format, so the run
+is <code>indeterminate</code> (exit <code>2</code>) and never clean. There is no switch: exclude the file
+with <code>.guardanaignore</code> or <code>rules.paths_exclude</code>, which the saved run then records, or
+install a rule that reads the format.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Observed as a model</th>
+<th>Read by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>.pkl</code>, <code>.pickle</code>, <code>.dill</code>, <code>.joblib</code>, <code>.pt</code>, <code>.pth</code>, <code>.ckpt</code></td>
+<td><code>guardana.supply_chain.pickle_opcode</code></td>
+</tr>
+<tr>
+<td><code>.bin</code> whose first bytes are a zip or a pickle stream (<code>pytorch_model.bin</code>)</td>
+<td><code>guardana.supply_chain.pickle_opcode</code></td>
+</tr>
+<tr>
+<td><code>.onnx</code></td>
+<td><code>guardana.supply_chain.onnx_graph</code></td>
+</tr>
+<tr>
+<td><code>.keras</code>, <code>.h5</code>, <code>.hdf5</code></td>
+<td><code>guardana.supply_chain.keras_lambda</code></td>
+</tr>
+<tr>
+<td><code>.gguf</code></td>
+<td><code>guardana.supply_chain.chat_template</code></td>
+</tr>
+<tr>
+<td><code>.safetensors</code>, <code>.pmml</code></td>
+<td><code>guardana.supply_chain.model_format</code></td>
+</tr>
+<tr>
+<td><code>.tflite</code>, a <code>.bin</code> that starts like GGUF or GGML</td>
+<td>no built-in rule</td>
+</tr>
+</tbody>
+</table></div>
+<p>A <code>.bin</code> whose first bytes match none of those is not listed as a model. A rule left
+out by the profile reads nothing, so a profile that excludes
+<code>guardana.supply_chain.pickle_opcode</code> leaves every pickle unread. A third-party rule
+counts a file as read by reporting on it, or by calling <code>ctx.examined(path)</code>
+(<a href="writing-rules.html">writing rules</a>).</p>
 <p>Guardana dogfoods itself in CI by scanning its own source, which must stay
 clean:</p>
 <pre><code class="language-console">$ guardana scan packages
