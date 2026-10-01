@@ -84,7 +84,7 @@ def _files(path: Path) -> list[Path]:
         )
         raise typer.Exit(code=ExitCode.INVALID_USAGE)
     if path.is_dir():
-        found = sorted(f for f in path.rglob("*") if f.suffix in _SUFFIXES and f.is_file())
+        found = sorted(f for f in path.rglob("*") if f.suffix.lower() in _SUFFIXES and f.is_file())
         if not found:
             typer.echo(
                 f"error: {path} contains no .yaml or .yml contract, so nothing was loaded from it",

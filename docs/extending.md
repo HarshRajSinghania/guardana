@@ -281,14 +281,16 @@ class MyTarget(Target):
     # --- the FileReader surface `READ_FILES` promises ---
 
     def iter_files(self, suffixes: tuple[str, ...] | None = None) -> Iterator[Path]:
+        # Suffixes compare in any case: a loader opens `model.PKL` like `model.pkl`.
+        wanted = None if suffixes is None else {suffix.lower() for suffix in suffixes}
         for path in sorted(p for p in self._root.rglob("*") if p.is_file()):
-            if suffixes is None or path.suffix in suffixes:
+            if wanted is None or path.suffix.lower() in wanted:
                 yield path
 
     def python_source(self, path: Path) -> PythonSource | None:
         # Cache this: every rule that inspects Python asks through here, so a
         # target that re-reads per call turns a linear scan into a quadratic one.
-        if path.suffix != ".py":
+        if path.suffix.lower() != ".py":
             return None
         if path not in self._sources:
             result = read_source(path)
@@ -344,6 +346,10 @@ with one clear error. A target that implements a surface and *forgets to declare
 it* is worse and used to be silent: every rule needing that capability is skipped,
 the scan comes back green, and nothing in the report separates that from a target
 with no problems. The conformance kit fails on it.
+
+For a `FileReader` it also asks `iter_files` for the suffixes of up to five of the
+target's own files, in lowercase and in capitals, and fails when a file is left out:
+a target that filters `.pkl` by exact case hands `model.PKL` to no rule.
 
 > Before 0.22.0 this page promised that a target declaring `READ_FILES` could run
 > the artifact rules unmodified. It could not: every rule asked

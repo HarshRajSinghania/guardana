@@ -21,7 +21,7 @@ from guardana.rules.supply_chain._leads import lead_verdict
 from guardana.rules.supply_chain._reading import read_text_bounded
 
 _MANIFEST_SUFFIXES = (".txt", ".toml", ".lock", ".cfg", ".in")
-_MANIFEST_NAMES = frozenset({"Pipfile"})
+_MANIFEST_NAMES = frozenset({"pipfile"})
 _ANY_VERSION = "*"
 
 # A network fetch inside setup.py runs at install time (`pip install`), the exact
@@ -50,7 +50,7 @@ _LOCK_VERSION = re.compile(r"""^\s*version\s*=\s*["']([^"']+)["']""")
 
 
 def _is_manifest(path: Path) -> bool:
-    return path.suffix.lower() in _MANIFEST_SUFFIXES or path.name in _MANIFEST_NAMES
+    return path.suffix.lower() in _MANIFEST_SUFFIXES or path.name.lower() in _MANIFEST_NAMES
 
 
 def _exact_pins(text: str) -> set[tuple[str, str]]:
@@ -132,7 +132,7 @@ class MaliciousDependencyRule(ArtifactRule):
             if _is_manifest(path):
                 yield from self._scan_manifest(path)
         for path in target.iter_files((".py",)):
-            if path.name == "setup.py":
+            if path.name.lower() == "setup.py":
                 yield from self._scan_setup(path)
 
     def _scan_manifest(self, path: Path) -> Iterator[Finding]:

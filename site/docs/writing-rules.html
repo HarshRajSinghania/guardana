@@ -729,6 +729,9 @@ class MyRule(Rule):
                     evidence=Evidence(summary=&quot;why this fired&quot;, detail=str(path)),
                 )
 </code></pre>
+<p><code>iter_files</code> matches suffixes in any case. A rule that then picks files by name compares
+the name in any case too (<code>path.name.lower() == &quot;setup.py&quot;</code>): a loader opens <code>Setup.py</code> or
+<code>Config.JSON</code> all the same.</p>
 <p><code>RuleMeta</code> takes the same <code>detection</code> as the YAML key, <code>detection=Detection.INVARIANT</code> or
 <code>Detection.HEURISTIC</code> from <code>guardana.core.safety</code>; left out, it is <code>Detection.UNDECLARED</code>.</p>
 <p><code>RuleContext.config</code> carries whatever the active profile's <code>rule_config</code> declares

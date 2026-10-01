@@ -19,6 +19,16 @@ from guardana.rules.supply_chain._known_packages import (
 from guardana.rules.supply_chain._leads import lead_verdict
 
 _STDLIB = frozenset(sys.stdlib_module_names)
+# Matched exactly, as Python's own finder does: `helperlib.PY` is not importable as
+# `helperlib`. A stub names a module a build step or a native extension provides.
+_MODULE_SUFFIXES = frozenset({".py", ".pyi", ".pyd", ".so"})
+
+
+def _module_name(path: Path) -> str | None:
+    """Return the module a file provides, or None if Python would not import it as one."""
+    if path.suffix not in _MODULE_SUFFIXES:
+        return None
+    return path.name.split(".", 1)[0]
 
 
 def _imports(source: PythonSource) -> Iterator[tuple[int, str]]:
@@ -61,10 +71,10 @@ def _walk(root: Path) -> Iterator[Path]:
 
 def _looks_like_package(children: tuple[Path, ...]) -> bool:
     """Report whether a dir holds a .py file, or a child dir does (namespace package)."""
-    if any(child.suffix == ".py" for child in children if child.is_file()):
+    if any(_module_name(child) for child in children if child.is_file()):
         return True
     return any(
-        child.is_dir() and any(grandchild.suffix == ".py" for grandchild in _iterdir(child))
+        child.is_dir() and any(_module_name(grandchild) for grandchild in _iterdir(child))
         for child in children
     )
 
@@ -72,8 +82,9 @@ def _looks_like_package(children: tuple[Path, ...]) -> bool:
 def _local_modules(root: Path) -> frozenset[str]:
     names = set()
     for path in _walk(root):
-        if path.suffix == ".py":
-            names.add(path.stem)
+        module = _module_name(path)
+        if module is not None and not path.is_dir():
+            names.add(module)
         elif path.is_dir():
             children = _iterdir(path)
             if any(child.name == "__init__.py" for child in children):

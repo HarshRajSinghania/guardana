@@ -84,8 +84,9 @@ def _dependency_files(root: Path) -> Iterator[Path]:
     for dirpath, dirnames, filenames in os.walk(root):
         dirnames[:] = [d for d in dirnames if d not in _SKIP_DIRS and not d.endswith(".egg-info")]
         for filename in filenames:
-            if filename == "pyproject.toml" or (
-                filename.startswith("requirements") and filename.endswith(".txt")
+            name = filename.lower()
+            if name == "pyproject.toml" or (
+                name.startswith("requirements") and name.endswith(".txt")
             ):
                 yield Path(dirpath) / filename
 
@@ -99,7 +100,7 @@ def declared_import_names(root: Path) -> frozenset[str]:
             continue
         parsed = (
             _names_from_pyproject(text)
-            if path.name == "pyproject.toml"
+            if path.name.lower() == "pyproject.toml"
             else (_names_from_requirements(text))
         )
         names.update(normalize(n) for n in parsed)

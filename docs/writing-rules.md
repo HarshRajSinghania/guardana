@@ -374,6 +374,10 @@ class MyRule(Rule):
                 )
 ```
 
+`iter_files` matches suffixes in any case. A rule that then picks files by name compares
+the name in any case too (`path.name.lower() == "setup.py"`): a loader opens `Setup.py` or
+`Config.JSON` all the same.
+
 `RuleMeta` takes the same `detection` as the YAML key, `detection=Detection.INVARIANT` or
 `Detection.HEURISTIC` from `guardana.core.safety`; left out, it is `Detection.UNDECLARED`.
 

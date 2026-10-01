@@ -42,7 +42,7 @@ _KERNEL_REFERENCE = re.compile(r"^[A-Za-z0-9][\w.-]*/[A-Za-z0-9][\w.-]*$")
 
 
 def _is_config(path: Path) -> bool:
-    return path.name.endswith(_CONFIG_NAME_SUFFIX)
+    return path.name.lower().endswith(_CONFIG_NAME_SUFFIX)
 
 
 def _module_targets(pointer: object) -> Iterator[str]:

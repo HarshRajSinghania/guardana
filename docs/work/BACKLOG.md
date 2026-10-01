@@ -102,10 +102,6 @@ reproduced; the rest are the sweep's reading with its anchors, not yet reproduce
   `pytorch_model.bin` (a torch zip holding a pickle) scans clean while the same bytes named
   `model.pt` are flagged, and TFLite is listed as a component that no rule reads. Every observed
   model component should be read by at least one rule or reported UNVERIFIED, and a scan target no rule claimed should be a coverage shortfall.
-- Name-based file selection is still case-sensitive: `remote_code_config` (`config.json`),
-  `chat_template` and `malicious_dependency` (`Pipfile`); `hallucinated_package` counts only
-  `.py` as a local module; the scaffolded pack's target template, the example's prompt-library
-  target and `cli/_contracts.py` filter suffixes case-sensitively too.
 - `probe` records each discovery error once per canary pass, so two refused entry points
   appear as eight errors.
 - **The starter's end-to-end test runs its README through `/bin/sh`**, so it does not run on

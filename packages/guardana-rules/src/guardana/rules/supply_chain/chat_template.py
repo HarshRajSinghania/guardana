@@ -69,10 +69,10 @@ class ChatTemplateRule(ArtifactRule):
         for path in target.iter_files((".gguf",)):
             yield from self._scan_gguf(path)
         for path in target.iter_files(_TEMPLATE_SUFFIXES):
-            if path.stem.startswith(_TEMPLATE_STEM):
+            if path.stem.lower().startswith(_TEMPLATE_STEM):
                 yield from self._scan_template_file(path)
         for path in target.iter_files((".json",)):
-            if path.name in _CONFIG_NAMES:
+            if path.name.lower() in _CONFIG_NAMES:
                 yield from self._scan_config(path)
 
     def _scan_gguf(self, path: Path) -> Iterator[Finding]:

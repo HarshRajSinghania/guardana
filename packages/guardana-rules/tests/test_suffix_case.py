@@ -42,11 +42,9 @@ from guardana.rules.supply_chain.onnx_graph import OnnxGraphRule
 from guardana.rules.supply_chain.pickle_opcode import PickleOpcodeRule
 from guardana.rules.supply_chain.provenance import ProvenanceRule
 from guardana.rules.supply_chain.remote_code import RemoteCodeRule
+from guardana.rules.supply_chain.remote_code_config import RemoteCodeConfigRule
 from guardana.rules.supply_chain.saved_model_ops import SavedModelOpsRule
 from guardana.rules.training.dataset_integrity import DatasetIntegrityRule
-
-_SELECTED_BY_NAME = frozenset({"guardana.supply_chain.remote_code_config"})
-"""Rules that pick their files by an exact file name rather than by a suffix."""
 
 _TAG = "\U000e0074\U000e0065\U000e0073\U000e0074"
 
@@ -115,6 +113,12 @@ _CASES = (
     ),
     _Case(
         MaliciousDependencyRule, "requirements.txt", "requirements.TXT", b"ultralytics==8.3.41\n"
+    ),
+    _Case(
+        RemoteCodeConfigRule,
+        "config.json",
+        "config.JSON",
+        json.dumps({"auto_map": {"AutoModel": "modeling_evil.EvilModel"}}).encode(),
     ),
     _Case(
         HardcodedSecretRule, "config.yaml", "config.YAML", b"aws_key: AKIA" + b"1234567890ABCDEF"
@@ -193,7 +197,7 @@ def test_every_built_in_rule_that_reads_files_by_suffix_has_a_case() -> None:
     }
     covered = {case.rule().meta.id for case in _CASES}
 
-    assert reads_files - _SELECTED_BY_NAME - covered == set()
+    assert reads_files - covered == set()
 
 
 def test_a_corrupt_capitalised_onnx_is_unverified_not_clean(tmp_path: Path) -> None:
