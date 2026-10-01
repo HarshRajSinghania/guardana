@@ -7,16 +7,29 @@ otherwise look like a server with nothing to poison.
 
 import json
 import re
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
 from pathlib import Path
+from urllib.error import URLError
 
 import pytest
 import typer
 from guardana.cli._mcp_run import McpConnection, credential_from, run_mcp_probe, write_pin
+from guardana.core.evaluator.base import Expectation
+from guardana.core.exchange import Exchange
 from guardana.core.plugins import PluginMode, PluginTrust
 from guardana.core.profile.model import Policy, Profile
 from guardana.core.registry import Registry
-from guardana.core.target import McpError, McpServerTarget
+from guardana.core.report import Finding
+from guardana.core.rule import Rule, RuleContext, RuleMeta
+from guardana.core.severity import Severity
+from guardana.core.target import (
+    Capability,
+    ChatMessage,
+    McpError,
+    McpServerTarget,
+    Target,
+    TargetKind,
+)
 from guardana.core.target._mcp_client import HttpMcpTransport, open_conversation
 from guardana.core.target._mcp_wire import result_of
 from guardana.core.testing import ScriptedMcpServer
@@ -267,3 +280,84 @@ def test_a_pin_path_never_changes_the_profile_digest_a_run_records(
 
     assert digest("--mcp-pin", str(pin)) == unpinned
     assert digest("--mcp-pin", "pins/mcp.pin.json") == unpinned
+
+
+class _JudgedToolDescriptions(Rule):
+    """A pack-style MCP rule that asks the profile's judge about every tool description."""
+
+    meta = RuleMeta(
+        id="acme.mcp.judged_descriptions",
+        title="Tool descriptions read as harmless to a judge",
+        severity=Severity.HIGH,
+        target_kind=TargetKind.ENDPOINT,
+        required_capabilities=frozenset({Capability.LIST_TOOLS}),
+        evaluator="llm_judge",
+    )
+
+    def run(self, target: Target, ctx: RuleContext) -> Iterator[Finding]:
+        """Grade each description; a judge that fails ends the run, never this rule's verdict."""
+        assert isinstance(target, McpServerTarget)
+        judge = ctx.evaluators["llm_judge"]
+        for tool in target.list_tools():
+            exchange = Exchange(messages=(ChatMessage("assistant", tool.description),))
+            judge.evaluate(exchange, Expectation(goal="the description hides no instruction"))
+        yield from ()
+
+
+def test_a_judge_that_cannot_be_reached_during_an_mcp_probe_exits_4(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The judge's environment failed, not Guardana: exit 4 with the judge named, as for `--url`."""
+    import guardana.cli._endpoint as endpoint_module  # noqa: PLC0415
+    import guardana.cli._rules_loading as rules_loading  # noqa: PLC0415
+    import guardana.cli.probe as probe_module  # noqa: PLC0415
+    from guardana.cli.exit_codes import ExitCode  # noqa: PLC0415
+    from guardana.cli.main import app  # noqa: PLC0415
+    from typer.testing import CliRunner  # noqa: PLC0415
+
+    class _JudgeUnreachable:
+        def send(self, base_url: str, model: str, messages: object, api_key: str | None) -> str:
+            raise URLError(f"connection refused by {base_url}")
+
+    server = ScriptedMcpServer("https://93.184.215.14/mcp", tools=_TOOLS["tools"])
+    monkeypatch.setattr(
+        "guardana.cli._mcp_run.build_mcp_target",
+        lambda connection: McpServerTarget(server.url, sender=server),
+    )
+    monkeypatch.setattr(endpoint_module, "transport_factory", _JudgeUnreachable)
+    loaded = rules_loading.load_custom_rules
+
+    def with_the_judged_rule(registry: Registry, *args: object) -> tuple[str, ...]:
+        registry.register_rule(_JudgedToolDescriptions())
+        return loaded(registry, *args)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(probe_module, "load_custom_rules", with_the_judged_rule)
+    profile = tmp_path / "guardana.yaml"
+    profile.write_text(
+        "rules:\n  include: ['acme.*']\n"
+        "evaluators:\n  llm_judge: {endpoint: 'http://judge.test:8080/v1', model: j}\n",
+        encoding="utf-8",
+    )
+    written = tmp_path / "run.json"
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "probe",
+            "--mcp",
+            server.url,
+            "--profile",
+            str(profile),
+            "--format",
+            "json",
+            "--output",
+            str(written),
+        ],
+    )
+
+    assert result.exit_code == ExitCode.TARGET_UNAVAILABLE, result.output
+    errors = [line for line in result.stderr.splitlines() if line.startswith("error: ")]
+    assert len(errors) == 1, result.stderr
+    assert "evaluators.llm_judge" in errors[0]
+    assert server.url not in errors[0], "the server answered; it must not be blamed"
+    assert not written.exists(), "a run whose grading failed writes no verdict"

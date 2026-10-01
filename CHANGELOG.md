@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A judge that cannot be reached during `probe --mcp` now exits `4`.** Previously, a pack rule that grades an MCP server with a judge configured under `evaluators:` ended the command with exit `5` when that judge could not be reached or refused the request. The error now names the judge's block (`evaluators.llm_judge`), as it does for `--url`, and no run is written.
 - **The distributions' build provenance names only wheels and sdists.** The release workflow attested every file in `dist/`, including the `.gitignore` that `uv build` writes there, so `gh attestation verify` listed eleven subjects for ten distributions.
 - **CI and the release run on a named Ubuntu 24.04 image instead of `ubuntu-latest`.** GitHub moves `ubuntu-latest` to Ubuntu 26.04 from 19 October 2026, and that image's archive has no PostgreSQL 16 client for the collector's backup test; a test now refuses a moving runner label.
 

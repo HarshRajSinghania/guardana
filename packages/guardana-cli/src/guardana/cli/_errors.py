@@ -38,6 +38,19 @@ def _rate_limit_advice(accepts: Collection[EndpointFlag]) -> str:
     return "wait for the quota to reset"
 
 
+def run_judged(action: Callable[[], T]) -> T:
+    """Run `action`, ending a run whose configured judge failed with exit `4`, in the judge's words.
+
+    For a target that reports its own failures inside the run, such as an MCP server, the
+    judge is the one connection whose failure still ends it.
+    """
+    try:
+        return action()
+    except JudgeUnavailableError as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(code=ExitCode.TARGET_UNAVAILABLE) from exc
+
+
 def run_against_endpoint(
     url: str,
     action: Callable[[], T],
@@ -60,10 +73,7 @@ def run_against_endpoint(
     """
     shown = display_url(url)
     try:
-        return action()
-    except JudgeUnavailableError as exc:
-        typer.echo(f"error: {exc}", err=True)
-        raise typer.Exit(code=ExitCode.TARGET_UNAVAILABLE) from exc
+        return run_judged(action)
     except HTTPError as exc:
         message = http_status_problem(
             exc.code,
@@ -84,5 +94,6 @@ __all__ = [
     "JudgeUnavailableError",
     "http_status_problem",
     "run_against_endpoint",
+    "run_judged",
     "safe_url",
 ]

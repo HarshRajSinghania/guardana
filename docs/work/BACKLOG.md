@@ -88,8 +88,6 @@ reproduced; the rest are the sweep's reading with its anchors, not yet reproduce
   `guardana.core.verify`**, so Python gets typed results for `scan` and `probe` only.
 - **A run whose target failed part-way returns no partial result**: `TargetUnavailableError`
   carries no `ScanResult`, as the CLI's exit `4` carries no report.
-- **A judge that cannot be reached during `probe --mcp` exits `5`, not `4`**: the MCP branch of
-  `cli/probe.py` is not wrapped in `run_against_endpoint`.
 - **A registry given to `Verifier` whole does not load the profile's `rules.paths`**, which is
   documented; refusing it would need the registry to record which rule directories it loaded.
 - **A `SystemPromptPlanter` view must enforce every budget its base target accepted.** A

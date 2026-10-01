@@ -8,7 +8,7 @@ import typer
 from guardana.cli._adapter import load_adapter_config
 from guardana.cli._budget_flags import override
 from guardana.cli._endpoint import build_endpoint
-from guardana.cli._errors import EndpointFlag, run_against_endpoint
+from guardana.cli._errors import EndpointFlag, run_against_endpoint, run_judged
 from guardana.cli._evaluators import judge_endpoint, wire_config_evaluators
 from guardana.cli._exit import exit_with, refuse_invalid_profile, refuse_unenforceable_budget
 from guardana.cli._formats import OutputFormat
@@ -287,21 +287,23 @@ def probe(  # noqa: C901, PLR0913, PLR0917 — Typer surface, target modes
         raise typer.BadParameter("--target-option needs --target scheme://locator")
 
     if mcp is not None:
-        examined = _carried_out(
-            lambda: run_mcp_probe(
-                registry,
-                prof,
-                McpConnection(
-                    mcp,
-                    allow_exec=allow_exec,
-                    pin=mcp_pin,
-                    credential=credential_from(mcp_token_env),
-                ),
-                write_mcp_pin,
-                concurrency=concurrency,
-                calibrations=calibrations,
-                source=detect_source(),
-                deployment=deployment,
+        examined = run_judged(
+            lambda: _carried_out(
+                lambda: run_mcp_probe(
+                    registry,
+                    prof,
+                    McpConnection(
+                        mcp,
+                        allow_exec=allow_exec,
+                        pin=mcp_pin,
+                        credential=credential_from(mcp_token_env),
+                    ),
+                    write_mcp_pin,
+                    concurrency=concurrency,
+                    calibrations=calibrations,
+                    source=detect_source(),
+                    deployment=deployment,
+                )
             )
         )
         if examined is None:
