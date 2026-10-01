@@ -494,6 +494,26 @@ def test_the_no_cache_job_says_so_instead_of_relying_on_a_default() -> None:
     )
 
 
+def test_no_two_ci_jobs_save_one_uv_cache() -> None:
+    """Two jobs that compute one cache key race to save it, and the loser warns.
+
+    The key is the runner, the Python version, the lock-file hash and the suffix, so
+    every job that caches states a suffix or a Python version no other job uses.
+    """
+    config = yaml.safe_load((_repo_root() / ".github" / "workflows" / "ci.yml").read_text("utf-8"))
+    keys: dict[tuple[str, str], str] = {}
+    for name, job in config["jobs"].items():
+        for step in job.get("steps", []):
+            if "setup-uv" not in str(step.get("uses", "")):
+                continue
+            options = step.get("with", {})
+            if options.get("enable-cache") is False:
+                continue
+            key = (str(options.get("python-version")), str(options.get("cache-suffix", "")))
+            assert key not in keys, f"{name} and {keys[key]} save the same uv cache {key}"
+            keys[key] = name
+
+
 def test_codeql_runs_on_every_push_and_on_a_schedule() -> None:
     """ruff's bandit rules do not do taint tracking; a security product carries both."""
     workflow = (_repo_root() / ".github" / "workflows" / "codeql.yml").read_text(encoding="utf-8")
