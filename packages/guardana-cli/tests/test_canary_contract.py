@@ -14,6 +14,7 @@ import pytest
 from guardana.cli._probe_run import Connection, run_probe, run_target_probe
 from guardana.core.evaluator.base import Expectation
 from guardana.core.exchange import Exchange
+from guardana.core.plugins import PluginMode, PluginTrust
 from guardana.core.profile.model import Policy, Profile
 from guardana.core.registry import Registry
 from guardana.core.report import Evidence, Finding, SkipReason
@@ -100,7 +101,7 @@ class CustomEndpointWithoutPlanter(Target):
 def _registry(rule: Rule) -> Registry:
     registry = Registry()
     registry.register_rule(rule)
-    for evaluator in Registry.discover().evaluators().values():
+    for evaluator in Registry.discover(PluginTrust(mode=PluginMode.BUILTINS)).evaluators().values():
         registry.register_evaluator(evaluator)
     return registry
 

@@ -11,6 +11,7 @@ from importlib.metadata import EntryPoint, entry_points
 from pathlib import Path
 
 import pytest
+from guardana.core.plugins import PluginMode, PluginTrust
 from guardana.core.registry import Registry
 from guardana.core.rule import load_yaml_rules
 from guardana.core.rule.errors import RuleLoadError
@@ -69,7 +70,7 @@ def test_discovery_registers_a_providers_refs(
     forget_acme: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _with_taxonomy_provider(monkeypatch, lambda: [_ACME])
-    Registry.discover()
+    Registry.discover(PluginTrust(mode=PluginMode.ALL))
     assert resolve("ACME-14") == _ACME
 
 
@@ -78,7 +79,7 @@ def test_a_provider_redefining_a_builtin_id_is_recorded_not_crashed(
 ) -> None:
     clash = TaxonomyRef("ACME-CONTROLS-1", "LLM01", "Not prompt injection at all")
     _with_taxonomy_provider(monkeypatch, lambda: [clash])
-    registry = Registry.discover()
+    registry = Registry.discover(PluginTrust(mode=PluginMode.ALL))
     assert any("LLM01" in error.reason for error in registry.load_errors)
     # The built-in meaning survives: a report's mapping cannot be rewritten by an
     # installed package. Asked by reference and not by bare id, because a bare

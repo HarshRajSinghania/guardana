@@ -1,4 +1,5 @@
 from collections.abc import Callable, Sequence
+from typing import TypeVar
 from urllib.error import URLError
 
 import typer
@@ -27,14 +28,17 @@ def target_options(values: Sequence[str]) -> dict[str, str]:
     return parsed
 
 
+_Fallback = TypeVar("_Fallback")
+
+
 def resolve_target(
     registry: Registry,
     *,
     locator: str | None,
     options: Sequence[str],
     kind: TargetKind,
-    fallback: Callable[[], Target],
-) -> Target:
+    fallback: Callable[[], _Fallback],
+) -> Target | _Fallback:
     """Build a selected plugin target, or the command's unchanged built-in target.
 
     The command chooses ``kind``. A locator can choose an implementation, never

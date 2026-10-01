@@ -19,6 +19,7 @@ from guardana.core.calibration.report import MIN_RELIABLE_SAMPLES
 from guardana.core.calibration.store import corpus_digest
 from guardana.core.evaluator.base import Expectation
 from guardana.core.manifest.records import CorrectionStatus, JudgeCorrection
+from guardana.core.plugins import PluginMode, PluginTrust
 from guardana.core.registry import Registry
 from guardana.core.report import ScanResult, load_report
 from guardana.core.rule.base import RuleMeta
@@ -292,7 +293,7 @@ def test_a_tool_call_verdict_is_deterministic_under_the_installed_evaluators() -
     ]
     result = ScanResult((), ("acme.tools",), (), assessments=tuple(recorded))
     grading = _Grading(
-        evaluators=Registry.discover().evaluators(),
+        evaluators=Registry.discover(PluginTrust(mode=PluginMode.BUILTINS)).evaluators(),
         calibrations={},
         starter_digest=corpus_digest(bundled_corpus()),
     )

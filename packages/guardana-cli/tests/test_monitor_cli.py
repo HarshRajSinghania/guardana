@@ -9,6 +9,7 @@ from guardana.cli._probe_run import Connection
 from guardana.cli.exit_codes import ExitCode
 from guardana.cli.main import app
 from guardana.cli.monitor import run_monitor
+from guardana.core.plugins import PluginMode, PluginTrust
 from guardana.core.profile import default_profile
 from guardana.core.registry import Registry
 from guardana.core.testing import EchoingTransport, FailingTransport, RefusingTransport
@@ -40,7 +41,7 @@ def test_monitor_plants_a_canary_like_probe_does(monkeypatch: pytest.MonkeyPatch
     alerts: list[Alert] = []
 
     run_monitor(
-        Registry.discover(),
+        Registry.discover(PluginTrust(mode=PluginMode.BUILTINS)),
         default_profile(),
         _CONNECTION,
         max_cycles=1,
@@ -64,7 +65,7 @@ def test_monitor_clean_model_no_alert(monkeypatch: pytest.MonkeyPatch) -> None:
     alerts: list[Alert] = []
 
     run_monitor(
-        Registry.discover(),
+        Registry.discover(PluginTrust(mode=PluginMode.BUILTINS)),
         default_profile(),
         _CONNECTION,
         max_cycles=1,
@@ -82,7 +83,7 @@ def test_monitor_unreachable_endpoint_exits_two(monkeypatch: pytest.MonkeyPatch)
         run_against_endpoint(
             "http://fake",
             lambda: run_monitor(
-                Registry.discover(),
+                Registry.discover(PluginTrust(mode=PluginMode.BUILTINS)),
                 default_profile(),
                 _CONNECTION,
                 max_cycles=1,

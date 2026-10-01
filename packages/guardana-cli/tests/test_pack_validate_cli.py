@@ -33,7 +33,7 @@ runner = CliRunner()
 def _one_package_without_a_manifest(monkeypatch: pytest.MonkeyPatch) -> None:
     """Make discovery report `acme_rules` as registering extensions with no manifest."""
 
-    def discovered(trust: PluginTrust | None = None) -> PackDiscovery:
+    def discovered(trust: PluginTrust) -> PackDiscovery:
         return replace(discover_packs(trust), unmanifested=("acme_rules",))
 
     monkeypatch.setattr(pack, "discover_packs", discovered)
@@ -122,7 +122,7 @@ def _an_installed_pack(
 ) -> None:
     """Make discovery report one more installed pack, shipped by `distribution`."""
 
-    def discovered(trust: PluginTrust | None = None) -> PackDiscovery:
+    def discovered(trust: PluginTrust) -> PackDiscovery:
         found = discover_packs(trust)
         return replace(found, packs=(*found.packs, (distribution, "0.3.1", manifest)))
 

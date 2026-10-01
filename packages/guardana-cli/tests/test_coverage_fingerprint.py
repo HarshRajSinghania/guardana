@@ -8,6 +8,7 @@ the other half: one value over all of it, so `diff` can say the reach changed.
 """
 
 import json
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -16,7 +17,8 @@ from guardana.cli._mcp_run import McpConnection, run_mcp_probe
 from guardana.cli._profile import resolve_profile
 from guardana.cli.main import app
 from guardana.core.manifest.coverage import TaxonomyCatalogRecord, coverage_digest
-from guardana.core.manifest.records import EvaluatorRecord, RuleRecord
+from guardana.core.manifest.records import CalibrationRecord, EvaluatorRecord, RuleRecord
+from guardana.core.plugins import PluginMode, PluginTrust
 from guardana.core.profile import Profile
 from guardana.core.registry import Registry
 from guardana.core.runner import Runner
@@ -132,14 +134,22 @@ def test_an_mcp_probe_runs_with_the_concurrency_its_manifest_claims() -> None:
     """
     seen: list[int] = []
 
-    def recording(*, registry: Registry, profile: Profile, concurrency: int) -> Runner:
+    def recording(
+        *,
+        registry: Registry,
+        profile: Profile,
+        concurrency: int,
+        calibrations: Mapping[str, CalibrationRecord],
+    ) -> Runner:
         seen.append(concurrency)
-        return Runner(registry=registry, profile=profile, concurrency=concurrency)
+        return Runner(
+            registry=registry, profile=profile, concurrency=concurrency, calibrations=calibrations
+        )
 
     with pytest.MonkeyPatch.context() as patched:
-        patched.setattr("guardana.cli._mcp_run.Runner", recording)
+        patched.setattr("guardana.core.verify.Runner", recording)
         run_mcp_probe(
-            Registry.discover(),
+            Registry.discover(PluginTrust(mode=PluginMode.BUILTINS)),
             resolve_profile(None, None),
             McpConnection("http://127.0.0.1:1/mcp"),
             None,

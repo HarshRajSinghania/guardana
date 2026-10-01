@@ -138,9 +138,9 @@ in the profile — `budgets:` in [`profiles.md`](profiles.md) — and read
 [`safe-testing.md`](safe-testing.md) before pointing it at anything that matters.
 `guardana plan` prices the same run without sending a request.
 
-Passing `system_prompt` is worth doing: without something planted, the
-canary-backed system-prompt-leak rule has nothing to look for and is skipped, so
-the coverage a run reports shrinks quietly.
+The system-prompt-leak rule plants a fresh canary of its own in every run, so it
+runs whether or not you pass `system_prompt`. Pass `system_prompt` so every other
+check sees the instructions your application really sends.
 
 ## A LangChain model
 
@@ -233,18 +233,33 @@ and the half where the interesting failures are.
 
 ```python
 from guardana.core.plugins import PluginMode, PluginTrust
-from guardana.core.registry import Registry
+
+ACME = PluginTrust(mode=PluginMode.ALLOWLIST, allowed=frozenset({"acme-guardana-rules"}))
 
 
-def test_with_only_guardanas_own_rules():
-    trusted = Registry.discover(PluginTrust(mode=PluginMode.BUILTINS))
-    assert_secure("models", preset="ci", registry=trusted)
+def test_with_our_own_pack_admitted():
+    assert_secure("models", preset="ci", trust=ACME)
 ```
 
-Left out, `assert_secure` discovers entry-point rules and loads the rule
-directories the profile names. Passed in, the registry is used exactly as given —
-a registry you assembled is not one this should add to behind your back. See
-[`extending.md`](extending.md) and `SECURITY.md` for what plugin trust means.
+`trust` names the installed distributions that may run code. Left out, the
+profile's `plugins:` decides, and without one only Guardana's own distributions
+load, as on the command line. `registry=` takes a registry you assembled: nothing
+is discovered or loaded into it, not even the profile's `rules.paths`, and each run
+works on a copy that gets the profile's trials and the judges under `evaluators:`. See
+[`extending.md`](extending.md) and `SECURITY.md` for what plugin trust means, and
+the [Python API](python-api.md) for a run you read as data instead of asserting on.
+
+## How it differs from a bare `Runner`
+
+`assert_secure` runs through the [Python API](python-api.md), so a check runs as
+`guardana probe` runs it: an endpoint gets one pass per canary rule with a fresh
+canary, the profile's calibrations apply, and the judges configured under
+`evaluators:` are built and called, with their key read from the environment.
+
+A target object runs once. Hand each test its own target (a function-scoped
+fixture); the second run of the same object raises `TargetReusedError`, because its
+meter and whatever it cached would describe both runs. A target that cannot be
+reached raises `TargetUnavailableError`.
 
 ## What this is not
 

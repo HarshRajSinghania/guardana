@@ -362,7 +362,7 @@ without it the saved run records its excludes as unknown.
 > promise true — see
 > [`design/capability-protocols.md`](design/capability-protocols.md).
 
-**`guardana.targets` is discovered by `Registry.discover()`**, the same way
+**`guardana.targets` is discovered by `Registry.discover(trust)`**, the same way
 as rules and evaluators (see
 [`architecture.md`](architecture.md#current-entry-point-groups)): register a
 `Target` subclass (the class itself, not an instance — targets are
@@ -394,10 +394,10 @@ they are never graded against a marker that was not planted.
 
 | Group | Provides | Loaded by |
 |---|---|---|
-| `guardana.taxonomies` | one `TaxonomyRef`, or an iterable | `Registry.discover()`, **first** — a rule pack's own `taxonomy:` references resolve while its own entry point is still loading |
-| `guardana.rules` | one `Rule`, or an iterable of `Rule`s | `Registry.discover()` |
-| `guardana.evaluators` | one `Evaluator`, or an iterable | `Registry.discover()` |
-| `guardana.targets` | one `Target` subclass, or an iterable | `Registry.discover()` |
+| `guardana.taxonomies` | one `TaxonomyRef`, or an iterable | `Registry.discover(trust)`, **first** — a rule pack's own `taxonomy:` references resolve while its own entry point is still loading |
+| `guardana.rules` | one `Rule`, or an iterable of `Rule`s | `Registry.discover(trust)` |
+| `guardana.evaluators` | one `Evaluator`, or an iterable | `Registry.discover(trust)` |
+| `guardana.targets` | one `Target` subclass, or an iterable | `Registry.discover(trust)` |
 
 A package registers by adding to its `pyproject.toml`:
 
@@ -422,8 +422,8 @@ ours or a third party's private one — is discovered identically; there is
 no built-in/custom distinction at the registry level, only namespacing by
 `id`. The CLI starts with `--plugins builtins`, so a user admits your pack by its
 distribution name (`--plugins allowlist --allow-plugin <your-distribution>`, or
-`plugins:` in a profile); `Registry.discover()` called from Python with no trust
-still loads everything. `guardana scan --no-plugins` is a deprecated alias for `--plugins
+`plugins:` in a profile); from Python, `Registry.discover(trust)` takes the same
+`PluginTrust` and has no default. `guardana scan --no-plugins` is a deprecated alias for `--plugins
 disabled`: discovery still runs, every plugin is refused, and each refusal is
 recorded — see [`SECURITY.md`](../SECURITY.md) for the trust modes and why
 this exists.

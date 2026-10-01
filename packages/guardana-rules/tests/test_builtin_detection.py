@@ -9,6 +9,7 @@ would put an opinion on the page as a fact.
 import importlib.resources
 from pathlib import Path
 
+from guardana.core.plugins import PluginMode, PluginTrust
 from guardana.core.registry import Registry
 from guardana.core.rule import Rule, load_yaml_rules
 from guardana.core.safety import Detection
@@ -58,7 +59,7 @@ def test_no_built_in_invariant_is_graded_by_an_evaluator_that_is_not_determinist
     A judge wired only from configuration is absent from the registry here, and a
     rule naming one must not pass this check because the judge was not installed.
     """
-    evaluators = Registry.discover().evaluators()
+    evaluators = Registry.discover(PluginTrust(mode=PluginMode.BUILTINS)).evaluators()
     offending = sorted(
         f"{rule.meta.id} ({evaluator_id})"
         for rule in _built_ins()

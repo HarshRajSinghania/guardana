@@ -6,13 +6,16 @@ tool is built around. `guardana rule test "__PREFIX__.*" --plugins allowlist
 """
 
 import __MODULE__
+from guardana.core.plugins import PluginMode, PluginTrust
 from guardana.core.registry import Registry
 from guardana.core.rule import RuleContext
 from guardana.core.rule.verify import verify_rules
 
+_THIS_PACK = PluginTrust(mode=PluginMode.ALLOWLIST, allowed=frozenset({"__DIST__"}))
+
 
 def test_every_rule_proves_all_three_outcomes() -> None:
-    ctx = RuleContext(evaluators=Registry.discover().evaluators())
+    ctx = RuleContext(evaluators=Registry.discover(_THIS_PACK).evaluators())
     rules = __MODULE__.provide_rules()
 
     # Without this the test is green when the catalogue never reached the wheel:

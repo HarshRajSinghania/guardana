@@ -74,13 +74,12 @@ class PackDiscovery:
         return tuple(manifest for _distribution, _version, manifest in self.packs)
 
 
-def discover_packs(trust: PluginTrust | None = None) -> PackDiscovery:
+def discover_packs(trust: PluginTrust) -> PackDiscovery:
     """Read the manifest of every installed package whose entry points `trust` admits.
 
     Trust is decided per entry point, over the same enumeration `Registry.discover`
     walks: a module is read only when an admitted entry point names it, because
-    reading a manifest through `importlib.resources` imports the module. `None`
-    admits everything, as `PluginTrust()` does.
+    reading a manifest through `importlib.resources` imports the module.
 
     **Located from the entry point, not from the distribution's file list.** An
     editable install lists no files, so walking them finds nothing for a package
@@ -94,12 +93,13 @@ def discover_packs(trust: PluginTrust | None = None) -> PackDiscovery:
     module and with an empty version, because a pack silently missing from a lock is
     a pack running unpinned.
     """
-    policy = trust if trust is not None else PluginTrust()
+    if not isinstance(trust, PluginTrust):
+        raise TypeError(f"discover_packs needs a PluginTrust, not {type(trust).__name__}")
     owners: dict[str, tuple[str, str | None]] = {}
     modules: set[str] = set()
     refused: list[InstalledEntryPoint] = []
     for entry_point in installed_entry_points():
-        if not policy.allows(entry_point.distribution):
+        if not trust.allows(entry_point.distribution):
             refused.append(entry_point)
             continue
         if not entry_point.module:
@@ -119,7 +119,7 @@ def discover_packs(trust: PluginTrust | None = None) -> PackDiscovery:
     return PackDiscovery(tuple(packs), tuple(unmanifested), tuple(refused))
 
 
-def installed_packs(trust: PluginTrust | None = None) -> list[tuple[str, str, PackManifest]]:
+def installed_packs(trust: PluginTrust) -> list[tuple[str, str, PackManifest]]:
     """Every installed pack `trust` admits, as `(distribution, version, manifest)`.
 
     What trust refused is not in this list; `discover_packs` returns it beside the
@@ -128,7 +128,7 @@ def installed_packs(trust: PluginTrust | None = None) -> list[tuple[str, str, Pa
     return list(discover_packs(trust).packs)
 
 
-def installed_manifests(trust: PluginTrust | None = None) -> list[PackManifest]:
+def installed_manifests(trust: PluginTrust) -> list[PackManifest]:
     """Return the manifest of every installed extension package `trust` admits.
 
     **Not de-duplicated by declared name.** Two packs claiming one name is a real
@@ -141,7 +141,7 @@ def installed_manifests(trust: PluginTrust | None = None) -> list[PackManifest]:
     return list(discover_packs(trust).manifests)
 
 
-def unmanifested_packages(trust: PluginTrust | None = None) -> list[str]:
+def unmanifested_packages(trust: PluginTrust) -> list[str]:
     """Every admitted package that registers an extension and declares no manifest.
 
     The other half of `installed_manifests`: those packages are live in the registry

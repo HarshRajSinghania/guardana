@@ -9,6 +9,7 @@ it proved nothing.
 from collections.abc import Sequence
 
 import pytest
+from guardana.core.plugins import PluginMode, PluginTrust
 from guardana.core.registry import Registry
 from guardana.core.rule import Rule, RuleContext
 from guardana.core.rule.trajectory_rule import TrajectoryRule
@@ -147,6 +148,6 @@ def test_an_agent_that_deletes_nothing_proves_nothing_about_scope() -> None:
 
 
 def test_every_agent_rule_is_discovered_without_a_load_error() -> None:
-    registry = Registry.discover()
+    registry = Registry.discover(PluginTrust(mode=PluginMode.BUILTINS))
     assert not registry.load_errors
     assert not registry.expectation_errors()

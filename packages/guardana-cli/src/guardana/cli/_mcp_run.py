@@ -10,16 +10,22 @@ its own.
 import json
 import os
 import shlex
+from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from pathlib import Path
 
 import typer
-from guardana.cli._run_meta import ProbeOutcome, target_identity
+from guardana.cli._evaluators import judge_endpoint
 from guardana.cli.exit_codes import ExitCode
+from guardana.core.calibration.store import RecordedCalibration
+from guardana.core.manifest import DeploymentRef, RunSource
+from guardana.core.plugins import PluginMode, PluginTrust
 from guardana.core.profile import Profile
+from guardana.core.profile.digest import profile_digest
 from guardana.core.registry import Registry
-from guardana.core.runner import DEFAULT_ENDPOINT_CONCURRENCY, Runner
+from guardana.core.runner import DEFAULT_ENDPOINT_CONCURRENCY
 from guardana.core.target import McpError, McpServerTarget, private_url_parts
+from guardana.core.verify import Verification, Verifier
 from guardana.rules.agent.mcp_server_manifest import pin_document
 
 _PIN_RULE_ID = "guardana.agent.mcp_server_manifest"
@@ -153,25 +159,25 @@ def write_pin(connection: McpConnection, path: Path) -> int:
     return len(tools)
 
 
-def run_mcp_probe(
+def run_mcp_probe(  # noqa: PLR0913 — a connection, a destination and the run's facts
     registry: Registry,
     profile: Profile,
     connection: McpConnection,
     write_to: Path | None,
     *,
     concurrency: int = DEFAULT_ENDPOINT_CONCURRENCY,
-) -> ProbeOutcome | None:
-    """Examine the server, or write its manifest as the pin and return None.
+    calibrations: Mapping[str, RecordedCalibration] | None = None,
+    source: RunSource | None = None,
+    deployment: DeploymentRef | None = None,
+) -> Verification | None:
+    """Examine the server through the verifier, or write its manifest as the pin and return None.
 
     Writing a pin is an approval, not a check: it records the manifest as it is
     today, so producing a report in the same breath would say "clean" about
     something nobody compared to anything.
 
-    `concurrency` is taken rather than defaulted because the manifest records it
-    either way: `probe --concurrency 4 --mcp …` wrote a four into the run document
-    while this ran the rules one at a time, which is a saved run stating an
-    execution setting the run did not have. The shared observation is bought under
-    a lock, so overlapping rules cost the server no more than sequential ones.
+    `concurrency` is taken rather than defaulted by the command because the manifest
+    records it either way. The server this builds is closed here, whatever the run did.
     """
     refuse_userinfo(connection.address)
     if write_to is not None:
@@ -179,15 +185,29 @@ def run_mcp_probe(
         print(f"Wrote {count} approved tool description(s) to {write_to}")  # noqa: T201 — CLI output
         return None
     target = build_mcp_target(connection)
-    profile = _with_pin(profile, connection.pin)
+    verifier = Verifier(
+        trust=registry.trust or PluginTrust(mode=PluginMode.BUILTINS),
+        profile=with_pin(profile, connection.pin),
+        registry=registry,
+        calibrations=calibrations,
+        concurrency=concurrency,
+        judge_endpoint=judge_endpoint,
+    )
     try:
-        result = Runner(registry=registry, profile=profile, concurrency=concurrency).run(target)
-        return ProbeOutcome(result, target_identity(target, target.ref))
+        verification = verifier.run(target, source=source, deployment=deployment)
     finally:
         target.close()
+    # The pin path is where this operator keeps an approval, not a setting of the profile,
+    # so the run records the digest of the profile it was given.
+    configuration = replace(
+        verification.manifest.configuration, profile_digest=profile_digest(profile)
+    )
+    return replace(
+        verification, manifest=replace(verification.manifest, configuration=configuration)
+    )
 
 
-def _with_pin(profile: Profile, pin: Path | None) -> Profile:
+def with_pin(profile: Profile, pin: Path | None) -> Profile:
     """Hand the pin path to the manifest rule through ordinary rule config.
 
     `replace` rather than a fresh `Profile`: listing the fields by hand drops any
@@ -208,5 +228,6 @@ __all__ = [
     "refuse_userinfo",
     "require_chat_endpoint",
     "run_mcp_probe",
+    "with_pin",
     "write_pin",
 ]

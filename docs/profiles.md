@@ -119,7 +119,7 @@ plugins:
   allow: [acme-guardana-rules]
 ```
 
-A flag takes precedence over the profile: `--plugins` and its `--allow-plugin` list replace the entire `plugins:` setting. A pipeline that checks untrusted contributions should pass `--plugins builtins` as a flag. Then a `guardana.yaml` changed in the same pull request cannot widen trust. A preset sets no trust, and Guardana does not read `guardana.yaml` unless `--profile` names it. Guardana compares names the way pip does: `Acme_Rules` admits `acme-rules`. Library callers of `Registry.discover()` who set no trust still get `all`. See [`SECURITY.md`](../SECURITY.md#the-plugin-trust-model) for the full model.
+A flag takes precedence over the profile: `--plugins` and its `--allow-plugin` list replace the entire `plugins:` setting. A pipeline that checks untrusted contributions should pass `--plugins builtins` as a flag. Then a `guardana.yaml` changed in the same pull request cannot widen trust. A preset sets no trust, and Guardana does not read `guardana.yaml` unless `--profile` names it. Guardana compares names the way pip does: `Acme_Rules` admits `acme-rules`. From Python, `Registry.discover(trust)` and `Verifier(trust=...)` take the trust as an argument and have no default. See [`SECURITY.md`](../SECURITY.md#the-plugin-trust-model) for the full model.
 
 ## The gate
 

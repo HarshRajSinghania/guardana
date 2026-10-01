@@ -93,6 +93,19 @@ class Registry:
         other._load = self._load.copied()
         return other
 
+    def copied(self) -> Self:
+        """Return a registry holding everything this one holds, its load state included.
+
+        Registering on the copy leaves this one as it was, so a run that adds its own
+        judges does not change a registry its caller shares between runs. Every attribute
+        is copied, so one added later travels too.
+        """
+        other: Self = type(self)()
+        for name, value in vars(self).items():
+            copied = value.copied() if isinstance(value, _LoadRecord) else copy.copy(value)
+            setattr(other, name, copied)
+        return other
+
     @property
     def trust(self) -> PluginTrust | None:
         """The plugin trust `discover` loaded under; None for a registry built by hand."""
@@ -319,7 +332,7 @@ class Registry:
         return RuleDirLoad(tuple(loaded), tuple(errors))
 
     @classmethod
-    def discover(cls, trust: PluginTrust | None = None) -> Self:
+    def discover(cls, trust: PluginTrust) -> Self:
         """Load the rules, evaluators and targets that `trust` permits.
 
         This imports third-party code: an installed plugin is trusted code (see
@@ -337,9 +350,14 @@ class Registry:
         loads no checks whatsoever was also the only one that did not say so, and
         a run with no rules is a run whose silence means nothing.
         """
-        policy = trust if trust is not None else PluginTrust()
+        if not isinstance(trust, PluginTrust):
+            raise TypeError(
+                f"Registry.discover needs a PluginTrust, not {type(trust).__name__}: say "
+                f"which installed distributions may run code, for example "
+                f"PluginTrust(mode=PluginMode.BUILTINS)"
+            )
         reg = cls()
-        reg._load.trust = policy
+        reg._load.trust = trust
         handlers: dict[str, tuple[type | tuple[type, ...], Callable[[Any, Origin], None]]] = {
             TAXONOMY_GROUP: (TaxonomyRef, _ignoring_origin(register_taxonomy)),
             RULE_GROUP: (Rule, reg.register_rule),
@@ -348,7 +366,7 @@ class Registry:
         }
         for entry_point in installed_entry_points():
             expected, register = handlers[entry_point.group]
-            if not policy.allows(entry_point.distribution):
+            if not trust.allows(entry_point.distribution):
                 # Recorded, not silently dropped: a rule pack the user
                 # installed and this run refused to load is coverage they
                 # think they have. Landing in `load_errors` puts it in the
@@ -359,7 +377,7 @@ class Registry:
                     reason=(
                         f"plugin from "
                         f"{entry_point.distribution or 'an unknown distribution'} "
-                        f"was not loaded: plugin trust is {policy.describe()}"
+                        f"was not loaded: plugin trust is {trust.describe()}"
                     ),
                 )
                 reg._load.refused.append(entry_point)

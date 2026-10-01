@@ -1,15 +1,15 @@
 import os
-from collections.abc import Mapping
+from collections.abc import Callable
 from dataclasses import replace
-from datetime import UTC, datetime
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, TypeVar
 
 import typer
 from guardana.cli._adapter import load_adapter_config
 from guardana.cli._budget_flags import override
+from guardana.cli._endpoint import build_endpoint
 from guardana.cli._errors import EndpointFlag, run_against_endpoint
-from guardana.cli._evaluators import JudgeMeters, wire_config_evaluators
+from guardana.cli._evaluators import judge_endpoint, wire_config_evaluators
 from guardana.cli._exit import exit_with, refuse_invalid_profile, refuse_unenforceable_budget
 from guardana.cli._formats import OutputFormat
 from guardana.cli._mcp_run import (
@@ -25,40 +25,39 @@ from guardana.cli._plugins import (
     hint_refused_plugins,
     resolve_trust,
 )
-from guardana.cli._probe_run import Connection, run_probe, run_target_probe
 from guardana.cli._profile import PRESET_HELP, resolve_profile
 from guardana.cli._reporting import check_reporter_url, submit_safely
 from guardana.cli._rules_loading import load_custom_rules
-from guardana.cli._run_meta import (
-    ProbeOutcome,
-    build_manifest,
-    calibrations_or_exit,
-    detect_deployment,
-)
+from guardana.cli._run_meta import calibrations_or_exit, detect_deployment, detect_source
 from guardana.cli._safety_flags import parse_impact
 from guardana.cli._target_locator import resolve_target
 from guardana.core.budget import BudgetExhausted
-from guardana.core.calibration.store import RecordedCalibration
-from guardana.core.gate import gate_outcome
 from guardana.core.manifest import DeploymentRef
 from guardana.core.profile import Profile, ProfileError
-from guardana.core.redaction import EvidenceRedactor
 from guardana.core.registry import Registry
 from guardana.core.target import (
     ChatTransport,
     EndpointError,
-    EndpointTarget,
     HttpAdapterTransport,
     Target,
     TargetKind,
     display_url,
 )
+from guardana.core.usage import UsageMeter
+from guardana.core.verify import (
+    JudgeUnreachableError,
+    TargetUnavailableError,
+    UnenforceableBudgetError,
+    Verification,
+    Verifier,
+)
 from guardana.report import get_renderer
 
-# Four in flight is a meaningful speed-up on a probe that is almost entirely
-# waiting on a model, while staying polite to a single-slot local server; 429s
-# are retried with backoff, so a busy endpoint slows the probe instead of
-# failing it. Raise it for a hosted endpoint you own the quota for.
+_Run = TypeVar("_Run", Verification, Verification | None)
+
+# Four in flight speeds up a probe that mostly waits on a model while staying polite to
+# a single-slot local server; a 429 is retried with backoff, so a busy endpoint slows
+# the probe instead of failing it.
 _DEFAULT_CONCURRENCY = 4
 
 _ACCEPTED_FLAGS = (
@@ -68,7 +67,7 @@ _ACCEPTED_FLAGS = (
 )
 
 
-def probe(  # noqa: C901, PLR0912, PLR0913, PLR0915, PLR0917 — Typer surface, target modes
+def probe(  # noqa: C901, PLR0913, PLR0917 — Typer surface, target modes
     url: Annotated[
         str | None, typer.Option(help="Base URL of the OpenAI-compatible endpoint")
     ] = None,
@@ -202,7 +201,6 @@ def probe(  # noqa: C901, PLR0912, PLR0913, PLR0915, PLR0917 — Typer surface, 
     """Run dynamic security checks against a live model endpoint, or an MCP server."""
     check_reporter_url(reporter)
     refuse_incomparable_output(output, format.value)
-    started_at = datetime.now(UTC)
     deployment = detect_deployment(ai_system, environment, deployment_id)
     prof = resolve_profile(profile, preset)
     prof = replace(
@@ -222,7 +220,9 @@ def probe(  # noqa: C901, PLR0912, PLR0913, PLR0915, PLR0917 — Typer surface, 
     registry = Registry.discover(resolved.trust)
     hint_refused_plugins(registry, resolved)
     try:
-        judges = wire_config_evaluators(registry, prof, prof.budgets)
+        # Validated here, before anything is sent, so a typo exits as invalid usage; the
+        # verifier wires the judges again for the run, with fresh meters.
+        wire_config_evaluators(Registry(), prof, prof.budgets)
     except BudgetExhausted as exc:
         raise refuse_unenforceable_budget(exc) from exc
     except ProfileError as exc:
@@ -232,7 +232,21 @@ def probe(  # noqa: C901, PLR0912, PLR0913, PLR0915, PLR0917 — Typer surface, 
     # Read before anything is sent, and once: the rules correct with these while they
     # run, and the manifest records the very same ones.
     calibrations = calibrations_or_exit(prof)
-    records = {key: value.as_record() for key, value in calibrations.items()}
+
+    def verifier(of: Profile) -> Verifier:
+        return Verifier(
+            trust=resolved.trust,
+            profile=of,
+            registry=registry,
+            calibrations=calibrations,
+            concurrency=concurrency,
+            judge_endpoint=judge_endpoint,
+        )
+
+    def verified(target: Target, of: Profile = prof) -> Verification:
+        return _carried_out(
+            lambda: verifier(of).run(target, source=detect_source(), deployment=deployment)
+        )
 
     if target is not None:
         conflicting = {
@@ -261,29 +275,11 @@ def probe(  # noqa: C901, PLR0912, PLR0913, PLR0915, PLR0917 — Typer surface, 
             kind=TargetKind.ENDPOINT,
             fallback=_missing_target,
         )
-        try:
-            custom_probed = run_against_endpoint(
-                selected.ref,
-                lambda: run_target_probe(
-                    registry, prof, selected, concurrency=concurrency, calibrations=records
-                ),
-                accepts=_ACCEPTED_FLAGS,
-            )
-        except BudgetExhausted as exc:
-            raise refuse_unenforceable_budget(exc) from exc
+        custom = run_against_endpoint(
+            selected.ref, lambda: verified(selected), accepts=_ACCEPTED_FLAGS
+        )
         _finish_probe(
-            registry,
-            prof,
-            custom_probed,
-            selected,
-            started_at=started_at,
-            deployment=deployment,
-            concurrency=concurrency,
-            format=format,
-            output=output,
-            reporter=reporter,
-            calibrations=calibrations,
-            judges=judges,
+            custom, selected.ref, deployment, format=format, output=output, reporter=reporter
         )
         return
 
@@ -291,8 +287,8 @@ def probe(  # noqa: C901, PLR0912, PLR0913, PLR0915, PLR0917 — Typer surface, 
         raise typer.BadParameter("--target-option needs --target scheme://locator")
 
     if mcp is not None:
-        try:
-            mcp_probed = run_mcp_probe(
+        examined = _carried_out(
+            lambda: run_mcp_probe(
                 registry,
                 prof,
                 McpConnection(
@@ -303,33 +299,16 @@ def probe(  # noqa: C901, PLR0912, PLR0913, PLR0915, PLR0917 — Typer surface, 
                 ),
                 write_mcp_pin,
                 concurrency=concurrency,
+                calibrations=calibrations,
+                source=detect_source(),
+                deployment=deployment,
             )
-        except BudgetExhausted as exc:
-            raise refuse_unenforceable_budget(exc) from exc
-        if mcp_probed is None:
-            return
-        result = EvidenceRedactor(prof.privacy).redact_result(mcp_probed.result)
-        outcome = gate_outcome(result, prof.policy)
-        shown = display_url(mcp)
-        run = build_manifest(
-            registry,
-            prof,
-            result,
-            target_kind=TargetKind.ENDPOINT,
-            target_ref=shown,
-            gate=outcome,
-            started_at=started_at,
-            identity=mcp_probed.identity,
-            concurrency=concurrency,
-            deployment=deployment,
-            calibrations=calibrations,
-            judge_usage=judges.usage(),
         )
-        _say_which_judge_stopped(judges)
-        emit(get_renderer(format.value, run=run).render(result), output, format.value)
-        if reporter:
-            submit_safely(reporter, result, source=shown, deployment=deployment, run=run)
-        exit_with(outcome, result)
+        if examined is None:
+            return
+        _finish_probe(
+            examined, display_url(mcp), deployment, format=format, output=output, reporter=reporter
+        )
         return
 
     endpoint_url, model_name = require_chat_endpoint(url, model)
@@ -339,60 +318,46 @@ def probe(  # noqa: C901, PLR0912, PLR0913, PLR0915, PLR0917 — Typer surface, 
             transport = HttpAdapterTransport(load_adapter_config(adapter, endpoint_url))
         except EndpointError as exc:
             raise typer.BadParameter(str(exc)) from exc
-
-    connection = Connection(
-        url=endpoint_url,
-        model=model_name,
+    # Every pass of the probe — one per planted canary — bills this one meter, so the
+    # profile's budgets bound the probe rather than each pass of it.
+    selected_endpoint = build_endpoint(
+        endpoint_url,
+        model_name,
         api_key=os.environ.get(api_key_env) if api_key_env else None,
         system_prompt=(
             system_prompt_file.read_text(encoding="utf-8") if system_prompt_file else None
         ),
         provider=provider,
         transport=transport,
+        meter=UsageMeter(prof.budgets),
     )
-
-    try:
-        endpoint_probed = run_against_endpoint(
-            endpoint_url,
-            lambda: run_probe(
-                registry, prof, connection, concurrency=concurrency, calibrations=records
-            ),
-            accepts=_ACCEPTED_FLAGS,
-        )
-    except BudgetExhausted as exc:
-        raise refuse_unenforceable_budget(exc) from exc
-    selected = EndpointTarget(
-        endpoint_url,
-        model_name,
-        api_key=connection.api_key,
-        system_prompt=connection.system_prompt,
-        provider=connection.provider,
-        transport=connection.transport,
+    probed = run_against_endpoint(
+        endpoint_url, lambda: verified(selected_endpoint), accepts=_ACCEPTED_FLAGS
     )
     _finish_probe(
-        registry,
-        prof,
-        endpoint_probed,
-        selected,
-        started_at=started_at,
-        deployment=deployment,
-        concurrency=concurrency,
+        probed,
+        selected_endpoint.ref,
+        deployment,
         format=format,
         output=output,
         reporter=reporter,
-        calibrations=calibrations,
-        judges=judges,
     )
 
 
-def _say_which_judge_stopped(judges: JudgeMeters) -> None:
-    """Name a judge whose own ceiling stopped the run, which the exit code alone cannot.
+def _carried_out(run: Callable[[], _Run]) -> _Run:
+    """Run, re-raising what stopped it as the error the endpoint helpers explain in words.
 
-    A judge meters its calls apart from the target's, so a run cut short by grading
-    would otherwise read as the target's budget running out.
+    The verifier wraps a failure in its own typed error; the CLI's messages and exit codes
+    are written for the failure itself.
     """
-    for stop in judges.stops():
-        typer.echo(f"warning: {stop}", err=True)
+    try:
+        return run()
+    except UnenforceableBudgetError as exc:
+        raise refuse_unenforceable_budget(exc) from exc
+    except (TargetUnavailableError, JudgeUnreachableError) as exc:
+        if exc.__cause__ is not None:
+            raise exc.__cause__ from None
+        raise
 
 
 def _missing_target() -> Target:
@@ -400,43 +365,25 @@ def _missing_target() -> Target:
     raise typer.BadParameter("pass --target scheme://locator")
 
 
-def _finish_probe(  # noqa: PLR0913 — one value per persisted execution fact
-    registry: Registry,
-    profile: Profile,
-    probed: ProbeOutcome,
-    target: Target,
+def _finish_probe(  # noqa: PLR0913 — what the command does with a finished run
+    verification: Verification,
+    source: str,
+    deployment: DeploymentRef,
     *,
-    started_at: datetime,
-    deployment: DeploymentRef | None,
-    concurrency: int,
     format: OutputFormat,
     output: Path | None,
     reporter: str | None,
-    calibrations: Mapping[str, RecordedCalibration],
-    judges: JudgeMeters,
 ) -> None:
-    """Redact, persist, emit and gate one endpoint probe result.
+    """Emit, forward and gate one probe the verifier finished.
 
-    The judges' meters are read here, once, after every pass has finished.
+    A judge whose own ceiling stopped the run is named here, which the exit code alone
+    cannot: a judge meters its calls apart from the target's, so a run cut short by
+    grading would otherwise read as the target's budget running out.
     """
-    result = EvidenceRedactor(profile.privacy).redact_result(probed.result)
-    outcome = gate_outcome(result, profile.policy)
-    run = build_manifest(
-        registry,
-        profile,
-        result,
-        target_kind=target.kind,
-        target_ref=target.ref,
-        gate=outcome,
-        started_at=started_at,
-        identity=probed.identity,
-        concurrency=concurrency,
-        deployment=deployment,
-        calibrations=calibrations,
-        judge_usage=judges.usage(),
-    )
-    _say_which_judge_stopped(judges)
-    emit(get_renderer(format.value, run=run).render(result), output, format.value)
+    for stop in verification.judge_stops:
+        typer.echo(f"warning: {stop}", err=True)
+    run = verification.manifest
+    emit(get_renderer(format.value, run=run).render(verification.result), output, format.value)
     if reporter:
-        submit_safely(reporter, result, source=target.ref, deployment=deployment, run=run)
-    exit_with(outcome, result)
+        submit_safely(reporter, verification.result, source=source, deployment=deployment, run=run)
+    exit_with(verification.gate, verification.result)

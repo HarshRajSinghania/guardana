@@ -14,6 +14,7 @@ import pytest
 from guardana.core import entrypoints as entrypoints_module
 from guardana.core.evaluator.base import Evaluator, Expectation, Verdict
 from guardana.core.exchange import Exchange
+from guardana.core.plugins import PluginMode, PluginTrust
 from guardana.core.registry import Registry
 from guardana.core.report import Finding
 from guardana.core.rule import Rule, RuleContext, RuleMeta
@@ -75,7 +76,7 @@ def test_an_entry_point_that_fails_to_import_does_not_kill_discovery(
             _FakeEntryPoint("healthy", provides=[_HealthyRule()]),
         ],
     )
-    reg = Registry.discover()
+    reg = Registry.discover(PluginTrust(mode=PluginMode.ALL))
 
     assert [r.meta.id for r in reg.rules()] == ["acme.healthy"]
     assert [e.source for e in reg.load_errors] == ["broken"]
@@ -97,7 +98,7 @@ def test_a_provider_that_raises_when_called_is_isolated_too(
         monkeypatch,
         rules=[_AngryEntryPoint("angry"), _FakeEntryPoint("healthy", provides=[_HealthyRule()])],
     )
-    reg = Registry.discover()
+    reg = Registry.discover(PluginTrust(mode=PluginMode.ALL))
 
     assert [r.meta.id for r in reg.rules()] == ["acme.healthy"]
     assert [e.source for e in reg.load_errors] == ["angry"]
@@ -120,7 +121,7 @@ def test_a_broken_rules_entry_point_does_not_stop_evaluator_discovery(
         rules=[_FakeEntryPoint("broken", load_raises=ImportError("boom"))],
         evaluators=[_FakeEntryPoint("grader", provides=_Evaluator())],
     )
-    reg = Registry.discover()
+    reg = Registry.discover(PluginTrust(mode=PluginMode.ALL))
 
     assert "acme.grader" in reg.evaluators()
     assert len(reg.load_errors) == 1
@@ -168,7 +169,7 @@ def test_a_provider_returning_the_wrong_type_cannot_poison_the_registry(
             _FakeEntryPoint("builtin", provides=[_HealthyRule()]),
         ],
     )
-    reg = Registry.discover()
+    reg = Registry.discover(PluginTrust(mode=PluginMode.ALL))
 
     assert [r.meta.id for r in reg.rules()] == ["acme.healthy"]
     assert [e.source for e in reg.load_errors] == ["sloppy"]

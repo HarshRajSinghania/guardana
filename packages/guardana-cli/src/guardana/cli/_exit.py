@@ -2,7 +2,6 @@
 
 import typer
 from guardana.cli.exit_codes import ExitCode, code_for
-from guardana.core.budget import BudgetExhausted
 from guardana.core.gate import GateOutcome
 from guardana.core.profile import ProfileError
 from guardana.core.report import ScanResult
@@ -20,7 +19,7 @@ def exit_with(outcome: GateOutcome, result: ScanResult) -> None:
         raise typer.Exit(code=code)
 
 
-def refuse_unenforceable_budget(exc: BudgetExhausted) -> typer.Exit:
+def refuse_unenforceable_budget(exc: Exception) -> typer.Exit:
     """Report a budget that could never be enforced as bad configuration.
 
     Reached only from `Target.apply_budgets`, which runs before any rule — a

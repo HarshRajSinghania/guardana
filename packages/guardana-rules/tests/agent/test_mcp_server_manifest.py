@@ -11,6 +11,7 @@ from pathlib import Path
 
 import pytest
 from guardana.cli._mcp_run import McpConnection, build_mcp_target
+from guardana.core.plugins import PluginMode, PluginTrust
 from guardana.core.profile.model import Policy, Profile
 from guardana.core.registry import Registry
 from guardana.core.rule import RuleContext
@@ -160,16 +161,20 @@ def test_chat_rules_are_skipped_against_an_mcp_server_rather_than_passing_it() -
     # Every shipped dynamic rule declares `requires: [chat]`, which an MCP server
     # cannot satisfy, so the runner skips them. Without that they would be planned,
     # find no chat interface, return nothing, and be counted as rules that ran.
-    result = Runner(registry=Registry.discover(), profile=Profile(name="t", policy=Policy())).run(
-        _target([("read_file", _BENIGN)])
-    )
+    result = Runner(
+        registry=Registry.discover(PluginTrust(mode=PluginMode.BUILTINS)),
+        profile=Profile(name="t", policy=Policy()),
+    ).run(_target([("read_file", _BENIGN)]))
 
     assert result.rules_skipped, "no rule was skipped, so chat rules ran against a server"
     assert "guardana.agent.mcp_server_manifest" not in result.skipped_rule_ids
     # Stated as the property rather than as a count, so adding an MCP rule does not
     # need this number edited — and so a chat rule sneaking in still fails it.
     chat_only = {Capability.CHAT, Capability.PLANT_SYSTEM_PROMPT, Capability.CALL_TOOLS}
-    by_id = {rule.meta.id: rule for rule in Registry.discover().rules()}
+    by_id = {
+        rule.meta.id: rule
+        for rule in Registry.discover(PluginTrust(mode=PluginMode.BUILTINS)).rules()
+    }
     ran_needing_chat = [
         rule_id
         for rule_id in result.rules_run

@@ -30,6 +30,7 @@
 <li><a href="how-it-works.html">How Guardana works</a></li>
 <li><a href="install.html">Installing</a></li>
 <li><a href="usage-testing.html">In your test suite</a></li>
+<li><a href="python-api.html">Python API<span class="tag">beta</span></a></li>
 <li><a href="usage-scan.html">guardana scan</a></li>
 <li><a href="usage-probe.html">guardana probe</a></li>
 </ul>
@@ -156,6 +157,7 @@
 <li><a href="how-it-works.html">How Guardana works</a></li>
 <li><a href="install.html">Installing</a></li>
 <li><a href="usage-testing.html">In your test suite</a></li>
+<li><a href="python-api.html">Python API<span class="tag">beta</span></a></li>
 <li><a href="usage-scan.html">guardana scan</a></li>
 <li><a href="usage-probe.html">guardana probe</a></li>
 </ul>
@@ -343,7 +345,7 @@ core ships plumbing so a third-party pack ships judgement. Full contract in
 <p><strong>Skipped is not errored.</strong> The <code>Runner</code> keeps two outcomes apart that used to
 share a bucket: a rule the target cannot satisfy is <em>skipped</em> (normal), and a
 rule that raised is an <em>error</em> (a defect) recorded in <code>ScanResult.errors</code>, which
-fails the gate by default. <code>Registry.discover()</code> isolates each entry point for
+fails the gate by default. <code>Registry.discover(trust)</code> isolates each entry point for
 the same reason — one broken third-party pack must not leave you with no rules.</p>
 <p>A rule declares which capabilities it needs (<code>required_capabilities</code> in
 <code>RuleMeta</code>); the <code>Runner</code> skips a rule outright — no crash — when the
@@ -460,8 +462,7 @@ _TARGET_GROUP = &quot;guardana.targets&quot;
 
 class Registry:
     @classmethod
-    def discover(cls, trust: PluginTrust | None = None) -&gt; Self:
-        policy = trust if trust is not None else PluginTrust()
+    def discover(cls, trust: PluginTrust) -&gt; Self:
         reg = cls()
         for group, register in (
             # Taxonomies first: a YAML rule's `taxonomy:` resolves while its
@@ -472,7 +473,7 @@ class Registry:
             (_TARGET_GROUP, reg.register_target),
         ):
             for ep in entry_points(group=group):
-                if not policy.allows(ep):
+                if not trust.allows(ep):
                     reg.record_load_error(...)   # refused, never imported
                     continue
                 _absorb(ep.load()(), register)
@@ -522,22 +523,22 @@ via <code>guardana.yaml</code>'s <code>rules.paths</code>) on <code>scan</code>,
 <tr>
 <td><code>guardana.taxonomies</code></td>
 <td>one <code>TaxonomyRef</code>, or an iterable</td>
-<td><strong>Yes</strong> — <code>Registry.discover()</code>, loaded <strong>first</strong>, so a rule pack's own <code>taxonomy:</code> references resolve while its own entry point is still loading.</td>
+<td><strong>Yes</strong> — <code>Registry.discover(trust)</code>, loaded <strong>first</strong>, so a rule pack's own <code>taxonomy:</code> references resolve while its own entry point is still loading.</td>
 </tr>
 <tr>
 <td><code>guardana.rules</code></td>
 <td>one <code>Rule</code>, or an iterable of <code>Rule</code>s</td>
-<td><strong>Yes</strong> — <code>Registry.discover()</code></td>
+<td><strong>Yes</strong> — <code>Registry.discover(trust)</code></td>
 </tr>
 <tr>
 <td><code>guardana.evaluators</code></td>
 <td>one <code>Evaluator</code>, or an iterable</td>
-<td><strong>Yes</strong> — <code>Registry.discover()</code></td>
+<td><strong>Yes</strong> — <code>Registry.discover(trust)</code></td>
 </tr>
 <tr>
 <td><code>guardana.targets</code></td>
 <td>one <code>Target</code> subclass, or an iterable</td>
-<td><strong>Yes</strong> — <code>Registry.discover()</code>. <code>Registry.targets()</code> exposes the discovered classes; a class declaring a unique <code>scheme</code> and <code>from_locator</code> is also selectable as <code>--target scheme://…</code> by commands accepting its kind. See <a href="extending.html#adding-a-target"><code>extending.md</code></a>.</td>
+<td><strong>Yes</strong> — <code>Registry.discover(trust)</code>. <code>Registry.targets()</code> exposes the discovered classes; a class declaring a unique <code>scheme</code> and <code>from_locator</code> is also selectable as <code>--target scheme://…</code> by commands accepting its kind. See <a href="extending.html#adding-a-target"><code>extending.md</code></a>.</td>
 </tr>
 </tbody>
 </table></div>

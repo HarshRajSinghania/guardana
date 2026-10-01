@@ -14,6 +14,7 @@ page is free to describe a subset in words.
 import re
 from pathlib import Path
 
+from guardana.core.plugins import PluginMode, PluginTrust
 from guardana.core.registry import Registry
 from guardana.core.rule import RuleContext, TrajectoryRule, YamlRule
 from guardana.core.rule.scenario_rule import ScenarioRule
@@ -171,7 +172,7 @@ def test_the_rule_test_page_names_every_yaml_rule_left_short_of_all_three_sample
     of them gains its missing sample — or another one loses one — the list is wrong,
     and nothing but this reads it.
     """
-    registry = Registry.discover()
+    registry = Registry.discover(PluginTrust(mode=PluginMode.BUILTINS))
     ctx = RuleContext(evaluators=registry.evaluators())
     declarative = (YamlRule, ScenarioRule, TrajectoryRule)
     unsampled = sorted(

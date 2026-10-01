@@ -30,6 +30,7 @@
 <li><a href="how-it-works.html">How Guardana works</a></li>
 <li><a href="install.html">Installing</a></li>
 <li><a href="usage-testing.html">In your test suite</a></li>
+<li><a href="python-api.html">Python API<span class="tag">beta</span></a></li>
 <li><a href="usage-scan.html">guardana scan</a></li>
 <li><a href="usage-probe.html">guardana probe</a></li>
 </ul>
@@ -156,6 +157,7 @@
 <li><a href="how-it-works.html">How Guardana works</a></li>
 <li><a href="install.html">Installing</a></li>
 <li><a href="usage-testing.html">In your test suite</a></li>
+<li><a href="python-api.html">Python API<span class="tag">beta</span></a></li>
 <li><a href="usage-scan.html">guardana scan</a></li>
 <li><a href="usage-probe.html">guardana probe</a></li>
 </ul>
@@ -458,7 +460,7 @@ includes both.</p>
   mode: allowlist
   allow: [acme-guardana-rules]
 </code></pre>
-<p>A flag takes precedence over the profile: <code>--plugins</code> and its <code>--allow-plugin</code> list replace the entire <code>plugins:</code> setting. A pipeline that checks untrusted contributions should pass <code>--plugins builtins</code> as a flag. Then a <code>guardana.yaml</code> changed in the same pull request cannot widen trust. A preset sets no trust, and Guardana does not read <code>guardana.yaml</code> unless <code>--profile</code> names it. Guardana compares names the way pip does: <code>Acme_Rules</code> admits <code>acme-rules</code>. Library callers of <code>Registry.discover()</code> who set no trust still get <code>all</code>. See <a href="https://github.com/guardana/guardana/blob/main/SECURITY.md"><code>SECURITY.md</code></a> for the full model.</p>
+<p>A flag takes precedence over the profile: <code>--plugins</code> and its <code>--allow-plugin</code> list replace the entire <code>plugins:</code> setting. A pipeline that checks untrusted contributions should pass <code>--plugins builtins</code> as a flag. Then a <code>guardana.yaml</code> changed in the same pull request cannot widen trust. A preset sets no trust, and Guardana does not read <code>guardana.yaml</code> unless <code>--profile</code> names it. Guardana compares names the way pip does: <code>Acme_Rules</code> admits <code>acme-rules</code>. From Python, <code>Registry.discover(trust)</code> and <code>Verifier(trust=...)</code> take the trust as an argument and have no default. See <a href="https://github.com/guardana/guardana/blob/main/SECURITY.md"><code>SECURITY.md</code></a> for the full model.</p>
 <h2 id="the-gate">The gate</h2>
 <p>A run's exit code is <code>1</code> (fails) if <strong>any</strong> finding satisfies both:</p>
 <ol>

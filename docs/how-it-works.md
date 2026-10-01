@@ -116,7 +116,7 @@ A `guardana.yaml` or named preset (§5) selects rules with include/exclude globs
 
 ### One scan, end to end
 
-`guardana scan ./model-dir` builds an `ArtifactTarget`. `Registry.discover()` finds installed rules. Guardana resolves the default profile, `guardana.yaml`, or `--preset`. `Runner` runs build rules the target can support. The renderer prints the findings, and `gate()` sets a non-zero exit code when a result meets the failure bar or zero rules actually ran.
+`guardana scan ./model-dir` builds an `ArtifactTarget`. `Registry.discover(trust)` finds the installed rules the plugin trust admits. Guardana resolves the default profile, `guardana.yaml`, or `--preset`. `Runner` runs build rules the target can support. The renderer prints the findings, and `gate()` sets a non-zero exit code when a result meets the failure bar or zero rules actually ran.
 
 ---
 
@@ -160,7 +160,7 @@ mypack = "mypack:provide_rules"
 mypack = "mypack:provide_evaluators"
 ```
 
-`provide_rules()` returns your `Rule` instances (or a list). `Registry.discover()` finds them with the built-ins. Use your own id prefix, such as `acme.*`; `guardana.*` is reserved for built-ins. Profiles can include or exclude ids by glob. Entry points also register `guardana.targets` and `guardana.taxonomies`: four groups in total, all discovered the same way. See [`architecture.md`](architecture.md#current-entry-point-groups).
+`provide_rules()` returns your `Rule` instances (or a list). `Registry.discover(trust)` finds them with the built-ins once trust admits your distribution. Use your own id prefix, such as `acme.*`; `guardana.*` is reserved for built-ins. Profiles can include or exclude ids by glob. Entry points also register `guardana.targets` and `guardana.taxonomies`: four groups in total, all discovered the same way. See [`architecture.md`](architecture.md#current-entry-point-groups).
 
 ### The two authoring paths
 

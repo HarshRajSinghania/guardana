@@ -15,7 +15,10 @@ from guardana.core.pack import (
     installed_manifests,
     load_manifest,
 )
+from guardana.core.plugins import PluginMode, PluginTrust
 from guardana.core.registry import Registry
+
+_THIS_PACK = PluginTrust(mode=PluginMode.ALLOWLIST, allowed=frozenset({"__DIST__"}))
 
 
 def _manifest() -> PackManifest:
@@ -63,7 +66,7 @@ def test_the_manifest_lists_exactly_what_the_entry_points_register() -> None:
 
 
 def test_discovery_finds_this_pack() -> None:
-    found = [m for m in installed_manifests() if m.name == "__DIST__"]
+    found = [m for m in installed_manifests(_THIS_PACK) if m.name == "__DIST__"]
 
     assert found, "the pack ships a manifest and registers entry points, so it must be found"
 
@@ -90,7 +93,7 @@ def test_a_promise_the_package_does_not_keep_is_reported() -> None:
 
 
 def test_the_target_is_registered_and_declared() -> None:
-    registered = {target.__name__ for target in Registry.discover().targets()}
+    registered = {target.__name__ for target in Registry.discover(_THIS_PACK).targets()}
 
     assert "__CLASS__Target" in registered
     assert "__CLASS__Target" in _manifest().provides

@@ -2,15 +2,11 @@ from collections.abc import Callable, Collection
 from enum import StrEnum
 from typing import TypeVar
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlsplit, urlunsplit
 
 import typer
 from guardana.cli.exit_codes import ExitCode
+from guardana.core.evaluator.config import JudgeUnavailableError, http_status_problem, safe_url
 from guardana.core.target import EndpointError, display_url
-
-_HTTP_CLIENT_ERROR = 400
-_HTTP_RATE_LIMITED = 429
-_HTTP_SERVER_ERROR = 500
 
 T = TypeVar("T")
 
@@ -21,37 +17,6 @@ class EndpointFlag(StrEnum):
     ADAPTER = "--adapter"
     API_KEY_ENV = "--api-key-env"
     CONCURRENCY = "--concurrency"
-
-
-def safe_url(url: str) -> str:
-    """Return `url` with its userinfo, query and fragment removed, for a message a reader sees.
-
-    A configured endpoint can carry a credential in any of those three places.
-    """
-    parts = urlsplit(url)
-    host = parts.hostname or ""
-    if ":" in host:
-        host = f"[{host}]"
-    try:
-        port = parts.port
-    except ValueError:
-        port = None
-    netloc = host if port is None else f"{host}:{port}"
-    return urlunsplit((parts.scheme, netloc, parts.path, "", ""))
-
-
-class JudgeUnavailableError(EndpointError):
-    """A grading call failed at a config-built judge's endpoint, not at the target's.
-
-    An `EndpointError`, so the runner ends the run as it does for any unreachable
-    endpoint; the message names the `evaluators:` block and the judge's URL, without
-    credentials, so the CLI never blames the target for it.
-    """
-
-    def __init__(self, block: str, endpoint: str, problem: str) -> None:
-        self.block = block
-        self.endpoint = endpoint
-        super().__init__(problem)
 
 
 def _auth_advice(accepts: Collection[EndpointFlag]) -> str:
@@ -71,29 +36,6 @@ def _rate_limit_advice(accepts: Collection[EndpointFlag]) -> str:
     if EndpointFlag.CONCURRENCY in accepts:
         return "lower --concurrency, or wait for the quota to reset"
     return "wait for the quota to reset"
-
-
-def http_status_problem(
-    status: int, *, where: str, sender: str, rate_limited_remedy: str, rejected_remedy: str
-) -> str:
-    """Say what an HTTP error status from `where` means, with the remedy for its class.
-
-    `sender` names who was sending (the probe, the judge). A 4xx reads apart from a
-    5xx because a rejected request usually means a wrong key or body, not a down
-    endpoint.
-    """
-    if status == _HTTP_RATE_LIMITED:
-        # Reaching here means the retries were already exhausted, so this is a
-        # sustained limit rather than a blip. Naming the knob beats the generic
-        # 4xx advice, which would send someone to check an auth header that is
-        # working fine.
-        return (
-            f"{where} kept rate-limiting {sender} (HTTP 429) even after retries — "
-            f"{rate_limited_remedy}"
-        )
-    if _HTTP_CLIENT_ERROR <= status < _HTTP_SERVER_ERROR:
-        return f"{where} rejected the request (HTTP {status}) — {rejected_remedy}"
-    return f"{where} returned HTTP {status}"
 
 
 def run_against_endpoint(
@@ -135,3 +77,12 @@ def run_against_endpoint(
     except (URLError, OSError, EndpointError) as exc:
         typer.echo(f"error: could not reach endpoint {shown}: {exc}", err=True)
         raise typer.Exit(code=ExitCode.TARGET_UNAVAILABLE) from exc
+
+
+__all__ = [
+    "EndpointFlag",
+    "JudgeUnavailableError",
+    "http_status_problem",
+    "run_against_endpoint",
+    "safe_url",
+]

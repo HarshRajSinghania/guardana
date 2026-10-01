@@ -2,6 +2,7 @@ import pytest
 from guardana.core.evaluator import Expectation
 from guardana.core.evaluator.llm_judge import DEFAULT_CONFIDENCE, LlmJudgeEvaluator
 from guardana.core.exchange import Exchange
+from guardana.core.plugins import PluginMode, PluginTrust
 from guardana.core.registry import Registry
 from guardana.core.target import ChatMessage
 
@@ -227,7 +228,7 @@ def test_judge_sees_the_whole_conversation_not_just_the_last_reply() -> None:
 
 
 def test_discover_finds_builtin_evaluators() -> None:
-    reg = Registry.discover()
+    reg = Registry.discover(PluginTrust(mode=PluginMode.BUILTINS))
     ids = set(reg.evaluators().keys())
     assert "keyword" in ids
     assert "canary" in ids

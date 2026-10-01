@@ -30,6 +30,7 @@
 <li><a href="how-it-works.html">How Guardana works</a></li>
 <li><a href="install.html">Installing</a></li>
 <li><a href="usage-testing.html">In your test suite</a></li>
+<li><a href="python-api.html">Python API<span class="tag">beta</span></a></li>
 <li><a href="usage-scan.html">guardana scan</a></li>
 <li><a href="usage-probe.html">guardana probe</a></li>
 </ul>
@@ -156,6 +157,7 @@
 <li><a href="how-it-works.html">How Guardana works</a></li>
 <li><a href="install.html">Installing</a></li>
 <li><a href="usage-testing.html">In your test suite</a></li>
+<li><a href="python-api.html">Python API<span class="tag">beta</span></a></li>
 <li><a href="usage-scan.html">guardana scan</a></li>
 <li><a href="usage-probe.html">guardana probe</a></li>
 </ul>
@@ -626,7 +628,7 @@ the artifact rules unmodified. It could not: every rule asked
 promise true — see
 <a href="design/capability-protocols.html"><code>design/capability-protocols.md</code></a>.</p>
 </blockquote>
-<p><strong><code>guardana.targets</code> is discovered by <code>Registry.discover()</code></strong>, the same way
+<p><strong><code>guardana.targets</code> is discovered by <code>Registry.discover(trust)</code></strong>, the same way
 as rules and evaluators (see
 <a href="architecture.html#current-entry-point-groups"><code>architecture.md</code></a>): register a
 <code>Target</code> subclass (the class itself, not an instance — targets are
@@ -662,22 +664,22 @@ they are never graded against a marker that was not planted.</p>
 <tr>
 <td><code>guardana.taxonomies</code></td>
 <td>one <code>TaxonomyRef</code>, or an iterable</td>
-<td><code>Registry.discover()</code>, <strong>first</strong> — a rule pack's own <code>taxonomy:</code> references resolve while its own entry point is still loading</td>
+<td><code>Registry.discover(trust)</code>, <strong>first</strong> — a rule pack's own <code>taxonomy:</code> references resolve while its own entry point is still loading</td>
 </tr>
 <tr>
 <td><code>guardana.rules</code></td>
 <td>one <code>Rule</code>, or an iterable of <code>Rule</code>s</td>
-<td><code>Registry.discover()</code></td>
+<td><code>Registry.discover(trust)</code></td>
 </tr>
 <tr>
 <td><code>guardana.evaluators</code></td>
 <td>one <code>Evaluator</code>, or an iterable</td>
-<td><code>Registry.discover()</code></td>
+<td><code>Registry.discover(trust)</code></td>
 </tr>
 <tr>
 <td><code>guardana.targets</code></td>
 <td>one <code>Target</code> subclass, or an iterable</td>
-<td><code>Registry.discover()</code></td>
+<td><code>Registry.discover(trust)</code></td>
 </tr>
 </tbody>
 </table></div>
@@ -701,8 +703,8 @@ ours or a third party's private one — is discovered identically; there is
 no built-in/custom distinction at the registry level, only namespacing by
 <code>id</code>. The CLI starts with <code>--plugins builtins</code>, so a user admits your pack by its
 distribution name (<code>--plugins allowlist --allow-plugin &lt;your-distribution&gt;</code>, or
-<code>plugins:</code> in a profile); <code>Registry.discover()</code> called from Python with no trust
-still loads everything. <code>guardana scan --no-plugins</code> is a deprecated alias for <code>--plugins disabled</code>: discovery still runs, every plugin is refused, and each refusal is
+<code>plugins:</code> in a profile); from Python, <code>Registry.discover(trust)</code> takes the same
+<code>PluginTrust</code> and has no default. <code>guardana scan --no-plugins</code> is a deprecated alias for <code>--plugins disabled</code>: discovery still runs, every plugin is refused, and each refusal is
 recorded — see <a href="https://github.com/guardana/guardana/blob/main/SECURITY.md"><code>SECURITY.md</code></a> for the trust modes and why
 this exists.</p>
 <h2 id="testing-your-extension">Testing your extension</h2>

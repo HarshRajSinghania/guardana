@@ -19,6 +19,7 @@ from pathlib import Path
 
 import pytest
 from guardana.core.gate import GateOutcome, gate_outcome
+from guardana.core.plugins import PluginMode, PluginTrust
 from guardana.core.profile import Policy, Profile
 from guardana.core.registry import Registry
 from guardana.core.rule import Rule, RuleContext
@@ -203,9 +204,10 @@ def test_every_built_in_rule_that_reads_files_by_suffix_has_a_case() -> None:
 def test_a_corrupt_capitalised_onnx_is_unverified_not_clean(tmp_path: Path) -> None:
     (tmp_path / "c.ONNX").write_bytes(b"\xff" * 11)
 
-    result = Runner(registry=Registry.discover(), profile=Profile(name="t", policy=Policy())).run(
-        ArtifactTarget(tmp_path)
-    )
+    result = Runner(
+        registry=Registry.discover(PluginTrust(mode=PluginMode.BUILTINS)),
+        profile=Profile(name="t", policy=Policy()),
+    ).run(ArtifactTarget(tmp_path))
 
     assert [f.rule_id for f in result.unverified] == ["guardana.supply_chain.onnx_graph"]
 
@@ -214,9 +216,10 @@ def test_a_capitalised_malicious_pickle_fails_the_gate(tmp_path: Path) -> None:
     (tmp_path / "model.PKL").write_bytes(_PICKLE)
     policy = Policy()
 
-    result = Runner(registry=Registry.discover(), profile=Profile(name="t", policy=policy)).run(
-        ArtifactTarget(tmp_path)
-    )
+    result = Runner(
+        registry=Registry.discover(PluginTrust(mode=PluginMode.BUILTINS)),
+        profile=Profile(name="t", policy=policy),
+    ).run(ArtifactTarget(tmp_path))
 
     assert [f.rule_id for f in result.findings] == ["guardana.supply_chain.pickle_opcode"]
     assert gate_outcome(result, policy) is not GateOutcome.PASS

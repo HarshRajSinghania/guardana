@@ -1,10 +1,11 @@
+from guardana.core.plugins import PluginMode, PluginTrust
 from guardana.core.registry import Registry
 from guardana.rules import provide_evaluators
 
 
 def test_discover_loads_rules_entrypoint_without_error() -> None:
     # guardana-rules registers a `guardana.rules` entry point; discovery must succeed
-    reg = Registry.discover()
+    reg = Registry.discover(PluginTrust(mode=PluginMode.BUILTINS))
     assert isinstance(reg.rules(), tuple)
 
 

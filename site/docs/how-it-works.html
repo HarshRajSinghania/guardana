@@ -30,6 +30,7 @@
 <li><a href="how-it-works.html" aria-current="page">How Guardana works</a></li>
 <li><a href="install.html">Installing</a></li>
 <li><a href="usage-testing.html">In your test suite</a></li>
+<li><a href="python-api.html">Python API<span class="tag">beta</span></a></li>
 <li><a href="usage-scan.html">guardana scan</a></li>
 <li><a href="usage-probe.html">guardana probe</a></li>
 </ul>
@@ -156,6 +157,7 @@
 <li><a href="how-it-works.html" aria-current="page">How Guardana works</a></li>
 <li><a href="install.html">Installing</a></li>
 <li><a href="usage-testing.html">In your test suite</a></li>
+<li><a href="python-api.html">Python API<span class="tag">beta</span></a></li>
 <li><a href="usage-scan.html">guardana scan</a></li>
 <li><a href="usage-probe.html">guardana probe</a></li>
 </ul>
@@ -325,7 +327,7 @@
 <li>The <strong>Runner</strong> takes a registry, profile, and target. It skips rules excluded by layer, profile, or target capabilities. It catches and records rule exceptions so a failed rule cannot abort the scan or appear to pass. It sorts results into findings or <code>unverified</code> and returns a <code>ScanResult</code>.</li>
 </ul>
 <h3 id="one-scan-end-to-end">One scan, end to end</h3>
-<p><code>guardana scan ./model-dir</code> builds an <code>ArtifactTarget</code>. <code>Registry.discover()</code> finds installed rules. Guardana resolves the default profile, <code>guardana.yaml</code>, or <code>--preset</code>. <code>Runner</code> runs build rules the target can support. The renderer prints the findings, and <code>gate()</code> sets a non-zero exit code when a result meets the failure bar or zero rules actually ran.</p>
+<p><code>guardana scan ./model-dir</code> builds an <code>ArtifactTarget</code>. <code>Registry.discover(trust)</code> finds the installed rules the plugin trust admits. Guardana resolves the default profile, <code>guardana.yaml</code>, or <code>--preset</code>. <code>Runner</code> runs build rules the target can support. The renderer prints the findings, and <code>gate()</code> sets a non-zero exit code when a result meets the failure bar or zero rules actually ran.</p>
 <hr />
 <h2 id="4-the-two-layers-made-concrete">4. The two layers, made concrete</h2>
 <p><code>guardana rules</code> groups the catalogue by layer:</p>
@@ -384,7 +386,7 @@ mypack = &quot;mypack:provide_rules&quot;
 [project.entry-points.&quot;guardana.evaluators&quot;]
 mypack = &quot;mypack:provide_evaluators&quot;
 </code></pre>
-<p><code>provide_rules()</code> returns your <code>Rule</code> instances (or a list). <code>Registry.discover()</code> finds them with the built-ins. Use your own id prefix, such as <code>acme.*</code>; <code>guardana.*</code> is reserved for built-ins. Profiles can include or exclude ids by glob. Entry points also register <code>guardana.targets</code> and <code>guardana.taxonomies</code>: four groups in total, all discovered the same way. See <a href="architecture.html#current-entry-point-groups"><code>architecture.md</code></a>.</p>
+<p><code>provide_rules()</code> returns your <code>Rule</code> instances (or a list). <code>Registry.discover(trust)</code> finds them with the built-ins once trust admits your distribution. Use your own id prefix, such as <code>acme.*</code>; <code>guardana.*</code> is reserved for built-ins. Profiles can include or exclude ids by glob. Entry points also register <code>guardana.targets</code> and <code>guardana.taxonomies</code>: four groups in total, all discovered the same way. See <a href="architecture.html#current-entry-point-groups"><code>architecture.md</code></a>.</p>
 <h3 id="the-two-authoring-paths">The two authoring paths</h3>
 <ul>
 <li><strong>YAML</strong> defines single-turn <code>prompts:</code> or multi-turn <code>steps:</code> scenarios. <code>guardana new-rule acme.prompt.my_check</code> scaffolds a rule. <code>--rules ./dir</code> runs a directory without packaging.</li>

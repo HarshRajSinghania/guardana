@@ -149,8 +149,7 @@ What does not exist: once a pack is admitted it runs with the user's privileges,
 package's dependencies and `.pth` startup hooks run when Python starts, before any
 trust decision. A declarative pack format that executes no Python is decided
 ([non-executing packs](design/non-executing-packs.md)) but not built, and subprocess
-isolation for packs that do execute has no stated release. A library caller of
-`Registry.discover()` that states no trust still imports everything installed.
+isolation for packs that do execute has no stated release.
 
 **Until then:** treat installing a Guardana pack exactly like installing any other
 Python package into your environment — because that is what it is. `SECURITY.md`

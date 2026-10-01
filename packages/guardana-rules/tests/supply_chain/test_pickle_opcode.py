@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 from guardana.core.gate import GateOutcome, gate_outcome
+from guardana.core.plugins import PluginMode, PluginTrust
 from guardana.core.profile import FailOn, Policy, Profile
 from guardana.core.registry import Registry
 from guardana.core.rule import RuleContext
@@ -324,9 +325,10 @@ def test_an_unreadable_member_is_unverified_and_not_a_finding(tmp_path: Path) ->
     inner = _zip_with("archive/data.pkl", pickle.dumps(_Evil()))
     (tmp_path / "model.pt").write_bytes(_zip_with("archive/nested.zip", inner))
 
-    result = Runner(registry=Registry.discover(), profile=Profile(name="t", policy=Policy())).run(
-        ArtifactTarget(tmp_path)
-    )
+    result = Runner(
+        registry=Registry.discover(PluginTrust(mode=PluginMode.BUILTINS)),
+        profile=Profile(name="t", policy=Policy()),
+    ).run(ArtifactTarget(tmp_path))
 
     unscanned = [f for f in result.unverified if f.title == "Unscanned model file"]
     assert unscanned, [f.title for f in result.findings]
@@ -345,9 +347,10 @@ def test_a_medium_gate_asking_for_inconclusive_refuses_an_unread_artifact(tmp_pa
     (tmp_path / "model.pt").write_bytes(_zip_with("archive/nested.zip", inner))
     policy = Policy(fail_on=FailOn(severity=Severity.MEDIUM, fail_on_inconclusive=True))
 
-    result = Runner(registry=Registry.discover(), profile=Profile(name="t", policy=policy)).run(
-        ArtifactTarget(tmp_path)
-    )
+    result = Runner(
+        registry=Registry.discover(PluginTrust(mode=PluginMode.BUILTINS)),
+        profile=Profile(name="t", policy=policy),
+    ).run(ArtifactTarget(tmp_path))
 
     assert gate_outcome(result, policy) is not GateOutcome.PASS
 

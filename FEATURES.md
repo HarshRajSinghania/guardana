@@ -23,6 +23,7 @@ For maturity and known gaps, read [Product status](docs/product-status.md).
 | Compare releases | `guardana diff BEFORE AFTER` | deterioration, improvement, or an explicit refusal to compare |
 | Re-run checks on a schedule | `guardana monitor ...` | active monitoring against an accepted baseline |
 | Use verification in tests | `guardana.testing.assert_secure(...)` | the same policy as a pytest assertion |
+| Run verification from Python | `guardana.core.verify.Verifier(trust=...)` | the run `scan` or `probe` writes, as typed data, failed and stopped runs included |
 
 Every target-building workflow also accepts an installed, trusted custom target
 as `--target scheme://locator`. The command retains control of the target kind,

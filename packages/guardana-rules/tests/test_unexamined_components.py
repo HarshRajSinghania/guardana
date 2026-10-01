@@ -12,6 +12,7 @@ from collections.abc import Iterable
 from pathlib import Path
 
 from guardana.core.gate import GateOutcome, gate_outcome
+from guardana.core.plugins import PluginMode, PluginTrust
 from guardana.core.profile import Policy, Profile
 from guardana.core.registry import Registry
 from guardana.core.report import Evidence, Finding, ScanResult, ShortfallKind
@@ -37,9 +38,10 @@ def _torch_zip(payload: bytes) -> bytes:
 
 
 def _scan(root: Path, profile: Profile | None = None) -> ScanResult:
-    return Runner(Registry.discover(), profile or Profile(name="t", policy=Policy())).run(
-        ArtifactTarget(root)
-    )
+    return Runner(
+        Registry.discover(PluginTrust(mode=PluginMode.BUILTINS)),
+        profile or Profile(name="t", policy=Policy()),
+    ).run(ArtifactTarget(root))
 
 
 def _unexamined(result: ScanResult) -> dict[str, str]:

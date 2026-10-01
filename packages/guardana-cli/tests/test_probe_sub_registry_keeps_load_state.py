@@ -9,9 +9,9 @@ from pathlib import Path
 
 import pytest
 from _fake_distribution import EXPLODING_MODULE, MARKING_MODULE, FakeSite
-from guardana.cli._probe_run import _sub_registry
 from guardana.core.entrypoints import EVALUATOR_GROUP, RULE_GROUP
 from guardana.core.plugins import PluginMode, PluginTrust
+from guardana.core.probe import _sub_registry
 from guardana.core.registry import Registry
 from guardana.core.report import CheckError
 

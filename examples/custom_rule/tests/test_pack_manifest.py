@@ -17,8 +17,11 @@ from guardana.core.pack import (
     installed_manifests,
     load_manifest,
 )
+from guardana.core.plugins import PluginMode, PluginTrust
 from guardana.core.registry import Registry
 from guardana.core.target import TargetKind
+
+_ACME = PluginTrust(mode=PluginMode.ALLOWLIST, allowed=frozenset({"acme-guardana-rules"}))
 
 
 def _manifest() -> PackManifest:
@@ -49,7 +52,7 @@ def test_the_manifest_lists_exactly_what_the_entry_points_register() -> None:
 
 def test_validate_finds_this_pack_through_its_entry_point() -> None:
     """Discovery has to work for an installed third-party package, not just for ours."""
-    found = [m for m in installed_manifests() if m.name == "acme-guardana-rules"]
+    found = [m for m in installed_manifests(_ACME) if m.name == "acme-guardana-rules"]
 
     assert found, "the pack registers entry points and ships a manifest, so it must be found"
 
@@ -78,7 +81,7 @@ def test_the_target_entry_point_is_registered_and_declared() -> None:
     and accuse any pack shipping one — with no example able to notice. This closes
     both halves: the entry point is exercised, and the manifest declares it.
     """
-    registered = {target.__name__ for target in Registry.discover().targets()}
+    registered = {target.__name__ for target in Registry.discover(_ACME).targets()}
 
     assert "AcmePromptLibraryTarget" in registered
     assert "AcmePromptLibraryTarget" in _manifest().provides

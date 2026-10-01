@@ -127,7 +127,7 @@ def test_an_unchanged_build_checks_clean(tmp_path: Path) -> None:
 def _a_pack_promising(monkeypatch: pytest.MonkeyPatch, manifest: PackManifest) -> None:
     """Make discovery report one more installed pack, declaring `manifest`."""
 
-    def discovered(trust: PluginTrust | None = None) -> PackDiscovery:
+    def discovered(trust: PluginTrust) -> PackDiscovery:
         found = discover_packs(trust)
         return replace(found, packs=(*found.packs, ("acme-guardana-rules", "0.3.1", manifest)))
 

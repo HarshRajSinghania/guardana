@@ -14,6 +14,7 @@ from pathlib import Path
 
 from guardana.core.inventory import observe
 from guardana.core.observation import Observation, ObservationKind
+from guardana.core.plugins import PluginMode, PluginTrust
 from guardana.core.profile.model import Policy, Profile
 from guardana.core.registry import Registry
 from guardana.core.report import relativize_findings
@@ -83,9 +84,10 @@ def test_observation_refs_are_relativized_with_the_findings(tmp_path: Path) -> N
     # component changed as soon as the checkout moved, and an uploaded report
     # would leak the checkout path the findings were scrubbed of.
     root = _repo(tmp_path)
-    result = Runner(registry=Registry.discover(), profile=Profile(name="t", policy=Policy())).run(
-        ArtifactTarget(root)
-    )
+    result = Runner(
+        registry=Registry.discover(PluginTrust(mode=PluginMode.BUILTINS)),
+        profile=Profile(name="t", policy=Policy()),
+    ).run(ArtifactTarget(root))
     relativized = relativize_findings(result, root)
     refs = {item.ref for item in relativized.observations}
     assert "model.gguf" in refs
@@ -116,9 +118,10 @@ def test_an_endpoint_observes_the_model_under_test() -> None:
 
 
 def test_the_runner_attaches_observations_to_the_result(tmp_path: Path) -> None:
-    result = Runner(registry=Registry.discover(), profile=Profile(name="t", policy=Policy())).run(
-        ArtifactTarget(_repo(tmp_path))
-    )
+    result = Runner(
+        registry=Registry.discover(PluginTrust(mode=PluginMode.BUILTINS)),
+        profile=Profile(name="t", policy=Policy()),
+    ).run(ArtifactTarget(_repo(tmp_path)))
     assert {item.name for item in result.observations} >= {"model.gguf", "requirements.txt"}
 
 
@@ -127,10 +130,11 @@ def test_the_inventory_does_not_depend_on_which_rules_run(tmp_path: Path) -> Non
     # narrowed profile would quietly under-report what is deployed.
     root = _repo(tmp_path)
     everything = Runner(
-        registry=Registry.discover(), profile=Profile(name="t", policy=Policy())
+        registry=Registry.discover(PluginTrust(mode=PluginMode.BUILTINS)),
+        profile=Profile(name="t", policy=Policy()),
     ).run(ArtifactTarget(root))
     nothing = Runner(
-        registry=Registry.discover(),
+        registry=Registry.discover(PluginTrust(mode=PluginMode.BUILTINS)),
         profile=Profile(name="t", policy=Policy(include=("nonexistent.*",))),
     ).run(ArtifactTarget(root))
     assert nothing.rules_run_count == 0

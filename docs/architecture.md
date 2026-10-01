@@ -103,7 +103,7 @@ core ships plumbing so a third-party pack ships judgement. Full contract in
 **Skipped is not errored.** The `Runner` keeps two outcomes apart that used to
 share a bucket: a rule the target cannot satisfy is *skipped* (normal), and a
 rule that raised is an *error* (a defect) recorded in `ScanResult.errors`, which
-fails the gate by default. `Registry.discover()` isolates each entry point for
+fails the gate by default. `Registry.discover(trust)` isolates each entry point for
 the same reason — one broken third-party pack must not leave you with no rules.
 
 A rule declares which capabilities it needs (`required_capabilities` in
@@ -243,8 +243,7 @@ _TARGET_GROUP = "guardana.targets"
 
 class Registry:
     @classmethod
-    def discover(cls, trust: PluginTrust | None = None) -> Self:
-        policy = trust if trust is not None else PluginTrust()
+    def discover(cls, trust: PluginTrust) -> Self:
         reg = cls()
         for group, register in (
             # Taxonomies first: a YAML rule's `taxonomy:` resolves while its
@@ -255,7 +254,7 @@ class Registry:
             (_TARGET_GROUP, reg.register_target),
         ):
             for ep in entry_points(group=group):
-                if not policy.allows(ep):
+                if not trust.allows(ep):
                     reg.record_load_error(...)   # refused, never imported
                     continue
                 _absorb(ep.load()(), register)
@@ -300,10 +299,10 @@ via `guardana.yaml`'s `rules.paths`) on `scan`, `probe`, and `monitor`.
 
 | Group | Provides | Wired into `Registry`? |
 |---|---|---|
-| `guardana.taxonomies` | one `TaxonomyRef`, or an iterable | **Yes** — `Registry.discover()`, loaded **first**, so a rule pack's own `taxonomy:` references resolve while its own entry point is still loading. |
-| `guardana.rules` | one `Rule`, or an iterable of `Rule`s | **Yes** — `Registry.discover()` |
-| `guardana.evaluators` | one `Evaluator`, or an iterable | **Yes** — `Registry.discover()` |
-| `guardana.targets` | one `Target` subclass, or an iterable | **Yes** — `Registry.discover()`. `Registry.targets()` exposes the discovered classes; a class declaring a unique `scheme` and `from_locator` is also selectable as `--target scheme://…` by commands accepting its kind. See [`extending.md`](extending.md#adding-a-target). |
+| `guardana.taxonomies` | one `TaxonomyRef`, or an iterable | **Yes** — `Registry.discover(trust)`, loaded **first**, so a rule pack's own `taxonomy:` references resolve while its own entry point is still loading. |
+| `guardana.rules` | one `Rule`, or an iterable of `Rule`s | **Yes** — `Registry.discover(trust)` |
+| `guardana.evaluators` | one `Evaluator`, or an iterable | **Yes** — `Registry.discover(trust)` |
+| `guardana.targets` | one `Target` subclass, or an iterable | **Yes** — `Registry.discover(trust)`. `Registry.targets()` exposes the discovered classes; a class declaring a unique `scheme` and `from_locator` is also selectable as `--target scheme://…` by commands accepting its kind. See [`extending.md`](extending.md#adding-a-target). |
 
 ## The Runner
 

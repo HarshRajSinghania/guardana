@@ -22,6 +22,7 @@ from guardana.core.evaluator.reference_judge import ReferenceJudgeEvaluator
 from guardana.core.evaluator.regex import RegexEvaluator
 from guardana.core.evaluator.tool_call import ToolCallEvaluator
 from guardana.core.exchange import Exchange
+from guardana.core.plugins import PluginMode, PluginTrust
 from guardana.core.registry import Registry
 
 
@@ -78,7 +79,7 @@ def test_the_refusal_heuristics_and_the_model_judges_are_judges(
 
 
 def test_every_registered_builtin_evaluator_is_classified() -> None:
-    evaluators = Registry.discover().evaluators()
+    evaluators = Registry.discover(PluginTrust(mode=PluginMode.BUILTINS)).evaluators()
     deterministic = {eid for eid, ev in evaluators.items() if ev.deterministic}
     judges = {eid for eid, ev in evaluators.items() if not ev.deterministic}
     assert deterministic == {
@@ -96,7 +97,7 @@ def test_every_registered_builtin_evaluator_is_classified() -> None:
 
 def test_answered_and_keyword_never_share_an_id() -> None:
     # One id would share one calibration entry, and the two read a refusal oppositely.
-    evaluators = Registry.discover().evaluators()
+    evaluators = Registry.discover(PluginTrust(mode=PluginMode.BUILTINS)).evaluators()
     assert evaluators["answered"].id != evaluators["keyword"].id
     assert isinstance(evaluators["answered"], AnsweredEvaluator)
 

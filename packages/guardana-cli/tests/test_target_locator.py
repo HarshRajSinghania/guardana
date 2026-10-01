@@ -8,6 +8,7 @@ import pytest
 import typer
 from guardana.cli._target_locator import resolve_target, target_options
 from guardana.cli.main import app
+from guardana.core.plugins import PluginMode, PluginTrust
 from guardana.core.registry import Registry
 from guardana.core.report import CheckError
 from guardana.core.target import Capability, ChatMessage, LocatorError, Target, TargetKind
@@ -260,7 +261,7 @@ def test_an_unknown_scheme_blames_trust_only_for_a_recorded_refusal() -> None:
 def test_scan_keeps_a_plugin_owned_locator_ref_verbatim(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    registry = Registry.discover()
+    registry = Registry.discover(PluginTrust(mode=PluginMode.BUILTINS))
     registry.register_target(_Located)
     monkeypatch.setattr(
         Registry,
@@ -281,7 +282,7 @@ def test_scan_keeps_a_plugin_owned_locator_ref_verbatim(
 
 
 def _install_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
-    registry = Registry.discover()
+    registry = Registry.discover(PluginTrust(mode=PluginMode.BUILTINS))
     registry.register_target(_Endpoint)
     monkeypatch.setattr(
         Registry,

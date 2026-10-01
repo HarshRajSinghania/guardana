@@ -13,7 +13,7 @@ from urllib.error import HTTPError, URLError
 import guardana.cli._endpoint as endpoint_module
 import guardana.cli.calibrate as calibrate_module
 import pytest
-from guardana.cli._evaluators import _identity, wire_config_evaluators
+from guardana.cli._evaluators import wire_config_evaluators
 from guardana.cli.calibrate import _record
 from guardana.cli.exit_codes import ExitCode
 from guardana.cli.main import app
@@ -23,6 +23,7 @@ from guardana.core.calibration.corpus import CorpusError, bundled_corpus, dump_c
 from guardana.core.calibration.report import MIN_RELIABLE_SAMPLES
 from guardana.core.calibration.store import load_calibrations
 from guardana.core.evaluator.base import Evaluator, Expectation, Verdict
+from guardana.core.evaluator.config import _identity
 from guardana.core.evaluator.keyword import KeywordEvaluator
 from guardana.core.evaluator.llm_judge import JudgeCalibration, LlmJudgeEvaluator
 from guardana.core.exchange import Exchange

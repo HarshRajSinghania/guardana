@@ -4,6 +4,7 @@
 without an evaluator; a verdict stamped by an evaluator is that evaluator's call.
 """
 
+from guardana.core.plugins import PluginMode, PluginTrust
 from guardana.core.registry import Registry
 from guardana.rules.agent.excessive_agency import ExcessiveAgencyRule
 from guardana.rules.output.secrets import OutputSecretsRule
@@ -21,5 +22,9 @@ def test_a_rule_stamping_an_evaluators_id_leaves_determinism_to_that_evaluator()
 
 
 def test_no_other_builtin_rule_claims_determinism() -> None:
-    claiming = {rule.meta.id for rule in Registry.discover().rules() if rule.deterministic}
+    claiming = {
+        rule.meta.id
+        for rule in Registry.discover(PluginTrust(mode=PluginMode.BUILTINS)).rules()
+        if rule.deterministic
+    }
     assert claiming == _SELF_GRADING_DETERMINISTIC

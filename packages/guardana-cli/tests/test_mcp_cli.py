@@ -13,6 +13,7 @@ from pathlib import Path
 import pytest
 import typer
 from guardana.cli._mcp_run import McpConnection, credential_from, run_mcp_probe, write_pin
+from guardana.core.plugins import PluginMode, PluginTrust
 from guardana.core.profile.model import Policy, Profile
 from guardana.core.registry import Registry
 from guardana.core.target import McpError, McpServerTarget
@@ -117,7 +118,7 @@ def test_writing_a_pin_produces_no_report(
     )
 
     result = run_mcp_probe(
-        Registry.discover(),
+        Registry.discover(PluginTrust(mode=PluginMode.BUILTINS)),
         Profile(name="t", policy=Policy()),
         McpConnection("https://x"),
         tmp_path / "pin.json",
@@ -169,7 +170,7 @@ def test_the_negotiated_revision_reaches_the_run_result(
     )
 
     outcome = run_mcp_probe(
-        Registry.discover(),
+        Registry.discover(PluginTrust(mode=PluginMode.BUILTINS)),
         Profile(name="t", policy=Policy()),
         McpConnection(server.url),
         None,
@@ -222,3 +223,47 @@ def test_the_documented_jq_path_exists_in_the_document_probe_actually_writes(
         assert step in document, missing
         document = document[step]
     assert document == {"mcp": "2026-07-28"}
+
+
+def test_a_pin_path_never_changes_the_profile_digest_a_run_records(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The pin is where an operator keeps an approval, not a setting of the profile."""
+    from guardana.cli.main import app  # noqa: PLC0415
+    from typer.testing import CliRunner  # noqa: PLC0415
+
+    server = ScriptedMcpServer("https://93.184.215.14/mcp", tools=_TOOLS["tools"])
+    monkeypatch.setattr(
+        "guardana.cli._mcp_run.build_mcp_target",
+        lambda connection: McpServerTarget(server.url, sender=server),
+    )
+    (tmp_path / "pins").mkdir()
+    pin = tmp_path / "pins" / "mcp.pin.json"
+    write_pin(McpConnection(server.url), pin)
+    monkeypatch.chdir(tmp_path)
+
+    def digest(*pin_flags: str) -> str:
+        written = tmp_path / "run.json"
+        written.unlink(missing_ok=True)
+        result = CliRunner().invoke(
+            app,
+            [
+                "probe",
+                "--mcp",
+                server.url,
+                *pin_flags,
+                "--format",
+                "json",
+                "--output",
+                str(written),
+            ],
+        )
+        assert result.exit_code in (0, 1), result.output
+        document = json.loads(written.read_text(encoding="utf-8"))
+        value: str = document["run"]["configuration"]["profile_digest"]
+        return value
+
+    unpinned = digest()
+
+    assert digest("--mcp-pin", str(pin)) == unpinned
+    assert digest("--mcp-pin", "pins/mcp.pin.json") == unpinned

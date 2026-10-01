@@ -18,6 +18,7 @@ This file is generated from the documentation map; do not edit it by hand.
 - [usage-scan.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/usage-scan.md): scan artifacts offline
 - [usage-probe.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/usage-probe.md): probe a live endpoint, agent, or MCP server
 - [usage-testing.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/usage-testing.md): run the same checks from pytest
+- [python-api.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/python-api.md): run scans and probes from Python and read every outcome as data
 - [how-it-works.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/how-it-works.md): understand targets, rules, evaluators, and evidence
 
 ## Run and policy

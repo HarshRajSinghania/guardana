@@ -541,12 +541,14 @@ shape would still pass a check that round-tripped Guardana's own writer.
 _LOCK_SCRIPT = """
 from guardana.core.pack import installed_packs, lock_of
 from guardana.core.pack.lock import Installed
+from guardana.core.plugins import PluginMode, PluginTrust
 from guardana.core.registry import Registry
 
-packs = installed_packs()
+builtins = PluginTrust(mode=PluginMode.BUILTINS)
+packs = installed_packs(builtins)
 if not packs:
     raise SystemExit("no installed pack declares a manifest")
-registry = Registry.discover()
+registry = Registry.discover(builtins)
 lock = lock_of(
     packs,
     Installed(
@@ -565,6 +567,7 @@ print("lock ready")
 
 _CONTRACT_SCRIPT = """
 from guardana.core.contract import contract_from_dict
+from guardana.core.plugins import PluginMode, PluginTrust
 from guardana.core.profile import Policy, Profile
 from guardana.core.registry import Registry
 from guardana.core.runner import Runner
@@ -614,7 +617,7 @@ trace = Trace(
     instrumented=frozenset({Dimension.EFFECTS}),
 )
 
-registry = Registry.discover()
+registry = Registry.discover(PluginTrust(mode=PluginMode.BUILTINS))
 for rule in compiled.rules:
     registry.register_rule(rule)
 profile = Profile(name="t", policy=Policy()).demanding(compiled.required_dimensions)

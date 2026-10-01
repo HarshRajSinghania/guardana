@@ -40,12 +40,7 @@ class PluginMode(StrEnum):
     """How much installed code a run will import."""
 
     ALL = "all"
-    """Every entry point on the system.
-
-    The library's default when no trust is stated: `PluginTrust()` and
-    `Registry.discover()` without an argument. A command line decides its own
-    default and states it.
-    """
+    """Every entry point on the system, each one importing code with this process's rights."""
 
     BUILTINS = "builtins"
     """Only Guardana's own distributions. Safe mode that still checks things."""
@@ -59,9 +54,13 @@ class PluginMode(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class PluginTrust:
-    """Which distributions a run will load entry points from."""
+    """Which distributions a run will load entry points from.
 
-    mode: PluginMode = PluginMode.ALL
+    `mode` has no default: discovery imports installed code, so how much of it runs is
+    stated by whoever asks for it.
+    """
+
+    mode: PluginMode
     allowed: frozenset[str] = frozenset()
 
     def allows(self, distribution: str | None) -> bool:

@@ -18,6 +18,7 @@ from contextlib import suppress
 
 from guardana.core.evaluator import Evaluator, Expectation, Verdict
 from guardana.core.exchange import Exchange
+from guardana.core.plugins import PluginMode, PluginTrust
 from guardana.core.registry import Registry
 from guardana.core.rule import Rule, RuleContext, RuleError
 from guardana.core.rule.trajectory_rule import TrajectoryRule
@@ -119,7 +120,11 @@ def test_the_whole_probe_plan_has_a_knowable_ceiling() -> None:
 
 
 def test_agent_rules_are_registered_and_bounded() -> None:
-    ids = {r.meta.id for r in Registry.discover().rules() if isinstance(r, TrajectoryRule)}
+    ids = {
+        r.meta.id
+        for r in Registry.discover(PluginTrust(mode=PluginMode.BUILTINS)).rules()
+        if isinstance(r, TrajectoryRule)
+    }
     assert ids, "no agent rules are discoverable, so this gate would measure nothing"
 
 
@@ -257,7 +262,7 @@ def test_every_rule_that_repeats_is_measured_by_the_chat_gate() -> None:
 
 
 def test_applying_trials_to_the_registry_reaches_the_python_built_ins() -> None:
-    registry = Registry.discover()
+    registry = Registry.discover(PluginTrust(mode=PluginMode.BUILTINS))
     registry.apply_trials(4)
 
     by_id = {r.meta.id: r for r in registry.rules()}

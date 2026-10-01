@@ -19,6 +19,7 @@ Start with the root [README](../README.md). Before production use, read [Product
 - [`usage-scan.md`](usage-scan.md) — scan artifacts offline
 - [`usage-probe.md`](usage-probe.md) — probe a live endpoint, agent, or MCP server
 - [`usage-testing.md`](usage-testing.md) — run the same checks from pytest
+- [`python-api.md`](python-api.md) — run scans and probes from Python and read every outcome as data
 - [`how-it-works.md`](how-it-works.md) — understand targets, rules, evaluators, and evidence
 
 ## Run and policy

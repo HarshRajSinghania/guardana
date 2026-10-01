@@ -17,6 +17,7 @@ from guardana.core.evaluator.guard import GuardEvaluator
 from guardana.core.evaluator.llm_judge import LlmJudgeEvaluator
 from guardana.core.evaluator.reference_judge import ReferenceJudgeEvaluator
 from guardana.core.exchange import Exchange
+from guardana.core.plugins import PluginMode, PluginTrust
 from guardana.core.registry import Registry
 
 
@@ -63,7 +64,9 @@ def test_every_built_in_evaluator_class_declares_its_calls_itself() -> None:
 def test_every_evaluator_the_registry_discovers_answers_an_explicit_count() -> None:
     discovered = {
         evaluator_id: evaluator
-        for evaluator_id, evaluator in Registry.discover().evaluators().items()
+        for evaluator_id, evaluator in Registry.discover(PluginTrust(mode=PluginMode.BUILTINS))
+        .evaluators()
+        .items()
         if type(evaluator).__module__.startswith("guardana.")
     }
     assert "canary" in discovered, "discovery found no built-in evaluator to check"

@@ -14,6 +14,7 @@ neither half drifts.
 
 from pathlib import Path
 
+from guardana.core.plugins import PluginMode, PluginTrust
 from guardana.core.profile.model import Policy, Profile
 from guardana.core.registry import Registry
 from guardana.core.runner import Runner
@@ -68,9 +69,10 @@ def test_a_scan_fails_the_gate_on_an_unread_source(tmp_path: Path) -> None:
     # a clean report. It lands in `errors`, which fails the gate by default.
     (tmp_path / "loader.py").write_text(_SINK + "# pad\n" * 500, encoding="utf-8")
     target = ArtifactTarget(tmp_path, source_read_limit=64)
-    result = Runner(registry=Registry.discover(), profile=Profile(name="t", policy=Policy())).run(
-        target
-    )
+    result = Runner(
+        registry=Registry.discover(PluginTrust(mode=PluginMode.BUILTINS)),
+        profile=Profile(name="t", policy=Policy()),
+    ).run(target)
     assert [e.source for e in result.errors] == ["guardana.core.source"]
     assert "loader.py" in result.errors[0].reason
 
@@ -107,7 +109,8 @@ def test_a_scan_fails_the_gate_on_a_directory_it_could_not_list(tmp_path: Path) 
     locked.chmod(0o000)
     try:
         result = Runner(
-            registry=Registry.discover(), profile=Profile(name="t", policy=Policy())
+            registry=Registry.discover(PluginTrust(mode=PluginMode.BUILTINS)),
+            profile=Profile(name="t", policy=Policy()),
         ).run(ArtifactTarget(tmp_path))
     finally:
         locked.chmod(0o755)

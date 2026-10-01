@@ -27,6 +27,7 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
+from guardana.core.plugins import PluginMode, PluginTrust
 from guardana.core.registry import Registry
 from guardana.core.rule import Rule, RuleContext
 from guardana.core.rule.errors import RuleError
@@ -91,7 +92,9 @@ _MAGICS = (
 
 def _artifact_rules() -> tuple[Rule, ...]:
     return tuple(
-        rule for rule in Registry.discover().rules() if rule.meta.target_kind is TargetKind.ARTIFACT
+        rule
+        for rule in Registry.discover(PluginTrust(mode=PluginMode.BUILTINS)).rules()
+        if rule.meta.target_kind is TargetKind.ARTIFACT
     )
 
 

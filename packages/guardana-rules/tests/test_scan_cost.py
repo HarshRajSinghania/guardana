@@ -18,6 +18,7 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
+from guardana.core.plugins import PluginMode, PluginTrust
 from guardana.core.profile.model import Policy, Profile
 from guardana.core.registry import Registry
 from guardana.core.runner import Runner
@@ -51,9 +52,10 @@ def repo(tmp_path: Path) -> Path:
 
 
 def _run(root: Path) -> int:
-    result = Runner(registry=Registry.discover(), profile=Profile(name="t", policy=Policy())).run(
-        ArtifactTarget(root)
-    )
+    result = Runner(
+        registry=Registry.discover(PluginTrust(mode=PluginMode.BUILTINS)),
+        profile=Profile(name="t", policy=Policy()),
+    ).run(ArtifactTarget(root))
     return result.rules_run_count
 
 
@@ -99,9 +101,10 @@ def test_findings_survive_the_shared_read(repo: Path) -> None:
     # The cheapest way to make the counters above look good would be to stop
     # reading things. The fixture contains a TLS-off fetch and an `os.system`
     # call in every module, so the rules must still fire on all of them.
-    result = Runner(registry=Registry.discover(), profile=Profile(name="t", policy=Policy())).run(
-        ArtifactTarget(repo)
-    )
+    result = Runner(
+        registry=Registry.discover(PluginTrust(mode=PluginMode.BUILTINS)),
+        profile=Profile(name="t", policy=Policy()),
+    ).run(ArtifactTarget(repo))
     rules_fired = {finding.rule_id for finding in result.findings}
     assert "guardana.supply_chain.code_execution" in rules_fired
     assert "guardana.supply_chain.insecure_transport" in rules_fired

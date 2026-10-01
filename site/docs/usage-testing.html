@@ -30,6 +30,7 @@
 <li><a href="how-it-works.html">How Guardana works</a></li>
 <li><a href="install.html">Installing</a></li>
 <li><a href="usage-testing.html" aria-current="page">In your test suite</a></li>
+<li><a href="python-api.html">Python API<span class="tag">beta</span></a></li>
 <li><a href="usage-scan.html">guardana scan</a></li>
 <li><a href="usage-probe.html">guardana probe</a></li>
 </ul>
@@ -156,6 +157,7 @@
 <li><a href="how-it-works.html">How Guardana works</a></li>
 <li><a href="install.html">Installing</a></li>
 <li><a href="usage-testing.html" aria-current="page">In your test suite</a></li>
+<li><a href="python-api.html">Python API<span class="tag">beta</span></a></li>
 <li><a href="usage-scan.html">guardana scan</a></li>
 <li><a href="usage-probe.html">guardana probe</a></li>
 </ul>
@@ -374,9 +376,9 @@ def test_the_model_resists_prompt_injection(local_model):
 in the profile — <code>budgets:</code> in <a href="profiles.html"><code>profiles.md</code></a> — and read
 <a href="safe-testing.html"><code>safe-testing.md</code></a> before pointing it at anything that matters.
 <code>guardana plan</code> prices the same run without sending a request.</p>
-<p>Passing <code>system_prompt</code> is worth doing: without something planted, the
-canary-backed system-prompt-leak rule has nothing to look for and is skipped, so
-the coverage a run reports shrinks quietly.</p>
+<p>The system-prompt-leak rule plants a fresh canary of its own in every run, so it
+runs whether or not you pass <code>system_prompt</code>. Pass <code>system_prompt</code> so every other
+check sees the instructions your application really sends.</p>
 <h2 id="a-langchain-model">A LangChain model</h2>
 <pre><code class="language-python">from guardana.adapters.langchain import langchain_target
 from guardana.testing import assert_secure
@@ -471,17 +473,29 @@ delegation, consent, policy and approval blocks are the half no framework emits
 and the half where the interesting failures are.</p>
 <h2 id="choosing-what-is-loaded">Choosing what is loaded</h2>
 <pre><code class="language-python">from guardana.core.plugins import PluginMode, PluginTrust
-from guardana.core.registry import Registry
+
+ACME = PluginTrust(mode=PluginMode.ALLOWLIST, allowed=frozenset({&quot;acme-guardana-rules&quot;}))
 
 
-def test_with_only_guardanas_own_rules():
-    trusted = Registry.discover(PluginTrust(mode=PluginMode.BUILTINS))
-    assert_secure(&quot;models&quot;, preset=&quot;ci&quot;, registry=trusted)
+def test_with_our_own_pack_admitted():
+    assert_secure(&quot;models&quot;, preset=&quot;ci&quot;, trust=ACME)
 </code></pre>
-<p>Left out, <code>assert_secure</code> discovers entry-point rules and loads the rule
-directories the profile names. Passed in, the registry is used exactly as given —
-a registry you assembled is not one this should add to behind your back. See
-<a href="extending.html"><code>extending.md</code></a> and <code>SECURITY.md</code> for what plugin trust means.</p>
+<p><code>trust</code> names the installed distributions that may run code. Left out, the
+profile's <code>plugins:</code> decides, and without one only Guardana's own distributions
+load, as on the command line. <code>registry=</code> takes a registry you assembled: nothing
+is discovered or loaded into it, not even the profile's <code>rules.paths</code>, and each run
+works on a copy that gets the profile's trials and the judges under <code>evaluators:</code>. See
+<a href="extending.html"><code>extending.md</code></a> and <code>SECURITY.md</code> for what plugin trust means, and
+the <a href="python-api.html">Python API</a> for a run you read as data instead of asserting on.</p>
+<h2 id="how-it-differs-from-a-bare-runner">How it differs from a bare <code>Runner</code></h2>
+<p><code>assert_secure</code> runs through the <a href="python-api.html">Python API</a>, so a check runs as
+<code>guardana probe</code> runs it: an endpoint gets one pass per canary rule with a fresh
+canary, the profile's calibrations apply, and the judges configured under
+<code>evaluators:</code> are built and called, with their key read from the environment.</p>
+<p>A target object runs once. Hand each test its own target (a function-scoped
+fixture); the second run of the same object raises <code>TargetReusedError</code>, because its
+meter and whatever it cached would describe both runs. A target that cannot be
+reached raises <code>TargetUnavailableError</code>.</p>
 <h2 id="what-this-is-not">What this is not</h2>
 <p>It is not a second engine, and it does not have its own idea of &quot;secure&quot;. If a
 check passes here and fails in CI, that is a fact about the target, not a

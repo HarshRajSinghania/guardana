@@ -16,6 +16,7 @@ sample every rule they ship, and a project that exempted itself would be asking 
 to clear a bar it had not.
 """
 
+from guardana.core.plugins import PluginMode, PluginTrust
 from guardana.core.registry import Registry
 from guardana.core.rule import RuleContext
 from guardana.core.rule.verify import verify_rule
@@ -31,7 +32,7 @@ does not turn both ways.
 
 
 def _sampled() -> tuple[list[str], list[str]]:
-    registry = Registry.discover()
+    registry = Registry.discover(PluginTrust(mode=PluginMode.BUILTINS))
     ctx = RuleContext(evaluators=registry.evaluators())
     proven: list[str] = []
     unsampled: list[str] = []
@@ -72,7 +73,7 @@ def test_every_fully_sampled_rule_actually_classifies_its_own_samples() -> None:
     Separate on purpose: a rule could declare all three fixtures and get them wrong,
     and a coverage count that rose on a broken rule would be measuring paperwork.
     """
-    registry = Registry.discover()
+    registry = Registry.discover(PluginTrust(mode=PluginMode.BUILTINS))
     ctx = RuleContext(evaluators=registry.evaluators())
 
     wrong = [

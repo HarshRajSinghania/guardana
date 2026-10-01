@@ -3,14 +3,14 @@ from pathlib import Path
 from urllib.error import URLError
 
 import guardana.cli._endpoint as endpoint_module
-import guardana.cli._probe_run as probe_run_module
+import guardana.core.probe as probe_run_module
 import pytest
-from guardana.cli._probe_run import _with_random_canary
 from guardana.cli.exit_codes import ExitCode
 from guardana.cli.main import app
 from guardana.core.evaluator.base import Expectation
 from guardana.core.gate import GateOutcome
 from guardana.core.manifest.records import CalibrationRecord
+from guardana.core.probe import _with_random_canary
 from guardana.core.profile import Profile
 from guardana.core.registry import Registry
 from guardana.core.report import load_report

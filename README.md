@@ -100,6 +100,8 @@ def test_the_agent_keeps_its_instructions_to_itself(chat_model):
     assert_secure(langchain_target(chat_model, system_prompt=SYSTEM), preset="ci")
 ```
 
+To read a run as data instead of asserting on it, [`guardana.core.verify`](docs/python-api.md) returns what `scan` and `probe` write, failed and stopped runs included.
+
 ### Before active testing
 
 Probes send real requests and can cost money or trigger provider abuse detection. Prefer staging. Guardana sends tool calls to doubles, but the surrounding application can still act on a model response. Evidence may contain sensitive text and is redacted by default. `guardana monitor` re-runs active probes on a schedule. See [`docs/safe-testing.md`](docs/safe-testing.md) and [`docs/privacy.md`](docs/privacy.md).

@@ -5,12 +5,25 @@ safe mode also the empty mode. A security control that costs all your coverage i
 one people turn off, and a control people turn off is not a control.
 """
 
+import pytest
 from guardana.core.plugins import BUILTIN_DISTRIBUTIONS, PluginMode, PluginTrust
 from guardana.core.registry import Registry
 
 
-def test_the_default_loads_everything() -> None:
-    trust = PluginTrust()
+def test_trust_has_no_default_mode() -> None:
+    with pytest.raises(TypeError, match="mode"):
+        PluginTrust()  # type: ignore[call-arg]
+
+
+def test_discovery_without_a_stated_trust_is_refused() -> None:
+    with pytest.raises(TypeError, match="trust"):
+        Registry.discover()  # type: ignore[call-arg]
+    with pytest.raises(TypeError, match="PluginTrust"):
+        Registry.discover(None)  # type: ignore[arg-type]
+
+
+def test_all_mode_loads_everything() -> None:
+    trust = PluginTrust(mode=PluginMode.ALL)
 
     assert trust.allows("guardana-rules")
     assert trust.allows("acme-rules")

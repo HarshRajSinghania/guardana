@@ -96,7 +96,7 @@ NOT_A_DOCUMENT: dict[str, str] = {
         "the oldest GGUF container this reader parses — somebody else's format, which "
         "Guardana reads and never writes"
     ),
-    "guardana.cli._evaluators._DEFAULT_PROMPT_VERSION": (
+    "guardana.core.evaluator.config._DEFAULT_PROMPT_VERSION": (
         "which judge prompt a run used, recorded inside the run manifest, which has its own gate"
     ),
     "guardana.rules.supply_chain._advisories._ANY_VERSION": "a glob meaning every package version",

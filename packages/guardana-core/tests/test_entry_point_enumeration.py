@@ -199,14 +199,30 @@ def test_assert_secure_discovers_under_the_trust_its_profile_states(
     assert module.name not in sys.modules
 
 
-def test_assert_secure_without_a_stated_trust_loads_everything(
+def test_assert_secure_without_a_stated_trust_loads_only_the_builtins(
     site: FakeSite, tmp_path: Path
 ) -> None:
     module = _exploding_pack(site)
     (tmp_path / "models").mkdir()
 
-    with pytest.raises(SecurityAssertionError):
+    with pytest.raises(SecurityAssertionError) as raised:
         assert_secure(tmp_path / "models", profile=Profile(name="t", policy=Policy()))
+
+    assert raised.value.outcome is GateOutcome.INDETERMINATE
+    assert any("Acme_Boom" in e.reason for e in raised.value.result.errors)
+    assert not module.marker.exists()
+
+
+def test_assert_secure_loads_what_the_stated_trust_admits(site: FakeSite, tmp_path: Path) -> None:
+    module = _exploding_pack(site)
+    (tmp_path / "models").mkdir()
+
+    with pytest.raises(SecurityAssertionError):
+        assert_secure(
+            tmp_path / "models",
+            profile=Profile(name="t", policy=Policy()),
+            trust=PluginTrust(mode=PluginMode.ALL),
+        )
 
     assert module.marker.exists()
 

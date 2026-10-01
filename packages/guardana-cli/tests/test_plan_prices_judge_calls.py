@@ -10,7 +10,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 import guardana.cli._endpoint as endpoint_module
-import guardana.cli._evaluators as evaluators_module
+import guardana.core.evaluator.config as evaluators_module
 import pytest
 from guardana.cli.exit_codes import ExitCode
 from guardana.cli.main import app

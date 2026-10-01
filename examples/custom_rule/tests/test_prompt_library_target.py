@@ -12,11 +12,14 @@ from pathlib import Path
 
 from acme_rules.hardcoded_secret import HardcodedAcmeKeyRule
 from acme_rules.prompt_library_target import AcmePromptLibraryTarget
+from guardana.core.plugins import PluginMode, PluginTrust
 from guardana.core.profile import default_profile
 from guardana.core.registry import Registry
 from guardana.core.rule import RuleContext
 from guardana.core.runner import Runner
 from guardana.testing import assert_target_conforms
+
+_ACME = PluginTrust(mode=PluginMode.ALLOWLIST, allowed=frozenset({"acme-guardana-rules"}))
 
 
 def _library(tmp_path: Path) -> Path:
@@ -33,7 +36,7 @@ def test_the_target_satisfies_the_contract_in_both_directions(tmp_path: Path) ->
 
 def test_the_engine_runs_the_built_in_artifact_rules_over_it(tmp_path: Path) -> None:
     """The promise from docs/extending.md, proven on the one shipped example."""
-    result = Runner(registry=Registry.discover(), profile=default_profile()).run(
+    result = Runner(registry=Registry.discover(_ACME), profile=default_profile()).run(
         AcmePromptLibraryTarget(_library(tmp_path))
     )
 
