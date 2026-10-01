@@ -183,12 +183,6 @@ def _guard_tools(command: str) -> None:
             "`claude -p` boots a full session per call on the user's subscription. "
             "State the number of calls and the model first.",
         )
-    if re.search(r"\bcodex\s+exec\b|\bagy\s+(?:-p\b|--print\b|--prompt\b)", command):
-        decide(
-            "ask",
-            "Call GPT/Gemini through scripts/text_model.py, one call per batch; "
-            "each call boots a full agent session on the other side.",
-        )
     if _runs_release(command):
         decide("ask", "release.py commits, tags and pushes; the tag publishes to PyPI.")
     if re.search(r"\bgh\s+(?:release\s+(?:create|delete|edit)|run\s+cancel)\b", command):
