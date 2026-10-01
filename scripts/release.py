@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Cut a release in one command: gate -> bump -> changelog -> commit -> push -> tag.
+"""Cut a release in one command: gate -> bump -> changelog -> commit -> push -> CI -> tag.
 
 The one command the RELEASING.md runbook describes, automated. Pushing the tag is
 what triggers `release.yml` to build and publish all five packages to PyPI (which
@@ -33,6 +33,23 @@ _VERSION_RE = re.compile(r'^version = "(?P<v>[^"]+)"', re.MULTILINE)
 # Matches the top unreleased heading in either form the changelog uses: a bare
 # `## [Unreleased]` (what a previous roll leaves behind) or `## [X] - Unreleased`.
 _UNRELEASED_RE = re.compile(r"^## .*Unreleased.*$", re.MULTILINE | re.IGNORECASE)
+# What the release writes besides the files `bump_version.py --dry-run` names: the
+# changelog, the lock, and the generators' outputs.
+_RELEASE_FILES = frozenset(
+    {
+        "CHANGELOG.md",
+        "uv.lock",
+        "packages/guardana-rules/src/guardana/rules/guardana-pack.yaml",
+        "site/index.html",
+        "site/llms.txt",
+        "site/.well-known/security.txt",
+        "site/favicon.ico",
+        "site/apple-touch-icon.png",
+        "site/apple-touch-icon-precomposed.png",
+    }
+)
+_RELEASE_TREES = ("docs/generated/", "site/docs/", "site/schemas/")
+_BUMP_WRITES_RE = re.compile(r"^\s*would update (\S+)\s*$", re.MULTILINE)
 
 
 def _run(cmd: list[str], *, capture: bool = False) -> str:
@@ -137,9 +154,14 @@ def main(argv: list[str]) -> None:
     _preflight()
     _gate()
 
+    bumped: frozenset[str] = frozenset()
     if version != current:
         bump = ["uv", "run", "python", "scripts/bump_version.py", part]
-        _run([*bump, "--dry-run"] if dry_run else bump)
+        plan = _run([*bump, "--dry-run"], capture=True)
+        print(plan, end="")
+        bumped = _bump_writes(plan)
+        if not dry_run:
+            _run(bump)
     else:
         print("  version already at target — no bump (first release)")
 
@@ -164,19 +186,65 @@ def main(argv: list[str]) -> None:
     _roll_changelog(version, dry_run)
 
     if dry_run:
-        print(f"  would: commit 'chore(release): {tag}', tag {tag}, push main + tag")
+        print(
+            f"  would: commit 'chore(release): {tag}', push main without tags, "
+            f"wait for green CI, then tag {tag} and push the tag"
+        )
         return
 
     _run(["uv", "run", "pytest", "-q"])  # re-gate after the bump touched pyprojects/lock
     _run(["uv", "run", "guardana", "scan", "packages"])
-    _run(["git", "add", "-A"])
+    _stage_release(bumped)
     _run(["git", "commit", "-m", f"chore(release): {tag}"])
-    _run(["git", "tag", "-a", tag, "-m", f"Guardana {tag}"])
-    _run(["git", "push", "origin", "main"])
+    # The tag does not exist until CI is green, and the branch push never carries one:
+    # with `push.followTags` set, any reachable annotated tag would leave with `main`.
+    _run(["git", "push", "--no-follow-tags", "origin", "main"])
     _await_green_ci()
-    _run(["git", "push", "origin", tag])
+    _run(["git", "tag", "-a", tag, "-m", f"Guardana {tag}"])
+    _run(["git", "push", "origin", f"refs/tags/{tag}"])
     _move_marketplace_tag(version, tag)
     print(f"pushed {tag} — release.yml is building; approve the 'pypi' deployment to publish.")
+
+
+def _bump_writes(plan: str) -> frozenset[str]:
+    """Name the files a `bump_version.py --dry-run` plan says the bump will rewrite."""
+    return frozenset(_BUMP_WRITES_RE.findall(plan))
+
+
+def _changed_paths() -> list[str]:
+    """Every path `git status` reports, both sides of a rename included."""
+    status = _run(["git", "status", "--porcelain=v1", "-z", "--untracked-files=all"], capture=True)
+    records = iter(status.split("\0"))
+    paths: list[str] = []
+    for record in records:
+        if not record:
+            continue
+        paths.append(record[3:])
+        if record[0] in "RC":
+            paths.append(next(records, ""))
+    return paths
+
+
+def _written_by_release(path: str, bumped: frozenset[str]) -> bool:
+    return path in bumped or path in _RELEASE_FILES or path.startswith(_RELEASE_TREES)
+
+
+def _stage_release(bumped: frozenset[str]) -> None:
+    """Stage exactly what the release wrote, and refuse when the tree holds anything else.
+
+    The gate takes minutes and other sessions work in this tree; a blanket stage
+    would commit and deploy whatever they changed meanwhile, unchecked.
+    """
+    changed = _changed_paths()
+    stray = sorted({path for path in changed if not _written_by_release(path, bumped)})
+    if stray:
+        _fail(
+            "the tree holds changes the release did not write, so nothing was committed: "
+            + ", ".join(stray)
+        )
+    if not changed:
+        _fail("the release wrote nothing to commit")
+    _run(["git", "add", "--", *sorted(set(changed))])
 
 
 def _await_green_ci() -> None:
@@ -189,12 +257,12 @@ def _await_green_ci() -> None:
     that reads as a failed release. Every release from 0.19.0 to 0.21.0 paid that, and
     0.20.0 paid it twice.
 
-    Fail-closed when the wait itself cannot be done: without `gh`, this stops before the
-    tag rather than pushing it blind, because an unverified tag is the thing being
-    avoided.
+    Fail-closed when the wait itself cannot be done: without `gh`, this stops before a
+    tag exists rather than creating it blind, because an unverified tag is the thing
+    being avoided.
     """
     commit = _run(["git", "rev-parse", "HEAD"], capture=True).strip()
-    print(f"waiting for CI on {commit[:9]} before pushing the tag...")
+    print(f"waiting for CI on {commit[:9]} before creating the tag...")
     try:
         run_id = _run(
             [
@@ -225,10 +293,10 @@ def _await_green_ci() -> None:
 def _stop_before_tagging(reason: str) -> NoReturn:
     """Leave the release commit pushed and unreleased, which is a state worth being in."""
     print(
-        f"error: {reason}, so the tag was not pushed.\n"
+        f"error: {reason}, so no tag was created.\n"
         f"The release commit is on `main` and nothing has been published. Once CI is\n"
-        f"green on it, push the tag by hand — see the 'Push the branch and the tag as\n"
-        f"two steps' section in RELEASING.md.",
+        f"green on it, create and push the tag by hand — see the 'Push the branch and\n"
+        f"the tag as two steps' section in RELEASING.md.",
         file=sys.stderr,
     )
     raise SystemExit(1)

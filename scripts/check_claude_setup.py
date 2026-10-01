@@ -9,7 +9,8 @@ glob matches nothing, fails silently: the agent simply never sees it.
 Checks: frontmatter parses; skills and agents have a description and a name
 matching their file; a skill's `agent:` exists; every rule has `paths` and every
 glob matches a file; repo paths quoted in CLAUDE.md, rules, skills and agents
-exist; the hook commands in settings.json point at files; no agent is
+exist; the hook commands in settings.json point at files, and a PreToolUse hook
+runs scripts/guard_hook.py on every tool it decides on; no agent is
 configured on a model family this repository never uses; nothing under .claude/
 is gitignored except the harness's machine-local state; CLAUDE.md stays inside
 its line budget. Exit 0 clean, 1 findings.
@@ -42,6 +43,9 @@ PATH_ROOTS = (
 QUOTED = re.compile(r"`([^`\s]+)`")
 PLACEHOLDER = re.compile(r"[<>{}*$…]|\.\.\.")
 HOOK_PATH = re.compile(r"CLAUDE_PROJECT_DIR[^\"]*?/(scripts/[\w./-]+)")
+GUARD_HOOK = "scripts/guard_hook.py"
+# The tools `guard_hook.py` decides on; a matcher that misses one leaves that tool unguarded.
+GUARDED_TOOLS = ("Bash", "Edit", "MultiEdit", "NotebookEdit", "Write")
 # Written by the harness while sessions run and ignored on purpose; a trailing slash is a directory.
 HARNESS_LOCAL = (
     ".claude/scheduled_tasks.lock",
@@ -113,7 +117,7 @@ def _check_hooks(problems: list[str]) -> None:
         return
     text = settings.read_text(encoding="utf-8")
     try:
-        json.loads(text)
+        loaded: object = json.loads(text)
     except json.JSONDecodeError as exc:
         problems.append(f".claude/settings.json does not parse: {exc}")
         return
@@ -122,6 +126,45 @@ def _check_hooks(problems: list[str]) -> None:
         for hook in HOOK_PATH.findall(text)
         if not (ROOT / hook).exists()
     )
+    _check_guard(loaded, problems)
+
+
+def _check_guard(settings: object, problems: list[str]) -> None:
+    """Require a PreToolUse hook running the guard on every tool the guard decides on.
+
+    Settings without it still parse and point at no missing file, and run no guard.
+    """
+    matchers = [
+        str(entry.get("matcher") or "")
+        for entry in _items(_field(_field(settings, "hooks"), "PreToolUse"))
+        if any(
+            GUARD_HOOK in str(_field(hook, "command")) for hook in _items(_field(entry, "hooks"))
+        )
+    ]
+    if not matchers:
+        problems.append(f".claude/settings.json: no PreToolUse hook runs {GUARD_HOOK}")
+        return
+    unseen = [tool for tool in GUARDED_TOOLS if not any(_matches(m, tool) for m in matchers)]
+    if unseen:
+        problems.append(f".claude/settings.json: guard_hook.py never sees: {', '.join(unseen)}")
+
+
+def _field(value: object, key: str) -> object:
+    return value.get(key) if isinstance(value, dict) else None
+
+
+def _items(value: object) -> list[dict[str, object]]:
+    return [item for item in value if isinstance(item, dict)] if isinstance(value, list) else []
+
+
+def _matches(matcher: str, tool: str) -> bool:
+    """Read a hook matcher the way the harness does: empty or `*` is every tool, else a regex."""
+    if matcher in {"", "*"}:
+        return True
+    try:
+        return re.fullmatch(matcher, tool) is not None
+    except re.error:
+        return False
 
 
 def _check_ignored(problems: list[str]) -> None:

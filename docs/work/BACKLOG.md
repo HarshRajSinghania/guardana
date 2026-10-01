@@ -109,6 +109,32 @@ reproduced; the rest are the sweep's reading with its anchors, not yet reproduce
 - **`left_scan` cannot tell a file deleted from one hidden.** Accepting a deliberate removal
   needs a way that is recorded, not a neutral change kind.
 
+## Left by the codex audit of 0.33.0
+
+Reproduced, deliberately not fixed in this pass, or found while fixing.
+
+- **`guardana-collector status` exits `1` when the database is unreachable** (09.5). `1` means a
+  policy failure in `docs/exit-codes.md`; `4` and `5` fit. The collector CLI's codes are a
+  documented contract of their own (`docs/usage-collector.md`), so changing them is a decision.
+- **`/stats` drops a source whose submissions all fall outside the newest 1,000** from
+  `by_source`, critical ones included; only the submissions tile says the window was cut.
+- **Bidirectional controls (U+202E and friends) pass through the terminal escaping**, which
+  covers C0 and C1 only (`report/_text.py`).
+- **The pickle allowlist names exact callables**, so a legitimate pickle that rebuilds
+  something else (numpy's random state, a scikit-learn estimator) is a finding; widen it only
+  with a callable that cannot run code.
+- `_pushes_main` in the guard hook reads only the first push in a compound command, and
+  `git --help push` now reads as a push (it asks). RELEASING.md's moving tag is annotated while
+  `release.py` makes a lightweight one.
+- The safetensors reader does not check that `dtype` and `shape` match the offsets or that
+  tensor ranges do not overlap; garak `passed` larger than `total_evaluated` yields a negative
+  failure count; the trace ceilings count characters, not bytes.
+- `ci-passed` in `release.yml` was tested against a fake `gh`, not the real API; the first
+  release with it is the test.
+- An stdio MCP server's `stdin.write` has no deadline; the selector-based read is POSIX-only.
+- Agent and tool rules now stop a token-bounded run on any transport whose tool replies carry
+  no usage (the LangChain adapter, scripted doubles).
+
 ## Accepted designs the roadmap does not carry
 
 `proposed`, written as cycle 5 of the extensibility program (`docs/design/audit-0.22.md`),

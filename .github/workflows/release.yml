@@ -23,7 +23,42 @@ on:
     tags: ["v*.*.*"]
 
 jobs:
+  # A tag publishes only a commit CI has passed. `release.py` waits for that before
+  # it creates the tag; this job holds the same line for a tag pushed any other way.
+  # No run, a run that did not succeed, or a `gh` that cannot answer all stop here,
+  # before the `pypi` approval is requested.
+  ci-passed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      actions: read        # read the CI runs for this commit, nothing else
+    steps:
+      - name: CI passed on the tagged commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          run=$(gh run list --workflow ci.yml --commit "$SHA" --event push --limit 1 \
+            --json databaseId,status,conclusion \
+            --jq '.[0] | select(.) | "\(.databaseId) \(.status) \(.conclusion)"')
+          if [ -z "$run" ]; then
+            echo "::error::No CI run exists for $SHA; a tag publishes only a commit CI has passed."
+            exit 1
+          fi
+          read -r id status conclusion <<< "$run"
+          if [ "$status" != "completed" ]; then
+            gh run watch "$id" --exit-status > /dev/null || true
+            conclusion=$(gh run view "$id" --json conclusion --jq .conclusion)
+          fi
+          if [ "$conclusion" != "success" ]; then
+            echo "::error::CI run $id for $SHA concluded '${conclusion:-unknown}', not success."
+            exit 1
+          fi
+          echo "CI run $id passed on $SHA."
+
   publish:
+    needs: ci-passed
     runs-on: ubuntu-latest
     environment: pypi
     permissions:

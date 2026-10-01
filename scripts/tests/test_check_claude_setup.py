@@ -15,13 +15,21 @@ import check_claude_setup
 
 SKILL = "---\nname: {name}\ndescription: Does a thing.\n---\n# Body\n"
 AGENT = "---\nname: {name}\ndescription: Looks things up.\nmodel: {model}\n---\nBody.\n"
+GUARD = 'python3 "${CLAUDE_PROJECT_DIR:-.}/scripts/guard_hook.py"'
+
+
+def _settings(
+    matcher: str = "Bash|Write|Edit|MultiEdit|NotebookEdit", event: str = "PreToolUse"
+) -> str:
+    entry = {"matcher": matcher, "hooks": [{"type": "command", "command": GUARD}]}
+    return json.dumps({"hooks": {event: [entry]}})
 
 
 def _tree(root: Path, *, claude_md: str = "# Guardana\n") -> None:
     subprocess.run(["git", "init", "-q", str(root)], check=True)  # noqa: S603, S607
     (root / "CLAUDE.md").write_text(claude_md, encoding="utf-8")
     (root / ".claude").mkdir()
-    (root / ".claude" / "settings.json").write_text("{}", encoding="utf-8")
+    (root / ".claude" / "settings.json").write_text(_settings(), encoding="utf-8")
     (root / ".claude" / "skills" / "work").mkdir(parents=True)
     (root / ".claude" / "skills" / "work" / "SKILL.md").write_text(
         SKILL.format(name="work"), encoding="utf-8"
@@ -33,6 +41,7 @@ def _tree(root: Path, *, claude_md: str = "# Guardana\n") -> None:
     (root / ".claude" / "rules").mkdir()
     (root / "scripts").mkdir()
     (root / "scripts" / "x.py").write_text("", encoding="utf-8")
+    (root / "scripts" / "guard_hook.py").write_text("", encoding="utf-8")
     (root / ".claude" / "rules" / "scripts.md").write_text(
         '---\npaths:\n  - "scripts/**"\n---\n# Scripts\n', encoding="utf-8"
     )
@@ -171,6 +180,51 @@ def test_a_hook_pointing_at_a_missing_script_is_named(
     assert "hook points at a missing file: scripts/gone_hook.py" in _problems(
         monkeypatch, capsys, tmp_path
     )
+
+
+def test_settings_without_the_guard_hook_are_named(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    """Empty settings are valid JSON and point at no missing file, and run no guard at all."""
+    _tree(tmp_path)
+    (tmp_path / ".claude" / "settings.json").write_text("{}", encoding="utf-8")
+    out = _problems(monkeypatch, capsys, tmp_path)
+    assert "no PreToolUse hook runs scripts/guard_hook.py" in out
+
+
+def test_the_guard_wired_to_the_wrong_event_is_named(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    _tree(tmp_path)
+    (tmp_path / ".claude" / "settings.json").write_text(
+        _settings(event="PostToolUse"), encoding="utf-8"
+    )
+    assert "no PreToolUse hook runs scripts/guard_hook.py" in _problems(
+        monkeypatch, capsys, tmp_path
+    )
+
+
+def test_a_guard_that_misses_a_tool_it_decides_on_is_named(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    _tree(tmp_path)
+    (tmp_path / ".claude" / "settings.json").write_text(_settings("Bash|Edit"), encoding="utf-8")
+    out = _problems(monkeypatch, capsys, tmp_path)
+    assert "guard_hook.py never sees: MultiEdit, NotebookEdit, Write" in out
+
+
+@pytest.mark.parametrize("matcher", ["*", "", "Bash|Write|Edit|MultiEdit|NotebookEdit"])
+def test_a_guard_on_every_tool_it_decides_on_passes(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    matcher: str,
+) -> None:
+    _tree(tmp_path)
+    (tmp_path / ".claude" / "settings.json").write_text(_settings(matcher), encoding="utf-8")
+    monkeypatch.setattr(check_claude_setup, "ROOT", tmp_path)
+    assert check_claude_setup.main() == 0
+    assert "in sync" in capsys.readouterr().out
 
 
 def test_a_missing_settings_file_is_named(

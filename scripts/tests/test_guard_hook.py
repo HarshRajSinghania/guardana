@@ -73,6 +73,17 @@ def _no_subprocesses(monkeypatch: pytest.MonkeyPatch) -> None:
         ("git push origin feature/x", None),
         ("git push origin main", None),
         ("git push", None),
+        ("git -C . push --force origin main", "ask"),
+        ("git -c push.followTags=true push origin v0.25.0", "ask"),
+        ('git -C "/a dir" --no-pager push origin --tags', "ask"),
+        ("git --git-dir=.git --work-tree . push -f origin main", "ask"),
+        ("/usr/bin/git -c core.pager=cat push origin v0.25.0", "ask"),
+        ("git -C . add -A", "deny"),
+        ("git -c core.x=y add .env", "deny"),
+        ('git -c user.name="A B" commit -am "fix: x"', "deny"),
+        ("git -C /repo push origin feature/x", None),
+        ("git -C /repo status", None),
+        ("git -c color.ui=never log --oneline -3", None),
         ("cat .env", "deny"),
         ("head -5 deploy/.env", "deny"),
         ("cat deploy/env.example", None),
@@ -110,8 +121,12 @@ def test_bash_commands(
     assert _decision(monkeypatch, capsys, "Bash", {"command": command}) == expected
 
 
+@pytest.mark.parametrize(
+    "command",
+    ["git push origin main", "git -C . push origin main", "git -c x=y --no-pager push origin main"],
+)
 def test_a_push_to_main_is_refused_while_the_site_is_stale(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], command: str
 ) -> None:
     def _run(cmd: list[str]) -> subprocess.CompletedProcess[str]:
         if cmd[:2] == ["git", "rev-parse"]:
@@ -121,7 +136,7 @@ def test_a_push_to_main_is_refused_while_the_site_is_stale(
         return subprocess.CompletedProcess(cmd, 0, "current\n", "")
 
     monkeypatch.setattr(guard_hook, "_run", _run)
-    assert _decision(monkeypatch, capsys, "Bash", {"command": "git push origin main"}) == "deny"
+    assert _decision(monkeypatch, capsys, "Bash", {"command": command}) == "deny"
 
 
 def test_a_push_to_main_asks_when_the_site_cannot_be_checked(

@@ -61,7 +61,7 @@ wrong before.
 | script | purpose | Writes | Safe mode | Net | Needs |
 |---|---|---|---|---|---|
 | `bump_version.py` | set all five versions, every inter-package pin, the Action and image pins, then `uv lock` | `repo` | `--dry-run` | `uv lock` | — |
-| `release.py` | ⚠ gate → bump → changelog roll → commit → push `main` → wait for green CI → push the tag (PyPI publish) → move the marketplace tag | `git` + `repo` | `--dry-run`, `--help` | `git`, `gh`, PyPI via CI | `gh` authenticated, push rights |
+| `release.py` | ⚠ gate → bump → changelog roll → commit only the paths it wrote → push `main` without tags → wait for green CI → create and push the tag (PyPI publish) → move the marketplace tag | `git` + `repo` | `--dry-run`, `--help` | `git`, `gh`, PyPI via CI | `gh` authenticated, push rights |
 
 ### Agent tooling
 
@@ -72,7 +72,7 @@ Wired in `.claude/settings.json`; never invoked by hand except the checks.
 | `ruff_on_edit.py` | PostToolUse hook: `ruff check --fix` + `ruff format` on the file just written | `repo` (that one file) | `-` | `-` | — |
 | `guard_hook.py` | PreToolUse hook: deny/ask for the commands a prompt cannot be trusted to hold | `-` | `-` | `-` | — |
 | `session_start.sh` | SessionStart hook: work in flight, uncommitted paths, text engines | `-` | `-` | `-` | — |
-| `check_claude_setup.py` | gate: frontmatter, rule globs, quoted paths, hook paths, nothing gitignored under `.claude/` but harness-local state, CLAUDE.md budget | `-` | `-` | `-` | — |
+| `check_claude_setup.py` | gate: frontmatter, rule globs, quoted paths, hook paths, the PreToolUse guard wired for every tool it decides on, nothing gitignored under `.claude/` but harness-local state, CLAUDE.md budget | `-` | `-` | `-` | — |
 | `check_ops_catalogue.py` | gate: every script has one row here, every row has a script | `-` | `-` | `-` | — |
 | `text_model.py` | the one door to GPT (`codex`) and Gemini (`agy`) for reader-facing wording and verdicts about it | `local` (the `--out` file) | `--detect` | GPT / Gemini | `codex` or `agy` installed |
 

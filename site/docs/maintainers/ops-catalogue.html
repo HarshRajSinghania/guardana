@@ -455,7 +455,7 @@ wrong before.</p>
 </tr>
 <tr>
 <td><code>release.py</code></td>
-<td>⚠ gate → bump → changelog roll → commit → push <code>main</code> → wait for green CI → push the tag (PyPI publish) → move the marketplace tag</td>
+<td>⚠ gate → bump → changelog roll → commit only the paths it wrote → push <code>main</code> without tags → wait for green CI → create and push the tag (PyPI publish) → move the marketplace tag</td>
 <td><code>git</code> + <code>repo</code></td>
 <td><code>--dry-run</code>, <code>--help</code></td>
 <td><code>git</code>, <code>gh</code>, PyPI via CI</td>
@@ -503,7 +503,7 @@ wrong before.</p>
 </tr>
 <tr>
 <td><code>check_claude_setup.py</code></td>
-<td>gate: frontmatter, rule globs, quoted paths, hook paths, nothing gitignored under <code>.claude/</code> but harness-local state, CLAUDE.md budget</td>
+<td>gate: frontmatter, rule globs, quoted paths, hook paths, the PreToolUse guard wired for every tool it decides on, nothing gitignored under <code>.claude/</code> but harness-local state, CLAUDE.md budget</td>
 <td><code>-</code></td>
 <td><code>-</code></td>
 <td><code>-</code></td>

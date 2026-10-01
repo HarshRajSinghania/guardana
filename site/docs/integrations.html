@@ -358,8 +358,8 @@ jobs:
 </tr>
 <tr>
 <td><code>version</code></td>
-<td><em>(latest)</em></td>
-<td>Pin a <code>guardana-cli</code> version</td>
+<td>the CLI this Action tag was released with</td>
+<td>The <code>guardana-cli</code> version to run; <code>latest</code> takes the newest release</td>
 </tr>
 <tr>
 <td><code>sarif-file</code></td>
@@ -374,12 +374,16 @@ jobs:
 <tr>
 <td><code>fail-on-findings</code></td>
 <td><code>true</code></td>
-<td>Fail the job when the gate trips</td>
+<td>Fail the job when the gate trips (exit <code>1</code>)</td>
 </tr>
 </tbody>
 </table></div>
 <p>The SARIF is uploaded even when the gate fails, so alerts always land; set
-<code>fail-on-findings: false</code> to run it purely advisory.</p>
+<code>fail-on-findings: false</code> to make findings advisory. That input waives exit <code>1</code>
+and nothing else: a scan that did not finish — any other non-zero
+<a href="exit-codes.html">exit code</a>, such as <code>3</code> for a path that does not exist or <code>4</code> for
+a target it could not reach — fails the job whatever <code>fail-on-findings</code> says,
+because a scan that did not answer is not a clean result.</p>
 <h2 id="failing-a-build-on-deterioration-not-just-on-findings">Failing a build on deterioration, not just on findings</h2>
 <p>The Action gates on what a scan finds <em>today</em>. To gate on whether today is worse
 than the last accepted run, save both runs and compare them:</p>

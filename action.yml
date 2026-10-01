@@ -94,9 +94,27 @@ runs:
       with:
         sarif_file: ${{ inputs.sarif-file }}
 
+    # `fail-on-findings: false` waives exit 1 (the policy failed) and nothing else:
+    # every other non-zero code means the scan did not answer, which is never green.
     - name: Enforce the gate
-      if: ${{ inputs.fail-on-findings == 'true' }}
       shell: bash
       env:
         GUARDANA_EXIT: ${{ steps.scan.outputs.exit_code }}
-      run: exit "$GUARDANA_EXIT"
+        GUARDANA_FAIL_ON_FINDINGS: ${{ inputs.fail-on-findings }}
+      run: |
+        case "$GUARDANA_EXIT" in
+          0)
+            exit 0
+            ;;
+          1)
+            if [ "$GUARDANA_FAIL_ON_FINDINGS" = "true" ]; then
+              exit 1
+            fi
+            echo "::warning::guardana: the scan gate tripped; fail-on-findings is false, so the job continues."
+            exit 0
+            ;;
+          *)
+            echo "::error::guardana: the scan did not complete (exit ${GUARDANA_EXIT:-none}); see https://guardana.dev/docs/exit-codes.html"
+            exit 1
+            ;;
+        esac

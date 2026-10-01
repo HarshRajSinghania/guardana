@@ -68,12 +68,13 @@ def _clean_environment(venv: Path) -> dict[str, str]:
     """Build the user's environment, not the developer's.
 
     Every `GUARDANA_*` variable is dropped: a database URL or a collector token
-    exported in this shell would otherwise decide what these commands do.
+    exported in this shell would otherwise decide what these commands do. So is
+    every `PYTHON*` variable: `PYTHONOPTIMIZE` alone would strip the checks a
+    script below makes, and the others change which code runs or how it runs.
     """
-    environment = {k: v for k, v in os.environ.items() if not k.startswith("GUARDANA_")}
+    environment = {k: v for k, v in os.environ.items() if not k.startswith(("GUARDANA_", "PYTHON"))}
     environment["VIRTUAL_ENV"] = str(venv)
     environment["PATH"] = f"{venv / _BIN}{os.pathsep}{environment.get('PATH', '')}"
-    environment.pop("PYTHONPATH", None)
     return environment
 
 
@@ -221,8 +222,10 @@ def _checks(venv: Path, clean_directory: Path, trace_file: Path) -> list[Check]:
                 + "rule_id='r')\n"
                 + "run = ScanResult(findings=(), rules_run=('r',), rules_skipped=(), "
                 + "assessments=(a,))\n"
-                + "assert len(run.measured) == 1\n"
-                + "assert assessment_to_dict(a)['passed'] is True\n"
+                + "if len(run.measured) != 1:\n"
+                + "    raise SystemExit(f'measured {len(run.measured)} cases, expected 1')\n"
+                + "if assessment_to_dict(a)['passed'] is not True:\n"
+                + "    raise SystemExit('a passing verdict was not recorded as passed')\n"
                 + "print('measured:', len(run.measured))",
             ],
             0,
@@ -235,7 +238,8 @@ def _checks(venv: Path, clean_directory: Path, trace_file: Path) -> list[Check]:
                 "-c",
                 "import sys\n"
                 + "from guardana.adapters.langchain import langchain_target\n"
-                + "assert not [m for m in sys.modules if m.split('.')[0] == 'langchain']\n"
+                + "if [m for m in sys.modules if m.split('.')[0] == 'langchain']:\n"
+                + "    raise SystemExit('the adapter imported langchain')\n"
                 + "print('adapter ready')",
             ],
             0,
@@ -540,7 +544,8 @@ from guardana.core.pack.lock import Installed
 from guardana.core.registry import Registry
 
 packs = installed_packs()
-assert packs, "no installed pack declares a manifest"
+if not packs:
+    raise SystemExit("no installed pack declares a manifest")
 registry = Registry.discover()
 lock = lock_of(
     packs,
@@ -551,8 +556,10 @@ lock = lock_of(
 )
 (builtin,) = [p for p in lock.packs if p.name == "guardana-rules"]
 print("distribution:", builtin.distribution)
-assert builtin.version, "the lock recorded no version for the pack shipping the built-ins"
-assert builtin.rules, "the lock pinned no rules"
+if not builtin.version:
+    raise SystemExit("the lock recorded no version for the pack shipping the built-ins")
+if not builtin.rules:
+    raise SystemExit("the lock pinned no rules")
 print("lock ready")
 """
 
@@ -696,11 +703,16 @@ with tempfile.TemporaryDirectory() as directory:
     read = read_trace(path, Dialect.GUARDANA).trace
     effect = read.spans[0].effects[0]
     approval = read.spans[0].approvals[0]
-    assert read.truncated is None, read.truncated
-    assert effect.sink is SinkKind.PAYMENT, effect
-    assert approval.approver_kind is ApproverKind.AUTOMATED, approval
-    assert approval.approver_ref == "automated:policy", approval
-    assert json.loads(path.read_text().splitlines()[-1])["spans"] == 1
+    if read.truncated is not None:
+        raise SystemExit(f"a finished trace reads as truncated: {read.truncated}")
+    if effect.sink is not SinkKind.PAYMENT:
+        raise SystemExit(f"the mapped sink was not recorded: {effect}")
+    if approval.approver_kind is not ApproverKind.AUTOMATED:
+        raise SystemExit(f"an automated approval changed kind: {approval}")
+    if approval.approver_ref != "automated:policy":
+        raise SystemExit(f"an automated approval changed approver: {approval}")
+    if json.loads(path.read_text().splitlines()[-1])["spans"] != 1:
+        raise SystemExit("the closing record does not count the one span written")
 
     # A second process continuing the same session, and one that never signed off.
     across = Path(directory) / "across.jsonl"
@@ -710,11 +722,14 @@ with tempfile.TemporaryDirectory() as directory:
             trace.span(Span(span_id=f"s{step}", kind=SpanKind.TOOL_EXECUTION, name="refund",
                             tool=ToolExecution(name="refund", mutates=True)))
     unfinished = read_trace(across, Dialect.GUARDANA).trace
-    assert len(unfinished.spans) == 2, unfinished.spans
-    assert unfinished.truncated is TraceTruncation.UNTERMINATED, unfinished.truncated
+    if len(unfinished.spans) != 2:
+        raise SystemExit(f"a resumed trace holds {len(unfinished.spans)} spans, expected 2")
+    if unfinished.truncated is not TraceTruncation.UNTERMINATED:
+        raise SystemExit(f"a session nobody finished reads as {unfinished.truncated}")
     resume_trace(across, trace_id="t", producer="clean-install", instrumented=declared,
                  sinks=sinks).finish()
-    assert read_trace(across, Dialect.GUARDANA).trace.truncated is None
+    if read_trace(across, Dialect.GUARDANA).trace.truncated is not None:
+        raise SystemExit("a finished session still reads as truncated")
 
     # The refusal the whole writer exists for: a mutating tool nobody mapped.
     refused = Path(directory) / "refused.jsonl"
@@ -724,7 +739,8 @@ with tempfile.TemporaryDirectory() as directory:
             trace.span(Span(span_id="s1", kind=SpanKind.TOOL_EXECUTION, name="terminal",
                             tool=ToolExecution(name="terminal", mutates=True)))
     except TraceWriteError as exc:
-        assert "terminal" in str(exc), exc
+        if "terminal" not in str(exc):
+            raise SystemExit(f"the refusal does not name the tool: {exc}") from exc
     else:
         raise SystemExit("an unmapped mutating tool was recorded as harmless")
 
@@ -742,7 +758,8 @@ from guardana.core.target import TraceTarget
 from guardana.testing import SecurityAssertionError, assert_secure
 
 loaded = [m for m in sys.modules if m.split(".")[0] in ("crewai", "llama_index", "pydantic_ai")]
-assert not loaded, loaded
+if loaded:
+    raise SystemExit(f"the translators imported their frameworks: {loaded}")
 
 
 class Node:
@@ -790,7 +807,8 @@ class Output:
     tasks_output = [Task()]
 
 
-assert crewai_trace(Output()).spans[0].agent.name == "Writer"
+if crewai_trace(Output()).spans[0].agent.name != "Writer":
+    raise SystemExit("the CrewAI translator lost the agent's name")
 
 
 class Result:
@@ -801,7 +819,8 @@ class Result:
         return []
 
 
-assert pydantic_ai_trace(Result()).trace_id == "r-1"
+if pydantic_ai_trace(Result()).trace_id != "r-1":
+    raise SystemExit("the Pydantic AI translator lost the run id")
 print("translators ready")
 """
 

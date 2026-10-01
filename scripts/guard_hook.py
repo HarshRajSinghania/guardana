@@ -79,6 +79,13 @@ UV_OPTIONS_WITH_VALUE = frozenset(
     }
 )
 SAFE_RELEASE_FLAGS = frozenset({"--dry-run", "--help", "-h"})
+# git's own options, which sit between `git` and the subcommand and change nothing
+# about what the subcommand does to a remote or the index.
+GIT_PROGRAM = re.compile(r"(?<![\w.-])git(?=[ \t])")
+GIT_WORD = re.compile(r"""[ \t]+((?:'[^']*'|"(?:\\.|[^"\\])*"|\\.|[^\s'"\\;&|<>()])+)""")
+GIT_OPTIONS_WITH_VALUE = frozenset(
+    {"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--super-prefix", "--config-env"}
+)
 # A here-document's body is input to a program, not a command; it is cut before parsing.
 HEREDOC = re.compile(r"<<-?\s*(['\"]?)(\w+)\1([^\n]*)\n.*?\n\2[ \t]*(?=\n|$)", re.DOTALL)
 SELF_EXEMPT = frozenset(
@@ -236,10 +243,39 @@ def _runs_script(words: list[str]) -> bool:
     return not SAFE_RELEASE_FLAGS.intersection(words)
 
 
+def without_git_options(command: str) -> str:
+    """Rewrite every `git <global options> <subcommand>` as `git <subcommand>`.
+
+    `git -C . push` and `git -c k=v add -A` are the same push and the same stage,
+    so every check below reads the command with those options cut out.
+    """
+    kept: list[str] = []
+    copied = 0
+    for git in GIT_PROGRAM.finditer(command):
+        if git.start() < copied:
+            continue
+        cursor = git.end()
+        while (word := GIT_WORD.match(command, cursor)) is not None:
+            option = word.group(1)
+            if option in GIT_OPTIONS_WITH_VALUE:
+                value = GIT_WORD.match(command, word.end())
+                if value is None:
+                    break
+                cursor = value.end()
+            elif option.startswith("-"):
+                cursor = word.end()
+            else:
+                break
+        kept.append(command[copied : git.end()])
+        copied = cursor
+    return "".join(kept) + command[copied:]
+
+
 def guard_bash(command: str) -> None:
     """Decide on a Bash command; return silently when nothing applies."""
     if FORBIDDEN_MODEL.search(command):
         decide("deny", "Fable/Mythos models are never used from a command or script in this repo.")
+    command = without_git_options(command)
     _guard_stage(command)
     _guard_commit(command)
     _guard_push(command)

@@ -58,13 +58,17 @@ Inputs (all optional):
 |---|---|---|
 | `path` | `.` | Directory or single file to scan |
 | `args` | *(none)* | Extra `guardana scan` args (e.g. `--preset ci`, `--baseline guardana-baseline.yaml`) |
-| `version` | *(latest)* | Pin a `guardana-cli` version |
+| `version` | the CLI this Action tag was released with | The `guardana-cli` version to run; `latest` takes the newest release |
 | `sarif-file` | `guardana.sarif` | Where the SARIF is written |
 | `upload-sarif` | `true` | Upload to GitHub code scanning |
-| `fail-on-findings` | `true` | Fail the job when the gate trips |
+| `fail-on-findings` | `true` | Fail the job when the gate trips (exit `1`) |
 
 The SARIF is uploaded even when the gate fails, so alerts always land; set
-`fail-on-findings: false` to run it purely advisory.
+`fail-on-findings: false` to make findings advisory. That input waives exit `1`
+and nothing else: a scan that did not finish — any other non-zero
+[exit code](exit-codes.md), such as `3` for a path that does not exist or `4` for
+a target it could not reach — fails the job whatever `fail-on-findings` says,
+because a scan that did not answer is not a clean result.
 
 ## Failing a build on deterioration, not just on findings
 

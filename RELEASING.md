@@ -6,8 +6,10 @@ release is a single deliberate act, not five.
 
 If you only remember one thing: **`uv run python scripts/release.py <part>`** —
 it runs the gate, bumps the version + pins + lock, syncs the landing page's rule
-counts, rolls the changelog, commits, tags `vX.Y.Z`, and pushes. Pushing the tag triggers the PyPI publish (which pauses
-on the `pypi` environment for one approval click). Preview with `--dry-run` first.
+counts, rolls the changelog, commits exactly the files it wrote, pushes `main`,
+waits for CI to pass on that commit, and only then creates and pushes `vX.Y.Z`.
+Pushing the tag triggers the PyPI publish (which pauses on the `pypi` environment
+for one approval click). Preview with `--dry-run` first.
 
 ```bash
 uv run python scripts/release.py patch --dry-run   # show the plan, change nothing
@@ -109,17 +111,21 @@ $EDITOR CHANGELOG.md
 # 5. Re-run the gate — the bump changed pyprojects and the lock.
 uv run pytest -q && uv run guardana scan packages
 
-# 6. Commit the release as ONE conventional commit.
-git add -A
+# 6. Commit the release as ONE conventional commit, staging only the paths the
+#    release wrote. Never `git add -A`: other sessions work in this tree, and
+#    anything they changed during the gate would ship unchecked.
+git status --short   # pyprojects, __init__.py, uv.lock, the pins, CHANGELOG.md,
+                     # ROADMAP.md, docs/generated/, site/ — anything else, stop
+git add -- <each path git status listed>
 git commit -m "chore(release): vX.Y.Z"
 
-# 7. Push the branch, and WAIT for CI to go green on that exact commit.
-git push origin main
-gh run watch "$(gh run list --workflow=CI --branch=main --limit 1 --json databaseId -q '.[0].databaseId')"
+# 7. Push the branch WITHOUT tags, and WAIT for CI to go green on that exact commit.
+git push --no-follow-tags origin main
+gh run watch --exit-status "$(gh run list --workflow=CI --commit="$(git rev-parse HEAD)" --limit 1 --json databaseId -q '.[0].databaseId')"
 
-# 8. Only then tag it (annotated — see below) and push the tag.
+# 8. Only then create the tag (annotated — see below) and push it.
 git tag -a vX.Y.Z -m "Guardana vX.Y.Z"
-git push origin vX.Y.Z          # this is what triggers the publish
+git push origin refs/tags/vX.Y.Z   # this is what triggers the publish
 git tag -a vX.Y -m "Guardana vX.Y (moving tag -> vX.Y.Z)" && git push -f origin vX.Y
 
 # 9. Publish the GitHub Release (see below), pasting the changelog section.
@@ -137,6 +143,14 @@ release and is not one. 0.20.0 cost four clicks that way.
 Waiting for CI first costs a few minutes and makes the whole release exactly one Release
 run and one click. It also means the tag can only ever land on a commit whose CI is
 green, which is the property the tag is supposed to carry.
+
+The tag does not exist until CI is green, and `main` goes up with `--no-follow-tags`:
+with `push.followTags` set in someone's git config, a branch push also carries every
+annotated tag reachable from it, so a tag created early would leave with the branch.
+
+`release.yml` checks the same property on its side: its first job fails unless the CI
+run for the tagged commit concluded `success`, so a tag pushed by hand onto a red or
+untested commit stops there, before the `pypi` approval is even requested.
 
 **If CI goes red after the tag is already pushed**, nothing is lost as long as the
 `publish` job is still `waiting` — it pauses *before* uploading, so a cancel at that
