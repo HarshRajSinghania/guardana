@@ -319,9 +319,9 @@ reachable outcome was writing a working credential into a report, while this pag
 said the opposite. The key is still accepted so that a profile stating the default
 keeps working, and so that anyone who set it gets told rather than ignored.</p>
 <h2 id="every-channel-not-just-the-findings">Every channel, not just the findings</h2>
-<p>A result has four channels, and the policy covers all of them: <code>findings</code>,
-<code>unverified</code>, <code>waived</code> — and <strong><code>errors</code></strong>, where a check that could not run records
-why. That last one carries an exception message, and an exception message is
+<p>The policy covers every channel of a result: <code>findings</code>, <code>unverified</code>, <code>waived</code>,
+<code>assessments</code>, <code>observations</code>, <code>coverage_shortfall</code>, <code>suites</code> — and <strong><code>errors</code></strong>,
+where a check that could not run records why. That last one carries an exception message, and an exception message is
 written by whoever raised it: a third-party rule, a provider, a parser handed the
 model's own reply. An unparseable response puts 120 bytes of it in there, and a
 gateway refusing a request routinely quotes the credential it refused.</p>
@@ -330,6 +330,23 @@ policy, so it reached the JSON report, the SARIF file and the collector envelope
 untouched. Under <code>metadata_only</code> the reason is replaced by a note rather than
 emptied, because an error with a blank reason reads as a check that failed for no
 reason instead of one whose reason this run declined to keep.</p>
+<p>The same holds for every string inside a result, not only evidence: a finding's
+title, its location and its verdict's rationale, every assessment, every
+observation's name, ref and attributes, coverage shortfalls and suite summaries. A
+judge's reply becomes a rationale, and an imported claim supplies a title and a
+ref, so each is the same untrusted text the evidence is. The redactor walks the
+result's fields rather than a list of them, so a field added later is covered
+without anyone naming it. Two kinds of string are treated differently:</p>
+<ul>
+<li><strong>Narrative text</strong> — evidence, an error's reason, a shortfall's detail, a
+rationale — gets the whole policy: bounded in size, and under <code>metadata_only</code>
+replaced by a note.</li>
+<li><strong>Names and locations</strong> — a title, a <code>target_ref</code>, an observation's ref — lose
+only the matched spans and are never emptied or truncated, so a reader can still
+find the file: <code>configs/[redacted:openai-key:…]/settings.py:12</code>.</li>
+</ul>
+<p>An error message about a <code>--target</code> locator prints it without userinfo, without a
+fragment and with its query replaced by a placeholder, whatever the scheme.</p>
 <h2 id="redaction-is-never-silent">Redaction is never silent</h2>
 <p>A finding whose evidence was changed says so, in the text a reader sees:</p>
 <pre><code class="language-text">▲ [HIGH] guardana.supply_chain.hardcoded_secret

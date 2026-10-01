@@ -5,7 +5,7 @@ import typer
 from guardana.cli._plugins import admission_forms, refused_distributions
 from guardana.cli.exit_codes import ExitCode
 from guardana.core.registry import Registry
-from guardana.core.target import EndpointError, LocatorError, Target, TargetKind
+from guardana.core.target import EndpointError, LocatorError, Target, TargetKind, display_url
 
 
 def target_options(values: Sequence[str]) -> dict[str, str]:
@@ -47,7 +47,7 @@ def resolve_target(
 
     scheme, separator, rest = locator.partition("://")
     if not separator or not scheme or not rest:
-        raise typer.BadParameter(f"invalid target locator {locator!r}: use scheme://value")
+        raise typer.BadParameter(f"invalid target locator {_shown(locator)!r}: use scheme://value")
     target_type = registry.target_for(scheme)
     if target_type is None:
         available = ", ".join(registry.schemes()) or "none"
@@ -60,14 +60,28 @@ def resolve_target(
     except LocatorError as exc:
         raise typer.BadParameter(f"invalid {scheme} target: {exc}") from exc
     except (URLError, OSError, EndpointError) as exc:
-        typer.echo(f"error: could not reach target {locator}: {exc}", err=True)
+        typer.echo(f"error: could not reach target {_shown(locator)}: {exc}", err=True)
         raise typer.Exit(code=ExitCode.TARGET_UNAVAILABLE) from exc
     if target.kind is not kind:
         raise typer.BadParameter(
-            f"target {locator!r} built a {target.kind} target, but this command accepts "
+            f"target {_shown(locator)!r} built a {target.kind} target, but this command accepts "
             f"only {kind} targets"
         )
     return target
+
+
+def _shown(locator: str) -> str:
+    """Return `locator` as it may be printed: no userinfo, no fragment, a placeholder query.
+
+    `display_url` does this only for http(s), because a plugin owns the meaning of its
+    own scheme's ref. A message is not a ref, so here every scheme is read as a URL.
+    """
+    scheme, separator, rest = locator.partition("://")
+    shown = display_url(f"https://{rest if separator else locator}")
+    body = shown.removeprefix("https://")
+    if body == shown:
+        return shown
+    return f"{scheme}://{body}" if separator else body
 
 
 def _trust_note(registry: Registry) -> str:

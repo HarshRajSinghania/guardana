@@ -195,6 +195,49 @@ def test_an_unreachable_target_has_its_own_exit_code() -> None:
     assert stopped.value.exit_code == 4
 
 
+@pytest.mark.parametrize(
+    "locator",
+    [
+        "unavailable://operator:hunter2pw@host.invalid/models?token=s3cret-value",
+        "unavailable://host.invalid/models?token=s3cret-value#hunter2pw",
+    ],
+)
+def test_an_unreachable_target_error_never_prints_its_credentials(
+    locator: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    registry = Registry()
+    registry.register_target(_Unavailable)
+
+    with pytest.raises(typer.Exit):
+        resolve_target(
+            registry, locator=locator, options=[], kind=TargetKind.ARTIFACT, fallback=_fallback
+        )
+
+    printed = capsys.readouterr().err
+    assert "s3cret-value" not in printed
+    assert "hunter2pw" not in printed
+    assert "unavailable://host.invalid/models?[redacted:query:" in printed
+    assert "connection refused" in printed
+
+
+def test_a_wrong_kind_target_error_never_prints_its_credentials() -> None:
+    registry = Registry()
+    registry.register_target(_Located)
+
+    with pytest.raises(typer.BadParameter) as refused:
+        resolve_target(
+            registry,
+            locator="acme-files://operator:hunter2pw@x?token=s3cret-value",
+            options=[],
+            kind=TargetKind.ENDPOINT,
+            fallback=_fallback,
+        )
+
+    assert "s3cret-value" not in str(refused.value)
+    assert "hunter2pw" not in str(refused.value)
+    assert "acme-files://x?[redacted:query:" in str(refused.value)
+
+
 def test_an_unknown_scheme_blames_trust_only_for_a_recorded_refusal() -> None:
     """A reason that merely reads like a refusal is not one; `Registry.refused` decides."""
     registry = Registry()

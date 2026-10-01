@@ -13,9 +13,12 @@ one somebody forgot.
 """
 
 import re
-from dataclasses import dataclass, replace
-from enum import StrEnum
-from typing import TYPE_CHECKING
+from bisect import bisect_right
+from collections.abc import Mapping
+from dataclasses import dataclass, fields, is_dataclass, replace
+from enum import Enum, StrEnum
+from functools import cache
+from typing import TYPE_CHECKING, Any, ClassVar, Protocol, TypeVar
 
 from guardana.core.fingerprint import digest_of
 
@@ -71,6 +74,15 @@ _SECRET_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
 )
 _EMAIL = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b")
 _IP = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
+
+
+class _Dataclass(Protocol):
+    """Any dataclass instance, as `dataclasses.fields` and `replace` accept one."""
+
+    __dataclass_fields__: ClassVar[dict[str, Any]]
+
+
+_Record = TypeVar("_Record", bound=_Dataclass)
 
 _ALREADY_REDACTED = re.compile(r"\[redacted:[a-z0-9-]+(?::[0-9a-f]{12})?\]")
 """A placeholder this redactor itself wrote, so a second pass leaves it alone.
@@ -180,17 +192,13 @@ class EvidenceRedactor:
         return tuple(patterns)
 
     def redact(self, finding: "Finding") -> "Finding":
-        """Return this finding with its evidence brought within the policy."""
-        from guardana.core.report.finding import Evidence  # noqa: PLC0415 — one-way dependency
+        """Return this finding with every text it carries brought within the policy.
 
-        evidence = finding.evidence
-        summary = self.redact_text(evidence.summary)
-        detail = self.redact_text(evidence.detail)
-        if summary == evidence.summary and detail == evidence.detail:
-            return finding
-        return replace(
-            finding, evidence=Evidence(summary=summary or _WITHHELD_EVIDENCE, detail=detail)
-        )
+        Evidence, title, location and the verdict's rationale alike: a judge's reply
+        lands in the rationale and an imported claim supplies the title and the ref,
+        so each is the same untrusted text the evidence is.
+        """
+        return self._record(finding)
 
     def redact_error(self, error: "CheckError") -> "CheckError":
         """Return this recorded failure with its reason brought within the policy.
@@ -207,10 +215,7 @@ class EvidenceRedactor:
         an error with a blank reason reads as a check that failed for no reason rather
         than one whose reason this run declined to keep.
         """
-        reason = self.redact_text(error.reason)
-        if reason == error.reason:
-            return error
-        return replace(error, reason=reason or _WITHHELD_REASON)
+        return self._record(error)
 
     def redact_shortfall(self, gap: "CoverageShortfall") -> "CoverageShortfall":
         """Return this unmet coverage demand with its sentence brought within the policy.
@@ -225,27 +230,68 @@ class EvidenceRedactor:
         Never emptied: a shortfall with no detail reads as a demand that failed for
         no reason rather than one whose reason this run declined to keep.
         """
-        detail = self.redact_text(gap.detail)
-        if detail == gap.detail:
-            return gap
-        return replace(gap, detail=detail or _WITHHELD_REASON)
+        return self._record(gap)
 
     def redact_result(self, result: "ScanResult") -> "ScanResult":
-        """Apply the policy to every channel of a result — errors and shortfalls included.
+        """Apply the policy to every text of every channel of a result.
 
         All of them, because "nothing to report" has more than one meaning and the
         redactor's promise is about the seam, not about the channel: a run that kept
         a secret out of its findings and posted it to a collector inside
-        `errors[].reason` has leaked it exactly as far.
+        `errors[].reason` has leaked it exactly as far. The result is walked field by
+        field rather than channel by channel, so a channel added later is covered
+        without anyone remembering to add it here.
         """
-        return replace(
-            result,
-            findings=tuple(self.redact(f) for f in result.findings),
-            unverified=tuple(self.redact(f) for f in result.unverified),
-            waived=tuple(self.redact(f) for f in result.waived),
-            errors=tuple(self.redact_error(e) for e in result.errors),
-            coverage_shortfall=tuple(self.redact_shortfall(g) for g in result.coverage_shortfall),
-        )
+        return self._record(result)
+
+    def _record(self, record: _Record) -> _Record:
+        """Return `record` with every string inside it redacted, or `record` itself.
+
+        Narrative text from the target or a third party (evidence, reasons,
+        rationales) gets the full policy: emptied under `metadata_only` and bounded
+        in size. Every other string is a name or a location a reader navigates by,
+        so only the matched spans are replaced and it is never emptied or truncated.
+        """
+        if isinstance(record, _identifier_types()):
+            return record
+        narrative = _narrative_fields()
+        changes: dict[str, object] = {}
+        for spec in fields(record):
+            if not spec.init or spec.name in _IDENTIFIER_FIELDS:
+                continue
+            current = getattr(record, spec.name)
+            withheld = narrative.get((type(record), spec.name))
+            if withheld is not None and isinstance(current, str):
+                cleaned: object = self.redact_text(current)
+                if cleaned != current:
+                    cleaned = cleaned or withheld
+            else:
+                cleaned = self._value(current)
+            if cleaned is not current:
+                changes[spec.name] = cleaned
+        return replace(record, **changes) if changes else record
+
+    def _value(self, value: object) -> object:
+        """Redact one field's value, returning the same object when nothing changed."""
+        if isinstance(value, Enum):
+            return value
+        if isinstance(value, str):
+            return self._label(value)
+        if type(value) is tuple:
+            items = tuple(self._value(item) for item in value)
+            return value if all(a is b for a, b in zip(items, value, strict=True)) else items
+        if isinstance(value, Mapping):
+            entries = {key: self._value(item) for key, item in value.items()}
+            return value if all(entries[key] is item for key, item in value.items()) else entries
+        if is_dataclass(value) and not isinstance(value, type):
+            return self._record(value)
+        return value
+
+    def _label(self, text: str) -> str:
+        """Redact a name or a location: matched spans only, never emptied or truncated."""
+        if not text:
+            return text
+        return self._apply(text, self._patterns_for(self._policy.mode))
 
     def _apply(self, text: str, patterns: tuple[tuple[str, re.Pattern[str]], ...]) -> str:
         """Replace every match in one pass, so no pattern ever rewrites another's placeholder.
@@ -263,20 +309,23 @@ class EvidenceRedactor:
         of a previous pass claim their spans first, which is what makes redacting
         twice produce the same text as redacting once.
         """
-        claimed: list[tuple[int, int, str]] = [
-            (m.start(), m.end(), m.group(0)) for m in _ALREADY_REDACTED.finditer(text)
-        ]
+        text = _without_lone_surrogates(text)
+        claimed = [(m.start(), m.end(), m.group(0)) for m in _ALREADY_REDACTED.finditer(text)]
+        starts = [start for start, _, _ in claimed]
         for label, pattern in patterns:
-            for match in pattern.finditer(text):
-                start, end = match.span()
-                if any(
-                    start < taken_end and taken_start < end for taken_start, taken_end, _ in claimed
-                ):
-                    continue
-                claimed.append((start, end, self._placeholder(label, match.group(0))))
+            # One pattern's matches never overlap each other, so each is checked only
+            # against the spans earlier patterns claimed: its two sorted neighbours.
+            fresh = [
+                (start, end, self._placeholder(label, match.group(0)))
+                for match in pattern.finditer(text)
+                for start, end in (match.span(),)
+                if not _collides(claimed, starts, start, end)
+            ]
+            if fresh:
+                claimed = sorted([*claimed, *fresh])
+                starts = [start for start, _, _ in claimed]
         if not claimed:
             return text
-        claimed.sort()
         pieces: list[str] = []
         cursor = 0
         for start, end, replacement in claimed:
@@ -300,3 +349,70 @@ class EvidenceRedactor:
         # half of the evidence that mattered looks complete and is not.
         kept = encoded[:limit].decode("utf-8", errors="ignore")
         return kept + _TRUNCATED.format(limit=limit)
+
+
+_IDENTIFIER_FIELDS = frozenset({"rule_id", "rules_run", "evaluator_id", "assessor", "stage"})
+"""Fields that name an engine object rather than carry text from a target.
+
+A custom pattern broad enough to match `LLM03` or `supply_chain` would otherwise rewrite
+the framework mapping and the rule a finding belongs to, and with them its identity in
+every comparison.
+"""
+
+
+@cache
+def _identifier_types() -> tuple[type, ...]:
+    """Return the records that only identify and never carry target text."""
+    from guardana.core.taxonomy import TaxonomyRef  # noqa: PLC0415 — one-way dependency
+
+    return (TaxonomyRef,)
+
+
+_LONE_SURROGATE = re.compile("[\ud800-\udfff]")
+
+
+def _without_lone_surrogates(text: str) -> str:
+    """Replace each unpaired surrogate with U+FFFD, which every encoder downstream accepts.
+
+    JSON read from a target can carry one, and a string holding it cannot be encoded as
+    UTF-8, so the first renderer or digest to try would raise.
+    """
+    if _LONE_SURROGATE.search(text) is None:
+        return text
+    return text.encode("utf-16", "surrogatepass").decode("utf-16", "replace")
+
+
+def _collides(claimed: list[tuple[int, int, str]], starts: list[int], start: int, end: int) -> bool:
+    """Whether `start`..`end` overlaps a claimed span, given spans sorted and disjoint."""
+    index = bisect_right(starts, start)
+    before = claimed[index - 1] if index else None
+    after = claimed[index] if index < len(claimed) else None
+    return any(
+        _overlaps(start, end, span[0], span[1]) for span in (before, after) if span is not None
+    )
+
+
+def _overlaps(start: int, end: int, taken_start: int, taken_end: int) -> bool:
+    return start < taken_end and taken_start < end
+
+
+@cache
+def _narrative_fields() -> dict[tuple[type, str], str]:
+    """Name the fields that carry narrative text, each with what stands in when withheld.
+
+    Imported on first use: these types are built on this module, not the other way.
+    """
+    from guardana.core.assessment import Assessment  # noqa: PLC0415 — one-way dependency
+    from guardana.core.evaluator.base import Verdict  # noqa: PLC0415
+    from guardana.core.report.check_error import CheckError  # noqa: PLC0415
+    from guardana.core.report.finding import Evidence  # noqa: PLC0415
+    from guardana.core.report.shortfall import CoverageShortfall  # noqa: PLC0415
+
+    return {
+        (Evidence, "summary"): _WITHHELD_EVIDENCE,
+        (Evidence, "detail"): "",
+        (CheckError, "reason"): _WITHHELD_REASON,
+        (CoverageShortfall, "detail"): _WITHHELD_REASON,
+        (Verdict, "rationale"): _WITHHELD_REASON,
+        (Assessment, "rationale"): _WITHHELD_REASON,
+    }

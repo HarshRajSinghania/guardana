@@ -46,9 +46,9 @@ keeps working, and so that anyone who set it gets told rather than ignored.
 
 ## Every channel, not just the findings
 
-A result has four channels, and the policy covers all of them: `findings`,
-`unverified`, `waived` — and **`errors`**, where a check that could not run records
-why. That last one carries an exception message, and an exception message is
+The policy covers every channel of a result: `findings`, `unverified`, `waived`,
+`assessments`, `observations`, `coverage_shortfall`, `suites` — and **`errors`**,
+where a check that could not run records why. That last one carries an exception message, and an exception message is
 written by whoever raised it: a third-party rule, a provider, a parser handed the
 model's own reply. An unparseable response puts 120 bytes of it in there, and a
 gateway refusing a request routinely quotes the credential it refused.
@@ -58,6 +58,24 @@ policy, so it reached the JSON report, the SARIF file and the collector envelope
 untouched. Under `metadata_only` the reason is replaced by a note rather than
 emptied, because an error with a blank reason reads as a check that failed for no
 reason instead of one whose reason this run declined to keep.
+
+The same holds for every string inside a result, not only evidence: a finding's
+title, its location and its verdict's rationale, every assessment, every
+observation's name, ref and attributes, coverage shortfalls and suite summaries. A
+judge's reply becomes a rationale, and an imported claim supplies a title and a
+ref, so each is the same untrusted text the evidence is. The redactor walks the
+result's fields rather than a list of them, so a field added later is covered
+without anyone naming it. Two kinds of string are treated differently:
+
+- **Narrative text** — evidence, an error's reason, a shortfall's detail, a
+  rationale — gets the whole policy: bounded in size, and under `metadata_only`
+  replaced by a note.
+- **Names and locations** — a title, a `target_ref`, an observation's ref — lose
+  only the matched spans and are never emptied or truncated, so a reader can still
+  find the file: `configs/[redacted:openai-key:…]/settings.py:12`.
+
+An error message about a `--target` locator prints it without userinfo, without a
+fragment and with its query replaced by a placeholder, whatever the scheme.
 
 ## Redaction is never silent
 
