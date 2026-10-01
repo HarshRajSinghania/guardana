@@ -69,7 +69,10 @@ without anyone naming it. Two kinds of string are treated differently:
 
 - **Narrative text** — evidence, an error's reason, a shortfall's detail, a
   rationale — gets the whole policy: bounded in size, and under `metadata_only`
-  replaced by a note.
+  replaced by a note. An evidence summary's note carries a 12-character digest of
+  the summary as `redacted` would show it, because a baseline waiver matches on the
+  summary; without it, waiving one finding waived every finding of that rule in that
+  file.
 - **Names and locations** — a title, a `target_ref`, an observation's ref — lose
   only the matched spans and are never emptied or truncated, so a reader can still
   find the file: `configs/[redacted:openai-key:…]/settings.py:12`.

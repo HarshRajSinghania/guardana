@@ -340,7 +340,10 @@ without anyone naming it. Two kinds of string are treated differently:</p>
 <ul>
 <li><strong>Narrative text</strong> — evidence, an error's reason, a shortfall's detail, a
 rationale — gets the whole policy: bounded in size, and under <code>metadata_only</code>
-replaced by a note.</li>
+replaced by a note. An evidence summary's note carries a 12-character digest of
+the summary as <code>redacted</code> would show it, because a baseline waiver matches on the
+summary; without it, waiving one finding waived every finding of that rule in that
+file.</li>
 <li><strong>Names and locations</strong> — a title, a <code>target_ref</code>, an observation's ref — lose
 only the matched spans and are never emptied or truncated, so a reader can still
 find the file: <code>configs/[redacted:openai-key:…]/settings.py:12</code>.</li>

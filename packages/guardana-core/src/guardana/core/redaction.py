@@ -50,6 +50,7 @@ locally, and a 64 MiB model reply in a report helps nobody."""
 _REDACTED = "[redacted:{label}]"
 _TRUNCATED = "… [truncated: evidence exceeded {limit} bytes]"
 _WITHHELD_EVIDENCE = "[evidence withheld: metadata_only]"
+_WITHHELD_SUMMARY = re.compile(r"\[evidence withheld: metadata_only(?::[0-9a-f]{12})?\]")
 _WITHHELD_REASON = "[reason withheld: metadata_only]"
 
 # Ordered most specific first: a key that also matches a generic high-entropy
@@ -264,12 +265,26 @@ class EvidenceRedactor:
             if withheld is not None and isinstance(current, str):
                 cleaned: object = self.redact_text(current)
                 if cleaned != current:
-                    cleaned = cleaned or withheld
+                    cleaned = cleaned or self._withheld(withheld, current)
             else:
                 cleaned = self._value(current)
             if cleaned is not current:
                 changes[spec.name] = cleaned
         return replace(record, **changes) if changes else record
+
+    def _withheld(self, note: str, text: str) -> str:
+        """Return what stands in for withheld text; an evidence summary keeps a digest.
+
+        A baseline waiver matches on the evidence summary, so two findings of one rule in
+        one file need different notes, or waiving one waives both. The digest is taken
+        of the text as `redacted` would show it, so it says nothing that mode does not.
+        """
+        if note != _WITHHELD_EVIDENCE:
+            return note
+        if _WITHHELD_SUMMARY.fullmatch(text):
+            return text
+        shown = self._apply(text, self._patterns_for(EvidenceMode.REDACTED))
+        return f"{note[:-1]}:{digest_of(shown)[7:19]}]"
 
     def _value(self, value: object) -> object:
         """Redact one field's value, returning the same object when nothing changed."""

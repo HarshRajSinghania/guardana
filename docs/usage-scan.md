@@ -137,9 +137,11 @@ guardana scan . --write-baseline guardana-baseline.yaml
 guardana scan . --baseline guardana-baseline.yaml
 ```
 
-A waiver is matched by a **fingerprint** — a stable hash of the rule id and the
-finding's location — so it keeps waiving the same finding but never a different
-one. Waived findings are never silently dropped: they appear in every format (a
+A waiver is matched by a **fingerprint** — a stable hash of the rule id, the
+finding's file and its evidence summary — so it keeps waiving the same finding but
+never a different one. Under `privacy.evidence_mode: metadata_only` the summary is
+withheld behind a note that carries a short digest of the redacted summary, so two
+findings of one rule in one file still get different fingerprints. Waived findings are never silently dropped: they appear in every format (a
 `WAIVED` line in human output, a `waived` array in JSON, `suppressions` in SARIF),
 so a reviewer can always see what was accepted and why. A malformed baseline file
 is a hard error (exit 3), never a silent "waive nothing" or "waive everything".
