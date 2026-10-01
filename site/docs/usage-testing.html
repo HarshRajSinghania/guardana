@@ -496,6 +496,10 @@ canary, the profile's calibrations apply, and the judges configured under
 fixture); the second run of the same object raises <code>TargetReusedError</code>, because its
 meter and whatever it cached would describe both runs. A target that cannot be
 reached raises <code>TargetUnavailableError</code>.</p>
+<p>A trace target is the exception: the Python API refuses traces, because
+<code>guardana analyze-trace</code> reads a trace file's contracts and unreadable records, so
+<code>assert_secure</code> runs a trace's rules directly, as it always has. A trace a framework
+translator builds in code has neither.</p>
 <h2 id="what-this-is-not">What this is not</h2>
 <p>It is not a second engine, and it does not have its own idea of &quot;secure&quot;. If a
 check passes here and fails in CI, that is a fact about the target, not a
@@ -516,7 +520,7 @@ gate</li>
 </main>
 </div>
 <footer class="foot"><div class="bar">
-<span class="who">Guardana 0.33.0 · Apache-2.0 ·
+<span class="who">Guardana 0.34.0 · Apache-2.0 ·
 maintained by Konrad Karauda</span>
 <a href="https://github.com/guardana/guardana/blob/main/docs/usage-testing.md">Edit this page on GitHub</a>
 <a href="https://github.com/guardana/guardana">github.com/guardana</a>

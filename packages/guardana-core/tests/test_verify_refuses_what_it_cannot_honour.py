@@ -2,6 +2,7 @@
 
 import dataclasses
 import pickle
+from collections.abc import Iterable
 from dataclasses import replace
 from pathlib import Path
 
@@ -10,7 +11,10 @@ from guardana.core.budget import Budgets
 from guardana.core.plugins import PluginMode, PluginTrust
 from guardana.core.profile import default_profile
 from guardana.core.registry import Registry
-from guardana.core.target import ArtifactTarget, EndpointTarget
+from guardana.core.report import Finding
+from guardana.core.rule import Rule, RuleContext, RuleMeta
+from guardana.core.severity import Severity
+from guardana.core.target import ArtifactTarget, Capability, EndpointTarget, Target, TargetKind
 from guardana.core.testing import RefusingTransport
 from guardana.core.usage import UsageMeter
 from guardana.core.verify import TargetReusedError, UnenforceableBudgetError, Verifier
@@ -81,3 +85,31 @@ def test_a_target_refused_before_it_ran_can_still_run(tmp_path: Path) -> None:
         Verifier(trust=_BUILTINS, profile=timed).run(target)
 
     assert Verifier(trust=_BUILTINS).run(target).passed
+
+
+def test_a_target_already_running_is_refused(tmp_path: Path) -> None:
+    (tmp_path / "app.py").write_text("print('hello')\n", encoding="utf-8")
+    refused: list[TargetReusedError] = []
+
+    class _RunsItsTargetAgain(Rule):
+        meta = RuleMeta(
+            id="acme.runs_its_target_again",
+            title="starts a second run of the target it is reading",
+            severity=Severity.LOW,
+            target_kind=TargetKind.ARTIFACT,
+            required_capabilities=frozenset({Capability.READ_FILES}),
+        )
+
+        def run(self, target: Target, ctx: RuleContext) -> Iterable[Finding]:
+            if not refused:
+                try:
+                    verifier.run(target)
+                except TargetReusedError as exc:
+                    refused.append(exc)
+            return ()
+
+    verifier = Verifier(trust=PluginTrust(mode=PluginMode.DISABLED), rules=(_RunsItsTargetAgain(),))
+
+    verifier.run(ArtifactTarget(tmp_path))
+
+    assert refused

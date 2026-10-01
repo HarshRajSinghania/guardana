@@ -261,6 +261,11 @@ fixture); the second run of the same object raises `TargetReusedError`, because 
 meter and whatever it cached would describe both runs. A target that cannot be
 reached raises `TargetUnavailableError`.
 
+A trace target is the exception: the Python API refuses traces, because
+`guardana analyze-trace` reads a trace file's contracts and unreadable records, so
+`assert_secure` runs a trace's rules directly, as it always has. A trace a framework
+translator builds in code has neither.
+
 ## What this is not
 
 It is not a second engine, and it does not have its own idea of "secure". If a

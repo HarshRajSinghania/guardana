@@ -349,7 +349,7 @@ verification = verifier.run(target, relative_to=None, baseline=None, source=None
 <li><code>baseline</code> is a <code>Baseline</code> from <code>guardana.core.report.baseline.read_baseline(path)</code>; its findings are waived after redaction and before the gate.</li>
 <li><code>source</code> (<code>RunSource</code>) and <code>deployment</code> (<code>DeploymentRef</code>) describe where the run came from and which deployment it verifies. Left out, the run is recorded as local and the deployment as undeclared; the engine reads neither from the environment.</li>
 </ul>
-<p>A target runs once. Running the same object again, or one that already sent requests, raises <code>TargetReusedError</code>: build a fresh target for each run, so its usage, its budget and whatever it cached describe that run alone.</p>
+<p>A target runs once. Running the same object again, starting a second run while the first is under way, or running one that already sent requests raises <code>TargetReusedError</code>: build a fresh target for each run, so its usage, its budget and whatever it cached describe that run alone. A run refused before anything was sent, over its calibrations or a budget, leaves the target free to run. A target that cannot be weakly referenced is checked by its meter alone.</p>
 <h2 id="read-a-result">Read a result</h2>
 <p><code>Verification</code> is frozen.</p>
 <div class="table-wrap"><table>
@@ -446,7 +446,7 @@ verification = verifier.run(target, relative_to=None, baseline=None, source=None
 </main>
 </div>
 <footer class="foot"><div class="bar">
-<span class="who">Guardana 0.33.0 · Apache-2.0 ·
+<span class="who">Guardana 0.34.0 · Apache-2.0 ·
 maintained by Konrad Karauda</span>
 <a href="https://github.com/guardana/guardana/blob/main/docs/python-api.md">Edit this page on GitHub</a>
 <a href="https://github.com/guardana/guardana">github.com/guardana</a>

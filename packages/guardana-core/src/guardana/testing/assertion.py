@@ -8,13 +8,17 @@ an endpoint gets its canaries planted exactly as `guardana probe` plants them.
 
 from pathlib import Path
 
-from guardana.core.gate import GateOutcome
+from guardana.core.budget import BudgetExhausted
+from guardana.core.gate import GateOutcome, gate_outcome
 from guardana.core.plugins import PluginMode, PluginTrust
 from guardana.core.profile import Profile, default_profile, load_profile
 from guardana.core.profile import preset as named_preset
+from guardana.core.redaction import EvidenceRedactor
 from guardana.core.registry import Registry
 from guardana.core.report import ScanResult
-from guardana.core.target import Target
+from guardana.core.report.location import relativize, relativize_findings
+from guardana.core.runner import Runner
+from guardana.core.target import Target, TargetKind
 from guardana.core.verify import UnenforceableBudgetError, Verifier
 from guardana.testing.message import failure_message
 
@@ -102,29 +106,52 @@ def assert_secure(
     stated = trust if trust is not None else active.plugins
     if stated is None:
         stated = PluginTrust(mode=PluginMode.BUILTINS)
-    verifier = Verifier(trust=stated, profile=active, registry=registry)
-    try:
-        if isinstance(target, Target):
-            verification = verifier.run(target, relative_to=Path.cwd())
-        else:
-            verification = verifier.scan(_existing(Path(target)), relative_to=Path.cwd())
-    except UnenforceableBudgetError as exc:
-        # A ceiling nothing here can enforce is a mistake in the test's configuration
-        # rather than a verdict about the target, so it is not a failed assertion.
-        raise ValueError(str(exc)) from exc
-    result = verification.result
-    if verification.passed:
+    if isinstance(target, Target) and target.kind is TargetKind.TRACE:
+        result, outcome = _trace_result(target, active, registry, stated)
+        reference = relativize(target.ref, Path.cwd())
+    else:
+        verifier = Verifier(trust=stated, profile=active, registry=registry)
+        try:
+            if isinstance(target, Target):
+                verification = verifier.run(target, relative_to=Path.cwd())
+            else:
+                verification = verifier.scan(_existing(Path(target)), relative_to=Path.cwd())
+        except UnenforceableBudgetError as exc:
+            # A ceiling nothing here can enforce is a mistake in the test's configuration
+            # rather than a verdict about the target, so it is not a failed assertion.
+            raise ValueError(str(exc)) from exc
+        result, outcome = verification.result, verification.gate
+        reference = verification.manifest.target.ref
+    if outcome is GateOutcome.PASS:
         return result
     raise SecurityAssertionError(
-        failure_message(
-            result,
-            outcome=verification.gate,
-            policy=active.policy,
-            target_ref=verification.manifest.target.ref,
-        ),
+        failure_message(result, outcome=outcome, policy=active.policy, target_ref=reference),
         result=result,
-        outcome=verification.gate,
+        outcome=outcome,
     )
+
+
+def _trace_result(
+    target: Target, profile: Profile, registry: Registry | None, trust: PluginTrust
+) -> tuple[ScanResult, GateOutcome]:
+    """Run a trace's rules directly, redact the result and gate it.
+
+    The Python API refuses a trace because the contracts and unreadable records of a
+    trace file are read by `guardana analyze-trace`; a trace built in code by a
+    translator has neither, so its rules run here as they always did.
+    """
+    __tracebackhide__ = _HIDDEN
+    if registry is None:
+        registry = Registry.discover(trust)
+        registry.load_yaml_rule_dirs(Path(path) for path in profile.rule_paths)
+    try:
+        result = Runner(registry=registry, profile=profile).run(target)
+    except BudgetExhausted as exc:
+        raise ValueError(str(exc)) from exc
+    result = EvidenceRedactor(profile.privacy).redact_result(
+        relativize_findings(result, Path.cwd())
+    )
+    return result, gate_outcome(result, profile.policy)
 
 
 def _profile_for(profile: Profile | Path | None, preset: str | None) -> Profile:

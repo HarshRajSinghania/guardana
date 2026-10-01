@@ -60,7 +60,7 @@ verification = verifier.run(target, relative_to=None, baseline=None, source=None
 - `baseline` is a `Baseline` from `guardana.core.report.baseline.read_baseline(path)`; its findings are waived after redaction and before the gate.
 - `source` (`RunSource`) and `deployment` (`DeploymentRef`) describe where the run came from and which deployment it verifies. Left out, the run is recorded as local and the deployment as undeclared; the engine reads neither from the environment.
 
-A target runs once. Running the same object again, or one that already sent requests, raises `TargetReusedError`: build a fresh target for each run, so its usage, its budget and whatever it cached describe that run alone.
+A target runs once. Running the same object again, starting a second run while the first is under way, or running one that already sent requests raises `TargetReusedError`: build a fresh target for each run, so its usage, its budget and whatever it cached describe that run alone. A run refused before anything was sent, over its calibrations or a budget, leaves the target free to run. A target that cannot be weakly referenced is checked by its meter alone.
 
 ## Read a result
 

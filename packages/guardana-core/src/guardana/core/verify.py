@@ -12,6 +12,7 @@ from the command line compose the same steps in the same order.
 """
 
 import json
+import threading
 import weakref
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
@@ -84,6 +85,7 @@ class TargetReusedError(VerificationError):
 
 _RAN: "weakref.WeakValueDictionary[int, Target]" = weakref.WeakValueDictionary()
 """Every live target this module has run, by identity; a target is refused the second time."""
+_RAN_LOCK = threading.Lock()
 
 
 @dataclass(frozen=True, slots=True)
@@ -228,8 +230,11 @@ class Verifier:
         its unreadable records and its contracts are read by `guardana analyze-trace`.
         `relative_to` rewrites file paths in what the run found, never the target's own
         reference, which a third-party target owns. The caller owns the target, and
-        closes it. A target runs once: a second run raises `TargetReusedError`, because
-        its meter and whatever it cached would describe both runs.
+        closes it. A target runs once: a second run, or one started while the first is
+        under way, raises `TargetReusedError`, because its meter and whatever it cached
+        would describe both runs. A run refused before anything was sent, over its
+        calibrations or a budget, leaves the target free; a target that cannot be weakly
+        referenced is checked by its meter alone.
         """
         return self._verify(
             target,
@@ -261,23 +266,19 @@ class Verifier:
                 f"{target.ref} already sent {spent.requests} request(s); build a fresh target "
                 f"for each run so its usage and budgets describe this run alone"
             )
-        _refuse_a_second_run(target)
-        calibrations = self._calibrations()
-        registry = self._registry().copied()
-        registry.apply_trials(self.profile.trials)
-        endpoint = target.kind is TargetKind.ENDPOINT
-        judges = self._judges(registry) if endpoint else JudgeMeters()
-        started_at = datetime.now(UTC)
-        sent = True
+        _claim(target)
         try:
+            calibrations = self._calibrations()
+            registry = self._registry().copied()
+            registry.apply_trials(self.profile.trials)
+            endpoint = target.kind is TargetKind.ENDPOINT
+            judges = self._judges(registry) if endpoint else JudgeMeters()
+            started_at = datetime.now(UTC)
             result, identity = self._execute(target, registry, calibrations, endpoint=endpoint)
-        except UnenforceableBudgetError:
-            sent = False
+        except (CalibrationError, UnenforceableBudgetError):
+            # Both are refused before the first request, which leaves the target unused.
+            _release(target)
             raise
-        finally:
-            # A budget refused before the first request leaves the target unused.
-            if sent:
-                _remember_run(target)
         return self._finish(
             registry,
             result,
@@ -400,21 +401,28 @@ class Verifier:
         )
 
 
-def _refuse_a_second_run(target: Target) -> None:
-    """Refuse a target that already ran here, whose cached listing would describe a past run."""
-    if _RAN.get(id(target)) is target:
-        raise TargetReusedError(
-            f"{target.ref} already ran; build a fresh target for each run so what it "
-            f"lists and reads describes this run alone"
-        )
+def _claim(target: Target) -> None:
+    """Claim `target` for one run, refusing one that ran or is running here.
+
+    A target that cannot be weakly referenced is not tracked; its meter is still checked.
+    """
+    with _RAN_LOCK:
+        if _RAN.get(id(target)) is target:
+            raise TargetReusedError(
+                f"{target.ref} already ran; build a fresh target for each run so what it "
+                f"lists and reads describes this run alone"
+            )
+        try:
+            _RAN[id(target)] = target
+        except TypeError:
+            return
 
 
-def _remember_run(target: Target) -> None:
-    """Record that `target` ran; one that cannot be weakly referenced keeps only its meter check."""
-    try:
-        _RAN[id(target)] = target
-    except TypeError:
-        return
+def _release(target: Target) -> None:
+    """Give back a claim on a target that was refused before it sent anything."""
+    with _RAN_LOCK:
+        if _RAN.get(id(target)) is target:
+            del _RAN[id(target)]
 
 
 __all__ = [
