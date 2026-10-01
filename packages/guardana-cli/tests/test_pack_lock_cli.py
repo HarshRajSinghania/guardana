@@ -11,12 +11,18 @@ So these tests write a lock from the live registry and read the file.
 """
 
 import re
+from dataclasses import replace
 from pathlib import Path
 
+import pytest
 import yaml
+from guardana.cli import pack as pack_command
+from guardana.cli.exit_codes import ExitCode
 from guardana.cli.main import app
+from guardana.core.pack import PackDiscovery, discover_packs
 from guardana.core.pack.lock import LOCK_SCHEMA_VERSION
-from guardana.core.pack.model import EXTENSION_API_VERSION
+from guardana.core.pack.model import EXTENSION_API_VERSION, ApiRange, PackManifest
+from guardana.core.plugins import PluginTrust
 from typer.testing import CliRunner
 
 runner = CliRunner()
@@ -116,6 +122,61 @@ def test_an_unchanged_build_checks_clean(tmp_path: Path) -> None:
 
     assert result.exit_code == 0, result.output
     assert "match" in result.output
+
+
+def _a_pack_promising(monkeypatch: pytest.MonkeyPatch, manifest: PackManifest) -> None:
+    """Make discovery report one more installed pack, declaring `manifest`."""
+
+    def discovered(trust: PluginTrust | None = None) -> PackDiscovery:
+        found = discover_packs(trust)
+        return replace(found, packs=(*found.packs, ("acme-guardana-rules", "0.3.1", manifest)))
+
+    monkeypatch.setattr(pack_command, "discover_packs", discovered)
+
+
+_PROMISING = PackManifest(
+    "acme-guardana-rules", ApiRange(1, 3), "x", rules=("acme.never_registered",)
+)
+
+
+def test_a_lock_is_not_written_while_a_pack_declares_a_rule_nothing_registers(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _a_pack_promising(monkeypatch, _PROMISING)
+    path = tmp_path / "guardana-lock.yaml"
+
+    result = runner.invoke(app, ["pack", "lock", str(path)])
+
+    assert result.exit_code == ExitCode.INDETERMINATE, result.output
+    assert not path.exists(), "a partial lock was written"
+    assert "acme.never_registered" in result.stderr
+
+
+def test_a_check_is_refused_while_a_pack_declares_a_rule_nothing_registers(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The lock on disk omits the rule too, so comparing would report a match."""
+    path = _lock(tmp_path)
+    document = yaml.safe_load(path.read_text(encoding="utf-8"))
+    document["packs"].append(
+        {
+            "name": "acme-guardana-rules",
+            "distribution": "acme-guardana-rules",
+            "version": "0.3.1",
+            "rules": {},
+            "evaluators": [],
+            "targets": [],
+            "taxonomies": {},
+        }
+    )
+    path.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
+    _a_pack_promising(monkeypatch, _PROMISING)
+
+    result = runner.invoke(app, ["pack", "lock", str(path), "--check"])
+
+    assert result.exit_code == ExitCode.INDETERMINATE, result.output
+    assert "match" not in result.stdout
+    assert "acme.never_registered" in result.stderr
 
 
 def test_a_rule_whose_digest_moved_fails_the_check(tmp_path: Path) -> None:

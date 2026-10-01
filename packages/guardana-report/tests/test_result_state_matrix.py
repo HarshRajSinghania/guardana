@@ -349,3 +349,21 @@ def test_a_gate_given_without_a_manifest_still_refuses_to_render_clean(name: str
 
     assert "1 rule(s) were skipped and the gate refused the run" in text
     assert "✓" not in text
+
+
+def test_a_gate_given_without_a_manifest_is_written_into_the_json_document() -> None:
+    """A manifestless JSON document with empty channels must still say the run was refused."""
+    result = _ROWS[OpenQuestion.STOPPED]
+
+    document = json.loads(get_renderer("json", gate=GateOutcome.INDETERMINATE).render(result))
+
+    assert document["gate"] == "indeterminate"
+    assert document["stopped_by"] == "budget_exhausted"
+    assert document["findings"] == []
+
+
+def test_a_json_document_with_no_manifest_and_no_gate_says_no_gate_was_recorded() -> None:
+    document = json.loads(get_renderer("json").render(_ROWS[OpenQuestion.STOPPED]))
+
+    assert document["gate"] is None
+    assert document["stopped_by"] == "budget_exhausted"

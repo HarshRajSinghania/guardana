@@ -1,6 +1,7 @@
 from guardana.core.pack.discover import (
     PackCheck,
     PackDiscovery,
+    Registered,
     check_pack,
     check_packs,
     discover_packs,
@@ -49,6 +50,7 @@ __all__ = [
     "PackDiscovery",
     "PackError",
     "PackManifest",
+    "Registered",
     "catalogue_digest",
     "check_pack",
     "check_packs",

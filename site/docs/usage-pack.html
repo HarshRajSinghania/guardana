@@ -353,6 +353,13 @@ direction that matters is the <strong>missing</strong> one: a pack promising
 <code>acme.agent.customer_data</code> and not registering it leaves a team believing a check
 runs that never does — a false green arriving through documentation instead of
 through code.</p>
+<p>Each id is looked up under its own group: a rule id that only an evaluator registers is
+not a rule your pack provides. For an installed pack, a declared rule must also be
+registered by <strong>your</strong> distribution. A rule another pack registers runs today and
+disappears with that pack, while your manifest still promises it. Evaluators, targets
+and catalogues are matched by group and id only, because the registry does not record
+which distribution registered them. A manifest named on the command line is not tied
+to an installed distribution, so it is matched by group only.</p>
 <p>Registering <em>more</em> than you list is not an error. That is untidy, not a lie, and
 failing a build over it would make this something teams switch off.</p>
 <h2 id="exit-codes">Exit codes</h2>
@@ -477,7 +484,7 @@ teammate's lock in the older layout.</p>
 </tr>
 <tr>
 <td>everything else</td>
-<td>the distribution version beside it</td>
+<td>the distribution name and version beside it</td>
 <td>the coarse pin, and the only one that covers an implementation whose declaration did not move</td>
 </tr>
 </tbody>
@@ -504,6 +511,10 @@ have; one that appeared is a check nobody reviewed running against production.</
 <tr>
 <td><code>pack_unlocked</code></td>
 <td>installed and the lock does not mention it</td>
+</tr>
+<tr>
+<td><code>distribution_changed</code></td>
+<td>the same pack name now ships from another distribution, so the code behind its ids is not the code that was pinned</td>
 </tr>
 <tr>
 <td><code>version_changed</code></td>
@@ -549,6 +560,11 @@ have; one that appeared is a check nobody reviewed running against production.</
 <td><code>2</code></td>
 </tr>
 <tr>
+<td>a pack declares an id nothing registers under that group; no lock is written or compared</td>
+<td><strong>indeterminate</strong></td>
+<td><code>2</code></td>
+</tr>
+<tr>
 <td>the lock could not be read, or was taken against another <code>extension_api</code></td>
 <td>refused</td>
 <td><code>3</code></td>
@@ -564,6 +580,10 @@ answer to all of them is one line, so the command says that line. Regenerate the
 lock.</p>
 <p><code>--check</code> never writes. A check that created the file it was asked to compare
 against would pass on every first run, which is the one run nobody looks at.</p>
+<p><strong>A pack that declares what nothing registers is refused, not pinned.</strong> A lock written
+without that id would match every later build where the check never runs, so the
+command names the missing ids on stderr and writes nothing. Run <code>pack validate</code> to see
+which promise broke.</p>
 <h2 id="guardanas-own-pack-has-one">Guardana's own pack has one</h2>
 <p><code>guardana-rules</code> ships a manifest and goes through this same door. Its <code>provides:</code>
 block is <em>generated</em> from the registry — 56 ids is too many to hand-maintain, and a

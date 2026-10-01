@@ -25,13 +25,13 @@ declaration did not move.
 """
 
 import json
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
 
 from guardana.core.fingerprint import digest_of
-from guardana.core.pack.model import EXTENSION_API_VERSION, PackError
+from guardana.core.pack.model import EXTENSION_API_VERSION, PackError, PackManifest
 
 LOCK_SCHEMA_VERSION = 2
 """Version of `guardana-lock.yaml`, moved independently of everything it pins.
@@ -51,14 +51,15 @@ LOCK_NAME = "guardana-lock.yaml"
 class DriftKind(StrEnum):
     """How what is installed differs from what was locked.
 
-    Six kinds rather than one "mismatch", because they are six different things to
-    do about it. A rule whose digest moved is a review; a pack nobody pinned is a
-    supply-chain question; a rule that vanished is coverage a team still believes
-    they have.
+    Seven kinds rather than one "mismatch", because they are seven different things
+    to do about it. A rule whose digest moved is a review; a pack nobody pinned, or
+    one now shipped by another distribution, is a supply-chain question; a rule that
+    vanished is coverage a team still believes they have.
     """
 
     PACK_MISSING = "pack_missing"
     PACK_UNLOCKED = "pack_unlocked"
+    DISTRIBUTION_CHANGED = "distribution_changed"
     VERSION_CHANGED = "version_changed"
     REMOVED = "removed"
     ADDED = "added"
@@ -155,23 +156,50 @@ def lock_of(packs: Sequence[tuple[str, str, Any]], installed: Installed) -> Lock
     designing for rather than dropping: a package registering rules without a
     manifest cannot be pinned by name, and a lock that silently omitted it would
     report a fully pinned repository while an unpinned pack ran in it.
+
+    An id a manifest declares and nothing registers raises `PackError`. Pinned
+    without it, the lock would match every later build in which that check never
+    runs while the manifest still promises it.
     """
+    undelivered = [
+        f"{manifest.name} declares {kind} {', '.join(missing)}"
+        for _distribution, _version, manifest in packs
+        for kind, missing in _undelivered(manifest, installed)
+    ]
+    if undelivered:
+        raise PackError(
+            f"nothing registers what a pack declares, so a lock would pin a check that "
+            f"does not run: {'; '.join(undelivered)}"
+        )
     locked = [
         LockedPack(
             name=manifest.name,
             distribution=distribution,
             version=version,
-            rules={i: installed.rules[i] for i in manifest.rules if i in installed.rules},
-            evaluators=tuple(i for i in manifest.evaluators if i in installed.evaluators),
-            targets=tuple(i for i in manifest.targets if i in installed.targets),
-            taxonomies={
-                i: installed.catalogues[i] for i in manifest.taxonomies if i in installed.catalogues
-            },
+            rules={i: installed.rules[i] for i in manifest.rules},
+            evaluators=tuple(manifest.evaluators),
+            targets=tuple(manifest.targets),
+            taxonomies={i: installed.catalogues[i] for i in manifest.taxonomies},
         )
         for distribution, version, manifest in packs
     ]
     declared = {name for _, _, manifest in packs for name in manifest.provides}
     return Lock(packs=tuple(locked), unlocked=tuple(sorted(installed.ids() - declared)))
+
+
+def _undelivered(manifest: PackManifest, installed: Installed) -> list[tuple[str, list[str]]]:
+    """Every group of `manifest` with ids nothing in `installed` registers under that kind."""
+    groups: tuple[tuple[str, Sequence[str], Collection[str]], ...] = (
+        ("rule", manifest.rules, installed.rules),
+        ("evaluator", manifest.evaluators, installed.evaluators),
+        ("target", manifest.targets, installed.targets),
+        ("catalogue", manifest.taxonomies, installed.catalogues),
+    )
+    return [
+        (kind, missing)
+        for kind, declared, present in groups
+        if (missing := [i for i in declared if i not in present])
+    ]
 
 
 def lock_to_dict(lock: Lock) -> dict[str, Any]:
@@ -296,6 +324,15 @@ def compare(locked: Lock, installed: Lock) -> tuple[Drift, ...]:
 
 def _pack_drift(locked: LockedPack, installed: LockedPack) -> list[Drift]:
     drift: list[Drift] = []
+    if locked.distribution != installed.distribution:
+        drift.append(
+            Drift(
+                DriftKind.DISTRIBUTION_CHANGED,
+                locked.name,
+                f"locked as shipped by {locked.distribution}, installed from "
+                f"{installed.distribution} — the code behind its ids is not the code pinned",
+            )
+        )
     if locked.version != installed.version:
         drift.append(
             Drift(

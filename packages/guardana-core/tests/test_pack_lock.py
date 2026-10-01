@@ -288,3 +288,34 @@ def test_the_lock_is_written_in_a_stable_order() -> None:
 
     packs = cast("list[dict[str, str]]", written["packs"])
     assert [pack["name"] for pack in packs] == ["alpha", "zeta"]
+
+
+# --- what a lock refuses to pin, and what it must not overlook ---------------------
+
+
+def test_the_same_pack_shipped_by_another_distribution_is_drift() -> None:
+    """Same name, version and ids, other code: the evaluators behind those ids are not pinned."""
+    replaced = lock_of([("acme-rules-fork", "0.3.1", _manifest())], _installed())
+
+    drift = compare(_lock(), replaced)
+
+    assert drift, "a pack now shipped by another distribution compared as matching"
+    assert [entry.kind for entry in drift] == ["distribution_changed"]
+    assert "acme-rules-fork" in drift[0].detail
+
+
+_PROMISING = {
+    "rule": replace(_manifest(), rules=(*_manifest().rules, "acme.promised")),
+    "evaluator": replace(_manifest(), evaluators=(*_manifest().evaluators, "acme.promised")),
+    "target": replace(_manifest(), targets=(*_manifest().targets, "acme.promised")),
+    "catalogue": replace(_manifest(), taxonomies=(*_manifest().taxonomies, "acme.promised")),
+}
+
+
+@pytest.mark.parametrize("group", sorted(_PROMISING))
+def test_a_lock_is_refused_when_a_pack_declares_what_nothing_registers(group: str) -> None:
+    """A partial lock is a pin a later `--check` matches while the declared check never runs."""
+    manifest = _PROMISING[group]
+
+    with pytest.raises(PackError, match=rf"acme-guardana-rules declares {group} acme\.promised"):
+        lock_of([("acme-guardana-rules", "0.3.1", manifest)], _installed())

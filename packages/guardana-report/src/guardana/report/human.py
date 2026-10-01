@@ -13,6 +13,7 @@ from guardana.core.report import Finding, ScanResult
 from guardana.core.suite import describe
 from guardana.core.trials import CONFIDENCE, wilson_interval
 from guardana.report._refusal import recorded_gate, refusal_clause, unnamed_refusal
+from guardana.report._text import printable
 
 _ICON = {"CRITICAL": "✖", "HIGH": "✖", "MEDIUM": "▲", "LOW": "•", "INFO": "·"}
 
@@ -63,7 +64,7 @@ class HumanRenderer:
                 lines.extend(block)
         lines.append("")
         lines.append(_summary(result))
-        return "\n".join(lines)
+        return "\n".join(printable(line) for line in lines)
 
 
 def _trials_block(result: ScanResult, run: RunManifest | None) -> list[str]:

@@ -95,6 +95,14 @@ direction that matters is the **missing** one: a pack promising
 runs that never does — a false green arriving through documentation instead of
 through code.
 
+Each id is looked up under its own group: a rule id that only an evaluator registers is
+not a rule your pack provides. For an installed pack, a declared rule must also be
+registered by **your** distribution. A rule another pack registers runs today and
+disappears with that pack, while your manifest still promises it. Evaluators, targets
+and catalogues are matched by group and id only, because the registry does not record
+which distribution registered them. A manifest named on the command line is not tied
+to an installed distribution, so it is matched by group only.
+
 Registering *more* than you list is not an error. That is untidy, not a lie, and
 failing a build over it would make this something teams switch off.
 
@@ -185,7 +193,7 @@ teammate's lock in the older layout.
 | rules | `Rule.digest()` — the declaration, hashed | a sharpened corpus is visible; the Python behind it is not |
 | evaluators, targets | id only | an `Evaluator` is Python and has no declaration to hash; inventing a digest from a class name would claim to detect a change it cannot see |
 | catalogues | a digest over the references the pack registers | a third-party catalogue has no *file* to pin, but what it registered is content |
-| everything else | the distribution version beside it | the coarse pin, and the only one that covers an implementation whose declaration did not move |
+| everything else | the distribution name and version beside it | the coarse pin, and the only one that covers an implementation whose declaration did not move |
 
 `unlocked:` lists extensions registered by a package that declares **no manifest**.
 They are recorded and not attributed to a pack, and the command says so on stderr —
@@ -201,6 +209,7 @@ have; one that appeared is a check nobody reviewed running against production.
 |---|---|
 | `pack_missing` | locked and not installed |
 | `pack_unlocked` | installed and the lock does not mention it |
+| `distribution_changed` | the same pack name now ships from another distribution, so the code behind its ids is not the code that was pinned |
 | `version_changed` | same digests, different package version |
 | `removed` / `added` | an id left or arrived |
 | `changed` | a digest moved — it is not the same check any more |
@@ -211,6 +220,7 @@ have; one that appeared is a check nobody reviewed running against production.
 | the build has drifted | fail | `1` |
 | plugin trust refused an installed extension; nothing was pinned or compared | **indeterminate** | `2` |
 | nothing installed declares a manifest, so there is nothing to pin | **indeterminate** | `2` |
+| a pack declares an id nothing registers under that group; no lock is written or compared | **indeterminate** | `2` |
 | the lock could not be read, or was taken against another `extension_api` | refused | `3` |
 
 **A lock from a different extension contract is refused rather than compared.**
@@ -223,6 +233,11 @@ lock.
 
 `--check` never writes. A check that created the file it was asked to compare
 against would pass on every first run, which is the one run nobody looks at.
+
+**A pack that declares what nothing registers is refused, not pinned.** A lock written
+without that id would match every later build where the check never runs, so the
+command names the missing ids on stderr and writes nothing. Run `pack validate` to see
+which promise broke.
 
 ## Guardana's own pack has one
 

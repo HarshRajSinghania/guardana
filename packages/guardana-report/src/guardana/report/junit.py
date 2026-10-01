@@ -1,5 +1,6 @@
+import re
 from collections.abc import Callable
-from xml.sax.saxutils import escape, quoteattr
+from xml.sax import saxutils
 
 from guardana.core.gate import GateOutcome, OpenQuestion, declined_suites, open_questions
 from guardana.core.manifest import RunManifest
@@ -12,6 +13,22 @@ from guardana.report._refusal import (
     refused_skips,
     unnamed_refusal,
 )
+
+_XML_ILLEGAL = re.compile("[^\t\n\r\x20-\ud7ff\ue000-\ufffd\U00010000-\U0010ffff]")
+"""Every character XML 1.0 forbids in a document, escaped or not."""
+
+
+def _legal(value: str) -> str:
+    """Replace what XML cannot carry with U+FFFD, so one byte cannot void the whole report."""
+    return _XML_ILLEGAL.sub("\ufffd", value)
+
+
+def _text(value: str) -> str:
+    return saxutils.escape(_legal(value))
+
+
+def _attr(value: str) -> str:
+    return saxutils.quoteattr(_legal(value))
 
 
 class JUnitRenderer:
@@ -40,30 +57,30 @@ class JUnitRenderer:
             for rule_id, suite in sorted(suites.items())
         )
         for f in findings:
-            name = quoteattr(f.rule_id)
-            classname = quoteattr(f.target_ref)
-            message = quoteattr(f.title)
-            summary = escape(f.evidence.summary)
+            name = _attr(f.rule_id)
+            classname = _attr(f.target_ref)
+            message = _attr(f.title)
+            summary = _text(f.evidence.summary)
             cases.append(
                 f"    <testcase name={name} classname={classname}>\n"
                 f"      <failure message={message}>{summary}</failure>\n"
                 f"    </testcase>"
             )
         for f in unverified:
-            name = quoteattr(f.rule_id)
-            classname = quoteattr(f.target_ref)
-            message = quoteattr(f.title)
-            reason = escape(f.verdict.rationale if f.verdict is not None else f.evidence.summary)
+            name = _attr(f.rule_id)
+            classname = _attr(f.target_ref)
+            message = _attr(f.title)
+            reason = _text(f.verdict.rationale if f.verdict is not None else f.evidence.summary)
             cases.append(
                 f"    <testcase name={name} classname={classname}>\n"
                 f"      <skipped message={message}>{reason}</skipped>\n"
                 f"    </testcase>"
             )
         for f in result.waived:
-            name = quoteattr(f.rule_id)
-            classname = quoteattr(f.target_ref)
-            message = quoteattr(f.title)
-            reason = escape(f"waived: {f.evidence.summary}")
+            name = _attr(f.rule_id)
+            classname = _attr(f.target_ref)
+            message = _attr(f.title)
+            reason = _text(f"waived: {f.evidence.summary}")
             cases.append(
                 f"    <testcase name={name} classname={classname}>\n"
                 f"      <skipped message={message}>{reason}</skipped>\n"
@@ -89,8 +106,8 @@ class JUnitRenderer:
 
 def _error_case(name: str, classname: str, message: str, detail: str) -> str:
     return (
-        f"    <testcase name={quoteattr(name)} classname={quoteattr(classname)}>\n"
-        f"      <error message={quoteattr(message)}>{escape(detail)}</error>\n"
+        f"    <testcase name={_attr(name)} classname={_attr(classname)}>\n"
+        f"      <error message={_attr(message)}>{_text(detail)}</error>\n"
         f"    </testcase>"
     )
 
@@ -204,14 +221,14 @@ def _suite_case(rule_id: str, summary: SuiteSummary, subject: str) -> str:
 
     Declined is an error rather than a skip: its gate is a demand its author wrote.
     """
-    statement = escape(describe(summary))
+    statement = _text(describe(summary))
     verdict = ""
     if summary.outcome is SuiteOutcome.FAIL:
         verdict = f'      <failure message="suite below its bar">{statement}</failure>\n'
     elif summary.outcome is SuiteOutcome.INCONCLUSIVE:
-        verdict = f'      <error message="suite declined">{escape(summary.reason or "")}</error>\n'
+        verdict = f'      <error message="suite declined">{_text(summary.reason or "")}</error>\n'
     return (
-        f"    <testcase name={quoteattr(rule_id)} classname={quoteattr(subject)}>\n"
+        f"    <testcase name={_attr(rule_id)} classname={_attr(subject)}>\n"
         f"{verdict}"
         f"      <system-out>{statement}</system-out>\n"
         f"    </testcase>"

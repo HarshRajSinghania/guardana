@@ -542,7 +542,13 @@ from guardana.core.registry import Registry
 packs = installed_packs()
 assert packs, "no installed pack declares a manifest"
 registry = Registry.discover()
-lock = lock_of(packs, Installed(rules={r.meta.id: r.digest() for r in registry.rules()}))
+lock = lock_of(
+    packs,
+    Installed(
+        rules={r.meta.id: r.digest() for r in registry.rules()},
+        evaluators=tuple(registry.evaluators()),
+    ),
+)
 (builtin,) = [p for p in lock.packs if p.name == "guardana-rules"]
 print("distribution:", builtin.distribution)
 assert builtin.version, "the lock recorded no version for the pack shipping the built-ins"

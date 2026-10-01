@@ -23,7 +23,7 @@ import pytest
 from guardana.cli import pack
 from guardana.cli.exit_codes import ExitCode
 from guardana.cli.main import app
-from guardana.core.pack import PackDiscovery, discover_packs
+from guardana.core.pack import ApiRange, PackDiscovery, PackManifest, discover_packs
 from guardana.core.plugins import PluginTrust
 from typer.testing import CliRunner
 
@@ -112,3 +112,43 @@ def test_a_named_manifest_is_answered_without_the_whole_installation(
 
     assert result.exit_code == ExitCode.OK, result.output
     assert "acme_rules" not in result.stderr
+
+
+_BUILT_IN_RULE = "guardana.prompt.injection.ignore_previous"
+
+
+def _an_installed_pack(
+    monkeypatch: pytest.MonkeyPatch, distribution: str, manifest: PackManifest
+) -> None:
+    """Make discovery report one more installed pack, shipped by `distribution`."""
+
+    def discovered(trust: PluginTrust | None = None) -> PackDiscovery:
+        found = discover_packs(trust)
+        return replace(found, packs=(*found.packs, (distribution, "0.3.1", manifest)))
+
+    monkeypatch.setattr(pack, "discover_packs", discovered)
+
+
+def test_an_installed_pack_promising_a_rule_another_distribution_registers_is_reported(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The rule runs, but not from this pack: uninstalling the other one removes it silently."""
+    manifest = PackManifest("acme-guardana-rules", ApiRange(1, 3), "x", rules=(_BUILT_IN_RULE,))
+    _an_installed_pack(monkeypatch, "acme-guardana-rules", manifest)
+
+    result = runner.invoke(app, ["pack", "validate"])
+
+    assert result.exit_code == ExitCode.POLICY_FAILED, result.output
+    assert _BUILT_IN_RULE in result.stdout
+    assert "registered by guardana-rules" in result.stdout
+
+
+def test_a_rule_id_promised_as_an_evaluator_is_reported(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Shipped by the distribution that registers the id, so only the kind is wrong."""
+    manifest = PackManifest("kind-mixup", ApiRange(1, 3), "x", evaluators=(_BUILT_IN_RULE,))
+    _an_installed_pack(monkeypatch, "guardana-rules", manifest)
+
+    result = runner.invoke(app, ["pack", "validate"])
+
+    assert result.exit_code == ExitCode.POLICY_FAILED, result.output
+    assert f"evaluator {_BUILT_IN_RULE}" in result.stdout

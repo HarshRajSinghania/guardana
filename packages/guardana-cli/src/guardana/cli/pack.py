@@ -37,6 +37,7 @@ from guardana.core.pack import (
     discover_packs,
     load_manifest,
 )
+from guardana.core.pack.discover import Registered
 from guardana.core.pack.lock import (
     LOCK_NAME,
     Installed,
@@ -96,20 +97,17 @@ def validate(
     # and the unit `provides.taxonomies` declares. `known_refs()` rather than a
     # registry method: taxonomies are registered into the taxonomy module during
     # discovery, before rules, so a YAML rule can resolve the ids it names.
-    registered = (
-        {rule.meta.id for rule in registry.rules()}
-        | set(registry.evaluators())
-        | {target.__name__ for target in registry.targets()}
-        | {ref.framework for ref in known_refs()}
-    )
+    registered = _registered(registry)
 
     try:
         if manifest is not None:
             manifests = [load_manifest(manifest)]
+            distributions: list[str | None] = [None]
             silent: tuple[str, ...] = ()
         else:
             discovery = discover_packs(resolved.trust)
             manifests = list(discovery.manifests)
+            distributions = [distribution for distribution, _, _ in discovery.packs]
             silent = discovery.unmanifested
     except PackError as exc:
         typer.echo(f"error: {exc}", err=True)
@@ -123,7 +121,7 @@ def validate(
         )
         raise typer.Exit(code=ExitCode.INDETERMINATE)
 
-    checks = check_packs(manifests, registered)
+    checks = check_packs(manifests, registered, distributions)
     for line in _render(checks):
         typer.echo(line)
     if any(not c.ok for c in checks):
@@ -166,8 +164,9 @@ def lock(
     over the references they register.
 
     Exit `0` the build matches the lock · `1` it has drifted · `2` nothing was
-    installed to pin, or plugin trust refused an extension so what this build
-    registers is unproven · `3` the lock could not be read.
+    installed to pin, a pack declares something nothing registers, or plugin trust
+    refused an extension so what this build registers is unproven · `3` the lock
+    could not be read.
     """
     resolved = resolve_trust(plugins, allow_plugin, resolve_profile(profile, None))
     # `_installed(registry)` reads this registry. Writing a lock from one that trust
@@ -187,7 +186,11 @@ def lock(
             err=True,
         )
         raise typer.Exit(code=ExitCode.INDETERMINATE)
-    present = lock_of(packs, _installed(registry))
+    try:
+        present = lock_of(packs, _installed(registry))
+    except PackError as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(code=ExitCode.INDETERMINATE) from exc
 
     if not check:
         path.write_text(yaml.safe_dump(lock_to_dict(present), sort_keys=False), encoding="utf-8")
@@ -241,6 +244,23 @@ def _discover_completely(resolved: ResolvedTrust, *, consequence: str) -> Regist
         )
         raise typer.Exit(code=ExitCode.INDETERMINATE)
     return registry
+
+
+def _registered(registry: Registry) -> Registered:
+    """Collect what this build registers, by kind, naming the distribution where it can.
+
+    The registry records the distribution behind each rule. Evaluators, targets and
+    catalogues are named by id only, so a manifest's claim to one of those is checked
+    by kind and not by owner.
+    """
+    return Registered(
+        rules={
+            rule.meta.id: registry.origin_of(rule.meta.id).distribution for rule in registry.rules()
+        },
+        evaluators=dict.fromkeys(registry.evaluators()),
+        targets=dict.fromkeys(target.__name__ for target in registry.targets()),
+        taxonomies=dict.fromkeys(ref.framework for ref in known_refs()),
+    )
 
 
 def _installed(registry: Registry) -> Installed:

@@ -17,8 +17,10 @@ from guardana.core.pack import (
     PackError,
     PackManifest,
     check_pack,
+    check_packs,
     load_manifest,
 )
+from guardana.core.pack.discover import Registered
 
 _GOOD = """
 schema_version: 1
@@ -64,7 +66,7 @@ def test_a_range_is_compared_with_every_api_the_build_retains() -> None:
 def test_pack_validation_refuses_a_range_outside_every_retained_api() -> None:
     manifest = PackManifest("future", ApiRange(3, 4), "x", rules=("future.rule",))
 
-    check = check_pack(manifest, ["future.rule"])
+    check = check_pack(manifest, Registered(rules={"future.rule": None}))
 
     assert not check.ok
     assert "upgrade Guardana" in check.problems[0]
@@ -129,7 +131,7 @@ def test_a_promise_the_package_does_not_keep_is_a_problem() -> None:
     """
     manifest = PackManifest("acme", ApiRange(1, 2), "x", rules=("acme.present", "acme.absent"))
 
-    check = check_pack(manifest, ["acme.present"])
+    check = check_pack(manifest, Registered(rules={"acme.present": None}))
 
     assert not check.ok
     assert "acme.absent" in check.problems[0]
@@ -143,7 +145,44 @@ def test_registering_more_than_the_manifest_lists_is_not_a_problem() -> None:
     """
     manifest = PackManifest("acme", ApiRange(1, 2), "x", rules=("acme.present",))
 
-    assert check_pack(manifest, ["acme.present", "acme.extra"]).ok
+    assert check_pack(manifest, Registered(rules=dict.fromkeys(["acme.present", "acme.extra"]))).ok
+
+
+def test_a_rule_registered_only_as_an_evaluator_is_not_a_kept_promise() -> None:
+    manifest = PackManifest("acme", ApiRange(1, 2), "x", rules=("acme.check",))
+
+    check = check_pack(manifest, Registered(evaluators={"acme.check": "acme-rules"}), "acme-rules")
+
+    assert not check.ok
+    assert "rule acme.check" in check.problems[0]
+
+
+def test_a_rule_another_distribution_registers_is_not_this_packs_promise_kept() -> None:
+    manifest = PackManifest("acme", ApiRange(1, 2), "x", rules=("acme.check",))
+
+    check = check_pack(manifest, Registered(rules={"acme.check": "other-rules"}), "acme-rules")
+
+    assert not check.ok
+    assert "acme.check (registered by other-rules)" in check.problems[0]
+
+
+def test_a_rule_the_shipping_distribution_registers_is_a_kept_promise() -> None:
+    manifest = PackManifest("acme", ApiRange(1, 2), "x", rules=("acme.check",))
+
+    assert check_pack(manifest, Registered(rules={"acme.check": "acme-rules"}), "acme-rules").ok
+
+
+def test_an_id_whose_owner_the_registry_cannot_name_is_checked_by_kind_only() -> None:
+    manifest = PackManifest("acme", ApiRange(1, 2), "x", evaluators=("acme.judge",))
+
+    assert check_pack(manifest, Registered(evaluators={"acme.judge": None}), "acme-rules").ok
+
+
+def test_packs_and_their_distributions_must_pair_up() -> None:
+    manifest = PackManifest("acme", ApiRange(1, 2), "x", rules=("acme.check",))
+
+    with pytest.raises(ValueError, match="one distribution per manifest"):
+        check_packs([manifest], Registered(rules={"acme.check": None}), [])
 
 
 def test_the_built_in_pack_declares_exactly_what_it_registers() -> None:
@@ -161,9 +200,10 @@ def test_the_built_in_pack_declares_exactly_what_it_registers() -> None:
     ) as path:
         manifest = load_manifest(path)
 
-    registered = {rule.meta.id for rule in provide_rules()} | {
-        evaluator.id for evaluator in provide_evaluators()
-    }
+    registered = Registered(
+        rules=dict.fromkeys(rule.meta.id for rule in provide_rules()),
+        evaluators=dict.fromkeys(evaluator.id for evaluator in provide_evaluators()),
+    )
 
-    assert set(manifest.provides) == registered
+    assert set(manifest.provides) == {*registered.rules, *registered.evaluators}
     assert check_pack(manifest, registered).ok

@@ -7,9 +7,10 @@ the same false green the engine refuses everywhere else, arriving through
 documentation instead of through code.
 """
 
+import warnings
 from collections import Counter
-from collections.abc import Iterable, Sequence
-from dataclasses import dataclass
+from collections.abc import Collection, Mapping, Sequence
+from dataclasses import dataclass, field
 from importlib import metadata, resources
 
 from guardana.core.entrypoints import InstalledEntryPoint, installed_entry_points
@@ -33,6 +34,21 @@ class PackCheck:
     def ok(self) -> bool:
         """Whether this pack is loadable and describes itself accurately."""
         return not self.problems
+
+
+@dataclass(frozen=True, slots=True)
+class Registered:
+    """What a build registers, by kind, with the distribution that registered each id.
+
+    A distribution of `None` is one the registry cannot name — an id registered in
+    code, or a kind whose origin it does not record — and that id is checked by kind
+    only.
+    """
+
+    rules: Mapping[str, str | None] = field(default_factory=dict)
+    evaluators: Mapping[str, str | None] = field(default_factory=dict)
+    targets: Mapping[str, str | None] = field(default_factory=dict)
+    taxonomies: Mapping[str, str | None] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)
@@ -148,19 +164,27 @@ def _version(distribution: str) -> str:
         return ""
 
 
-def check_packs(manifests: Sequence[PackManifest], registered: Iterable[str]) -> list[PackCheck]:
+def check_packs(
+    manifests: Sequence[PackManifest],
+    registered: Registered | Collection[str],
+    distributions: Sequence[str | None] | None = None,
+) -> list[PackCheck]:
     """Check every pack, and report two of them claiming one name.
 
-    A manifest name is how a person identifies a pack in the output, so two packs
-    answering to it makes the report ambiguous about which one was checked — and
-    an ambiguous report about a security control is the thing somebody acts on
-    wrongly.
+    `distributions`, when given, names the distribution shipping each manifest, in
+    the same order. A manifest name is how a person identifies a pack in the output,
+    so two packs answering to it makes the report ambiguous about which one was
+    checked — and an ambiguous report about a security control is the thing somebody
+    acts on wrongly.
     """
-    available = list(registered)
+    registered = _by_kind(registered)
+    owners = list(distributions) if distributions is not None else [None] * len(manifests)
+    if len(owners) != len(manifests):
+        raise ValueError("check_packs needs one distribution per manifest")
     counts = Counter(manifest.name for manifest in manifests)
     checks = []
-    for manifest in manifests:
-        check = check_pack(manifest, available)
+    for manifest, distribution in zip(manifests, owners, strict=True):
+        check = check_pack(manifest, registered, distribution)
         if counts[manifest.name] > 1:
             check = PackCheck(
                 manifest,
@@ -174,24 +198,74 @@ def check_packs(manifests: Sequence[PackManifest], registered: Iterable[str]) ->
     return checks
 
 
-def check_pack(manifest: PackManifest, registered: Iterable[str]) -> PackCheck:
+def check_pack(
+    manifest: PackManifest,
+    registered: Registered | Collection[str],
+    distribution: str | None = None,
+) -> PackCheck:
     """Compare one manifest against the ids actually registered, and against this build.
 
     Two questions, and both have to be answered before a pack is a safe investment:
-    *can this build load it at all*, and *does it do what its manifest says*.
+    *can this build load it at all*, and *does it do what its manifest says*. Each
+    declared id is looked up under its own kind, and, when `distribution` names the
+    one shipping the manifest, it must be that distribution that registers it: an id
+    another pack supplies disappears with that pack while this manifest still
+    promises it.
     """
+    registered = _by_kind(registered)
     problems: list[str] = []
     if not manifest.loadable_by():
         problems.append(manifest.extension_api.why_not_any(SUPPORTED_EXTENSION_API_VERSIONS))
-    available = set(registered)
-    missing = [declared for declared in manifest.provides if declared not in available]
-    if missing:
-        problems.append(
-            f"declares {', '.join(missing)} and does not register "
-            f"{'it' if len(missing) == 1 else 'them'} — a team reading this manifest "
-            f"believes a check runs that does not"
-        )
+    groups = (
+        ("rule", manifest.rules, registered.rules),
+        ("evaluator", manifest.evaluators, registered.evaluators),
+        ("target", manifest.targets, registered.targets),
+        ("taxonomy", manifest.taxonomies, registered.taxonomies),
+    )
+    for kind, declared, present in groups:
+        missing = [i for i in declared if i not in present]
+        if missing:
+            problems.append(
+                f"declares {kind} {', '.join(missing)} and does not register "
+                f"{_it(missing)} — a team reading this manifest believes a check runs "
+                f"that does not"
+            )
+        if distribution is None:
+            continue
+        foreign = [
+            f"{i} (registered by {owner})"
+            for i in declared
+            if (owner := present.get(i)) is not None and owner != distribution
+        ]
+        if foreign:
+            problems.append(
+                f"declares {kind} {', '.join(foreign)} and does not register "
+                f"{_it(foreign)} itself — a team reading this manifest believes this pack "
+                f"provides a check that another distribution supplies"
+            )
     return PackCheck(manifest, tuple(problems))
+
+
+def _by_kind(registered: Registered | Collection[str]) -> Registered:
+    """Accept the flat set of ids earlier releases took, warning that it checks less.
+
+    A flat set cannot say which kind registered an id, so every declared id is looked
+    up in all of them, as before; a pack's own tests keep passing while they move on.
+    """
+    if isinstance(registered, Registered):
+        return registered
+    warnings.warn(
+        "check_pack and check_packs take a Registered, which checks each id under its "
+        "own kind and owner; a flat set of ids checks only that the id exists",
+        DeprecationWarning,
+        stacklevel=3,
+    )
+    flat = dict.fromkeys(registered)
+    return Registered(rules=flat, evaluators=flat, targets=flat, taxonomies=flat)
+
+
+def _it(ids: Sequence[str]) -> str:
+    return "it" if len(ids) == 1 else "them"
 
 
 def _manifest_in(package: str) -> PackManifest | None:

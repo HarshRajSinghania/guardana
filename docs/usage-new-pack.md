@@ -36,7 +36,7 @@ extension APIs implemented by this build: 1, 2 (newest 2)
 
 3 rule(s); 9 fixture(s) passed, 0 failed, 0 could not run. 0 rule(s) not fully sampled.
 
-11 passed
+12 passed
 ```
 
 A scaffold whose first verification is red teaches you to distrust the tool at the
