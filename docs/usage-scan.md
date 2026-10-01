@@ -7,7 +7,7 @@ status: stable
 
 # `guardana scan` — static, offline, CI-friendly
 
-`guardana scan` checks a directory of model files, dependency manifests, and source when you need an offline check on a commit. It uses no network or live model.
+`guardana scan` checks a directory of model files, dependency manifests, and source when you need an offline check on a commit. It calls no live model and opens no network connection unless you pass `--reporter`.
 
 ```bash
 guardana scan [PATH] [OPTIONS]
@@ -44,9 +44,11 @@ targets and refuses a mismatched kind before any rule runs.
 
 Only rules whose `target_kind` is `artifact` and whose declared
 `required_capabilities` are satisfied by an artifact target (i.e.
-`read_files`) execute. Endpoint-only rules (prompt injection, jailbreak,
-system-prompt leak, output-secrets) are silently skipped against `scan` —
-they need a live model, so use `guardana probe` for those.
+`read_files`) execute. Built-in endpoint rules (prompt injection, jailbreak,
+system-prompt leak, output-secrets) are not selected by `scan` — they need a
+live model, so use `guardana probe` for those. A local endpoint rule loaded
+with `--rules` or `rules.paths` does not run either, and `scan` prints a note
+naming it.
 
 ## Model files no rule reads
 

@@ -144,8 +144,8 @@ niche corpora and experimental graders belong in extension packages.
 These move up, and live in [the backlog](docs/work/BACKLOG.md): ATLAS provenance, pinning
 the monthly content release and the data-format release separately, with positive and
 negative fixtures for new techniques; fixture expressiveness and stateful tool doubles,
-which F6 needs; and a decision on non-executing declarative packs before F2 ships, because
-installed Python packs execute code. A public extension-ID service is dropped: namespaces,
+which F6 needs; and the non-executing declarative packs [decided](docs/design/non-executing-packs.md)
+but not yet built, because installed Python packs execute code. A public extension-ID service is dropped: namespaces,
 local validation and locks cover the author workflow.
 
 Application quality checks need application-owned criteria, rather than invented

@@ -19,7 +19,7 @@ exists only as an example in this repository: twenty-three files and 1225 lines,
 copy and then edit until the names stop saying Acme.
 
 That is the gap, and it is the milestone's first row: a pack that is *possible* but expensive
-to prove will not create an ecosystem. The [0.25 audit](audit-0.25-market.md) confirmed it is
+to prove will not create an ecosystem. The [0.25 audit](https://github.com/guardana/guardana/blob/257b6bb98be678fc387d11ea92b180882c7c6a93/docs/design/audit-0.25-market.md) confirmed it is
 also the one hypothesis about adoption this project can measure without telemetry.
 
 ## What already works, so this document does not rebuild it

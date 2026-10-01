@@ -13,7 +13,7 @@ status: stable
 guardana analyze-trace trace.jsonl
 ```
 
-It opens one file. It makes no network request, calls no model, and invokes no tool.
+It opens one file and calls no model and no tool; it sends nothing over the network unless you pass `--reporter`.
 
 ## What it is for
 

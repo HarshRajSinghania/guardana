@@ -15,11 +15,12 @@ guardana-core     Target / Rule / Evaluator / Finding / Profile,
                    plus threat-agnostic plumbing rules build on:
                    `formats` (bounded model-file readers) and `testing`
                    (doubles and artifact builders).
-                   No network I/O beyond what a Target itself performs.
+                   No network I/O beyond what a Target, a judge configured
+                   under `evaluators:` or the collector reporter performs.
 guardana-rules     Built-in rules (YAML + Python plugin), each mapped to
                    OWASP / MITRE ATLAS / NIST.
-guardana-cli       The `guardana` command — scan, probe, monitor, diff,
-                   and sixteen more; `guardana --help` lists all twenty.
+guardana-cli       The `guardana` command — scan, probe, monitor, diff
+                   and the rest; `guardana --help` lists them all.
 guardana-report    Renderers: human, SARIF, JSON, JUnit.
 guardana-server    OPTIONAL collector. Ingests normalized Findings from many
                    agents; list/trend view. A separate, separately-deployed
@@ -336,7 +337,7 @@ class Reporter(Protocol):
     def submit(self, result: ScanResult, *, source: str) -> None: ...
 ```
 
-`guardana.core.reporter.HttpReporter` (used by all three CLI commands via
+`guardana.core.reporter.HttpReporter` (used by `scan`, `probe`, `monitor` and `analyze-trace` via
 `--reporter server://<url>`) POSTs a **versioned JSON envelope** to whatever
 URL you give it — it doesn't know or care whether the receiving end is
 `guardana-server` or something else entirely:
@@ -375,9 +376,9 @@ endpoints use a read-scoped API key to authenticate a browser session held in an
 This boundary is intentional and load-bearing: all OSS value (every rule, every
 evaluator, every report format, every CLI mode) works fully offline with zero
 dependency on the collector. The collector is a separable, self-hosted layer
-(`guardana-server`) with a dashboard, authentication, and persistence. A managed
-cloud remains planned; fleet management and retention remain open-ended areas for
-the collector.
+(`guardana-server`) with a dashboard, authentication, and persistence. Retention and
+deletion ship with it ([`usage-collector.md`](usage-collector.md)); a managed cloud and
+fleet management are not built.
 
 ## Repository layout
 

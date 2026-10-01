@@ -27,7 +27,7 @@ the conclusion has landed). Under 200 lines. English.
 | this repository | `scout` for "where does X live / how is Y done today" | `path:line`, never memory |
 | standards and frameworks | `WebSearch` / the `web-fetch` agent on the primary source (owasp.org, atlas.mitre.org, nist.gov, opentelemetry.io) | URL + the date you read it; quote the clause, not a summary of it |
 | competitors and market | the project's own docs and repos, release notes, pricing pages | what they DO, verified on the page; a claim you could not verify is marked `UNVERIFIED` |
-| users | issues, discussions, the audit in `docs/design/audit-0.23-market.md` | a quote beats a paraphrase |
+| users | issues, discussions, the evidence in `docs/design/audit-0.31-direction.md` | a quote beats a paraphrase |
 | a second and third opinion | `text-broker` with `--engine both` — "what would you build, what breaks, what is missing" | model output is an opinion to check, not evidence; a disagreement between the two families is a finding in itself |
 
 Every count comes from a source that measured it, every capability claim from a page that

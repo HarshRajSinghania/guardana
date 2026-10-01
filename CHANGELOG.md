@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **The documentation drops superseded audits and states what the code does.** Eight design documents whose decisions now live in newer designs or in `ROADMAP.md` leave the site: the 0.21, 0.22, 0.23, 0.25 and 0.26 audits, the framework usability audit, the collector domain model and the production intake design. Links to them point at their last published version on GitHub. Seven implemented designs are labelled implemented rather than accepted. Pages that said an unreachable judge yields an unverified check now say it stops the run with exit `4`; `scan`, `analyze-trace` and the feature list name `--reporter` as the one network connection they open; `how-it-works.md` counts `analyze-trace` among the run modes; and `monitor`'s example alert matches what a failing gate prints.
+
 ### Fixed
 
 - **A judge that cannot be reached during `probe --mcp` now exits `4`.** Previously, a pack rule that grades an MCP server with a judge configured under `evaluators:` ended the command with exit `5` when that judge could not be reached or refused the request. The error now names the judge's block (`evaluators.llm_judge`), as it does for `--url`, and no run is written.
@@ -294,7 +298,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   "Next" item 3 replaces a fixed level per look with a confidence sequence. Reusable
   attack techniques and adaptive attackers are under "Researched after the foundations",
   behind repeated trials and judge-error correction. No code or behavior changed. See
-  [`docs/design/audit-0.26-measurement.md`](docs/design/audit-0.26-measurement.md).
+  [`docs/design/audit-0.26-measurement.md`](https://github.com/guardana/guardana/blob/257b6bb98be678fc387d11ea92b180882c7c6a93/docs/design/audit-0.26-measurement.md).
 
 ## [0.26.1] - 2026-09-21 — a field report, and the audit of its own fix
 
@@ -452,7 +456,7 @@ waiver cannot cover them, because waivers move entries out of `findings` only.
 ### Changed
 
 - **The ordered milestone was re-read against its sources and no item moved.**
-  [`docs/design/audit-0.25-market.md`](docs/design/audit-0.25-market.md) checked the
+  [`docs/design/audit-0.25-market.md`](https://github.com/guardana/guardana/blob/257b6bb98be678fc387d11ea92b180882c7c6a93/docs/design/audit-0.25-market.md) checked the
   frameworks, the telemetry conventions and the comparable projects a month after the
   audit that set the order. The editions that changed were already carried in the
   taxonomy catalogues, the GenAI telemetry conventions remain developmental in every
@@ -598,7 +602,7 @@ waiver cannot cover them, because waivers move entries out of `findings` only.
   shapes settle, while live RAG no longer contradicts the ordered roadmap from
   the README. The audit records its sources, limitations, competitor baseline,
   dependencies, and 60-day validation plan in
-  [`docs/design/audit-0.23-market.md`](docs/design/audit-0.23-market.md).
+  [`docs/design/audit-0.23-market.md`](https://github.com/guardana/guardana/blob/257b6bb98be678fc387d11ea92b180882c7c6a93/docs/design/audit-0.23-market.md).
 - Target author and command guides document locator ownership, plugin trust,
   non-secret options, kind enforcement, planning without remote I/O, and the
   commands that accept custom artifact, endpoint, and trace targets. Five older

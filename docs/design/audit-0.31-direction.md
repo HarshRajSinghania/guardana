@@ -8,7 +8,7 @@ status: accepted
 # Direction audit after 0.31
 
 **Status:** accepted · **Written:** 2026-09-30 · **Supersedes the order in:**
-[`framework-usability-audit.md`](framework-usability-audit.md), whose evidence stands
+[`framework-usability-audit.md`](https://github.com/guardana/guardana/blob/257b6bb98be678fc387d11ea92b180882c7c6a93/docs/design/framework-usability-audit.md), whose evidence stands
 
 ## Decision
 

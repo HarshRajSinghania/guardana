@@ -33,7 +33,7 @@ so this page is maintained as carefully as the code.
 
 **Experimental:** Judge-graded suites use `answered` and `reference_judge`. Judge-error correction adjusts trial and suite rates using Rogan–Gladen and a calibration recorded on the team's own corpus with `guardana calibrate --record`. Without a usable calibration, the suite declines; it never passes on an uncorrected judge rate. Experimental means shipped, but behaviour, thresholds, and saved fields may change in a minor release.
 
-**Not released:** The five-user first-run study (F2), recorded-answer grading and regrading (F5), reproducible team checks on the real application (F6), protocol conformance fixtures (F7), and one redacted export with a webhook (F4) are roadmap items in `ROADMAP.md`. Pages under `docs/design/` describe designs, not shipped behaviour.
+**Not released:** The five-user first-run study (F2), recorded-answer grading and regrading (F5), reproducible team checks on the real application (F6), protocol conformance fixtures (F7), and one redacted export with a webhook (F4) are roadmap items in `ROADMAP.md`. Pages under `docs/design/` record decisions; each page's status line says whether it shipped.
 
 ## Known limitations
 
@@ -173,9 +173,9 @@ Four channels, because "nothing to report" has four meanings:
 | Channel | Meaning | What to do |
 |---|---|---|
 | `findings` | A check ran and found something | Fix it, or waive it with a reason |
-| `unverified` | A check ran and honestly could not reach a verdict | Investigate why — a judge outage, an empty reply, a capability gap |
+| `unverified` | A check ran and honestly could not reach a verdict | Investigate why — an empty reply, a judge reply that could not be read, a capability gap |
 | `errors` | A check **never ran** | Treat as a broken gate, not as a clean result |
-| `coverage shortfall` | Evidence you **demanded** was not available — a dimension your policy requires, or one your security contract needs | Instrument the producer, or stop demanding it. No `fail_on_*` setting makes this a pass |
+| `coverage shortfall` | Evidence you **demanded** was not available — a dimension your policy requires, or one your security contract needs — or a model file the scan observed that no running rule read | Instrument the producer, stop demanding it, or run the rule that reads the file or exclude it. No `fail_on_*` setting makes this a pass |
 
 A run that reports zero findings and three errors has not told you the system is
 clean. It has told you it could not look.

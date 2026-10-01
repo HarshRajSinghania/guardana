@@ -170,7 +170,7 @@ Guardana's "Next" lane planned an OTLP intake with a queue, workers and continuo
 over recorded traffic. Under decision 2 that is Control's supervisor, so the lane keeps
 what does not watch production: continuous rules over synthetic runs with anytime-valid
 alerting, grading an exported sample offline, and outputs for Guardana's own results.
-[`production-intake.md`](production-intake.md) is superseded by this document.
+[`production-intake.md`](https://github.com/guardana/guardana/blob/257b6bb98be678fc387d11ea92b180882c7c6a93/docs/design/production-intake.md) is superseded by this document.
 
 ## Rejected
 
@@ -206,4 +206,4 @@ making either project read the other's language.
 - [`trace-domain-model.md`](trace-domain-model.md) — the trace a bridge from Control's evidence targets
 - [`security-contracts.md`](security-contracts.md) — the assertions Control's evidence makes checkable
 - [`anytime-valid-monitoring.md`](anytime-valid-monitoring.md) — the alerting rule the "Next" lane keeps
-- [`production-intake.md`](production-intake.md) — the intake design this document supersedes
+- [`production-intake.md`](https://github.com/guardana/guardana/blob/257b6bb98be678fc387d11ea92b180882c7c6a93/docs/design/production-intake.md) — the intake design this document supersedes

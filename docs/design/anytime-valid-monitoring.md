@@ -46,7 +46,7 @@ Its cost is power. Cycle 1 tests at 0.61α and cycle 10 at 0.006α, so a regress
 that appears late in a long watch must be large before it is reported. `monitor`
 states this once at start-up, beside its existing notice about suites below
 `min_sample`. A monitor that has quietly become unable to alert is the blind
-spot [`production-intake.md`](production-intake.md) names first.
+spot [`production-intake.md`](https://github.com/guardana/guardana/blob/257b6bb98be678fc387d11ea92b180882c7c6a93/docs/design/production-intake.md) names first.
 
 Categorical changes are unaffected. A finding that appears is an observed
 failure, not an estimate, and it alerts on the cycle it appears.

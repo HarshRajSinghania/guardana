@@ -86,10 +86,6 @@ This file is generated from the documentation map; do not edit it by hand.
 
 - [../FEATURES.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/FEATURES.md): concise shipped capability overview
 - [../ROADMAP.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/ROADMAP.md): ordered next work and exit criteria
-- [design/audit-0.23-market.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/design/audit-0.23-market.md): repository audit, market evidence, and the rationale for the current order
-- [design/audit-0.25-market.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/design/audit-0.25-market.md): whether that order still follows from evidence, and the validation plan that replaces the one it could not run
-- [design/audit-0.26-measurement.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/design/audit-0.26-measurement.md): what a clean result rests on, and why rows 1 and 2 widened and a re-grading row was added
-- [design/framework-usability-audit.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/design/framework-usability-audit.md): the audit behind the earlier F1–F6 and M1–M4 order: first value, a Python data workflow and output extensions before statistics
 - [design/audit-0.31-direction.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/design/audit-0.31-direction.md): the current order: evidence and gate integrity first, the real application as the acceptance test, protocol conformance, and narrower output work
 - [design/guardana-and-control.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/design/guardana-and-control.md): Guardana and Guardana Control: measuring before release versus supervising agents while they run, what the two exchange, and how the two sites divide the work
 - [design/non-executing-packs.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/design/non-executing-packs.md): whether a pack can ship checks that execute no Python, and why every command starts with built-in plugin trust

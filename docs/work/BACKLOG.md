@@ -9,7 +9,7 @@ Re-verify an item before starting it — several sessions work in this repo.
 
 The inventory below is preserved. Priorities use the IDs in [ROADMAP.md](../../ROADMAP.md);
 the order and its evidence are in the [direction audit](../design/audit-0.31-direction.md),
-which supersedes the [framework audit](../design/framework-usability-audit.md)'s order.
+which supersedes the [framework audit](https://github.com/guardana/guardana/blob/257b6bb98be678fc387d11ea92b180882c7c6a93/docs/design/framework-usability-audit.md)'s order.
 No remote issues were created; the GitHub open-issue query returned zero.
 
 | ID | Concrete work | Roadmap | Acceptance evidence |
@@ -150,12 +150,12 @@ Reproduced, deliberately not fixed in this pass, or found while fixing.
 
 ## Accepted designs the roadmap does not carry
 
-`proposed`, written as cycle 5 of the extensibility program (`docs/design/audit-0.22.md`),
+`proposed`, written as cycle 5 of the 0.22 extensibility program,
 with no code behind it. It is not in the "Now" table of `ROADMAP.md`, so it is neither
 scheduled nor rejected — a decision, then either a roadmap row or a `superseded by` line.
 (`docs/design/attack-techniques.md`, cycle 4, left this list when `ROADMAP.md` placed it under
 "Researched after the foundations", behind repeated trials and judge-error correction —
-`docs/design/audit-0.26-measurement.md`.)
+the 0.26 measurement audit.)
 
 - `docs/design/namespaced-extension-ids.md` — an open id registry for third-party extensions;
   the `guardana.*` reservation is enforced, the registry is not built.
@@ -182,7 +182,7 @@ scheduled nor rejected — a decision, then either a roadmap row or a `supersede
   and not the *content* release its eighteen entries were transcribed from. ATLAS publishes the
   two on separate tracks, and content releases have landed since that format version. The
   provenance field is the first fix; mapping the agent-facing techniques the newest releases add
-  is rule work for the parallel contributor lane. See `docs/design/audit-0.25-market.md`.
+  is rule work for the parallel contributor lane.
 
 ## From the first field report (0.26.0), still open
 

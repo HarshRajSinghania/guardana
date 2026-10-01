@@ -2,7 +2,7 @@
 title: "Finding lifecycle and waivers"
 nav_order: 170
 summary: "statuses, waivers that expire, and why this is not a second `baseline`"
-status: accepted
+status: implemented
 ---
 
 # Design: the finding lifecycle, and waivers that expire

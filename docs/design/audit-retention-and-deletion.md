@@ -2,7 +2,7 @@
 title: "Audit, retention and deletion"
 nav_order: 180
 summary: "who did what, how long evidence is kept, and deleting on purpose"
-status: accepted
+status: implemented
 ---
 
 # Design: the audit log, retention, and deleting things on purpose

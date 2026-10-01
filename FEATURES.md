@@ -18,10 +18,10 @@ For maturity and known gaps, read [Product status](docs/product-status.md).
 | A first result, offline | `guardana init --starter DIR` | a failing scan, its fix, a saved run and one editable local check, with no account, key, model or network |
 | Scan code and model artifacts | `guardana scan PATH` | deterministic, offline findings |
 | Probe a model, agent, or MCP server | `guardana probe ...` | bounded active checks with graded evidence |
-| Analyze an existing execution | `guardana analyze-trace TRACE` | trace rules without opening a network connection |
+| Analyze an existing execution | `guardana analyze-trace TRACE` | trace rules over a local file, calling no model or tool |
 | Inspect available evidence | `guardana trace inspect TRACE` | recorded dimensions and policy gaps |
 | Compare releases | `guardana diff BEFORE AFTER` | deterioration, improvement, or an explicit refusal to compare |
-| Re-run checks on a schedule | `guardana monitor ...` | active monitoring against an accepted baseline |
+| Re-run checks on a schedule | `guardana monitor ...` | each cycle gated and compared with the first cycle |
 | Use verification in tests | `guardana.testing.assert_secure(...)` | the same policy as a pytest assertion |
 | Run verification from Python | `guardana.core.verify.Verifier(trust=...)` | the run `scan` or `probe` writes, as typed data, failed and stopped runs included |
 
@@ -161,7 +161,7 @@ without guessing from a short id.
 - Multi-architecture CLI and collector containers.
 - OpenTelemetry GenAI input plus LangChain, Pydantic AI, OpenAI Agents, Hermes,
   and shell-hook integration examples.
-- No account, telemetry, or network access for artifact scans.
+- No account and no telemetry; an artifact scan opens no network connection unless a `--reporter` is configured.
 - JSON Schemas for saved runs, plans, comparisons, and traces, served at the URL each
   `$id` names under `https://guardana.dev/schemas/`.
 

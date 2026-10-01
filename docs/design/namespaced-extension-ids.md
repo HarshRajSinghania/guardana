@@ -7,7 +7,7 @@ status: proposed
 
 # Namespaced extension ids: opening two closed lists without opening the typo
 
-**Status:** proposed · **Written:** 2026-09-02 · **Cycle 5 of the extensibility program** ([`audit-0.22.md`](audit-0.22.md))
+**Status:** proposed · **Written:** 2026-09-02 · **Cycle 5 of the extensibility program** ([`audit-0.22.md`](https://github.com/guardana/guardana/blob/257b6bb98be678fc387d11ea92b180882c7c6a93/docs/design/audit-0.22.md))
 
 ## Two lists, closed for one reason
 

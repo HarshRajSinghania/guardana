@@ -2,7 +2,7 @@
 title: "The assessment channel"
 nav_order: 21
 summary: "why a run that records only problems cannot answer whether anything got better, what an Assessment carries that a Finding deliberately does not, and why the passes are the half that matters"
-status: accepted
+status: implemented
 ---
 
 # The assessment channel: recording what was measured, not only what was wrong

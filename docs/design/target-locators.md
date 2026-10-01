@@ -7,7 +7,7 @@ status: implemented
 
 # Target locators: a custom target the CLI can build
 
-**Status:** implemented in 0.24.0 · **Written:** 2026-09-02 · **Cycle 1 of the extensibility program** ([`audit-0.22.md`](audit-0.22.md))
+**Status:** implemented in 0.24.0 · **Written:** 2026-09-02 · **Cycle 1 of the extensibility program** ([`audit-0.22.md`](https://github.com/guardana/guardana/blob/257b6bb98be678fc387d11ea92b180882c7c6a93/docs/design/audit-0.22.md))
 
 ## The gap
 

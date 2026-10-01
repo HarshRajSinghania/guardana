@@ -7,7 +7,7 @@ status: implemented
 
 # Quality suites: did the model get worse, on a sample we can name?
 
-**Status:** implemented in 0.29.0 · **Written:** 2026-09-02 · **Amended:** 2026-09-23 (trials, judge error) · **Cycle 2 of the extensibility program** ([`audit-0.22.md`](audit-0.22.md))
+**Status:** implemented in 0.29.0 · **Written:** 2026-09-02 · **Amended:** 2026-09-23 (trials, judge error) · **Cycle 2 of the extensibility program** ([`audit-0.22.md`](https://github.com/guardana/guardana/blob/257b6bb98be678fc387d11ea92b180882c7c6a93/docs/design/audit-0.22.md))
 
 ## The question
 

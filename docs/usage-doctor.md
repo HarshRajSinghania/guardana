@@ -58,7 +58,8 @@ It answers the questions that are otherwise guessed at:
   string suggests, and it is invisible until a rule behaves oddly.
 - **which plugins loaded, which were refused, and which failed to import.** A refused
   or failed one is a check that will not run.
-- **whether third-party rules are installed.** They are code this process imports.
+- **whether third-party rules are installed.** An admitted pack is code a run imports;
+  `doctor` reads a refused pack's metadata without importing it.
 - **which settings weaken the gate.** Each is a legitimate choice; making it
   silently is what must not happen.
 

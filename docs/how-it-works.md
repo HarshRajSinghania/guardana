@@ -60,7 +60,7 @@ flowchart LR
 
 `RuleMeta.surface` records the layer. `guardana rules` groups rules by it.
 
-**c) Three ways to run it, one engine underneath.** `scan` runs build rules. `probe` runs runtime rules once. `monitor` re-runs runtime probes on a schedule next to a served model, outside its request path. They use the same rules, findings, and report format. `diff` runs no rules; it compares two saved runs to determine whether the second is worse. The command selects the layer.
+**c) Four ways to run it, one engine underneath.** `scan` runs build rules. `probe` runs runtime rules once. `monitor` re-runs runtime probes on a schedule next to a served model, outside its request path. `analyze-trace` runs trace rules over an execution your application recorded. They use the same rules, findings, and report format. `diff` runs no rules; it compares two saved runs to determine whether the second is worse. The command selects the layer.
 
 **d) A finding is a finding.** YAML and Python checks of files and live models produce the same shape: severity, an OWASP/MITRE/NIST standards tag, evidence, and, for dynamic checks, a graded verdict with confidence. That supports one report format, policy gate, and collector.
 
@@ -187,7 +187,7 @@ Every rule needs a positive and a negative fixture: one showing it fires and one
 
 ## 7. Central monitoring, and why the collector is separate
 
-Every rule, evaluator, report format, and run mode works fully offline, with no required network beyond the target itself. For fleet-wide visibility, `--reporter server://…` forwards normalized findings in a versioned JSON envelope at schema version 8. The envelope includes `unverified`, so the collector cannot show a false all-clear. Self-hosted `guardana-server` provides ingest, list, trend, and an opt-in monitoring dashboard, with scoped API-key authentication and PostgreSQL persistence.
+A scan, a trace analysis and every report format work offline. A probe or `monitor` talks to its target, a judge configured under `evaluators:` to its own endpoint, and `--reporter` to the collector; nothing else leaves the machine. For fleet-wide visibility, `--reporter server://…` forwards normalized findings in a versioned JSON envelope at schema version 8. The envelope includes `unverified`, so the collector cannot show a false all-clear. Self-hosted `guardana-server` provides ingest, list, trend, and an opt-in monitoring dashboard, with scoped API-key authentication and PostgreSQL persistence.
 
 `guardana-core` never imports `guardana-server`, directly or transitively. An import-linter contract and a test enforce that boundary. The open-source engine runs on its own; the collector is a separate layer.
 
@@ -197,7 +197,7 @@ Every rule, evaluator, report format, and run mode works fully offline, with no 
 
 > **A security gate must never fail open. Silence is never spelled `pass`.**
 
-If a check cannot run or cannot grade its result, it returns `inconclusive` or a finding, not an all-clear. Examples include an unplanted canary, an unreachable judge, blank model output, and an unparseable file. If a profile disables every rule, the zero-rule gate fails.
+If a check cannot run or cannot grade its result, it returns `inconclusive` or a finding, not an all-clear. Examples include an unplanted canary, a judge reply that cannot be read, blank model output, and an unparseable file. A judge that cannot be reached stops the run with exit `4` instead. If a profile disables every rule, the zero-rule gate fails.
 
 A linter or type-checker cannot detect a false all-clear. Evaluators fail closed, profile loading rejects invalid gates, and the runner rejects zero-rule scans. The `unverified` channel carries checks without verdicts through the report and collector. Adversarial review checks the same invariant.
 
@@ -209,7 +209,7 @@ A linter or type-checker cannot detect a false all-clear. Evaluators fail closed
 - [`writing-rules.md`](writing-rules.md) — YAML and Python rules.
 - [`extending.md`](extending.md) — evaluators, targets, and entry points.
 - [`profiles.md`](profiles.md) — the `guardana.yaml` schema and presets.
-- [`usage-scan.md`](usage-scan.md) · [`usage-probe.md`](usage-probe.md) · [`usage-monitor.md`](usage-monitor.md) — the three run modes.
+- [`usage-scan.md`](usage-scan.md) · [`usage-probe.md`](usage-probe.md) · [`usage-monitor.md`](usage-monitor.md) · [`usage-analyze-trace.md`](usage-analyze-trace.md) — the four run modes.
 - [`usage-diff.md`](usage-diff.md) — `guardana diff`, saved-run comparison, and why "worse" needs five names rather than a bigger number.
 - [`../FEATURES.md`](../FEATURES.md) — maintained capabilities.
 - [`../SECURITY.md`](../SECURITY.md) — the trust model and `--no-plugins`.

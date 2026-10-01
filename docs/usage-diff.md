@@ -172,7 +172,8 @@ Worth knowing
     (guardana.prompt.jailbreak#b94d…) — a smaller sample, not a better result
 ```
 
-`--format json` carries the same numbers under `measurement`.
+`--format json` carries the same numbers under `measurement`. The comparison document is
+version 3, described by [`diff/v3.schema.json`](https://guardana.dev/schemas/diff/v3.schema.json).
 
 ## Was it the model, or was it the test?
 

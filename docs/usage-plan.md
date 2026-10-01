@@ -65,7 +65,7 @@ contact the system until a run or inspection starts.
 
 ## Where the numbers come from
 
-Every rule declares an upper bound on the requests it will send
+Each built-in rule shape declares an upper bound on the requests it will send
 (`Rule.estimated_requests`): a YAML rule knows how many prompts it has, a
 scenario how many steps, an agent rule its step budget. The plan sums the rules
 the profile selects and the target can satisfy — the same selection the runner

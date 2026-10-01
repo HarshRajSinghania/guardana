@@ -391,10 +391,13 @@ Trials
 Every dynamic finding's evidence pairs with a verdict: run
 `--format json` to see `outcome`, `confidence`, and `rationale` per finding.
 
-A check that ran but could not reach a verdict — an unreachable judge, an
-empty model reply — is reported separately as `? [UNVERIFIED]` (the
-`unverified` key in JSON), never silently counted as a pass; set
-`fail_on_inconclusive: true` in your profile to make it fail the gate.
+A check that ran but could not reach a verdict — an empty model reply, a
+judge reply that could not be read — is reported separately as
+`? [UNVERIFIED]` (the `unverified` key in JSON), never silently counted as a
+pass; set `fail_on_inconclusive: true` in your profile to make it fail the
+gate. A judge configured under `evaluators:` that cannot be reached stops the
+probe with exit `4` and writes no run, with `--url`, `--target` and `--mcp`
+alike ([exit codes](exit-codes.md)).
 
 ## Rules graded by an LLM judge
 

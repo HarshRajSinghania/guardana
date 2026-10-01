@@ -2,7 +2,7 @@
 title: "Capability protocols"
 nav_order: 22
 summary: "why a capability without a surface made the extension contract false for four releases, what each capability now promises as a type, and why the registry had to stop letting one plugin quietly become another"
-status: accepted
+status: implemented
 ---
 
 # Capability protocols: making the extension contract true

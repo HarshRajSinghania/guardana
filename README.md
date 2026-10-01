@@ -2,9 +2,7 @@
 
 # 🛡️ Guardana
 
-Guardana is an open-source AI security verification tool for security and platform engineers that checks model and code artifacts, live AI systems, and recorded runs, with scans that run fully offline.
-
-It probes live endpoints and MCP servers, analyzes recorded agent traces, and returns reproducible evidence and a verdict, including "could not tell". Compare each run with an accepted baseline.
+Guardana is an open-source AI security verification tool for security and platform engineers. It checks code and model artifacts, live AI systems, and recorded runs. It reports what it found, what it could not verify, and what it could not check. It verifies outside the request path; it is not an inline guardrail, a general SAST or CVE scanner, or a compliance certification.
 
 [![CI](https://github.com/guardana/guardana/actions/workflows/ci.yml/badge.svg)](https://github.com/guardana/guardana/actions/workflows/ci.yml)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/15119/badge)](https://www.bestpractices.dev/projects/15119)
@@ -21,20 +19,7 @@ It probes live endpoints and MCP servers, analyzes recorded agent traces, and re
 
 ---
 
-**51 built-in security checks. Add checks for your application.** No account, telemetry, or phone-home. Artifact scans are offline. Active checks connect to the target you choose and, when configured, an optional collector.
-
-## Why Guardana
-
-Guardana keeps four outcomes separate:
-
-- `findings`: a check reached a negative verdict;
-- `unverified`: it ran but could not decide;
-- `errors`: it could not run;
-- coverage shortfalls: required evidence was unavailable.
-
-Results that require judgment include an outcome, confidence, rationale, and evaluator identity. `guardana calibrate` measures evaluator confidence against labelled samples.
-
-An exhausted budget exits `6` and preserves its results. A comparison that cannot be made exits `2`. Missing evidence is not reported as success.
+**51 built-in security checks; add checks for your application.** The count comes from the [generated rule summary](docs/generated/rule-summary.md). Built-in artifact checks need no network. `scan --reporter server://<url>` sends results to a collector; active checks contact the target you choose. Guardana needs no account and has no automatic telemetry or phone-home.
 
 ## Quickstart
 
@@ -43,7 +28,7 @@ uvx --from guardana-cli guardana scan .   # zero-install run (uv)
 uv add guardana-cli                       # or: pip install guardana-cli
 ```
 
-The command is `guardana`; the distribution is `guardana-cli`. For a source checkout, clone and run `uv sync` as described in [`docs/install.md`](docs/install.md).
+The command is `guardana`; the distribution is `guardana-cli`. An uncached `uvx` run or an install downloads the distribution. For a source checkout, clone and run `uv sync` as described in [`docs/install.md`](docs/install.md).
 
 Start with an offline result:
 
@@ -51,11 +36,9 @@ Start with an offline result:
 guardana init --starter first-run   # a small project with one problem to find and fix
 ```
 
-Its README guides you through a failing scan, the fix, a saved run and a check of your own. You need no account, key, model or network. Then choose a recipe: [your own project](docs/recipe-local-scan.md), [a run your application recorded](docs/recipe-recorded-answers.md), or [the application your users talk to](docs/recipe-real-application.md).
+Its README walks through a failing scan, the fix, a saved run, and a check of your own. Once Guardana is installed, it needs no account, key, model, or network.
 
-Every published distribution has signed, keyless build provenance verifiable with `gh attestation verify`, plus a PEP 740 attestation on PyPI.
-
-Scan the bundled vulnerable model directory:
+Scan the bundled vulnerable model directory for another example:
 
 ```console
 $ uv run guardana scan examples/vulnerable-model
@@ -85,44 +68,53 @@ guardana probe --url http://localhost:11434 --model llama3 --preset ci --output 
 guardana diff accepted-run.json run.json   # 0 nothing worse · 1 it is · 2 cannot tell
 ```
 
-The same rules, policy, redaction, and gate work in tests ([`docs/usage-testing.md`](docs/usage-testing.md)):
+Choose a guide for [your own project](docs/recipe-local-scan.md), [a run your application recorded](docs/recipe-recorded-answers.md), or [the application your users talk to](docs/recipe-real-application.md).
 
-```python
-from guardana.adapters.langchain import langchain_target
-from guardana.testing import assert_secure
+Every published distribution has signed, keyless build provenance verifiable with `gh attestation verify`, plus a PEP 740 attestation on PyPI.
 
+## What it checks
 
-def test_the_repository_ships_no_dangerous_artifact():
-    assert_secure("models", preset="ci")
+The [generated rule summary](docs/generated/rule-summary.md) counts 51 built-in rules: 19 artifact rules and 32 runtime rules. The runtime rules span live endpoints, live MCP servers, and recorded traces. A single endpoint does not exercise all 32. Rules map to both editions of the OWASP LLM Top 10, the OWASP Top 10 for Agentic Applications, the OWASP MCP Top 10, OWASP ML Top 10, MITRE ATLAS v5.6.0, and NIST AI 100-2e2025. References include their edition.
 
+| Family | Rules | Surface | What it covers |
+|---|---|---|---|
+| `guardana.supply_chain.*` | 16 | build | unsafe loading, remote code, model formats, dependencies, transport, secrets, and provenance |
+| `guardana.prompt.*` | 7 | build + runtime | hidden instructions, tool poisoning, injection, jailbreaks, prompt leakage, and resource consumption |
+| `guardana.agent.*` | 7 | runtime | tool-result injection, credential exfiltration, broad arguments, excessive use, memory poisoning, tool schemas, and MCP server manifests |
+| `guardana.mcp.*` | 8 | runtime | authentication, discovery, audience, session, scope, issuer, and cache handling |
+| `guardana.trace.*` | 9 | runtime | recorded credential, identity, consent, policy, approval, retrieval, effect, and handoff boundaries |
+| `guardana.scenario.*` | 2 | runtime | multi-turn jailbreak and indirect-injection scenarios |
+| `guardana.output.*` | 1 | runtime | secrets in model output |
+| `guardana.training.*` | 1 | build | training-data integrity |
 
-def test_the_agent_keeps_its_instructions_to_itself(chat_model):
-    assert_secure(langchain_target(chat_model, system_prompt=SYSTEM), preset="ci")
-```
+The 19 static rules need no model or network. The generated [rule catalog](docs/generated/rule-catalog.md) lists built-in rule ids, severities, surfaces, and framework mappings. `guardana rules` shows rules admitted in the current installation, including trusted third-party rules. See [`FEATURES.md`](FEATURES.md) for the capability overview and the [generated detection limits](docs/generated/detection-limits.md) for what each finding establishes.
 
-To read a run as data instead of asserting on it, [`guardana.core.verify`](docs/python-api.md) returns what `scan` and `probe` write, failed and stopped runs included.
+## How results gate a run
 
-### Before active testing
+Guardana keeps four outcomes separate:
 
-Probes send real requests and can cost money or trigger provider abuse detection. Prefer staging. Guardana sends tool calls to doubles, but the surrounding application can still act on a model response. Evidence may contain sensitive text and is redacted by default. `guardana monitor` re-runs active probes on a schedule. See [`docs/safe-testing.md`](docs/safe-testing.md) and [`docs/privacy.md`](docs/privacy.md).
+- `findings`: a check reached a negative verdict;
+- `unverified`: it ran but could not decide;
+- `errors`: it could not run;
+- coverage shortfalls: required evidence was unavailable, or the scan observed a model file that no running rule examined.
 
-## What you do with it
+Results that require judgment include an outcome, confidence, rationale, and evaluator identity. `guardana calibrate` measures evaluator confidence against labelled samples. An exhausted budget exits `6` and preserves its results. A comparison that cannot be made exits `2`. Missing evidence is not reported as success.
 
-Guardana verifies artifacts, deployed systems, and recorded evidence.
+## Use it in CI and your application
+
+Guardana verifies artifacts, deployed systems, and recorded evidence:
 
 | Verb | Command | What it does |
 |---|---|---|
-| **Verify artifacts** | [`guardana scan <path>`](docs/usage-scan.md) | Static, offline checks for code and model artifacts. |
-| **Verify a deployed system** | [`guardana probe --url … --model …`](docs/usage-probe.md) | Bounded active checks against a model, agent, or MCP server. |
-| **Verify a recorded run** | [`guardana analyze-trace trace.jsonl`](docs/usage-analyze-trace.md) | Checks OpenTelemetry GenAI spans against built-ins and your [security contract](docs/usage-contracts.md), without opening a socket. |
+| **Verify artifacts** | [`guardana scan <path>`](docs/usage-scan.md) | Static checks for code and model artifacts; offline without a reporter. |
+| **Verify a deployed system** | [`guardana probe --url … --model …`](docs/usage-probe.md) | Active checks against a model, agent, or MCP server. |
+| **Verify a recorded run** | [`guardana analyze-trace trace.jsonl`](docs/usage-analyze-trace.md) | Checks a recorded execution, as OpenTelemetry GenAI spans or Guardana's native trace format, against built-ins and your [security contract](docs/usage-contracts.md); offline without a reporter. |
 | **Inspect available evidence** | [`guardana trace inspect trace.jsonl`](docs/usage-trace-inspect.md) | Shows recorded evidence dimensions and policy gaps. |
-| **Continuously re-verify** | [`guardana monitor --url … --model …`](docs/usage-monitor.md) | Re-runs active checks on a schedule and alerts when a cycle is worse than the first. |
+| **Continuously re-verify** | [`guardana monitor --url … --model …`](docs/usage-monitor.md) | Re-runs active checks on a schedule and compares each cycle with the first cycle, not an accepted saved-run baseline. |
 | **Compare evidence** | [`guardana diff a.json b.json`](docs/usage-diff.md) | Reports whether the later saved run is worse, or refuses an invalid comparison. |
 | **Import external observations** | [`guardana import-observations results.json`](docs/usage-import-observations.md) | Imports garak, promptfoo, or custom results as `unverified`, with provenance. It never exits `0` because Guardana verified nothing. |
 
-`scan`, `probe`, `monitor`, and `analyze-trace` can send findings to an optional collector with `--reporter server://<url>`. Other commands cover planning, capability inspection, configuration, baselines, run inspection, rule testing, and extension packs. See [`docs/index.md`](docs/index.md).
-
-Exit codes have eight documented meanings, tested against [`docs/exit-codes.md`](docs/exit-codes.md). CI does not need to parse console text.
+`scan`, `probe`, `monitor`, and `analyze-trace` can send findings to an optional collector with `--reporter server://<url>`. Other commands cover planning, capability inspection, configuration, baselines, run inspection, rule testing, and extension packs. See [`docs/index.md`](docs/index.md). Exit codes have eight documented meanings, tested against [`docs/exit-codes.md`](docs/exit-codes.md); CI does not need to parse console text.
 
 ### GitHub Actions
 
@@ -143,30 +135,52 @@ jobs:
         #   args: --preset ci --baseline guardana-baseline.yaml
 ```
 
-A pre-commit hook and templates for GitLab, Jenkins, and Azure DevOps are in [`docs/integrations.md`](docs/integrations.md).
+Both `actions/checkout@v4` and `guardana/guardana@v0.34` are moving tags. Replace them with full commit SHAs if your workflow requires pinned actions. The published Guardana Action pins the actions it calls by SHA; that does not pin these two references in your workflow. A pre-commit hook and templates for GitLab, Jenkins, and Azure DevOps are in [`docs/integrations.md`](docs/integrations.md).
 
-## What it checks
+### Tests and Python
 
-51 built-in rules map to both editions of the OWASP LLM Top 10, the OWASP Top 10 for Agentic Applications, the OWASP MCP Top 10, OWASP ML Top 10, MITRE ATLAS v5.6.0, and NIST AI 100-2e2025. References include their edition.
+The same rules, policy, redaction, and gate work in tests ([`docs/usage-testing.md`](docs/usage-testing.md)):
 
-| Family | Rules | Surface | What it covers |
-|---|---|---|---|
-| `guardana.supply_chain.*` | 16 | build | unsafe loading, remote code, model formats, dependencies, transport, secrets, and provenance |
-| `guardana.prompt.*` | 7 | build + runtime | hidden instructions, tool poisoning, injection, jailbreaks, prompt leakage, and resource consumption |
-| `guardana.agent.*` | 7 | runtime | tool-result injection, credential exfiltration, broad arguments, excessive use, memory poisoning, tool schemas, and MCP server manifests |
-| `guardana.mcp.*` | 8 | runtime | authentication, discovery, audience, session, scope, issuer, and cache handling |
-| `guardana.trace.*` | 9 | runtime | recorded credential, identity, consent, policy, approval, retrieval, effect, and handoff boundaries |
-| `guardana.scenario.*` | 2 | runtime | multi-turn jailbreak and indirect-injection scenarios |
-| `guardana.output.*` | 1 | runtime | secrets in model output |
-| `guardana.training.*` | 1 | build | training-data integrity |
+```python
+from guardana.adapters.langchain import langchain_target
+from guardana.testing import assert_secure
 
-The static 19 (`artifact` surface) need no model or network. The dynamic 32 (`endpoint` and `trace` surfaces) grade a live model, a live MCP server, or a recorded execution.
 
-The generated [rule catalog](docs/generated/rule-catalog.md) lists each installed rule id, severity, and framework mapping, including third-party rules. `guardana rules` prints the same registry. See [`FEATURES.md`](FEATURES.md) for the capability overview.
+def test_the_repository_ships_no_dangerous_artifact():
+    assert_secure("models", preset="ci")
 
-## Where Guardana fits
 
-Guardana works beside security and evaluation tools.
+def test_the_agent_keeps_its_instructions_to_itself(chat_model):
+    assert_secure(langchain_target(chat_model, system_prompt=SYSTEM), preset="ci")
+```
+
+To read a run as data instead of asserting on it, the supported [`guardana.core.verify`](docs/python-api.md) API returns what `scan` and `probe` write, including failed and budget-stopped outcomes. Python callers must state plugin trust. Quality suites gate answer quality on team-supplied versioned datasets; see the [quality-suite guide](docs/usage-suites.md).
+
+### Before active testing
+
+Probes send real requests and can cost money or trigger provider abuse detection. The default profile sets no request or cost ceiling; opt into a budget before using a paid target. Prefer staging. Guardana sends tool calls to doubles, but the surrounding application can still act on a model response. Evidence may contain sensitive text and is redacted by default. `guardana monitor` re-runs active probes on a schedule. See [`docs/safe-testing.md`](docs/safe-testing.md), [`docs/privacy.md`](docs/privacy.md), and [`docs/profiles.md`](docs/profiles.md).
+
+## Extend it for your application
+
+The 51 built-ins cover shared risks. Add rules for your data, tools, permissions, and business rules. Guardana has five extension points: **Target, Rule, Evaluator, Report/Finding, and Profile**. A shared registry discovers extensions from Guardana and private packages.
+
+By default, Guardana loads only its own distributions. It refuses an installed third-party pack before importing it and records the refusal as an error. Under the default gate, a run with a refused pack is `indeterminate`, even if that run did not select its rules. Admit a reviewed pack by distribution name with `--plugins allowlist --allow-plugin`, or configure `plugins:` in a profile. `guardana doctor` shows what would load. Admitted Python packs run with your privileges; see [`SECURITY.md`](SECURITY.md).
+
+- **Rules** express prohibited behavior in YAML or Python. [`docs/writing-rules.md`](docs/writing-rules.md) explains both forms; `guardana new-rule` scaffolds one.
+- **Security contracts** describe application invariants such as tenant boundaries, required approval, allowed scopes, and credential boundaries ([`docs/usage-contracts.md`](docs/usage-contracts.md)).
+- **Evaluators** control how replies are graded. Configuration supports `llm_judge` through an OpenAI-compatible endpoint and the optional `guard` classifier.
+- **Targets** connect installed, trusted systems through a declared locator scheme.
+- **Taxonomies** let a package register its own control set.
+
+[`examples/custom_rule/`](examples/custom_rule/) is a working third-party package. The `guardana-core` library supports embedding the engine without the CLI. See [`docs/extending.md`](docs/extending.md) and [`docs/architecture.md`](docs/architecture.md). The extension API remains pre-1.0; compatibility details are in [`docs/product-status.md`](docs/product-status.md).
+
+## Maturity and limits
+
+The engine, built-in rules, CLI workflows, supported Python verification API, quality suites, and optional collector are beta. The extension API is unstable. Read [`docs/product-status.md`](docs/product-status.md) before using Guardana as a security gate.
+
+Guardana's agent harness tests a model with Guardana's scripted tools; it does not exercise your agent's own framework and tools. Trace analysis checks an execution your application recorded. `monitor` samples by running active checks; it does not inspect production traffic. A scan of an empty directory can pass, and a release preset needs rules selected for the target's capabilities. The current checks cover text, not image, PDF, audio, or document carriers. Provider compatibility and judge-graded verdicts need validation for your deployment.
+
+### Where Guardana fits
 
 | Category | Examples | Guardana's relationship |
 |---|---|---|
@@ -179,28 +193,12 @@ Guardana works beside security and evaluation tools.
 
 A run records what was checked, what could not be checked, and the sample used. This distinguishes fewer findings from less coverage and prevents an invalid comparison from appearing as no change.
 
-## Extend it for your application
-
-The 51 built-ins cover shared risks. Add rules for your data, tools, permissions, and business rules.
-
-Guardana has five extension points: **Target, Rule, Evaluator, Report/Finding, and Profile**. A shared registry discovers extensions from Guardana or private packages.
-
-- **Rules** express prohibited behavior in YAML or Python. [`docs/writing-rules.md`](docs/writing-rules.md) explains both forms; `guardana new-rule` scaffolds one.
-- **Security contracts** describe application invariants such as tenant boundaries, required approval, allowed scopes, and credential boundaries ([`docs/usage-contracts.md`](docs/usage-contracts.md)).
-- **Evaluators** control how replies are graded. Configuration supports `llm_judge` through an OpenAI-compatible endpoint and the optional `guard` classifier.
-- **Targets** connect installed, trusted systems through a declared locator scheme.
-- **Taxonomies** let a package register its own control set.
-
-[`examples/custom_rule/`](examples/custom_rule/) is a working third-party package. The `guardana-core` library supports embedding the engine without the CLI. See [`docs/extending.md`](docs/extending.md) and [`docs/architecture.md`](docs/architecture.md). The extension API remains pre-1.0; compatibility details are in [`docs/product-status.md`](docs/product-status.md).
-
-## Central monitoring — self-hosted or managed
+## Central monitoring — self-hosted
 
 The collector is optional. Local and CI verification do not depend on it. For shared visibility, runs can send normalized findings to self-hosted `guardana-server`, backed by PostgreSQL with an opt-in dashboard.
 
-> **Maturity: beta.** Finding routes require scoped API keys. Projects cannot read each other's data, and keys can be pinned to an environment. Findings have audited lifecycle states and expiring waivers. Operators control retention and deletion.
-> **Still missing: RBAC and human identities.** The dashboard uses a read-scoped session rather than a human identity.
-> [`docs/usage-collector.md`](docs/usage-collector.md) ·
-> [`docs/deployment.md`](docs/deployment.md)
+> **Maturity: beta.** Finding routes require scoped API keys. Projects cannot read each other's data, and keys can be pinned to an environment. Findings have audited lifecycle states and expiring waivers. Operators control retention and deletion. The dashboard uses a read-scoped session; it has no human identities or RBAC.
+> [`docs/usage-collector.md`](docs/usage-collector.md) · [`docs/deployment.md`](docs/deployment.md)
 
 The engine and built-in rules are Apache-2.0. See the project [principles](CLAUDE.md) and [roadmap](ROADMAP.md).
 
@@ -209,15 +207,18 @@ The engine and built-in rules are Apache-2.0. See the project [principles](CLAUD
 - [`docs/index.md`](docs/index.md) — documentation map
 - [`docs/product-status.md`](docs/product-status.md) — maturity and known limits
 - [`docs/how-it-works.md`](docs/how-it-works.md) — product overview
-- [`docs/install.md`](docs/install.md) · [`docs/profiles.md`](docs/profiles.md) · [`docs/exit-codes.md`](docs/exit-codes.md)
+- [`docs/install.md`](docs/install.md) · [`docs/usage-init.md`](docs/usage-init.md) · [`docs/profiles.md`](docs/profiles.md) · [`docs/exit-codes.md`](docs/exit-codes.md)
+- [`docs/usage-suites.md`](docs/usage-suites.md) · [`docs/python-api.md`](docs/python-api.md) — quality suites and supported Python API
 - [`docs/threat-model.md`](docs/threat-model.md) · [`docs/privacy.md`](docs/privacy.md) · [`docs/safe-testing.md`](docs/safe-testing.md)
 - [`ROADMAP.md`](ROADMAP.md) · [`CHANGELOG.md`](CHANGELOG.md)
 
+## Security
+
+Report suspected vulnerabilities privately through [`SECURITY.md`](SECURITY.md), never public issues. Review third-party Python packs before admitting them; the security policy explains plugin trust and supported versions.
+
 ## Contributing
 
-New rules are useful. Each new rule must map to a standard and include a positive and a negative fixture.
-
-[`CONTRIBUTING.md`](CONTRIBUTING.md) covers contributors; [`CLAUDE.md`](CLAUDE.md) covers AI agents. Report security issues through [`SECURITY.md`](SECURITY.md), never public issues.
+New rules are useful. Each new rule must map to a standard and include a positive and a negative fixture. [`CONTRIBUTING.md`](CONTRIBUTING.md) covers contributors; [`CLAUDE.md`](CLAUDE.md) covers AI agents.
 
 ## Related project: Guardana Control
 
