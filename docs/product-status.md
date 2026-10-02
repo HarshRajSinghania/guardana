@@ -97,11 +97,17 @@ sizes and confidence bounds a trend needs to be honest, is the next horizon.
 ### RAG coverage is a slice, not a story
 
 `scenario.indirect_injection` tests the shape of retrieval-time injection through
-a scripted context. There is no live retriever target.
-`guardana.trace.cross_tenant_retrieval` grades cross-tenant retrieval from a
-recorded trace, not against a live vector store. Document poisoning and
-tenant-filter bypass have no rules and are not tested. Live RAG targets remain an
-open item in `ROADMAP.md`.
+a scripted context. `guardana.trace.cross_tenant_retrieval` grades cross-tenant
+retrieval from a recorded trace. With [`--fixtures`](usage-fixtures.md),
+`guardana.tenancy.cross_tenant_answer` and `guardana.retrieval.poisoned_document` ask
+through the application's own index as each tenant; they see what reached a reply, not
+what was retrieved, and Guardana never queries a vector store itself.
+
+Both checks are verified against a reference application,
+[`examples/retrieval_pilot/`](../examples/retrieval_pilot/), whose tests run them with a
+broken tenant filter, an obeying model, a partly seeded index and the fixed application
+on every CI run. It is a reference, not a team's own retrieval target: until one has run
+them, the retrieval pilot stays open in `ROADMAP.md`.
 
 ### Text only
 

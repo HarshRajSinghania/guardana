@@ -14,6 +14,10 @@ Why: `docs/maintainers/lessons.md` § Rules and seams.
   groups), `hermes_integrator` (producer: a third party's entry-point group, one file per
   session) and `shell_hook_integrator` (producer: a command spawned per event, three processes
   sharing a file — the only gate that exercises `resume_trace` across real process boundaries).
+- **`retrieval_pilot` is a fourth isolated suite, not an extension**: a reference application
+  served on a local port, probed through the installed CLI with `--fixtures`. It runs only the
+  two checks over seeded data (its `guardana.yaml`), because its "model" is a stand-in; keep it
+  free of a vector store or model library.
 - **Run them isolated and with `--no-cache`**: `uv run --isolated --no-cache --with
   ./packages/guardana-core … --with ./examples/<name> --with pytest pytest
   examples/<name>/tests -q`. A cached wheel hides exactly the data files (`guardana-pack.yaml`,

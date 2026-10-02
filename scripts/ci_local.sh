@@ -125,8 +125,12 @@ step "Example hermes"      uv run --isolated --no-cache \
 step "Example shell_hook"  uv run --isolated --no-cache \
   --with ./packages/guardana-core --with ./packages/guardana-rules \
   --with ./examples/shell_hook_integrator --with pytest pytest examples/shell_hook_integrator/tests
+step "Example retrieval_pilot" uv run --isolated --no-cache \
+  --with ./packages/guardana-core --with ./packages/guardana-rules \
+  --with ./packages/guardana-cli --with ./packages/guardana-report \
+  --with ./examples/retrieval_pilot --with pytest pytest examples/retrieval_pilot/tests
 
-# The fourth: the three above prove a hand-written pack still works, this one proves
+# The first three above prove a hand-written pack still works, this one proves
 # the command that writes one from nothing does.
 step "New pack"           uv run python scripts/new_pack_check.py
 

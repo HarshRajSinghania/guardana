@@ -391,11 +391,16 @@ the run document from 0.22.0; carrying them into the collector, with the sample
 sizes and confidence bounds a trend needs to be honest, is the next horizon.</p>
 <h3 id="rag-coverage-is-a-slice-not-a-story">RAG coverage is a slice, not a story</h3>
 <p><code>scenario.indirect_injection</code> tests the shape of retrieval-time injection through
-a scripted context. There is no live retriever target.
-<code>guardana.trace.cross_tenant_retrieval</code> grades cross-tenant retrieval from a
-recorded trace, not against a live vector store. Document poisoning and
-tenant-filter bypass have no rules and are not tested. Live RAG targets remain an
-open item in <code>ROADMAP.md</code>.</p>
+a scripted context. <code>guardana.trace.cross_tenant_retrieval</code> grades cross-tenant
+retrieval from a recorded trace. With <a href="usage-fixtures.html"><code>--fixtures</code></a>,
+<code>guardana.tenancy.cross_tenant_answer</code> and <code>guardana.retrieval.poisoned_document</code> ask
+through the application's own index as each tenant; they see what reached a reply, not
+what was retrieved, and Guardana never queries a vector store itself.</p>
+<p>Both checks are verified against a reference application,
+<a href="https://github.com/guardana/guardana/tree/main/examples/retrieval_pilot"><code>examples/retrieval_pilot/</code></a>, whose tests run them with a
+broken tenant filter, an obeying model, a partly seeded index and the fixed application
+on every CI run. It is a reference, not a team's own retrieval target: until one has run
+them, the retrieval pilot stays open in <code>ROADMAP.md</code>.</p>
 <h3 id="text-only">Text only</h3>
 <p>No image, PDF, audio or document carriers. Injection through an image or a PDF an
 agent reads is a real attack class and is <strong>not covered</strong>. <code>ROADMAP.md</code> lists

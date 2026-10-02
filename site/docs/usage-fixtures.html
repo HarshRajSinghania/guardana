@@ -284,6 +284,9 @@ so a reply can be checked for whose data reached it.</p>
 </code></pre>
 <p>You ingest <code>seed/documents.jsonl</code> into your application's index yourself, the way your
 application ingests any document. Guardana never writes into the index.</p>
+<p><a href="https://github.com/guardana/guardana/tree/main/examples/retrieval_pilot"><code>examples/retrieval_pilot/</code></a> is a small reference application
+that runs the whole loop: render, seed, probe with <code>--fixtures</code>, read the doubles' trace,
+with a switch for each failure the checks catch.</p>
 <h2 id="the-file">The file</h2>
 <pre><code class="language-yaml">schema_version: 1
 name: support-bot

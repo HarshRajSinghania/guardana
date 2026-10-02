@@ -227,7 +227,21 @@ jobs:
           --with pytest
           pytest examples/shell_hook_integrator/tests -q
 
-      # The three steps above prove a hand-written pack still works. This one proves
+      # A reference application served on a local port: the probe drives the installed CLI
+      # against it as a team would in CI, so the two checks over seeded data, their
+      # controls and the doubles' trace are proven against a real HTTP endpoint.
+      - name: Run the reference retrieval application's tests against an installed Guardana
+        run: >
+          uv run --isolated --no-cache
+          --with ./packages/guardana-core
+          --with ./packages/guardana-rules
+          --with ./packages/guardana-cli
+          --with ./packages/guardana-report
+          --with ./examples/retrieval_pilot
+          --with pytest
+          pytest examples/retrieval_pilot/tests
+
+      # The first three example steps prove a hand-written pack still works. This one proves
       # the command that writes a pack from nothing does — installed, validated and
       # graded, with its own detector checked against a manifest that lies.
       - name: Scaffold a pack and prove it installs, validates and grades

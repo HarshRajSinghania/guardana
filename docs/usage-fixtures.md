@@ -19,6 +19,10 @@ guardana fixtures render guardana-fixtures.yaml --out seed/   # write seed/docum
 You ingest `seed/documents.jsonl` into your application's index yourself, the way your
 application ingests any document. Guardana never writes into the index.
 
+[`examples/retrieval_pilot/`](../examples/retrieval_pilot/) is a small reference application
+that runs the whole loop: render, seed, probe with `--fixtures`, read the doubles' trace,
+with a switch for each failure the checks catch.
+
 ## The file
 
 ```yaml
