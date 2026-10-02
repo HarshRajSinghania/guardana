@@ -21,7 +21,7 @@ and the gate is `indeterminate` — exit `2`.
 
 ```
 $ guardana import-observations garak.report.jsonl
-imported 2 claim(s) from garak 0.13.1 via garak from garak.report.jsonl into the
+imported 2 claim(s) from garak 0.17.0 via garak from garak.report.jsonl into the
   unverified channel — Guardana did not send these prompts and has not graded them
 note: 1 result(s) the producer marked as passing were not imported — a pass is not a finding
 note: 2 record(s) were setup or raw-attempt records, not verdicts, and were not imported
@@ -66,10 +66,16 @@ Detected from the file's structure rather than its name; `--producer` overrides.
 
 A `*.report.jsonl` file. `eval` records are the verdicts.
 
-- `fails > 0` → one claim, `failed`.
+- `fails > 0` → one claim, `failed`. A record from garak before 0.14 states `passed` and
+  `total` instead; `total` counts passed and failed outputs, so the failures are the
+  difference.
 - **`nones > 0` → its own claim, `undecided`.** That field is garak telling you its own
-  detector could not score an output. An importer reading only `passed` and `total` folds
-  those into passes, which is the same mistake Guardana refuses to make about itself.
+  detector could not score an output; neither `total` nor `total_evaluated` counts it, and
+  `total_processed` does. An importer reading only `passed` and the total folds those into
+  passes, which is the same mistake Guardana refuses to make about itself.
+- A record whose counts do not add up to its totals, that scored no output, or that states
+  no undecided count (garak always writes `nones`) is reported unreadable, never counted as
+  clean.
 - A clean `eval` is **counted, not imported** — two hundred passing probes in the
   unverified channel would bury the four that matter.
 - `attempt` records are the raw exchanges behind an `eval` and are not imported; importing

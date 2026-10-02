@@ -32,7 +32,7 @@ from guardana.core.trace.claims import claims_of
 _GARAK = [
     {
         "entry_type": "start_run setup",
-        "garak_version": "0.13.1",
+        "garak_version": "0.17.0",
         "start_time": "2026-08-08T20:15:00+00:00",
     },
     {"entry_type": "attempt", "uuid": "a1", "status": 2, "probe_classname": "dan.Dan_11_0"},
@@ -44,6 +44,7 @@ _GARAK = [
         "fails": 2,
         "nones": 0,
         "total_evaluated": 5,
+        "total_processed": 5,
     },
     {
         "entry_type": "eval",
@@ -52,7 +53,8 @@ _GARAK = [
         "passed": 10,
         "fails": 0,
         "nones": 2,
-        "total_evaluated": 12,
+        "total_evaluated": 10,
+        "total_processed": 12,
     },
     {
         "entry_type": "eval",
@@ -62,6 +64,7 @@ _GARAK = [
         "fails": 0,
         "nones": 0,
         "total_evaluated": 8,
+        "total_processed": 8,
     },
 ]
 
@@ -87,7 +90,7 @@ def test_garak_failing_detectors_become_claims_and_clean_ones_are_only_counted(
     assert outcomes["dan.Dan_11_0/dan.DAN"] is ObservedOutcome.FAILED
     assert read.passed == 1
     assert read.skipped_metadata == 2
-    assert read.provenance.producer_version == "0.13.1"
+    assert read.provenance.producer_version == "0.17.0"
     assert read.provenance.recorded_at is not None
 
 
@@ -112,20 +115,25 @@ def test_a_garak_entry_type_this_build_does_not_know_is_reported_not_ignored(
     assert "verdict_v2" in read.unreadable[0]
 
 
-def test_garak_fails_are_derived_when_the_record_states_only_passes_and_the_total(
+def test_garak_fails_are_derived_from_passes_and_a_total_that_leaves_out_the_nones(
     tmp_path: Path,
 ) -> None:
+    """garak before 0.14 writes `passed`, `nones` and `total`, which is passed plus failed."""
     record = {
         "entry_type": "eval",
         "probe": "p",
         "detector": "d",
         "passed": 1,
-        "nones": 0,
-        "total_evaluated": 4,
+        "nones": 2,
+        "total": 4,
     }
     read = read_observations(_jsonl(tmp_path, [record]), ObservationDialect.GARAK)
-    assert [o.outcome for o in read.observations] == [ObservedOutcome.FAILED]
+    assert [o.outcome for o in read.observations] == [
+        ObservedOutcome.FAILED,
+        ObservedOutcome.UNDECIDED,
+    ]
     assert "3 of 4" in (read.observations[0].detail or "")
+    assert read.unreadable == ()
 
 
 def test_a_garak_eval_record_stating_no_outcome_is_unreadable_never_passed(
@@ -140,7 +148,9 @@ def test_a_garak_eval_record_stating_no_outcome_is_unreadable_never_passed(
     assert "states no failure count" in read.unreadable[0]
 
 
-@pytest.mark.parametrize("field", ["fails", "nones", "passed", "total_evaluated"])
+@pytest.mark.parametrize(
+    "field", ["fails", "nones", "passed", "total", "total_evaluated", "total_processed"]
+)
 def test_a_garak_verdict_field_of_the_wrong_type_is_unreadable_rather_than_dropped(
     tmp_path: Path, field: str
 ) -> None:
@@ -166,9 +176,17 @@ def test_a_garak_verdict_field_of_the_wrong_type_is_unreadable_rather_than_dropp
     "counts",
     [
         {"passed": 5, "nones": 0, "total_evaluated": 3},
-        {"passed": 2, "nones": 2, "total_evaluated": 3},
+        {"passed": 2, "fails": 2, "nones": 0, "total_evaluated": 3},
         {"passed": 1, "fails": -2, "total_evaluated": 1},
         {"fails": 1, "nones": -1, "total_evaluated": 1},
+        {"fails": 0, "passed": 2, "nones": 0, "total_evaluated": 10},
+        {"passed": 3, "fails": 1, "nones": 1, "total_evaluated": 4, "total_processed": 6},
+        {"passed": 0, "nones": 0, "total_evaluated": 0},
+        {"passed": 0, "fails": 0, "nones": 0},
+        {"fails": 0},
+        {"fails": 5, "total": 3},
+        {"passed": 5, "fails": 0, "nones": 0, "total": 10, "total_evaluated": 5},
+        {"fails": 3, "nones": 0, "total_processed": 1},
     ],
 )
 def test_a_garak_record_whose_counts_cannot_all_be_true_is_unreadable_not_a_claim(
@@ -383,3 +401,34 @@ def test_a_document_over_the_ceiling_is_refused_whatever_its_size_on_disk_said(
 
     with pytest.raises(TraceLoadError, match="ceiling"):
         read_observations(path, ObservationDialect.GENERIC)
+
+
+def test_a_garak_record_that_states_no_undecided_count_is_never_counted_clean(
+    tmp_path: Path,
+) -> None:
+    """Both garak shapes write `nones`; a record without it may hide an unscored output."""
+    record = {"entry_type": "eval", "probe": "p", "detector": "d", "passed": 5, "total": 5}
+    read = read_observations(_jsonl(tmp_path, [record]), ObservationDialect.GARAK)
+    assert read.passed == 0
+    assert read.observations == ()
+    assert len(read.unreadable) == 1
+    assert "no undecided count" in read.unreadable[0]
+
+
+def test_a_missing_undecided_count_is_derived_from_the_processed_total(tmp_path: Path) -> None:
+    record = {
+        "entry_type": "eval",
+        "probe": "p",
+        "detector": "d",
+        "passed": 5,
+        "fails": 1,
+        "total_evaluated": 6,
+        "total_processed": 8,
+    }
+    read = read_observations(_jsonl(tmp_path, [record]), ObservationDialect.GARAK)
+    assert [o.outcome for o in read.observations] == [
+        ObservedOutcome.FAILED,
+        ObservedOutcome.UNDECIDED,
+    ]
+    assert "1 of 6 scored output(s)" in (read.observations[0].detail or "")
+    assert read.unreadable == ()

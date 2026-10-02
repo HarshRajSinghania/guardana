@@ -21,7 +21,7 @@ from typer.testing import CliRunner, Result
 runner = CliRunner()
 
 _GARAK = [
-    {"entry_type": "start_run setup", "garak_version": "0.13.1"},
+    {"entry_type": "start_run setup", "garak_version": "0.17.0"},
     {
         "entry_type": "eval",
         "probe": "dan.Dan_11_0",
@@ -30,6 +30,7 @@ _GARAK = [
         "fails": 2,
         "nones": 0,
         "total_evaluated": 5,
+        "total_processed": 5,
     },
     {
         "entry_type": "eval",
@@ -39,6 +40,7 @@ _GARAK = [
         "fails": 0,
         "nones": 0,
         "total_evaluated": 5,
+        "total_processed": 5,
     },
 ]
 _PROMPTFOO = {
@@ -88,7 +90,7 @@ def test_a_claim_lands_in_the_unverified_channel_with_its_provenance(tmp_path: P
     assert claim["verdict"]["outcome"] == "inconclusive"
     assert claim["verdict"]["evaluator_id"] == "imported:garak"
     assert claim["taxonomy"] == []
-    assert "garak 0.13.1" in claim["evidence"]["detail"]
+    assert "garak 0.17.0" in claim["evidence"]["detail"]
 
 
 def test_the_results_the_producer_passed_are_counted_rather_than_imported(tmp_path: Path) -> None:
