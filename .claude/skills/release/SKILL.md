@@ -32,6 +32,12 @@ else. Preview with `--dry-run`.
 
 ## Before the bump
 
+Read the open GitHub alerts, at the start of the cycle and again before the release commit:
+`gh api 'repos/guardana/guardana/code-scanning/alerts?state=open'` (CodeQL) and
+`gh api 'repos/guardana/guardana/dependabot/alerts?state=open'`, beside the open Dependabot
+PRs. Fix a real alert in code; it closes as fixed once `main` is scanned. Dismissing one on
+GitHub is the owner's call — ask once, with a recommendation and the reason you would give.
+
 `bump_version.py` rewrites every pin and version marker it can discover, and it refuses to run
 if a required marker has gone missing. What it cannot write is prose:
 
