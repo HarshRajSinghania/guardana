@@ -6,11 +6,16 @@ import pytest
 from guardana.core import dataset as dataset_module
 from guardana.core.dataset import (
     DATASET_FORMAT,
+    DatasetCase,
     DatasetError,
+    RegressionPair,
     read_dataset,
+    render_case,
+    render_header,
     resolve_dataset_path,
 )
 from guardana.core.target import ChatMessage
+from jsonschema import Draft202012Validator
 
 HEADER = {"guardana_dataset": DATASET_FORMAT, "name": "support-golden", "version": "2026.09"}
 STRING_CASE = {
@@ -122,7 +127,7 @@ def test_a_header_with_an_extra_key_is_refused(tmp_path: Path) -> None:
 
 
 def test_a_header_from_another_format_is_refused_as_another_version(tmp_path: Path) -> None:
-    path = _write(tmp_path / "golden.jsonl", {**HEADER, "guardana_dataset": 2}, STRING_CASE)
+    path = _write(tmp_path / "golden.jsonl", {**HEADER, "guardana_dataset": 3}, STRING_CASE)
 
     message = _refusal(path)
 
@@ -352,3 +357,144 @@ def test_a_key_repeated_on_a_line_is_refused_rather_than_resolved_to_the_last(
 ) -> None:
     path = _write(tmp_path / "d.jsonl", HEADER, raw_lines=('{"input": "a", "input": "b"}',))
     assert _refusal(path).endswith("d.jsonl:2: the key input appears twice on the line")
+
+
+PAIR_CASE = {
+    **STRING_CASE,
+    "tags": ["regression", "label:no-reset-link"],
+    "observed": "I cannot help with passwords.",
+    "accepted": "Open Settings and request a reset link.",
+}
+_SCHEMAS = Path(__file__).resolve().parents[3] / "schemas"
+
+
+def _validator(version: int) -> Draft202012Validator:
+    schema = json.loads((_SCHEMAS / f"dataset-v{version}.schema.json").read_text("utf-8"))
+    return Draft202012Validator(schema)
+
+
+def test_a_format_2_case_carries_its_regression_pair(tmp_path: Path) -> None:
+    path = _write(tmp_path / "golden.jsonl", HEADER, PAIR_CASE, STRING_CASE)
+
+    loaded = read_dataset(path)
+    regression, plain = loaded.cases
+
+    assert loaded.format == 2
+    assert regression.pair == RegressionPair(
+        observed="I cannot help with passwords.",
+        accepted="Open Settings and request a reset link.",
+    )
+    assert plain.pair is None
+    assert loaded.holds_regressions
+
+
+def test_a_format_1_dataset_is_still_read_as_holding_no_pair(tmp_path: Path) -> None:
+    path = _write(tmp_path / "golden.jsonl", {**HEADER, "guardana_dataset": 1}, STRING_CASE)
+
+    loaded = read_dataset(path)
+
+    assert loaded.format == 1
+    assert [case.pair for case in loaded.cases] == [None]
+    assert not loaded.holds_regressions
+
+
+def test_a_format_1_case_with_a_pair_is_refused_as_an_unknown_key(tmp_path: Path) -> None:
+    path = _write(tmp_path / "golden.jsonl", {**HEADER, "guardana_dataset": 1}, PAIR_CASE)
+
+    message = _refusal(path)
+
+    assert f"{path}:2" in message
+    assert "accepted, observed" in message
+
+
+@pytest.mark.parametrize(
+    ("present", "missing"), [("observed", "accepted"), ("accepted", "observed")]
+)
+def test_half_a_pair_is_refused_naming_the_missing_half(
+    tmp_path: Path, present: str, missing: str
+) -> None:
+    path = _write(tmp_path / "golden.jsonl", HEADER, {**STRING_CASE, present: "a reply"})
+
+    message = _refusal(path)
+
+    assert f"{path}:2" in message
+    assert f"`{present}` without `{missing}`" in message
+
+
+def test_a_pair_that_is_not_text_is_refused(tmp_path: Path) -> None:
+    path = _write(tmp_path / "golden.jsonl", HEADER, {**PAIR_CASE, "observed": ["no"]})
+
+    assert "must be strings" in _refusal(path)
+
+
+def test_a_pair_in_a_fixture_dataset_is_refused_rather_than_never_regraded(
+    tmp_path: Path,
+) -> None:
+    path = _write(tmp_path / "fixture.jsonl", HEADER, {**PAIR_CASE, "reply": "Open Settings."})
+
+    message = _refusal(path, fixture=True)
+
+    assert f"{path}:2" in message
+    assert "fixture dataset" in message
+
+
+def test_a_regression_tag_alone_marks_a_regression_dataset(tmp_path: Path) -> None:
+    path = _write(tmp_path / "golden.jsonl", HEADER, {**STRING_CASE, "tags": ["regression"]})
+
+    assert read_dataset(path).holds_regressions
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        DatasetCase(
+            line=2,
+            input=(
+                ChatMessage(role="system", content="You answer support questions."),
+                ChatMessage(role="user", content="Wo ist meine Rechnung? ✓"),
+            ),
+            expect={"contains_any": ["invoice"]},
+            tags=("regression", "origin:run-1"),
+            pair=RegressionPair(observed="", accepted="Your invoice is under Billing."),
+        ),
+        DatasetCase(line=2, input="Hi", expect={}, tags=(), reply="Hello."),
+    ],
+)
+def test_a_rendered_case_reads_back_field_for_field(tmp_path: Path, case: DatasetCase) -> None:
+    path = tmp_path / "golden.jsonl"
+    path.write_text(
+        f"{render_header('support-golden', '2026.10')}\n{render_case(case)}\n", encoding="utf-8"
+    )
+
+    loaded = read_dataset(path, fixture=case.reply is not None)
+
+    assert (loaded.name, loaded.version, loaded.format) == ("support-golden", "2026.10", 2)
+    assert loaded.cases == (case,)
+
+
+def test_every_line_this_build_writes_satisfies_the_format_2_schema() -> None:
+    case = DatasetCase(
+        line=2,
+        input="How do I reset my password?",
+        expect={"contains_any": ["reset link"]},
+        tags=("regression",),
+        pair=RegressionPair(observed="No.", accepted="Request a reset link."),
+    )
+    validator = _validator(2)
+
+    validator.validate(json.loads(render_header("support-golden", "2026.10")))
+    validator.validate(json.loads(render_case(case)))
+
+
+def test_the_format_2_schema_refuses_half_a_pair_and_the_format_1_schema_any_pair() -> None:
+    half = {key: value for key, value in PAIR_CASE.items() if key != "accepted"}
+
+    assert not _validator(2).is_valid(half)
+    assert _validator(2).is_valid(PAIR_CASE)
+    assert not _validator(1).is_valid(PAIR_CASE)
+    assert _validator(1).is_valid({**HEADER, "guardana_dataset": 1})
+    assert not _validator(1).is_valid(HEADER)
+
+
+def test_a_tag_in_the_reserved_namespace_is_refused_by_the_schema_too() -> None:
+    assert not _validator(2).is_valid({**STRING_CASE, "tags": ["sample:7"]})

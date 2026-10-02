@@ -40,6 +40,7 @@ This file is generated from the documentation map; do not edit it by hand.
 - [usage-monitor.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/usage-monitor.md): schedule active re-verification
 - [usage-calibrate.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/usage-calibrate.md): measure evaluator confidence
 - [usage-suites.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/usage-suites.md): gate a deployed endpoint against a golden set
+- [usage-case.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/usage-case.md): promote a reviewed failure into a regression case proven on both sides
 - [privacy.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/privacy.md): control redaction and retained evidence
 
 ## Recorded applications
@@ -97,6 +98,7 @@ This file is generated from the documentation map; do not edit it by hand.
 ## Schemas
 
 - [Guardana Artifact Index v1](https://guardana.dev/schemas/artifact/v1.schema.json): guardana-artifact.json in a recipe's output directory: which files a run wrote there.
+- [Guardana Dataset v2](https://guardana.dev/schemas/dataset/v2.schema.json): One record of a Guardana quality suite's dataset, format 2, which adds a regression case's `observed` and `accepted`; format 1 is still read.
 - [Guardana Run Comparison v3](https://guardana.dev/schemas/diff/v3.schema.json): What changed between two saved runs.
 - [Guardana Run Plan v3](https://guardana.dev/schemas/plan/v3.schema.json): What a run would cost, worked out without sending a request.
 - [Guardana Recipe Lock v1](https://guardana.dev/schemas/recipe-lock/v1.schema.json): guardana-recipe.lock.yaml: what a recipe's run is pinned to, written by `guardana recipe lock`.

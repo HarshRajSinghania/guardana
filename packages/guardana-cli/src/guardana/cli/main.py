@@ -8,6 +8,7 @@ import typer
 from guardana.cli.analyze_trace import analyze_trace
 from guardana.cli.baseline import baseline_app
 from guardana.cli.calibrate import calibrate_command
+from guardana.cli.case import case_app
 from guardana.cli.config import config_app
 from guardana.cli.diff import diff
 from guardana.cli.doctor import doctor
@@ -114,6 +115,7 @@ app.add_typer(trace_app, name="trace")
 app.add_typer(rule_app, name="rule")
 app.add_typer(pack_app, name="pack")
 app.add_typer(recipe_app, name="recipe")
+app.add_typer(case_app, name="case")
 app.command()(doctor)
 
 

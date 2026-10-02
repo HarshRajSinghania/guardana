@@ -11,6 +11,7 @@ without a schema shows up as an unversioned output in the audit below.
 
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 from jsonschema import Draft202012Validator
@@ -153,6 +154,21 @@ def test_the_superseded_recording_schema_stays_pinned_to_format_1() -> None:
 
     assert header["guardana_recording"]["const"] == 1
     assert "subject_kind" not in header
+
+
+def test_the_dataset_schemas_name_the_formats_the_reader_reads() -> None:
+    """The newest schema is the format this build writes; format 1 keeps its own contract."""
+    from guardana.core.dataset import DATASET_FORMAT, READ_FORMATS  # noqa: PLC0415
+
+    written: Any = _schema(f"dataset-v{DATASET_FORMAT}.schema.json")["$defs"]
+    superseded: Any = _schema("dataset-v1.schema.json")["$defs"]
+
+    assert written["header"]["properties"]["guardana_dataset"]["const"] == DATASET_FORMAT
+    assert sorted(int(p.name[9]) for p in _SCHEMAS.glob("dataset-v*.schema.json")) == list(
+        READ_FORMATS
+    )
+    assert superseded["header"]["properties"]["guardana_dataset"]["const"] == 1
+    assert "observed" not in superseded["case"]["properties"]
 
 
 @pytest.mark.parametrize(

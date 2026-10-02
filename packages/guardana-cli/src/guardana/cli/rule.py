@@ -72,9 +72,11 @@ def run_fixtures(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; t
 ) -> None:
     """Run the fixtures a rule declares, and say what they did not establish.
 
-    Exit `0` every fixture classified as declared · `1` one did not · `2` the rule
-    was never sampled, a fixture could not run, or a rule could not be loaded ·
-    `3` the selector matched nothing.
+    Exit `0` every fixture classified as declared and every regression pair holds ·
+    `1` a fixture did not, or a pair's side graded the wrong way · `2` the rule was
+    never sampled, a fixture could not run, a pair's side declined or raised, or a rule
+    could not be loaded · `3` the selector matched nothing, or a suite holding
+    regression pairs has an evaluator that cannot regrade them without sending.
     """
     prof = resolve_profile(profile, None)
     resolved = resolve_trust(plugins, allow_plugin, prof)
@@ -135,11 +137,15 @@ def _exit_code(
     nobody sampled is a question nobody put. Reporting the second over the first
     would bury the actionable half. A rule that never loaded was never verified,
     and whether the selector would have matched it cannot be known, so it holds
-    the verdict at indeterminate whatever else passed.
+    the verdict at indeterminate whatever else passed. A suite whose regression
+    pairs cannot be regraded is refused before any of that: the command was asked
+    a question it must not answer by skipping.
     """
-    if any(v.failed for v in verifications):
+    if any(v.unprovable is not None for v in verifications):
+        return ExitCode.INVALID_USAGE
+    if any(v.failed or v.wrong_way for v in verifications):
         return ExitCode.POLICY_FAILED
-    if load_errors or any(v.errored for v in verifications):
+    if load_errors or any(v.errored or v.broken for v in verifications):
         return ExitCode.INDETERMINATE
     if not unsampled_ok and any(v.gaps for v in verifications):
         return ExitCode.INDETERMINATE
@@ -172,14 +178,23 @@ def _render(
             mark = "✖" if result.verdict is FixtureVerdict.FAILED else "!"
             lines.append(f"{mark} {result.rule_id} — {result.fixture}")
             lines.append(f"    {result.detail}")
+        for broken in verification.broken:
+            mark = "✖" if broken in verification.wrong_way else "!"
+            lines.append(f"{mark} {broken.rule_id} — regression case at dataset line {broken.line}")
+            lines.append(f"    the pair no longer holds: {broken.proof.describe()}")
+        if verification.unprovable is not None:
+            lines.append(f"✖ refused: {verification.unprovable}")
         lines.extend(f"? {gap}" for gap in verification.gaps)
     unsampled = sum(1 for v in verifications if v.gaps)
+    pairs = sum(len(v.regressions) for v in verifications)
+    broken_pairs = sum(len(v.broken) for v in verifications)
     lines.append("")
     lines.append(
         f"{len(verifications)} rule(s); {passed} fixture(s) passed, {failed} failed, "
         f"{errored} could not run. {unsampled} rule(s) not fully sampled."
         + (f" {len(load_errors)} rule source(s) could not be loaded." if load_errors else "")
         + (f" {refused} entry point(s) were refused by plugin trust." if refused else "")
+        + (f" {pairs - broken_pairs} of {pairs} regression pair(s) hold." if pairs else "")
     )
     if unsampled and unsampled_ok:
         lines.append(

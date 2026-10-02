@@ -20,6 +20,7 @@ from guardana.core.assessment import (
 from guardana.core.budget import BudgetExhausted
 from guardana.core.calibration.corpus import bundled_corpus
 from guardana.core.calibration.store import corpus_digest
+from guardana.core.dataset import RegressionPair
 from guardana.core.evaluator.base import Expectation, Verdict, grade
 from guardana.core.exchange import Exchange
 from guardana.core.manifest.records import SuiteOutcome, SuiteSummary
@@ -38,12 +39,18 @@ _EVIDENCE_CASES = 3
 
 @dataclass(frozen=True, slots=True)
 class SuiteCase:
-    """One case of a suite, ready to send: its identity, its messages and its yardstick."""
+    """One case of a suite, ready to send: its identity, its messages and its yardstick.
+
+    `line` is the case's dataset line, 0 for a case built in code. `pair` is a
+    regression case's failing and accepted replies; the run never reads it.
+    """
 
     case_id: str
     messages: tuple[ChatMessage, ...]
     expectation: Expectation
     tags: tuple[str, ...] = ()
+    line: int = 0
+    pair: RegressionPair | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -71,6 +78,11 @@ class SuiteRule(Rule):
     def fixtures(self) -> Iterable[RuleFixture]:
         """Build this suite's samples, each with a fresh double."""
         return materialise(self.declared_fixtures)
+
+    @property
+    def regression_cases(self) -> tuple[SuiteCase, ...]:
+        """The cases carrying a regression pair, in dataset order."""
+        return tuple(case for case in self.cases if case.pair is not None)
 
     def digest(self) -> str:
         """Return the declaration and dataset hash, falling back to the metadata-only default."""

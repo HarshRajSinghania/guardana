@@ -67,12 +67,21 @@ def is_suite(raw: dict[str, Any]) -> bool:
 
 def parse_suite(raw: dict[str, Any], path: Path) -> SuiteRule:
     """Validate a suite declaration and its dataset into a `SuiteRule`."""
+    return suite_over(raw, path, _dataset(raw.get("dataset"), path, fixture=False))
+
+
+def suite_over(raw: dict[str, Any], path: Path, dataset: Dataset) -> SuiteRule:
+    """Validate a suite declaration over `dataset`, already read, into a `SuiteRule`.
+
+    Every load-time refusal applies, so a dataset not yet written can be held to the
+    rules the suite will be loaded under.
+    """
     meta = parse_meta(raw, path, allowed=_ALLOWED_SUITE_KEYS)
     default = parse_expectation(raw.get("expect"), path)
-    dataset = _dataset(raw.get("dataset"), path, fixture=False)
     cases = _cases(meta, default, dataset, path)
     gate = _gate(raw.get("gate"), path)
     sample = _sample(raw.get("sample"), path)
+    _refuse_an_outvotable_regression(dataset, gate, sample, path)
     if sample is not None and sample[0] < len(cases):
         size, seed = sample
         chosen = tuple(
@@ -96,6 +105,29 @@ def parse_suite(raw: dict[str, Any], path: Path) -> SuiteRule:
         source_digest=digest_parts((declaration_digest(raw), dataset.digest)),
     )
     return replace(rule, declared_fixtures=_fixtures(raw.get("fixtures"), path, rule, default))
+
+
+def _refuse_an_outvotable_regression(
+    dataset: Dataset, gate: SuiteGate, sample: tuple[int, int] | None, path: Path
+) -> None:
+    """Refuse a regression dataset under a suite that samples or tolerates a failure.
+
+    A regression case that may not run, or that other cases can outvote, prevents
+    nothing, so a dataset holding one is a gate every case of which must pass.
+    """
+    if not dataset.holds_regressions:
+        return
+    held = f"dataset {dataset.identity} holds a regression case"
+    if sample is not None:
+        raise RuleLoadError(
+            f"invalid rule in {path}: {held}, and 'sample' would leave cases unsent; a "
+            f"regression suite runs every case"
+        )
+    if gate.min_pass_rate < 1:
+        raise RuleLoadError(
+            f"invalid rule in {path}: {held}, and gate.min_pass_rate {gate.min_pass_rate} "
+            f"lets other cases outvote it; a regression suite sets it to 1"
+        )
 
 
 def _dataset(value: object, path: Path, *, fixture: bool) -> Dataset:
@@ -165,6 +197,8 @@ def _case(meta: RuleMeta, default: Expectation, entry: DatasetCase, path: Path) 
         messages=messages,
         expectation=expectation,
         tags=entry.tags,
+        line=entry.line,
+        pair=entry.pair,
     )
 
 

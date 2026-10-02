@@ -44,7 +44,9 @@ from guardana.core.recipe import (
 )
 from guardana.core.recording import Recording, render_recording
 from guardana.core.registry import Registry
+from guardana.core.regression import broken_pairs
 from guardana.core.report import CheckError
+from guardana.core.rule.suite_rule import SuiteRule
 from guardana.core.target import RecordedTarget, Target
 from guardana.core.target.connection import (
     Connection,
@@ -318,9 +320,28 @@ def _prepare(read: _Read) -> _Prepared:
             "or to run",
             ExitCode.INDETERMINATE,
         )
+    _refuse_broken_regressions(priced, current)
     return _Prepared(
         recipe, profile, resolved.trust, registry, calibrations, current, prompt, plan.errors
     )
+
+
+def _refuse_broken_regressions(registry: Registry, current: RecipeLock) -> None:
+    """Regrade every regression pair of the selected suites, refusing when one no longer holds.
+
+    A refusal rather than a drift: a lock compares two configurations, and a broken
+    pair is broken in both.
+    """
+    suites = (
+        r for r in registry.rules() if isinstance(r, SuiteRule) and r.meta.id in current.rules
+    )
+    broken = broken_pairs(suites, registry.evaluators())
+    if broken:
+        raise _Refusal(
+            f"{len(broken)} regression case(s) of the selected suites no longer hold, so "
+            f"nothing was written or sent; fix the rule or the case first: {'; '.join(broken)}",
+            ExitCode.POLICY_FAILED,
+        )
 
 
 def _refuse_unloadable(prepared: _Prepared) -> None:

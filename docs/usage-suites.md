@@ -14,7 +14,7 @@ A quality suite checks whether a deployed support bot or RAG endpoint still answ
 The first nonblank line of the JSONL dataset is this header:
 
 ```json
-{"guardana_dataset": 1, "name": "support-golden", "version": "2026.09"}
+{"guardana_dataset": 2, "name": "support-golden", "version": "2026.09"}
 ```
 
 Each later nonblank line is a case. The case fields are:
@@ -24,6 +24,22 @@ Each later nonblank line is a case. The case fields are:
 | `input` | Required. A nonempty string or a messages object whose last message is from the user. |
 | `expect` | Optional evaluator fields for that case, overlaid on the rule's default expectation. |
 | `tags` | Optional list of strings. A tag starting with `sample:` is refused. |
+| `observed` | Optional, with `accepted`: the reply a regression case was promoted from, which its expectation must grade `fail`. |
+| `accepted` | Optional, with `observed`: a correct reply, which its expectation must grade `pass`. |
+
+`observed` and `accepted` come together or not at all, and only in the suite's own dataset,
+never in a fixture dataset. A run never sends or reads them, and they are not part of a
+case's identity: [`guardana case add`](usage-case.md) writes them, and `guardana rule test`
+and every `guardana recipe` command regrade them. A format-1 dataset
+(`"guardana_dataset": 1`) is still read, without `observed` and `accepted`. The formats are
+[`dataset-v2.schema.json`](https://guardana.dev/schemas/dataset/v2.schema.json) and
+[`dataset-v1.schema.json`](https://guardana.dev/schemas/dataset/v1.schema.json).
+
+**A regression dataset is a gate every case must pass.** A dataset holding any
+`observed`/`accepted` pair or any case tagged `regression` refuses, when the suite is loaded,
+a suite that declares `sample:` or whose `gate.min_pass_rate` is below 1, since a case that
+may not run, or that other cases can outvote, prevents nothing. Set `gate.min_sample` to at
+most the number of cases.
 
 This rule grades the dataset and gates its pass rate:
 

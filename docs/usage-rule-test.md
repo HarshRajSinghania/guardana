@@ -171,17 +171,36 @@ fixtures:
 
 A case-level `reply` is allowed only in a fixture dataset. Two different replies to the same messages are refused. A fixture dataset with fewer cases than `gate.min_sample` is refused at load. A suite without clean, finding and inconclusive samples is reported `indeterminate`, like any rule. See [quality suites](usage-suites.md).
 
+### Regression cases
+
+A suite whose dataset holds regression cases ([`guardana case add`](usage-case.md)) has each
+case's `observed` and `accepted` regraded with the rule as it is now, sending nothing. A pair
+holds while `observed` grades `fail` and `accepted` grades `pass`; the totals line says how
+many hold, and a case whose pair no longer holds is named by its dataset line:
+
+```
+✖ acme.quality.support — regression case at dataset line 3
+    the pair no longer holds: observed graded pass, accepted graded pass
+```
+
+Only an evaluator that declares itself deterministic and declares that a verdict asks no judge
+can regrade without sending; a suite holding pairs with any other evaluator is refused, never
+skipped.
+
 ## Exit codes
 
 | Situation | Verdict | Exit |
 |---|---|---|
-| every fixture classified as declared | pass | `0` |
+| every fixture classified as declared, and every regression pair holds | pass | `0` |
 | a fixture classified wrongly | fail | `1` |
+| a regression pair's side graded the wrong way | fail | `1` |
 | a rule declares **no** fixtures | **indeterminate** | `2` |
 | a rule declares fixtures but **none** is `inconclusive` | **indeterminate** | `2` |
 | a fixture raised, or its target would not build | **indeterminate** | `2` |
+| a regression pair's side declined, or its evaluator raised | **indeterminate** | `2` |
 | a rule file or a plugin could not be loaded | **indeterminate** | `2` |
 | the selector matched no rule | refused | `3` |
+| a suite holds regression pairs its evaluator cannot regrade without sending | refused | `3` |
 
 **Rows three and four are the point.** A rule nobody sampled is a rule nobody
 checked, and a command built to disprove false greens cannot print "ok" over an

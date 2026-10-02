@@ -21,6 +21,7 @@ For maturity and known gaps, read [Product status](docs/product-status.md).
 | Analyze an existing execution | `guardana analyze-trace TRACE` | trace rules over a local file, calling no model or tool |
 | Grade recorded answers | `guardana grade RECORDING` | your rules over answers you supplied or a probe kept, with no target request |
 | Pin and run a team's checks in CI | `guardana recipe lock`, `guardana recipe run` | a lock of rules, datasets, judges and calibrations checked before anything is sent, and one artifact directory that never shows an earlier green |
+| Promote a reviewed failure into a regression case | `guardana case add`, `guardana case list` | one kept exchange added to a suite's dataset, labelled and versioned, only once its expectation fails the failure and passes a correct reply |
 | Inspect available evidence | `guardana trace inspect TRACE` | recorded dimensions and policy gaps |
 | Compare releases | `guardana diff BEFORE AFTER` | deterioration, improvement, or an explicit refusal to compare |
 | Re-run checks on a schedule | `guardana monitor ...` | each cycle gated and compared with the first cycle |
@@ -149,6 +150,8 @@ The gate passes, fails, or declines when it cannot conclude. Judge-graded suites
 
 Saved runs retain the suite summary. Human reports show a Measured block, and JUnit emits one testcase per suite. See [Quality suites](docs/usage-suites.md) for the how-to.
 
+A regression case carries the reply it was promoted from and a correct reply written by a reviewer. `guardana case add` writes one only when the suite's deterministic evaluator grades the first `fail` and the second `pass`. `guardana rule test` and every `guardana recipe` command regrade each pair without sending. A dataset holding a regression case refuses a suite that samples or sets a bar below 1. See [Regression cases](docs/usage-case.md).
+
 ## Policy and repeatability
 
 `guardana.yaml` selects rules, severity thresholds, evaluator settings, budgets,
@@ -170,8 +173,8 @@ without guessing from a short id.
 - OpenTelemetry GenAI input plus LangChain, Pydantic AI, OpenAI Agents, Hermes,
   and shell-hook integration examples.
 - No account and no telemetry; an artifact scan opens no network connection unless a `--reporter` is configured.
-- JSON Schemas for saved runs, plans, comparisons, traces, recordings, recipes, recipe locks and
-  recipe artifacts, served at the URL each
+- JSON Schemas for saved runs, plans, comparisons, traces, recordings, suite datasets, recipes,
+  recipe locks and recipe artifacts, served at the URL each
   `$id` names under `https://guardana.dev/schemas/`.
 
 ## Extension surface

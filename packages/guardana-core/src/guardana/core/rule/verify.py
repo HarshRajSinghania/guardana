@@ -10,11 +10,13 @@ CLI reach the same conclusion about the same rule.
 """
 
 from collections.abc import Iterable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import StrEnum
 
+from guardana.core.regression import Breach, Regraded, UnprovableError, regrade
 from guardana.core.rule.base import Rule, RuleContext
 from guardana.core.rule.fixture import FixtureOutcome, RuleFixture
+from guardana.core.rule.suite_rule import SuiteRule
 
 
 class FixtureVerdict(StrEnum):
@@ -53,6 +55,22 @@ class RuleVerification:
     fixture says the rule is wrong; a gap says nobody asked it the question.
     """
 
+    regressions: tuple[Regraded, ...] = ()
+    """A suite's regression pairs, each regraded with the rule as it is now."""
+
+    unprovable: str | None = None
+    """Why a suite's regression pairs could not be regraded without sending, when they could not."""
+
+    @property
+    def broken(self) -> tuple[Regraded, ...]:
+        """Regression pairs that no longer hold."""
+        return tuple(r for r in self.regressions if not r.proof.holds)
+
+    @property
+    def wrong_way(self) -> tuple[Regraded, ...]:
+        """Regression pairs a side of which grades the opposite way it must."""
+        return tuple(r for r in self.broken if r.proof.breach is Breach.WRONG_WAY)
+
     @property
     def failed(self) -> tuple[FixtureResult, ...]:
         """Fixtures the rule classified wrongly."""
@@ -67,11 +85,18 @@ class RuleVerification:
     def is_proven(self) -> bool:
         """Whether this rule's own samples actually demonstrate it works.
 
-        Requires all three at once: nothing failed, nothing errored, and no gap.
-        A rule with two green fixtures and no `inconclusive` one is not proven here
-        — see `verify_rule` for why that is `indeterminate` rather than a pass.
+        Requires all of it at once: nothing failed, nothing errored, no gap, and every
+        regression pair regraded and holding. A rule with two green fixtures and no
+        `inconclusive` one is not proven here — see `verify_rule` for why that is
+        `indeterminate` rather than a pass.
         """
-        return not self.failed and not self.errored and not self.gaps
+        return (
+            not self.failed
+            and not self.errored
+            and not self.gaps
+            and not self.broken
+            and self.unprovable is None
+        )
 
 
 def verify_rule(rule: Rule, ctx: RuleContext | None = None) -> RuleVerification:
@@ -86,11 +111,20 @@ def verify_rule(rule: Rule, ctx: RuleContext | None = None) -> RuleVerification:
     substantive half. Positive and negative samples prove a rule fires and stays
     quiet; neither says anything about whether it can decline, and a rule that
     cannot decline will one day report clean about something it never examined.
+
+    A suite's regression pairs are regraded with the context's evaluators, sending
+    nothing; a suite whose evaluator cannot do that says so in `unprovable`.
     """
     context = ctx if ctx is not None else RuleContext()
     fixtures = tuple(rule.fixtures())
     results = tuple(_run_fixture(rule, fixture, context) for fixture in fixtures)
-    return RuleVerification(rule.meta.id, results, _gaps(rule.meta.id, fixtures))
+    verification = RuleVerification(rule.meta.id, results, _gaps(rule.meta.id, fixtures))
+    if not isinstance(rule, SuiteRule):
+        return verification
+    try:
+        return replace(verification, regressions=regrade(rule, context.evaluators))
+    except UnprovableError as exc:
+        return replace(verification, unprovable=str(exc))
 
 
 def verify_rules(

@@ -5,6 +5,7 @@
   <url><loc>https://guardana.dev/docs/design/README</loc></url>
   <url><loc>https://guardana.dev/docs/design/ai-systems-and-deployments</loc></url>
   <url><loc>https://guardana.dev/docs/design/anytime-valid-monitoring</loc></url>
+  <url><loc>https://guardana.dev/docs/design/application-fixtures-and-regressions</loc></url>
   <url><loc>https://guardana.dev/docs/design/assessment-channel</loc></url>
   <url><loc>https://guardana.dev/docs/design/attack-techniques</loc></url>
   <url><loc>https://guardana.dev/docs/design/audit-0.31-direction</loc></url>
@@ -200,6 +201,7 @@
   <url><loc>https://guardana.dev/docs/usage-analyze-trace</loc></url>
   <url><loc>https://guardana.dev/docs/usage-baseline</loc></url>
   <url><loc>https://guardana.dev/docs/usage-calibrate</loc></url>
+  <url><loc>https://guardana.dev/docs/usage-case</loc></url>
   <url><loc>https://guardana.dev/docs/usage-collector</loc></url>
   <url><loc>https://guardana.dev/docs/usage-contracts</loc></url>
   <url><loc>https://guardana.dev/docs/usage-diff</loc></url>

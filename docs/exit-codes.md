@@ -116,16 +116,26 @@ unknown `--provider`, a `--system-prompt-file` or `--adapter` that cannot be rea
 `--api-key-env`, and an adapter whose `url:` differs from `--url` or whose `method:` is
 not `POST`. None of them is `5`, which is reserved for Guardana's own defects.
 
-`recipe lock` exits `0` once it wrote the lock, `2` when what it would pin cannot be
+`recipe lock` exits `0` once it wrote the lock, `1`, writing nothing, when a regression
+case of a selected suite no longer holds — its failing reply passes or its correct reply
+fails with the rule as it is now — `2` when what it would pin cannot be
 pinned — nothing selected, plugin trust refused an installed extension, a selected check
 that would not grade — and also `2`, having written the lock, when a selected check is
 unpinned; `3` for a recipe it cannot read. `recipe lock --check` uses the same codes and
 `1` when a pin moved: the lock is the policy it checks, as `pack lock --check` does. A
-pin that moved is `3` on `recipe run`, which sends nothing, because the run was refused
+pin that moved, or a regression case that no longer holds, is `3` on `recipe run`, which
+sends nothing, because the run was refused
 rather than judged, and so is anything `recipe lock` refuses with `2`; otherwise `recipe run` exits as the run's gate decides, and every rule
 its lock pins is demanded coverage: one the run did not complete makes it `2` whatever the
 `fail_on_*` switches say, as a demanded `analyze-trace` dimension does
 ([`usage-recipe.md`](usage-recipe.md)).
+
+`case add` exits `0` when it wrote the case, or showed it without `--write`; `1` when a side
+of the proof graded the wrong way; `2` when a side declined; and `3` for a refused input,
+recording, rule, evaluator or flag, and for an evaluator that raised. `case list` exits `0`,
+or `3` for a recording it cannot read ([`usage-case.md`](usage-case.md)). `rule test` exits
+`1` when a regression pair's side graded the wrong way, `2` when one declined or raised, and
+`3` when a suite holds pairs its evaluator cannot regrade without sending.
 
 An unused code is better than a second table.
 

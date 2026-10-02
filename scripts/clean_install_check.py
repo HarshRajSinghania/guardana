@@ -421,6 +421,70 @@ def _recorded_checks(venv: Path, workspace: Path) -> list[Check]:
             0,
             expect=("subject: application, from a recording", "artifact:"),
         ),
+        *_case_checks(guardana, workspace, recording),
+    ]
+
+
+def _regression_case(workspace: Path) -> tuple[Path, Path]:
+    """Write a regression suite of its own and a reviewer's correct reply beside it."""
+    rules = workspace / "case"
+    rules.mkdir(parents=True)
+    dataset = [
+        {"guardana_dataset": 1, "name": "support-regressions", "version": "1"},
+        {"input": "Where is my invoice?", "expect": {"contains_any": ["invoice"]}},
+    ]
+    (rules / "regressions.jsonl").write_text(
+        "".join(json.dumps(line) + "\n" for line in dataset), encoding="utf-8"
+    )
+    rule = {
+        "id": "acme.quality.answers",
+        "title": "The support bot names where to go",
+        "severity": "high",
+        "target_kind": "endpoint",
+        "taxonomy": ["LLM09:2025"],
+        "evaluator": "contains",
+        "requires": ["chat"],
+        "dataset": "./regressions.jsonl",
+        "gate": {"min_pass_rate": 1, "min_sample": 1},
+    }
+    suite = rules / "regressions.yaml"
+    suite.write_text(json.dumps(rule), encoding="utf-8")
+    accepted = rules / "accepted.txt"
+    accepted.write_text("Open Settings and request a reset link.\n", encoding="utf-8")
+    return suite, accepted
+
+
+def _case_checks(guardana: str, workspace: Path, recording: Path) -> list[Check]:
+    suite, accepted = _regression_case(workspace)
+    return [
+        Check(
+            "case list names every kept exchange",
+            [guardana, "case", "list", str(recording)],
+            0,
+            expect=("line 2", "reply verbatim"),
+            reject=("Open Settings, then Security.",),
+        ),
+        Check(
+            "case add proves a regression case on both sides and writes nothing without --write",
+            [
+                guardana,
+                "case",
+                "add",
+                str(suite),
+                "--from",
+                str(recording),
+                "--line",
+                "2",
+                "--expect",
+                '{"contains_any": ["reset link"]}',
+                "--accepted-file",
+                str(accepted),
+                "--version",
+                "2",
+            ],
+            0,
+            expect=("observed graded fail, accepted graded pass", "dry run"),
+        ),
     ]
 
 

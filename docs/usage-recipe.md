@@ -86,6 +86,7 @@ direct URL can change its code under one version, so it is listed under `unpinne
 |---|---|---|---|
 | written, or every pin holds | `0` | `0` | the run's own code |
 | a pin moved | — | `1` | `3`, nothing sent |
+| a regression pair of a selected suite no longer holds | `1`, nothing written | `1` | `3`, nothing sent |
 | something selected is `unpinned` | `2`, written | `2` | runs, and the run records what is unpinned |
 | nothing selected, plugin trust refused an installed extension, or a selected check would not grade (a rule file that did not load, an evaluator nobody registered) | `2`, nothing written | `2` | `3` (the lock cannot match) |
 | recipe or lock missing, unreadable, or from a newer Guardana | `3` | `3` | `3` |
@@ -97,6 +98,13 @@ sends nothing until the pins hold; then the run's gate decides its exit code as 
 `trust_changed`, `guardana_changed`, `recipe_changed`, `distribution_changed`,
 `skip_changed`, `trials_changed`, `subject_file_changed`, `evaluator_added`,
 `evaluator_removed`. Review the change, then run `guardana recipe lock` again.
+
+All three commands regrade the regression pairs of every selected suite
+([`guardana case add`](usage-case.md)) before they compare anything, sending nothing: each
+pair's `observed` must still grade `fail` and its `accepted` `pass` with the rule as it is
+now. A pair that no longer holds, or a suite whose evaluator cannot regrade without sending,
+is a refusal rather than a drifted pin, because it is broken in the lock and in the
+configuration alike; the refusal names each case by its rule and dataset line.
 
 `recipe run` takes no selection, trust, trials or profile flags: those are what the lock pins.
 

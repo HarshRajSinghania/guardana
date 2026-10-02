@@ -45,6 +45,7 @@
 <li><a href="profiles.html">Profiles — guardana.yaml</a></li>
 </ul>
 <h2>Evidence and regression</h2><ul>
+<li><a href="usage-case.html">guardana case<span class="tag">beta</span></a></li>
 <li><a href="usage-baseline.html">guardana baseline</a></li>
 <li><a href="usage-diff.html">guardana diff</a></li>
 <li><a href="usage-monitor.html">guardana monitor</a></li>
@@ -130,6 +131,7 @@
 <li><a href="design/anytime-valid-monitoring.html">Anytime-valid monitoring<span class="tag">proposed</span></a></li>
 <li><a href="design/recorded-answers.html">Recorded answers and regrading<span class="tag">accepted</span></a></li>
 <li><a href="design/team-recipes.html">Repository recipes, one connection and provider conformance<span class="tag">accepted</span></a></li>
+<li><a href="design/application-fixtures-and-regressions.html">Regression cases, a declared fixture boundary and the retrieval pilot<span class="tag">accepted</span></a></li>
 <li><a href="design/run-manifest-v2.html">Run manifest v2<span class="tag">implemented</span></a></li>
 <li><a href="design/privacy-and-redaction.html">Privacy and redaction<span class="tag">implemented</span></a></li>
 <li><a href="design/exit-codes.html">Exit codes and gate semantics<span class="tag">implemented</span></a></li>
@@ -169,6 +171,7 @@
 <li><a href="profiles.html">Profiles — guardana.yaml</a></li>
 </ul>
 <h2>Evidence and regression</h2><ul>
+<li><a href="usage-case.html">guardana case<span class="tag">beta</span></a></li>
 <li><a href="usage-baseline.html">guardana baseline</a></li>
 <li><a href="usage-diff.html">guardana diff</a></li>
 <li><a href="usage-monitor.html">guardana monitor</a></li>
@@ -254,6 +257,7 @@
 <li><a href="design/anytime-valid-monitoring.html">Anytime-valid monitoring<span class="tag">proposed</span></a></li>
 <li><a href="design/recorded-answers.html">Recorded answers and regrading<span class="tag">accepted</span></a></li>
 <li><a href="design/team-recipes.html">Repository recipes, one connection and provider conformance<span class="tag">accepted</span></a></li>
+<li><a href="design/application-fixtures-and-regressions.html">Regression cases, a declared fixture boundary and the retrieval pilot<span class="tag">accepted</span></a></li>
 <li><a href="design/run-manifest-v2.html">Run manifest v2<span class="tag">implemented</span></a></li>
 <li><a href="design/privacy-and-redaction.html">Privacy and redaction<span class="tag">implemented</span></a></li>
 <li><a href="design/exit-codes.html">Exit codes and gate semantics<span class="tag">implemented</span></a></li>
@@ -397,6 +401,12 @@ direct URL can change its code under one version, so it is listed under <code>un
 <td><code>3</code>, nothing sent</td>
 </tr>
 <tr>
+<td>a regression pair of a selected suite no longer holds</td>
+<td><code>1</code>, nothing written</td>
+<td><code>1</code></td>
+<td><code>3</code>, nothing sent</td>
+</tr>
+<tr>
 <td>something selected is <code>unpinned</code></td>
 <td><code>2</code>, written</td>
 <td><code>2</code></td>
@@ -423,6 +433,12 @@ sends nothing until the pins hold; then the run's gate decides its exit code as 
 <code>trust_changed</code>, <code>guardana_changed</code>, <code>recipe_changed</code>, <code>distribution_changed</code>,
 <code>skip_changed</code>, <code>trials_changed</code>, <code>subject_file_changed</code>, <code>evaluator_added</code>,
 <code>evaluator_removed</code>. Review the change, then run <code>guardana recipe lock</code> again.</p>
+<p>All three commands regrade the regression pairs of every selected suite
+(<a href="usage-case.html"><code>guardana case add</code></a>) before they compare anything, sending nothing: each
+pair's <code>observed</code> must still grade <code>fail</code> and its <code>accepted</code> <code>pass</code> with the rule as it is
+now. A pair that no longer holds, or a suite whose evaluator cannot regrade without sending,
+is a refusal rather than a drifted pin, because it is broken in the lock and in the
+configuration alike; the refusal names each case by its rule and dataset line.</p>
 <p><code>recipe run</code> takes no selection, trust, trials or profile flags: those are what the lock pins.</p>
 <p>Every rule the lock pins must run to completion. One that the run skips — a recording that
 holds no answer for it is the usual cause — that errors or that is never reached is a

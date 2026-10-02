@@ -45,6 +45,7 @@
 <li><a href="profiles.html">Profiles — guardana.yaml</a></li>
 </ul>
 <h2>Evidence and regression</h2><ul>
+<li><a href="usage-case.html">guardana case<span class="tag">beta</span></a></li>
 <li><a href="usage-baseline.html">guardana baseline</a></li>
 <li><a href="usage-diff.html">guardana diff</a></li>
 <li><a href="usage-monitor.html">guardana monitor</a></li>
@@ -130,6 +131,7 @@
 <li><a href="design/anytime-valid-monitoring.html">Anytime-valid monitoring<span class="tag">proposed</span></a></li>
 <li><a href="design/recorded-answers.html">Recorded answers and regrading<span class="tag">accepted</span></a></li>
 <li><a href="design/team-recipes.html">Repository recipes, one connection and provider conformance<span class="tag">accepted</span></a></li>
+<li><a href="design/application-fixtures-and-regressions.html">Regression cases, a declared fixture boundary and the retrieval pilot<span class="tag">accepted</span></a></li>
 <li><a href="design/run-manifest-v2.html">Run manifest v2<span class="tag">implemented</span></a></li>
 <li><a href="design/privacy-and-redaction.html">Privacy and redaction<span class="tag">implemented</span></a></li>
 <li><a href="design/exit-codes.html">Exit codes and gate semantics<span class="tag">implemented</span></a></li>
@@ -169,6 +171,7 @@
 <li><a href="profiles.html">Profiles — guardana.yaml</a></li>
 </ul>
 <h2>Evidence and regression</h2><ul>
+<li><a href="usage-case.html">guardana case<span class="tag">beta</span></a></li>
 <li><a href="usage-baseline.html">guardana baseline</a></li>
 <li><a href="usage-diff.html">guardana diff</a></li>
 <li><a href="usage-monitor.html">guardana monitor</a></li>
@@ -254,6 +257,7 @@
 <li><a href="design/anytime-valid-monitoring.html">Anytime-valid monitoring<span class="tag">proposed</span></a></li>
 <li><a href="design/recorded-answers.html">Recorded answers and regrading<span class="tag">accepted</span></a></li>
 <li><a href="design/team-recipes.html">Repository recipes, one connection and provider conformance<span class="tag">accepted</span></a></li>
+<li><a href="design/application-fixtures-and-regressions.html">Regression cases, a declared fixture boundary and the retrieval pilot<span class="tag">accepted</span></a></li>
 <li><a href="design/run-manifest-v2.html">Run manifest v2<span class="tag">implemented</span></a></li>
 <li><a href="design/privacy-and-redaction.html">Privacy and redaction<span class="tag">implemented</span></a></li>
 <li><a href="design/exit-codes.html">Exit codes and gate semantics<span class="tag">implemented</span></a></li>
@@ -394,16 +398,25 @@ unknown <code>--provider</code>, a <code>--system-prompt-file</code> or <code>--
 <code>--api-key-env</code> naming an unset or empty variable, <code>--adapter</code> with <code>--provider</code> or
 <code>--api-key-env</code>, and an adapter whose <code>url:</code> differs from <code>--url</code> or whose <code>method:</code> is
 not <code>POST</code>. None of them is <code>5</code>, which is reserved for Guardana's own defects.</p>
-<p><code>recipe lock</code> exits <code>0</code> once it wrote the lock, <code>2</code> when what it would pin cannot be
+<p><code>recipe lock</code> exits <code>0</code> once it wrote the lock, <code>1</code>, writing nothing, when a regression
+case of a selected suite no longer holds — its failing reply passes or its correct reply
+fails with the rule as it is now — <code>2</code> when what it would pin cannot be
 pinned — nothing selected, plugin trust refused an installed extension, a selected check
 that would not grade — and also <code>2</code>, having written the lock, when a selected check is
 unpinned; <code>3</code> for a recipe it cannot read. <code>recipe lock --check</code> uses the same codes and
 <code>1</code> when a pin moved: the lock is the policy it checks, as <code>pack lock --check</code> does. A
-pin that moved is <code>3</code> on <code>recipe run</code>, which sends nothing, because the run was refused
+pin that moved, or a regression case that no longer holds, is <code>3</code> on <code>recipe run</code>, which
+sends nothing, because the run was refused
 rather than judged, and so is anything <code>recipe lock</code> refuses with <code>2</code>; otherwise <code>recipe run</code> exits as the run's gate decides, and every rule
 its lock pins is demanded coverage: one the run did not complete makes it <code>2</code> whatever the
 <code>fail_on_*</code> switches say, as a demanded <code>analyze-trace</code> dimension does
 (<a href="usage-recipe.html"><code>usage-recipe.md</code></a>).</p>
+<p><code>case add</code> exits <code>0</code> when it wrote the case, or showed it without <code>--write</code>; <code>1</code> when a side
+of the proof graded the wrong way; <code>2</code> when a side declined; and <code>3</code> for a refused input,
+recording, rule, evaluator or flag, and for an evaluator that raised. <code>case list</code> exits <code>0</code>,
+or <code>3</code> for a recording it cannot read (<a href="usage-case.html"><code>usage-case.md</code></a>). <code>rule test</code> exits
+<code>1</code> when a regression pair's side graded the wrong way, <code>2</code> when one declined or raised, and
+<code>3</code> when a suite holds pairs its evaluator cannot regrade without sending.</p>
 <p>An unused code is better than a second table.</p>
 <h3 id="changed-in-0210">Changed in 0.21.0</h3>
 <p><strong>A run where every check declined now exits <code>2</code> instead of <code>0</code>.</strong> The guard for

@@ -45,6 +45,7 @@
 <li><a href="profiles.html">Profiles — guardana.yaml</a></li>
 </ul>
 <h2>Evidence and regression</h2><ul>
+<li><a href="usage-case.html">guardana case<span class="tag">beta</span></a></li>
 <li><a href="usage-baseline.html">guardana baseline</a></li>
 <li><a href="usage-diff.html">guardana diff</a></li>
 <li><a href="usage-monitor.html">guardana monitor</a></li>
@@ -130,6 +131,7 @@
 <li><a href="design/anytime-valid-monitoring.html">Anytime-valid monitoring<span class="tag">proposed</span></a></li>
 <li><a href="design/recorded-answers.html">Recorded answers and regrading<span class="tag">accepted</span></a></li>
 <li><a href="design/team-recipes.html">Repository recipes, one connection and provider conformance<span class="tag">accepted</span></a></li>
+<li><a href="design/application-fixtures-and-regressions.html">Regression cases, a declared fixture boundary and the retrieval pilot<span class="tag">accepted</span></a></li>
 <li><a href="design/run-manifest-v2.html">Run manifest v2<span class="tag">implemented</span></a></li>
 <li><a href="design/privacy-and-redaction.html">Privacy and redaction<span class="tag">implemented</span></a></li>
 <li><a href="design/exit-codes.html">Exit codes and gate semantics<span class="tag">implemented</span></a></li>
@@ -169,6 +171,7 @@
 <li><a href="profiles.html">Profiles — guardana.yaml</a></li>
 </ul>
 <h2>Evidence and regression</h2><ul>
+<li><a href="usage-case.html">guardana case<span class="tag">beta</span></a></li>
 <li><a href="usage-baseline.html">guardana baseline</a></li>
 <li><a href="usage-diff.html">guardana diff</a></li>
 <li><a href="usage-monitor.html">guardana monitor</a></li>
@@ -254,6 +257,7 @@
 <li><a href="design/anytime-valid-monitoring.html">Anytime-valid monitoring<span class="tag">proposed</span></a></li>
 <li><a href="design/recorded-answers.html">Recorded answers and regrading<span class="tag">accepted</span></a></li>
 <li><a href="design/team-recipes.html">Repository recipes, one connection and provider conformance<span class="tag">accepted</span></a></li>
+<li><a href="design/application-fixtures-and-regressions.html">Regression cases, a declared fixture boundary and the retrieval pilot<span class="tag">accepted</span></a></li>
 <li><a href="design/run-manifest-v2.html">Run manifest v2<span class="tag">implemented</span></a></li>
 <li><a href="design/privacy-and-redaction.html">Privacy and redaction<span class="tag">implemented</span></a></li>
 <li><a href="design/exit-codes.html">Exit codes and gate semantics<span class="tag">implemented</span></a></li>
@@ -457,6 +461,17 @@ class MyRule(Rule):
     outcome: inconclusive
 </code></pre>
 <p>A case-level <code>reply</code> is allowed only in a fixture dataset. Two different replies to the same messages are refused. A fixture dataset with fewer cases than <code>gate.min_sample</code> is refused at load. A suite without clean, finding and inconclusive samples is reported <code>indeterminate</code>, like any rule. See <a href="usage-suites.html">quality suites</a>.</p>
+<h3 id="regression-cases">Regression cases</h3>
+<p>A suite whose dataset holds regression cases (<a href="usage-case.html"><code>guardana case add</code></a>) has each
+case's <code>observed</code> and <code>accepted</code> regraded with the rule as it is now, sending nothing. A pair
+holds while <code>observed</code> grades <code>fail</code> and <code>accepted</code> grades <code>pass</code>; the totals line says how
+many hold, and a case whose pair no longer holds is named by its dataset line:</p>
+<pre><code>✖ acme.quality.support — regression case at dataset line 3
+    the pair no longer holds: observed graded pass, accepted graded pass
+</code></pre>
+<p>Only an evaluator that declares itself deterministic and declares that a verdict asks no judge
+can regrade without sending; a suite holding pairs with any other evaluator is refused, never
+skipped.</p>
 <h2 id="exit-codes">Exit codes</h2>
 <div class="table-wrap"><table>
 <thead>
@@ -468,12 +483,17 @@ class MyRule(Rule):
 </thead>
 <tbody>
 <tr>
-<td>every fixture classified as declared</td>
+<td>every fixture classified as declared, and every regression pair holds</td>
 <td>pass</td>
 <td><code>0</code></td>
 </tr>
 <tr>
 <td>a fixture classified wrongly</td>
+<td>fail</td>
+<td><code>1</code></td>
+</tr>
+<tr>
+<td>a regression pair's side graded the wrong way</td>
 <td>fail</td>
 <td><code>1</code></td>
 </tr>
@@ -493,12 +513,22 @@ class MyRule(Rule):
 <td><code>2</code></td>
 </tr>
 <tr>
+<td>a regression pair's side declined, or its evaluator raised</td>
+<td><strong>indeterminate</strong></td>
+<td><code>2</code></td>
+</tr>
+<tr>
 <td>a rule file or a plugin could not be loaded</td>
 <td><strong>indeterminate</strong></td>
 <td><code>2</code></td>
 </tr>
 <tr>
 <td>the selector matched no rule</td>
+<td>refused</td>
+<td><code>3</code></td>
+</tr>
+<tr>
+<td>a suite holds regression pairs its evaluator cannot regrade without sending</td>
 <td>refused</td>
 <td><code>3</code></td>
 </tr>
