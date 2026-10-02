@@ -319,8 +319,12 @@ grows with the target instead of with the rule count) and <code>EndpointTarget</
 exposing <code>chat(messages) -&gt; str</code>, with a pluggable <code>ChatTransport</code> so tests
 never hit the network). The transport is selected by a provider name —
 <code>openai</code> (the default, any OpenAI-compatible server), <code>ollama</code> (native
-<code>/api/chat</code>), or <code>tgi</code> (HF TGI <code>/generate</code>) — surfaced as <code>--provider</code> on
-<code>probe</code>/<code>monitor</code>; a genuinely custom backend ships a <code>Target</code> through the
+<code>/api/chat</code>), or <code>tgi</code> (HF TGI <code>/generate</code>) — or by an adapter file mapping a
+guarded endpoint's own request and response. Both are read through one <code>Connection</code>
+(<code>guardana.core.target.connection</code>): <code>--provider</code> and <code>--adapter</code> on <code>probe</code>,
+<code>plan probe</code>, <code>target inspect</code> and <code>monitor</code>, and <code>provider</code> and <code>adapter</code> in a judge's
+<code>evaluators:</code> block, refused alike before anything is sent when they cannot be used as
+written. A genuinely custom backend ships a <code>Target</code> through the
 <code>guardana.targets</code> entry point instead. An OpenAI-compatible transport also
 implements the optional <code>ToolCallingTransport</code> protocol, so <code>EndpointTarget</code>
 advertises <code>CALL_TOOLS</code> and exposes <code>offer_tools(messages, tools)</code> — the seam

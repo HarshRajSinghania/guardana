@@ -1,12 +1,19 @@
 """`guardana target inspect` — what an endpoint actually supports, not what it claims."""
 
 import json
-import os
 from pathlib import Path
 from typing import Annotated
 
 import typer
-from guardana.cli._endpoint import build_endpoint
+from guardana.cli._connection import (
+    AdapterOption,
+    ApiKeyEnvOption,
+    ModelOption,
+    ProviderOption,
+    UrlOption,
+    endpoint_for,
+    resolve_flags,
+)
 from guardana.cli._errors import EndpointFlag, run_against_endpoint
 from guardana.cli._formats import OutputFormat
 from guardana.cli._plugins import (
@@ -94,16 +101,11 @@ def _render_json(report: TargetReport, unrunnable: tuple[str, ...]) -> str:
 
 
 def inspect_target(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; this is the command's surface
-    url: Annotated[
-        str | None, typer.Option(help="Base URL of the OpenAI-compatible endpoint")
-    ] = None,
-    model: Annotated[str | None, typer.Option(help="Model name")] = None,
-    api_key_env: Annotated[
-        str | None, typer.Option("--api-key-env", help="Env var holding the API key")
-    ] = None,
-    provider: Annotated[
-        str, typer.Option(help="Endpoint wire protocol: openai|ollama|tgi")
-    ] = "openai",
+    url: UrlOption = None,
+    model: ModelOption = None,
+    api_key_env: ApiKeyEnvOption = None,
+    provider: ProviderOption = None,
+    adapter: AdapterOption = None,
     format: Annotated[OutputFormat, typer.Option(help="human|json")] = OutputFormat.human,
     require: Annotated[
         str | None,
@@ -142,6 +144,8 @@ def inspect_target(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag;
                 "--url": url,
                 "--model": model,
                 "--api-key-env": api_key_env,
+                "--provider": provider,
+                "--adapter": adapter,
             }.items()
             if value is not None
         ]
@@ -150,19 +154,18 @@ def inspect_target(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag;
                 f"--target cannot be combined with {', '.join(used)}; pass target-specific "
                 "configuration through --target-option"
             )
-    api_key = os.environ.get(api_key_env) if api_key_env else None
     plain = resolve_target(
         registry,
         locator=target,
         options=target_option,
         kind=TargetKind.ENDPOINT,
-        fallback=lambda: _endpoint(url, model, api_key, provider),
+        fallback=lambda: _endpoint(url, model, api_key_env, provider, adapter),
     )
     planted = plain.planting(SYSTEM_PROBE) if isinstance(plain, SystemPromptPlanter) else None
     report = run_against_endpoint(
         plain.ref,
         lambda: inspect_endpoint(plain, planted),
-        accepts=(EndpointFlag.API_KEY_ENV,),
+        accepts=(EndpointFlag.ADAPTER, EndpointFlag.API_KEY_ENV),
     )
     unrunnable = unrunnable_rules(report, registry)
     if format is OutputFormat.json:
@@ -172,11 +175,21 @@ def inspect_target(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag;
     _enforce_requirements(report, require)
 
 
-def _endpoint(url: str | None, model: str | None, api_key: str | None, provider: str) -> Target:
+def _endpoint(
+    url: str | None,
+    model: str | None,
+    api_key_env: str | None,
+    provider: str | None,
+    adapter: Path | None,
+) -> Target:
     """Build the legacy endpoint selected by --url and --model."""
     if url is None or model is None:
         raise typer.BadParameter("pass --url and --model, or --target scheme://locator")
-    return build_endpoint(url, model, api_key=api_key, provider=provider, transport=None)
+    return endpoint_for(
+        resolve_flags(
+            url, model, provider=provider, api_key_env=api_key_env, adapter=adapter, sending=True
+        )
+    )
 
 
 def _enforce_requirements(report: TargetReport, require: str | None) -> None:

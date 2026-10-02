@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`guardana.core.testing.fake_github_pat` builds a fine-grained GitHub token shape for redaction tests.** `fake_secrets()` now includes it beside the AWS, OpenAI and JWT shapes.
 - **[`docs/providers.md`](docs/providers.md) states what each provider and adapter carries — the system message, tools, token counts, tool turns — and which failures it retries.** One conformance suite holds openai, ollama, tgi, the adapter and LangChain to that table against a local double.
+- **`--adapter` works on `plan probe`, `target inspect` and `monitor`, and a judge block takes `provider` and `adapter`.** One connection (URL, model, provider, key variable, adapter file) is read the same way by every endpoint command and every judge, so a guarded endpoint can be planned, inspected, probed, monitored and used as a judge with the same settings. A judge's identity names its provider and adapter only when they are set, so existing identities do not change.
 
 ### Changed
 
@@ -18,12 +19,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The adapter retries `429` and `503` within `--max-requests`, honouring `Retry-After`, and never `500`, `502` or `504`,** which an application may answer after it already acted.
 - **Ollama's token counts are read**, so a token ceiling over Ollama is enforced instead of refused. A LangChain tool turn carries its token counts, so an agent run under a token ceiling no longer stops at its first tool turn.
 - **`usage.requests_missing_token_counts` also counts a request that reported only one of its two token counts**, such as an Ollama reply to a cached prompt; the reported half still adds to its sum.
+- **Breaking: a connection the run cannot honour is refused before any request (exit `3`).** An `--api-key-env` or judge `api_key_env` naming an unset or empty variable, which used to send no key; `--adapter` with `--api-key-env` or an explicit `--provider`, which the adapter ignored; an adapter `url:` that differs from `--url`, which replaced it while the run named `--url`; an adapter `method:` other than `POST`, which was ignored; and a misspelled key or block name under `evaluators:`, which was ignored although `profiles.md` said it was an error. `plan probe` and `plan grade` read no key.
+- **`calibrate` holds its judge to the profile's `budgets:`;** a calibration the budget stops exits `6` and records nothing.
 
 ### Fixed
 
 - **The terminal report escapes bidirectional controls and Unicode line separators.** Previously, U+202E and the other explicit direction controls (U+061C, U+200E, U+200F, U+202A to U+202E, U+2066 to U+2069) and U+2028 and U+2029 in a target's text reached the terminal, where an override can make a finding read in an order the target did not write. They now print escaped, as `\u202e`.
 - **A garak `eval` record whose counts cannot all be true is unreadable.** Previously, a record stating more `passed` and `nones` outputs than `total_evaluated` derived a negative failure count and imported it as a failed claim. Such a record, and one stating a negative count, is now unreadable and lands in the errors channel.
 - **A graded recording from a probe its budget stopped no longer passes.** A suite counted every unrecorded trial as failed and could still clear its bar, while the stop survived only in `run.recording.origin`. Such a run now carries an `incomplete_recording` coverage shortfall naming the origin run: it is indeterminate (exit `2`) unless a finding fails it (exit `1`), and `plan grade` refuses it.
+- **An unknown `--provider` or an unreadable `--system-prompt-file` is invalid usage (exit `3`)** on `probe`, `plan probe`, `target inspect` and `monitor`; it used to end as an internal error (exit `5`).
+- **`plan probe` refuses a token ceiling `probe` refuses**, so a plan no longer prices a run that cannot start.
 
 ## [0.35.0] - 2026-10-02 — grading prior answers, kept probe exchanges, paired diffs, and secret redaction
 

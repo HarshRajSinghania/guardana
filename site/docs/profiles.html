@@ -325,6 +325,7 @@ evaluators:                     # config-wired evaluators — see the section be
     endpoint: &quot;http://localhost:11434&quot;   # any OpenAI-compatible server
     model: &quot;llama3&quot;
     api_key_env: &quot;JUDGE_API_KEY&quot;         # optional; env var holding the key
+    provider: &quot;openai&quot;                   # optional; openai | ollama | tgi
     prompt_version: &quot;2025.1&quot;             # optional; versioned judging rubric
     min_agreement: 3                     # optional; samples per verdict (default 1)
   guard:                                 # optional safety-classifier evaluator
@@ -435,7 +436,7 @@ evaluators:                     # config-wired evaluators — see the section be
 <td><code>evaluators</code></td>
 <td>mapping</td>
 <td><code>{}</code></td>
-<td>Config blocks for evaluators that need a model of their own, keyed by evaluator id — <code>llm_judge</code> and <code>guard</code> today. <code>probe</code> and <code>monitor</code> build and register them from this block at startup, and <code>plan probe</code> builds them to price their calls without sending any; see the next section. With no block, a rule naming that evaluator is skipped <strong>visibly</strong>, never silently passed.</td>
+<td>Config blocks for evaluators that need a model of their own, keyed by evaluator id — <code>llm_judge</code> and <code>guard</code>; any other block name is refused. <code>probe</code>, <code>grade</code>, <code>monitor</code>, <code>calibrate</code> and <code>rule test</code> build and register them from this block at startup, and <code>plan</code> builds them to price their calls without sending any; see the next section. With no block, a rule naming that evaluator is skipped <strong>visibly</strong>, never silently passed.</td>
 </tr>
 </tbody>
 </table></div>
@@ -474,9 +475,11 @@ went unmet under <code>run.coverage.shortfall</code>.</p>
 <h2 id="config-wired-evaluators-llm_judge-and-guard">Config-wired evaluators: <code>llm_judge</code> and <code>guard</code></h2>
 <p>Two built-in evaluators grade with a model of their own, so they only become
 available once the <code>evaluators:</code> block tells Guardana where that model lives.
-<code>probe</code> and <code>monitor</code> read the block at startup and register the evaluators
-alongside the always-available <code>keyword</code>, <code>canary</code>, and <code>length</code>.</p>
-<p>Both blocks share the endpoint keys:</p>
+<code>probe</code>, <code>grade</code>, <code>monitor</code>, <code>calibrate</code> and <code>rule test</code> read the block at startup
+and register the evaluators alongside the always-available <code>keyword</code>, <code>canary</code>, and
+<code>length</code>.</p>
+<p>Both blocks share the connection keys, read the way the endpoint commands read
+<code>--url</code>, <code>--provider</code>, <code>--api-key-env</code> and <code>--adapter</code>:</p>
 <div class="table-wrap"><table>
 <thead>
 <tr>
@@ -489,7 +492,7 @@ alongside the always-available <code>keyword</code>, <code>canary</code>, and <c
 <tr>
 <td><code>endpoint</code></td>
 <td>yes</td>
-<td>Base URL of an OpenAI-compatible server — a local vLLM or Ollama (<code>/v1</code>) keeps grading fully offline</td>
+<td>Base URL of the judge's server — a local vLLM or Ollama keeps grading fully offline. With <code>adapter</code>, the URL the adapter posts to</td>
 </tr>
 <tr>
 <td><code>model</code></td>
@@ -499,10 +502,25 @@ alongside the always-available <code>keyword</code>, <code>canary</code>, and <c
 <tr>
 <td><code>api_key_env</code></td>
 <td>no</td>
-<td>Env var holding the bearer API key, if the server needs one</td>
+<td>Env var holding the bearer API key, if the server needs one. Unset or empty is refused before anything is sent; <code>plan</code> never reads it</td>
+</tr>
+<tr>
+<td><code>provider</code></td>
+<td>no</td>
+<td>Wire protocol: <code>openai</code> (default), <code>ollama</code> or <code>tgi</code>; any other name is refused</td>
+</tr>
+<tr>
+<td><code>adapter</code></td>
+<td>no</td>
+<td>An <a href="usage-probe.html#probing-a-guarded-endpoint">adapter file</a>, read beside the profile when relative. Its <code>url:</code> may only repeat <code>endpoint</code>; it cannot be combined with <code>provider</code> or <code>api_key_env</code></td>
 </tr>
 </tbody>
 </table></div>
+<p>A judge's identity — what a recorded calibration is matched against — names its
+model and a digest of its endpoint, and adds <code>provider=</code> and <code>adapter=&lt;digest of the file&gt;</code> only when the block sets them, so a block that sets neither keeps the identity
+it had. A judge block that sets <code>provider</code> or <code>adapter</code> needs the default judge
+builder; a <a href="python-api.html">Python caller</a> that passes its own <code>judge_endpoint</code> gets a
+<code>ProfileError</code> for such a block rather than a judge built on the OpenAI wire.</p>
 <p><code>llm_judge</code> — an LLM judge with a versioned rubric — additionally takes:</p>
 <div class="table-wrap"><table>
 <thead>
@@ -532,9 +550,11 @@ content, so Guardana never uses one as an always-on all-clear. Over an agent run
 or a whole conversation it classifies every reply joined into one text, in one
 call; a calibration recorded on single replies measured it on shorter input than
 that.</p>
-<p>A typo in any of these keys is a <code>ProfileError</code> at load time, and a rule that
-names an unconfigured evaluator is skipped visibly in the run summary — the
-gate never quietly weakens.</p>
+<p>An unknown block name under <code>evaluators:</code>, a key a block does not take, and a block
+that is not a mapping are a <code>ProfileError</code> when the profile loads (exit <code>3</code>), and a
+profile built in Python is held to the same keys when its judges are wired. A rule
+that names an unconfigured evaluator is skipped visibly in the run summary — the gate
+never quietly weakens.</p>
 <h2 id="rule-specific-configuration">Rule-specific configuration</h2>
 <p><code>rule_config</code> (a top-level key, keyed by rule id) is threaded into a rule's
 <code>RuleContext</code> at run time, letting a rule read profile-supplied configuration

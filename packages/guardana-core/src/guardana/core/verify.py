@@ -211,7 +211,12 @@ class Verifier:
     concurrency: int = DEFAULT_ENDPOINT_CONCURRENCY
     registry: Registry | None = None
     judge_endpoint: EndpointBuilder = default_endpoint_builder
-    """How the endpoint of each judge under `evaluators:` is built from its url, model and key."""
+    """How the endpoint of each judge under `evaluators:` is built from its url, model and key.
+
+    Only the default builder honours a judge block's `provider` or `adapter`; with
+    a builder of your own, such a block raises `ProfileError` before anything is sent,
+    rather than building that judge on the OpenAI wire.
+    """
 
     _prepared: list[Registry] = field(default_factory=list, init=False, repr=False)
 

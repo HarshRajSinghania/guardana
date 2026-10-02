@@ -16,7 +16,6 @@ No remote issues were created; the GitHub open-issue query returned zero.
 |---|---|---|---|
 | B04 | Starter and three short task-oriented recipes | F2 | Clean-install offline run, edited custom check and saved artifact; recorded-answer and actual-application paths clearly distinguish their coverage. |
 | B06 | One redacted export and one webhook | F4 | An independently installed package provides both through the common redaction boundary, collision checks, trust modes and locks; delivery status observable; offline use sends nothing. The general plugin contract is deferred. |
-| B08 | Connection/adapter parity across endpoint commands | F6 | One custom endpoint can be planned, inspected, probed, monitored and calibrated with equivalent settings. |
 | B10 | Calibration identity supports several rubric versions and verdict IDs | M1 | Match the actual grader identity. Kept for M1 in 0.30.0: re-keying the store is calibration schema 3 and F5 defines grading identity; the decline already no longer promises an impossible rerun. |
 | B11 | Collector measurement envelope and storage | M3 | Independent envelope migration carries measurements, denominator, trials, uncertainty and missingness, with tenant isolation. |
 | B12 | Non-executing declarative packs | parallel lane, decided before F2 | Keep local ID validation. Decide whether a pack can ship checks that execute no Python. The public extension-ID service is dropped (direction audit). |
@@ -26,7 +25,7 @@ No remote issues were created; the GitHub open-issue query returned zero.
 | B21 | Three-outcome fixtures for every built-in | 1.0 | The ratchet in `test_builtin_fixture_coverage.py` (12 of 51 at 0.31.0) reaches every rule that can decline. |
 | B22 | A time bound for `regex` | Later | A crafted reply can make an author's backtracking pattern run for a very long time; the 65,536-character bound limits input, not time. Any fix that adds a dependency needs principle 6's justification. |
 
-B07 shipped in 0.35.0 (ROADMAP F5). B15, B16, B17 and B18 shipped in 0.32.0 (ROADMAP Q1). B01, B02, B03, B09 and B14 shipped in 0.30.0 (ROADMAP F1). The lockfile/gitleaks and
+B08 shipped in 0.36.0 (ROADMAP F6, first half). B07 shipped in 0.35.0 (ROADMAP F5). B15, B16, B17 and B18 shipped in 0.32.0 (ROADMAP Q1). B01, B02, B03, B09 and B14 shipped in 0.30.0 (ROADMAP F1). The lockfile/gitleaks and
 script-parser items shipped in 0.31.0; ONNX metadata grading, ATLAS provenance and the other
 items remain open below. Before closing any item, rerun its reproduction.
 
@@ -196,17 +195,6 @@ the 0.26 measurement audit.)
   two on separate tracks, and content releases have landed since that format version. The
   provenance field is the first fix; mapping the agent-facing techniques the newest releases add
   is rule work for the parallel contributor lane.
-
-## From the first field report (0.26.0), still open
-
-The report itself was closed with 0.26.1 (see `CHANGELOG.md`); the lock layout shipped in
-0.31.0. This one remains, held back because it adds surface a patch may not add.
-
-- **`--adapter` exists on `probe` and on nothing else.** `plan probe`, `target inspect`,
-  `monitor` and `calibrate` all open a connection and none accepts it, so a guarded endpoint
-  — the one most worth pre-flighting, watching and calibrating against — can only be probed
-  once, by hand. 0.26.1 stopped the error message naming a flag the command rejects; hoisting
-  the flag itself is a new argument on four commands.
 
 ## Found while fixing the field report
 

@@ -26,6 +26,9 @@ For maturity and known gaps, read [Product status](docs/product-status.md).
 | Use verification in tests | `guardana.testing.assert_secure(...)` | the same policy as a pytest assertion |
 | Run verification from Python | `guardana.core.verify.Verifier(trust=...)` | the run `scan` or `probe` writes, as typed data, failed and stopped runs included |
 
+`probe`, `plan probe`, `target inspect`, `monitor` and every judge read one connection —
+`--url`, `--model`, `--provider`, `--api-key-env`, `--adapter` — and refuse one they cannot
+honour before the first request.
 [Providers](docs/providers.md) lists what each provider and adapter carries and retries; one
 conformance suite holds them to it.
 

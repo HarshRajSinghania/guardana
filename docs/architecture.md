@@ -85,8 +85,12 @@ grows with the target instead of with the rule count) and `EndpointTarget` (a li
 exposing `chat(messages) -> str`, with a pluggable `ChatTransport` so tests
 never hit the network). The transport is selected by a provider name —
 `openai` (the default, any OpenAI-compatible server), `ollama` (native
-`/api/chat`), or `tgi` (HF TGI `/generate`) — surfaced as `--provider` on
-`probe`/`monitor`; a genuinely custom backend ships a `Target` through the
+`/api/chat`), or `tgi` (HF TGI `/generate`) — or by an adapter file mapping a
+guarded endpoint's own request and response. Both are read through one `Connection`
+(`guardana.core.target.connection`): `--provider` and `--adapter` on `probe`,
+`plan probe`, `target inspect` and `monitor`, and `provider` and `adapter` in a judge's
+`evaluators:` block, refused alike before anything is sent when they cannot be used as
+written. A genuinely custom backend ships a `Target` through the
 `guardana.targets` entry point instead. An OpenAI-compatible transport also
 implements the optional `ToolCallingTransport` protocol, so `EndpointTarget`
 advertises `CALL_TOOLS` and exposes `offer_tools(messages, tools)` — the seam

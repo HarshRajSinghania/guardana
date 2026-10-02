@@ -6,7 +6,7 @@ from typing import Annotated
 import typer
 from guardana.cli._errors import run_against_endpoint
 from guardana.cli._evaluators import wire_config_evaluators
-from guardana.cli._exit import refuse_invalid_profile
+from guardana.cli._exit import refuse_invalid_profile, refuse_unenforceable_budget
 from guardana.cli._plugins import (
     AllowPluginOption,
     PluginsOption,
@@ -16,6 +16,7 @@ from guardana.cli._plugins import (
 )
 from guardana.cli._profile import resolve_profile
 from guardana.cli.exit_codes import ExitCode
+from guardana.core.budget import BudgetExhausted
 from guardana.core.calibration import CalibrationReport, calibrate
 from guardana.core.calibration.corpus import CorpusError, bundled_corpus, load_corpus
 from guardana.core.calibration.store import (
@@ -60,6 +61,10 @@ def calibrate_command(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI fl
     This is the check: grade a corpus whose outcomes are already known — canaries
     and tool calls settle them without a human — and compare what the evaluator
     said with what happened.
+
+    A judge built from `evaluators:` is held to the profile's `budgets:`. A calibration
+    the budget stops exits `6` and records nothing: a measurement over the samples a
+    ceiling happened to allow is not a measurement of the corpus.
     """
     prof = resolve_profile(profile, None)
     resolved = resolve_trust(plugins, allow_plugin, prof)
@@ -67,7 +72,9 @@ def calibrate_command(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI fl
     warn_about_load_errors(registry, resolved, what="evaluator")
     hint_refused_plugins(registry, resolved)
     try:
-        wire_config_evaluators(registry, prof)
+        wire_config_evaluators(registry, prof, prof.budgets)
+    except BudgetExhausted as exc:
+        raise refuse_unenforceable_budget(exc) from exc
     except ProfileError as exc:
         raise refuse_invalid_profile(exc) from exc
     graders = registry.evaluators()
@@ -85,7 +92,17 @@ def calibrate_command(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI fl
     # No `accepts`: the judge's credentials live in the profile, and calibrate takes none of
     # the endpoint flags the shared advice would otherwise name. A config-built judge names
     # its own block and URL when it fails; this label is only for a plugin's own network.
-    report = run_against_endpoint(f"of evaluator {evaluator!r}", lambda: calibrate(grader, samples))
+    try:
+        report = run_against_endpoint(
+            f"of evaluator {evaluator!r}", lambda: calibrate(grader, samples)
+        )
+    except BudgetExhausted as exc:
+        typer.echo(
+            f"error: {exc} — the calibration stopped before every sample was graded, "
+            f"so nothing was measured or recorded",
+            err=True,
+        )
+        raise typer.Exit(code=ExitCode.BUDGET_EXHAUSTED) from exc
     typer.echo(_render(report, len(samples), starter=corpus is None))
     if record is not None:
         _record(report, corpus, record)

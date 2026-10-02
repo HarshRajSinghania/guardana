@@ -291,7 +291,7 @@ Hugging Face TGI's <code>/generate</code>.</p>
 <tr>
 <td><code>--url TEXT</code></td>
 <td>—</td>
-<td>Base URL of the OpenAI-compatible endpoint. Required unless <code>--mcp</code> names an MCP server instead. A redirect is never followed: an endpoint that answers <code>3xx</code> is unavailable (exit <code>4</code>)</td>
+<td>Base URL of the OpenAI-compatible endpoint; with <code>--adapter</code>, the URL the adapter posts to. Required unless <code>--mcp</code> names an MCP server instead. A redirect is never followed: an endpoint that answers <code>3xx</code> is unavailable (exit <code>4</code>)</td>
 </tr>
 <tr>
 <td><code>--model TEXT</code></td>
@@ -311,22 +311,22 @@ Hugging Face TGI's <code>/generate</code>.</p>
 <tr>
 <td><code>--api-key-env TEXT</code></td>
 <td>none</td>
-<td>Name of an environment variable holding the bearer API key</td>
+<td>Name of an environment variable holding the bearer API key. A variable that is unset or empty is refused (exit <code>3</code>) before anything is sent; omit the flag for an endpoint that needs no key</td>
 </tr>
 <tr>
 <td><code>--provider [openai|ollama|tgi]</code></td>
 <td><code>openai</code></td>
-<td>Endpoint wire protocol: OpenAI-compatible (default), Ollama's native <code>/api/chat</code>, or HF TGI's <code>/generate</code></td>
+<td>Endpoint wire protocol: OpenAI-compatible (default), Ollama's native <code>/api/chat</code>, or HF TGI's <code>/generate</code>. Any other name is refused (exit <code>3</code>)</td>
 </tr>
 <tr>
 <td><code>--adapter PATH</code></td>
 <td>none</td>
-<td>Adapter file mapping a <strong>guarded product endpoint</strong>'s custom request/response schema — see <a href="#probing-a-guarded-endpoint">Probing a guarded endpoint</a>. Overrides <code>--provider</code>.</td>
+<td>Adapter file mapping a <strong>guarded product endpoint</strong>'s custom request/response schema — see <a href="#probing-a-guarded-endpoint">Probing a guarded endpoint</a>. Cannot be combined with <code>--provider</code> or <code>--api-key-env</code>: the adapter is the wire shape, and its <code>headers:</code> carry the credential</td>
 </tr>
 <tr>
 <td><code>--system-prompt-file PATH</code></td>
 <td>none</td>
-<td>File containing the system prompt already deployed in front of the model, so non-canary rules probe the real configuration</td>
+<td>File containing the system prompt already deployed in front of the model, so non-canary rules probe the real configuration. A file that cannot be read is refused (exit <code>3</code>)</td>
 </tr>
 <tr>
 <td><code>--profile PATH</code></td>
@@ -399,13 +399,48 @@ Hugging Face TGI's <code>/generate</code>.</p>
 <td>Permit <code>--mcp</code> to <strong>start</strong> an stdio server, which executes the code under examination</td>
 </tr>
 <tr>
+<td><code>--max-requests</code>, <code>--max-input-tokens</code>, <code>--max-output-tokens</code>, <code>--max-duration</code></td>
+<td>the profile's <code>budgets:</code></td>
+<td>Ceilings on what the run may spend — see <a href="profiles.html#budgets--a-ceiling-on-what-a-run-may-spend"><code>profiles.md</code></a>. A token ceiling on a transport that reports no token counts (an adapter, <code>--provider tgi</code>) is refused before anything is sent (exit <code>3</code>), as <code>plan probe</code> refuses it</td>
+</tr>
+<tr>
+<td><code>--safety [passive|active|side-effecting]</code></td>
+<td><code>active</code></td>
+<td>How far rules may reach; a rule above it is skipped</td>
+</tr>
+<tr>
+<td><code>--allow-destructive</code></td>
+<td>off</td>
+<td>Permit rules that can destroy or alter something the target owns</td>
+</tr>
+<tr>
+<td><code>--ai-system TEXT</code></td>
+<td>none</td>
+<td>Which AI system this run verifies, e.g. <code>support-agent</code>. Never guessed.</td>
+</tr>
+<tr>
+<td><code>--environment TEXT</code></td>
+<td>none</td>
+<td>Where it runs, e.g. <code>production</code>. Never guessed from a branch name.</td>
+</tr>
+<tr>
+<td><code>--deployment-id TEXT</code></td>
+<td>none</td>
+<td>Which version of it, if you have an identifier.</td>
+</tr>
+<tr>
+<td><code>--output PATH</code></td>
+<td>stdout</td>
+<td>Write the report to a file instead of stdout — needed by <code>guardana diff</code>. See <a href="#saving-a-run-for-comparison">Saving a run for comparison</a></td>
+</tr>
+<tr>
 <td><code>--keep-exchanges</code></td>
 <td>off (or <code>privacy.keep_exchanges</code>)</td>
 <td>Keep every chat exchange of the plain pass, redacted, beside the saved run so <a href="usage-grade.html"><code>guardana grade</code></a> can grade it again without calling the endpoint — see <a href="#keeping-the-exchanges">Keeping the exchanges</a>. Needs <code>--format json --output</code>; refused with <code>--mcp</code>, <code>--target</code> and <code>privacy.evidence_mode: metadata_only</code> (exit <code>3</code>)</td>
 </tr>
 </tbody>
 </table></div>
-<p><code>--target</code> is mutually exclusive with <code>--url</code>, <code>--model</code>, adapter, credential,
+<p><code>--target</code> is mutually exclusive with <code>--url</code>, <code>--model</code>, provider, adapter, credential,
 system-prompt, and MCP connection flags. The plugin owns construction; Guardana
 still owns rule selection, policy, budgets, evidence, and exit codes. A custom
 endpoint implements <code>SystemPromptPlanter</code> to receive isolated canary passes; if
@@ -583,9 +618,10 @@ gateway, auth, and guardrails in front of it — and that has its own request an
 response schema. <code>--adapter &lt;file&gt;</code> maps it, so the probe drives the whole surface
 instead of bypassing it to the bare model.</p>
 <pre><code class="language-yaml"># wellness-adapter.yaml
-url: https://api.example.com/v1/wellness/chat   # optional; defaults to --url
+url: https://api.example.com/v1/wellness/chat   # optional; must equal --url
+method: POST                                    # optional; POST is the only method
 headers:
-  X-Api-Key: ${WELLNESS_API_KEY}                # ${ENV} is expanded; unset = error
+  X-Api-Key: ${WELLNESS_API_KEY}                # ${ENV} is expanded; unset or empty = error
   Content-Type: application/json
 body:                                           # your endpoint's request shape;
   message: &quot;{{prompt}}&quot;                         # {{prompt}} is where the probe goes
@@ -593,8 +629,18 @@ body:                                           # your endpoint's request shape;
   stream: false
 response_path: data.reply                       # dotted path to the reply text
 </code></pre>
-<pre><code class="language-bash">guardana probe --url https://api.example.com --model wellness --adapter wellness-adapter.yaml
+<pre><code class="language-bash">guardana probe --url https://api.example.com/v1/wellness/chat --model wellness \
+  --adapter wellness-adapter.yaml
 </code></pre>
+<p>The run names the URL it calls, so the adapter's <code>url:</code> may only repeat <code>--url</code>; one that
+differs is refused rather than silently replacing it. Everything below is refused with
+exit <code>3</code> before a request is sent: an adapter file that cannot be read, an unknown key,
+a <code>method:</code> other than <code>POST</code>, a <code>${VAR}</code> that is unset or empty, and <code>--adapter</code>
+together with <code>--provider</code> or <code>--api-key-env</code>. The same adapter file works for
+<a href="usage-plan.html"><code>plan probe</code></a>, <a href="usage-target.html"><code>target inspect</code></a> and
+<a href="usage-monitor.html"><code>monitor</code></a>, and for a judge through <code>adapter:</code> in its
+<a href="profiles.html#config-wired-evaluators-llm_judge-and-guard"><code>evaluators:</code> block</a>. <code>plan probe</code> reads
+no <code>${VAR}</code>: pricing a run needs no secret.</p>
 <p>For a <strong>multi-turn</strong> scenario (gradual jailbreak, indirect injection), give the
 body a <code>{{messages}}</code> slot to receive the full transcript as a <code>[{role, content}]</code>
 list, if your endpoint speaks multi-turn:</p>
@@ -696,7 +742,7 @@ configured. This means one <code>probe</code> invocation may issue multiple batc
 requests — this is expected and is what lets an unmodifiable canary
 co-exist with your real system prompt.</p>
 <h2 id="example-invocation-and-output">Example invocation and output</h2>
-<pre><code class="language-console">$ guardana probe --url http://localhost:11434 --model llama3 --api-key-env OLLAMA_API_KEY
+<pre><code class="language-console">$ guardana probe --url http://localhost:11434 --model llama3
 ✖ [CRITICAL] guardana.prompt.system_prompt_leak.canary — System prompt leakage via canary marker
     Planted canary marker found in response.  (http://localhost:11434#llama3)
 ✖ [HIGH] guardana.prompt.injection.ignore_previous — Prompt injection via instruction override

@@ -1,13 +1,21 @@
-import os
 from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
 from typing import Annotated, TypeVar
 
 import typer
-from guardana.cli._adapter import load_adapter_config
 from guardana.cli._budget_flags import override
-from guardana.cli._endpoint import build_endpoint
+from guardana.cli._connection import (
+    AdapterOption,
+    ApiKeyEnvOption,
+    ModelOption,
+    ProviderOption,
+    SystemPromptFileOption,
+    UrlOption,
+    endpoint_for,
+    read_system_prompt,
+    resolve_flags,
+)
 from guardana.cli._errors import EndpointFlag, run_against_endpoint, run_judged
 from guardana.cli._evaluators import judge_endpoint, wire_config_evaluators
 from guardana.cli._exit import exit_with, refuse_invalid_profile, refuse_unenforceable_budget
@@ -38,14 +46,7 @@ from guardana.core.profile import Profile, ProfileError
 from guardana.core.recording import render_recording
 from guardana.core.redaction import EvidenceMode
 from guardana.core.registry import Registry
-from guardana.core.target import (
-    ChatTransport,
-    EndpointError,
-    HttpAdapterTransport,
-    Target,
-    TargetKind,
-    display_url,
-)
+from guardana.core.target import Target, TargetKind, display_url
 from guardana.core.usage import UsageMeter
 from guardana.core.verify import (
     JudgeUnreachableError,
@@ -73,25 +74,12 @@ _ACCEPTED_FLAGS = (
 
 
 def probe(  # noqa: C901, PLR0913, PLR0917 — Typer surface, target modes
-    url: Annotated[
-        str | None, typer.Option(help="Base URL of the OpenAI-compatible endpoint")
-    ] = None,
-    model: Annotated[str | None, typer.Option(help="Model name")] = None,
-    api_key_env: Annotated[
-        str | None, typer.Option("--api-key-env", help="Env var holding the API key")
-    ] = None,
-    provider: Annotated[
-        str, typer.Option(help="Endpoint wire protocol: openai|ollama|tgi")
-    ] = "openai",
-    adapter: Annotated[
-        Path | None,
-        typer.Option(
-            help="Adapter file mapping a guarded endpoint's custom request/response schema."
-        ),
-    ] = None,
-    system_prompt_file: Annotated[
-        Path | None, typer.Option("--system-prompt-file", help="File containing a system prompt")
-    ] = None,
+    url: UrlOption = None,
+    model: ModelOption = None,
+    api_key_env: ApiKeyEnvOption = None,
+    provider: ProviderOption = None,
+    adapter: AdapterOption = None,
+    system_prompt_file: SystemPromptFileOption = None,
     profile: Annotated[Path | None, typer.Option(help="guardana.yaml path")] = None,
     preset: Annotated[str | None, typer.Option(help=PRESET_HELP)] = None,
     format: Annotated[
@@ -267,6 +255,7 @@ def probe(  # noqa: C901, PLR0913, PLR0917 — Typer surface, target modes
             "--url": url,
             "--model": model,
             "--api-key-env": api_key_env,
+            "--provider": provider,
             "--adapter": adapter,
             "--system-prompt-file": system_prompt_file,
             "--mcp": mcp,
@@ -328,23 +317,19 @@ def probe(  # noqa: C901, PLR0913, PLR0917 — Typer surface, target modes
         return
 
     endpoint_url, model_name = require_chat_endpoint(url, model)
-    transport: ChatTransport | None = None
-    if adapter is not None:
-        try:
-            transport = HttpAdapterTransport(load_adapter_config(adapter, endpoint_url))
-        except EndpointError as exc:
-            raise typer.BadParameter(str(exc)) from exc
-    # Every pass of the probe — one per planted canary — bills this one meter, so the
-    # profile's budgets bound the probe rather than each pass of it.
-    selected_endpoint = build_endpoint(
+    connection = resolve_flags(
         endpoint_url,
         model_name,
-        api_key=os.environ.get(api_key_env) if api_key_env else None,
-        system_prompt=(
-            system_prompt_file.read_text(encoding="utf-8") if system_prompt_file else None
-        ),
         provider=provider,
-        transport=transport,
+        api_key_env=api_key_env,
+        adapter=adapter,
+        sending=True,
+    )
+    # Every pass of the probe — one per planted canary — bills this one meter, so the
+    # profile's budgets bound the probe rather than each pass of it.
+    selected_endpoint = endpoint_for(
+        connection,
+        system_prompt=read_system_prompt(system_prompt_file),
         meter=UsageMeter(prof.budgets),
     )
     probed = run_against_endpoint(

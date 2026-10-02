@@ -1,4 +1,3 @@
-import os
 import time
 from collections.abc import Callable, Mapping
 from dataclasses import replace
@@ -6,6 +5,16 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
+from guardana.cli._connection import (
+    AdapterOption,
+    ApiKeyEnvOption,
+    ModelOption,
+    ProviderOption,
+    SystemPromptFileOption,
+    UrlOption,
+    read_system_prompt,
+    resolve_flags,
+)
 from guardana.cli._errors import EndpointFlag, run_against_endpoint
 from guardana.cli._evaluators import JudgeMeters, wire_config_evaluators
 from guardana.cli._exit import refuse_invalid_profile, refuse_unenforceable_budget
@@ -32,6 +41,7 @@ from guardana.core.registry import Registry
 from guardana.core.report import ScanResult
 from guardana.core.runner import DEFAULT_ENDPOINT_CONCURRENCY
 from guardana.core.target import Target, TargetKind, display_url
+from guardana.core.target.connection import DEFAULT_PROVIDER
 from guardana.report import get_renderer
 
 _DEFAULT_INTERVAL_SECONDS = 60.0
@@ -40,7 +50,7 @@ _DEFAULT_INTERVAL_SECONDS = 60.0
 # single-slot local server.
 _DEFAULT_CONCURRENCY = 4
 
-_ACCEPTED_FLAGS = (EndpointFlag.API_KEY_ENV, EndpointFlag.CONCURRENCY)
+_ACCEPTED_FLAGS = (EndpointFlag.ADAPTER, EndpointFlag.API_KEY_ENV, EndpointFlag.CONCURRENCY)
 
 
 def alert_handler(
@@ -168,19 +178,12 @@ def _rearm_judges(registry: Registry, profile: Profile) -> JudgeMeters:
 
 
 def monitor(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; this is the command's surface
-    url: Annotated[
-        str | None, typer.Option(help="Base URL of the OpenAI-compatible endpoint")
-    ] = None,
-    model: Annotated[str | None, typer.Option(help="Model name")] = None,
-    api_key_env: Annotated[
-        str | None, typer.Option("--api-key-env", help="Env var holding the API key")
-    ] = None,
-    provider: Annotated[
-        str, typer.Option(help="Endpoint wire protocol: openai|ollama|tgi")
-    ] = "openai",
-    system_prompt_file: Annotated[
-        Path | None, typer.Option("--system-prompt-file", help="File containing a system prompt")
-    ] = None,
+    url: UrlOption = None,
+    model: ModelOption = None,
+    api_key_env: ApiKeyEnvOption = None,
+    provider: ProviderOption = None,
+    adapter: AdapterOption = None,
+    system_prompt_file: SystemPromptFileOption = None,
     interval: Annotated[
         float, typer.Option(help="Seconds between sampling cycles")
     ] = _DEFAULT_INTERVAL_SECONDS,
@@ -269,6 +272,8 @@ def monitor(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; this i
                 "--url": url,
                 "--model": model,
                 "--api-key-env": api_key_env,
+                "--provider": provider,
+                "--adapter": adapter,
                 "--system-prompt-file": system_prompt_file,
             }.items()
             if value is not None
@@ -317,14 +322,16 @@ def monitor(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; this i
     if url is None or model is None:
         raise typer.BadParameter("pass --url and --model, or --target scheme://locator")
 
+    reached = resolve_flags(
+        url, model, provider=provider, api_key_env=api_key_env, adapter=adapter, sending=True
+    )
     connection = Connection(
         url=url,
         model=model,
-        api_key=os.environ.get(api_key_env) if api_key_env else None,
-        provider=provider,
-        system_prompt=(
-            system_prompt_file.read_text(encoding="utf-8") if system_prompt_file else None
-        ),
+        api_key=reached.api_key,
+        provider=reached.provider or DEFAULT_PROVIDER,
+        system_prompt=read_system_prompt(system_prompt_file),
+        transport=reached.transport,
     )
     on_alert = alert_handler(
         EvidenceRedactor(prof.privacy),

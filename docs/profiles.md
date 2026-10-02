@@ -77,6 +77,7 @@ evaluators:                     # config-wired evaluators — see the section be
     endpoint: "http://localhost:11434"   # any OpenAI-compatible server
     model: "llama3"
     api_key_env: "JUDGE_API_KEY"         # optional; env var holding the key
+    provider: "openai"                   # optional; openai | ollama | tgi
     prompt_version: "2025.1"             # optional; versioned judging rubric
     min_agreement: 3                     # optional; samples per verdict (default 1)
   guard:                                 # optional safety-classifier evaluator
@@ -101,7 +102,7 @@ evaluators:                     # config-wired evaluators — see the section be
 | `contracts` | list of paths | `[]` | Security contracts to load — files, or directories of `.yaml`/`.yml`. Added to anything passed via the repeatable `--contract PATH` flag. Unlike a malformed *rule* file, a contract that will not load is a hard error: it is your own threat model, and a silently absent one is a gate you think you have. See [`usage-contracts.md`](usage-contracts.md). |
 | `trials` | integer ≥ 1 | `1` | How many independent attempts `probe`, `monitor` and `plan probe` make at each case of a rule that grades a sampled model reply. `--trials N` wins over it. A rule that does not repeat (a protocol check, a `stateful` scenario) makes one attempt whatever this says, and the run records that. Anything other than a whole number of at least 1 is refused at load. See [`usage-probe.md`](usage-probe.md#repeated-trials). |
 | `calibrations` | list of paths | `[]` | Calibration files written by `guardana calibrate --record`. A relative path is read beside the profile file, not from the current working directory; globs are not expanded. A missing listed path stops the run with exit code `3` (`INVALID_USAGE`), and so do two files that both record the same evaluator. A bare string is refused. |
-| `evaluators` | mapping | `{}` | Config blocks for evaluators that need a model of their own, keyed by evaluator id — `llm_judge` and `guard` today. `probe` and `monitor` build and register them from this block at startup, and `plan probe` builds them to price their calls without sending any; see the next section. With no block, a rule naming that evaluator is skipped **visibly**, never silently passed. |
+| `evaluators` | mapping | `{}` | Config blocks for evaluators that need a model of their own, keyed by evaluator id — `llm_judge` and `guard`; any other block name is refused. `probe`, `grade`, `monitor`, `calibrate` and `rule test` build and register them from this block at startup, and `plan` builds them to price their calls without sending any; see the next section. With no block, a rule naming that evaluator is skipped **visibly**, never silently passed. |
 
 `include`/`exclude` are matched with shell-style globbing (`fnmatch`) against
 the rule's `id`, so namespacing rules (`guardana.*` for built-ins, `acme.*`
@@ -149,16 +150,27 @@ went unmet under `run.coverage.shortfall`.
 
 Two built-in evaluators grade with a model of their own, so they only become
 available once the `evaluators:` block tells Guardana where that model lives.
-`probe` and `monitor` read the block at startup and register the evaluators
-alongside the always-available `keyword`, `canary`, and `length`.
+`probe`, `grade`, `monitor`, `calibrate` and `rule test` read the block at startup
+and register the evaluators alongside the always-available `keyword`, `canary`, and
+`length`.
 
-Both blocks share the endpoint keys:
+Both blocks share the connection keys, read the way the endpoint commands read
+`--url`, `--provider`, `--api-key-env` and `--adapter`:
 
 | Key | Required | Meaning |
 |---|---|---|
-| `endpoint` | yes | Base URL of an OpenAI-compatible server — a local vLLM or Ollama (`/v1`) keeps grading fully offline |
+| `endpoint` | yes | Base URL of the judge's server — a local vLLM or Ollama keeps grading fully offline. With `adapter`, the URL the adapter posts to |
 | `model` | yes | Model name to send |
-| `api_key_env` | no | Env var holding the bearer API key, if the server needs one |
+| `api_key_env` | no | Env var holding the bearer API key, if the server needs one. Unset or empty is refused before anything is sent; `plan` never reads it |
+| `provider` | no | Wire protocol: `openai` (default), `ollama` or `tgi`; any other name is refused |
+| `adapter` | no | An [adapter file](usage-probe.md#probing-a-guarded-endpoint), read beside the profile when relative. Its `url:` may only repeat `endpoint`; it cannot be combined with `provider` or `api_key_env` |
+
+A judge's identity — what a recorded calibration is matched against — names its
+model and a digest of its endpoint, and adds `provider=` and `adapter=<digest of the
+file>` only when the block sets them, so a block that sets neither keeps the identity
+it had. A judge block that sets `provider` or `adapter` needs the default judge
+builder; a [Python caller](python-api.md) that passes its own `judge_endpoint` gets a
+`ProfileError` for such a block rather than a judge built on the OpenAI wire.
 
 `llm_judge` — an LLM judge with a versioned rubric — additionally takes:
 
@@ -175,9 +187,11 @@ or a whole conversation it classifies every reply joined into one text, in one
 call; a calibration recorded on single replies measured it on shorter input than
 that.
 
-A typo in any of these keys is a `ProfileError` at load time, and a rule that
-names an unconfigured evaluator is skipped visibly in the run summary — the
-gate never quietly weakens.
+An unknown block name under `evaluators:`, a key a block does not take, and a block
+that is not a mapping are a `ProfileError` when the profile loads (exit `3`), and a
+profile built in Python is held to the same keys when its judges are wired. A rule
+that names an unconfigured evaluator is skipped visibly in the run summary — the gate
+never quietly weakens.
 
 ## Rule-specific configuration
 

@@ -1,0 +1,178 @@
+import hashlib
+from pathlib import Path
+
+import pytest
+from guardana.core.target import HttpAdapterTransport
+from guardana.core.target.connection import (
+    Connection,
+    ConnectionConfigError,
+    Spelling,
+    load_adapter,
+    resolve_connection,
+)
+
+_URL = "https://api.example.com/chat"
+_BODY = 'body:\n  message: "{{prompt}}"\nresponse_path: data.reply\n'
+
+
+def _adapter(tmp_path: Path, text: str) -> Path:
+    path = tmp_path / "adapter.yaml"
+    path.write_text(text, encoding="utf-8")
+    return path
+
+
+def test_an_adapter_expands_its_headers_from_the_environment(tmp_path: Path) -> None:
+    path = _adapter(tmp_path, f"url: {_URL}\nheaders:\n  X-Api-Key: ${{APP_KEY}}\n{_BODY}")
+
+    loaded = load_adapter(path, url=_URL, environ={"APP_KEY": "sekret"})
+
+    assert loaded.config.url == _URL
+    assert loaded.config.headers["X-Api-Key"] == "sekret"
+    assert loaded.config.response_path == "data.reply"
+
+
+def test_an_adapter_without_a_url_posts_to_the_url_the_run_names(tmp_path: Path) -> None:
+    loaded = load_adapter(_adapter(tmp_path, _BODY), url=_URL, environ={})
+
+    assert loaded.config.url == _URL
+
+
+def test_the_adapter_digest_covers_the_file_as_written_before_expansion(tmp_path: Path) -> None:
+    text = f"headers:\n  X-Api-Key: ${{APP_KEY}}\n{_BODY}"
+    path = _adapter(tmp_path, text)
+
+    first = load_adapter(path, url=_URL, environ={"APP_KEY": "one"})
+    second = load_adapter(path, url=_URL, environ={"APP_KEY": "two"})
+
+    expected = f"sha256:{hashlib.sha256(text.encode('utf-8')).hexdigest()}"
+    assert first.digest == second.digest == expected
+
+
+@pytest.mark.parametrize("value", [None, ""], ids=["unset", "empty"])
+def test_an_adapter_header_variable_unset_or_empty_is_refused(
+    tmp_path: Path, value: str | None
+) -> None:
+    path = _adapter(tmp_path, f"headers:\n  X-Api-Key: ${{APP_KEY}}\n{_BODY}")
+    environ = {} if value is None else {"APP_KEY": value}
+
+    with pytest.raises(ConnectionConfigError, match="APP_KEY"):
+        load_adapter(path, url=_URL, environ=environ)
+
+
+def test_an_adapter_loaded_not_to_send_reads_no_header_variable(tmp_path: Path) -> None:
+    path = _adapter(tmp_path, f"headers:\n  X-Api-Key: ${{APP_KEY}}\n{_BODY}")
+
+    loaded = load_adapter(path, url=_URL, environ=None)
+
+    assert loaded.config.headers == {}
+
+
+@pytest.mark.parametrize(
+    ("text", "complaint"),
+    [
+        ("response_path: reply\n", "'body' is required"),
+        ('body:\n  m: "{{prompt}}"\nresponse_path: r\nbogus: 1\n', "unknown key"),
+        (f"method: GET\n{_BODY}", "method must be POST"),
+        ("url: https://elsewhere.example.com/chat\n" + _BODY, "differs from --url"),
+        ("- a list\n", "top level must be a mapping"),
+    ],
+    ids=["no-body", "unknown-key", "method-get", "other-url", "not-a-mapping"],
+)
+def test_an_adapter_the_run_cannot_honour_is_refused(
+    tmp_path: Path, text: str, complaint: str
+) -> None:
+    with pytest.raises(ConnectionConfigError, match=complaint):
+        load_adapter(_adapter(tmp_path, text), url=_URL, environ={})
+
+
+def test_an_adapter_may_spell_post_in_any_case_and_its_url_with_a_trailing_slash(
+    tmp_path: Path,
+) -> None:
+    path = _adapter(tmp_path, f"method: post\nurl: {_URL}/\n{_BODY}")
+
+    assert load_adapter(path, url=_URL, environ={}).config.url == _URL
+
+
+def test_a_missing_adapter_file_is_refused(tmp_path: Path) -> None:
+    with pytest.raises(ConnectionConfigError, match="cannot read --adapter"):
+        load_adapter(tmp_path / "absent.yaml", url=_URL, environ={})
+
+
+def test_a_connection_through_an_adapter_carries_its_transport_and_digest(
+    tmp_path: Path,
+) -> None:
+    resolved = resolve_connection(
+        Connection(_URL, "m", adapter=_adapter(tmp_path, _BODY)), sending=True, environ={}
+    )
+
+    assert isinstance(resolved.transport, HttpAdapterTransport)
+    assert resolved.provider is None
+    assert resolved.adapter_digest is not None
+
+
+@pytest.mark.parametrize(
+    ("connection", "complaint"),
+    [
+        (Connection(_URL, "m", provider="openai"), "cannot be combined with --provider"),
+        (Connection(_URL, "m", api_key_env="KEY"), "cannot be combined with --api-key-env"),
+    ],
+    ids=["provider", "api-key-env"],
+)
+def test_an_adapter_with_a_provider_or_a_key_variable_is_refused(
+    tmp_path: Path, connection: Connection, complaint: str
+) -> None:
+    with_adapter = Connection(
+        connection.url,
+        connection.model,
+        provider=connection.provider,
+        api_key_env=connection.api_key_env,
+        adapter=_adapter(tmp_path, _BODY),
+    )
+
+    with pytest.raises(ConnectionConfigError, match=complaint):
+        resolve_connection(with_adapter, sending=True, environ={"KEY": "k"})
+
+
+def test_an_unknown_provider_is_refused_and_named() -> None:
+    with pytest.raises(ConnectionConfigError, match="--provider: unknown provider 'bogus'"):
+        resolve_connection(Connection(_URL, "m", provider="bogus"), sending=False)
+
+
+def test_no_provider_means_the_openai_wire() -> None:
+    assert resolve_connection(Connection(_URL, "m"), sending=False).provider == "openai"
+
+
+@pytest.mark.parametrize("value", [None, ""], ids=["unset", "empty"])
+def test_a_key_variable_unset_or_empty_is_refused_for_a_connection_that_sends(
+    value: str | None,
+) -> None:
+    environ = {} if value is None else {"KEY": value}
+
+    with pytest.raises(ConnectionConfigError, match="'KEY', which is unset or empty"):
+        resolve_connection(Connection(_URL, "m", api_key_env="KEY"), sending=True, environ=environ)
+
+
+def test_a_key_variable_is_read_for_a_connection_that_sends() -> None:
+    resolved = resolve_connection(
+        Connection(_URL, "m", api_key_env="KEY"), sending=True, environ={"KEY": "k"}
+    )
+
+    assert resolved.api_key == "k"
+
+
+def test_a_connection_that_will_not_send_needs_no_key_and_carries_none() -> None:
+    resolved = resolve_connection(
+        Connection(_URL, "m", api_key_env="KEY"), sending=False, environ={"KEY": "k"}
+    )
+
+    assert resolved.api_key is None
+
+
+def test_a_judge_block_refusal_names_the_block_keys() -> None:
+    with pytest.raises(ConnectionConfigError, match=r"evaluators\.guard\.api_key_env"):
+        resolve_connection(
+            Connection(_URL, "m", api_key_env="KEY"),
+            sending=True,
+            spelling=Spelling.judge("guard"),
+            environ={},
+        )

@@ -61,27 +61,35 @@ def test_unreachable_host_reports_could_not_reach(capsys: pytest.CaptureFixture[
     assert "could not reach" in capsys.readouterr().err.lower()
 
 
-def test_a_command_without_adapter_never_names_it(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_advice_never_names_a_flag_the_command_does_not_take(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
     # Advice the command would reject costs the reader a second failed run, so a
     # message names only the flags of the command it is printed from.
-    monkeypatch.setattr(endpoint_module, "transport_factory", _rejects_the_request)
+    def action() -> None:
+        raise HTTPError("http://x", 401, "Unauthorized", {}, None)  # type: ignore[arg-type]
 
-    result = runner.invoke(app, ["target", "inspect", "--url", "http://x", "--model", "m"])
-
-    assert result.exit_code == ExitCode.TARGET_UNAVAILABLE, result.output
-    err = normalised(result.output)
+    with pytest.raises(typer.Exit):
+        run_against_endpoint("http://x", action, accepts=(EndpointFlag.API_KEY_ENV,))
+    err = normalised(capsys.readouterr().err)
     assert "rejected the request (HTTP 401)" in err
     assert "--adapter" not in err
     assert "--api-key-env" in err
 
 
-def test_probe_still_names_the_adapter(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize(
+    "command", [["probe"], ["target", "inspect"]], ids=["probe", "target-inspect"]
+)
+def test_every_command_taking_an_adapter_names_it(
+    monkeypatch: pytest.MonkeyPatch, command: list[str]
+) -> None:
     monkeypatch.setattr(endpoint_module, "transport_factory", _rejects_the_request)
 
-    result = runner.invoke(app, ["probe", "--url", "http://x", "--model", "m"])
+    result = runner.invoke(app, [*command, "--url", "http://x", "--model", "m"])
 
     assert result.exit_code == ExitCode.TARGET_UNAVAILABLE, result.output
     err = normalised(result.output)
+    assert "rejected the request (HTTP 401)" in err
     assert "--adapter" in err
     assert "--api-key-env" in err
 

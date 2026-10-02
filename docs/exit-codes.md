@@ -104,7 +104,17 @@ AI system than the one under test. `baseline create`, `baseline update` and
 to a snapshot — any open question the gate refuses, with a check that did not run
 counted whatever `fail_on_error` says — because a snapshot taken over a rule that
 never ran is missing whatever it would have found. A run that stopped exits `6` or
-`7` there, as it does on `scan`.
+`7` there, as it does on `scan`. `calibrate` exits `1` when the measured error is over
+`--max-ece`, `2` when the measurement is not reliable, `4` when its judge cannot be
+reached, and `6` when the profile's `budgets:` stop its judge — then nothing is
+measured or recorded.
+
+A connection that cannot be used as written is `3` on `probe`, `plan probe`,
+`target inspect`, `monitor` and every judge, refused before anything is sent: an
+unknown `--provider`, a `--system-prompt-file` or `--adapter` that cannot be read, an
+`--api-key-env` naming an unset or empty variable, `--adapter` with `--provider` or
+`--api-key-env`, and an adapter whose `url:` differs from `--url` or whose `method:` is
+not `POST`. None of them is `5`, which is reserved for Guardana's own defects.
 
 An unused code is better than a second table.
 

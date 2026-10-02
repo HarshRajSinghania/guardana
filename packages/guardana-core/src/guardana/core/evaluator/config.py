@@ -7,14 +7,15 @@ local OpenAI-compatible server for fully offline grading. Absent config leaves a
 evaluator unregistered, and a rule that names it is then skipped visibly by the
 runner — never a silent pass.
 
-A judge's key is read from the environment variable its block names, the one place
-this composition layer reads the environment.
+A judge block is read as a `Connection` (`endpoint` is its URL), so it takes a
+provider and an adapter as the endpoint commands do, and a key variable that is unset
+or empty is refused before a judge is asked anything.
 """
 
-import os
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from typing import Protocol
+from pathlib import Path
+from typing import Protocol, runtime_checkable
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit, urlunsplit
 
@@ -26,8 +27,17 @@ from guardana.core.fingerprint import digest_of
 from guardana.core.manifest.usage import JudgeUsage
 from guardana.core.profile import Profile
 from guardana.core.profile.errors import ProfileError
+from guardana.core.profile.loader import check_evaluator_blocks
 from guardana.core.registry import Registry
 from guardana.core.target import ChatMessage, EndpointError, EndpointTarget, private_url_parts
+from guardana.core.target.connection import (
+    DEFAULT_PROVIDER,
+    Connection,
+    ConnectionConfigError,
+    ResolvedConnection,
+    Spelling,
+    resolve_connection,
+)
 
 _DEFAULT_PROMPT_VERSION = "2025.1"
 _DEFAULT_PORTS = {"https": 443, "http": 80}
@@ -45,9 +55,39 @@ class EndpointBuilder(Protocol):
         raise NotImplementedError
 
 
-def default_endpoint_builder(url: str, model: str, api_key: str | None) -> EndpointTarget:
-    """Build a judge endpoint on the provider's real network transport."""
-    return EndpointTarget(url, model, api_key=api_key)
+@runtime_checkable
+class ConnectionBuilder(Protocol):
+    """An `EndpointBuilder` that can also honour a judge block's provider and adapter."""
+
+    def __call__(self, url: str, model: str, api_key: str | None) -> EndpointTarget:
+        """Return an endpoint for `model` at `url` on the default provider."""
+        raise NotImplementedError
+
+    def connect(self, connection: ResolvedConnection) -> EndpointTarget:
+        """Return the endpoint `connection` describes, on its provider or adapter."""
+        raise NotImplementedError
+
+
+class _NetworkEndpoints:
+    """Judge endpoints on the providers' real network transports."""
+
+    def __call__(self, url: str, model: str, api_key: str | None) -> EndpointTarget:
+        """Build a judge endpoint on the default provider's network transport."""
+        return EndpointTarget(url, model, api_key=api_key)
+
+    def connect(self, connection: ResolvedConnection) -> EndpointTarget:
+        """Build a judge endpoint on the transport `connection` resolved to."""
+        return EndpointTarget(
+            connection.url,
+            connection.model,
+            api_key=connection.api_key,
+            provider=connection.provider or DEFAULT_PROVIDER,
+            transport=connection.transport,
+        )
+
+
+default_endpoint_builder: ConnectionBuilder = _NetworkEndpoints()
+"""Build a judge endpoint on the provider's real network transport."""
 
 
 def safe_url(url: str) -> str:
@@ -252,6 +292,7 @@ def wire_config_evaluators(
     budgets: Budgets | None = None,
     *,
     build: EndpointBuilder = default_endpoint_builder,
+    sending: bool = True,
 ) -> JudgeMeters:
     """Register every evaluator that must be built from `guardana.yaml` config.
 
@@ -267,33 +308,54 @@ def wire_config_evaluators(
     Returns the judges' meters, fresh on every call, so the caller can record what
     grading spent beside what the target spent, and each meter names the evaluators it
     counts for. `build` makes each judge's endpoint, so a command can route it through
-    the transport its tests substitute.
+    the transport its tests substitute; a builder that is not a `ConnectionBuilder`
+    cannot honour a block's `provider` or `adapter`, and such a block is refused.
+
+    `sending` False wires judges that will never be asked, as a plan does: no key
+    variable is read and no adapter header is expanded. An unknown block or key, and
+    every connection the endpoint commands refuse, raise `ProfileError`.
     """
+    check_evaluator_blocks(profile.evaluator_config)
+    wiring = _Wiring(
+        build,
+        sending=sending,
+        beside=profile.source.parent if profile.source is not None else None,
+    )
     meters: list[JudgeMeter] = []
     judge_cfg = profile.evaluator_config.get("llm_judge")
     if judge_cfg is not None:
-        judge, meter = _endpoint_call(
+        judge, meter, identity = _endpoint_call(
             judge_cfg,
             "llm_judge",
             budgets,
             (LlmJudgeEvaluator.id, ReferenceJudgeEvaluator.id),
-            build,
+            wiring,
         )
-        for evaluator in _build_judges(judge_cfg, judge):
+        for evaluator in _build_judges(judge_cfg, judge, identity):
             registry.register_evaluator(evaluator)
         meters.append(meter)
     guard_cfg = profile.evaluator_config.get("guard")
     if guard_cfg is not None:
-        guard, meter = _endpoint_call(guard_cfg, "guard", budgets, (GuardEvaluator.id,), build)
-        registry.register_evaluator(
-            GuardEvaluator(guard, judge_identity=_identity(guard_cfg, "guard"))
+        guard, meter, identity = _endpoint_call(
+            guard_cfg, "guard", budgets, (GuardEvaluator.id,), wiring
         )
+        registry.register_evaluator(GuardEvaluator(guard, judge_identity=identity))
         meters.append(meter)
     return JudgeMeters(tuple(meters))
 
 
+@dataclass(frozen=True, slots=True)
+class _Wiring:
+    """How every judge endpoint of one wiring is built."""
+
+    build: EndpointBuilder
+    sending: bool
+    beside: Path | None
+    """The profile's directory, which a relative adapter path is read beside."""
+
+
 def _build_judges(
-    cfg: Mapping[str, object], judge: Callable[[str], str]
+    cfg: Mapping[str, object], judge: Callable[[str], str], endpoint_identity: str
 ) -> tuple[LlmJudgeEvaluator, ReferenceJudgeEvaluator]:
     """Build the security judge and the reference judge on one judge model and one meter."""
     version = cfg.get("prompt_version", _DEFAULT_PROMPT_VERSION)
@@ -303,7 +365,7 @@ def _build_judges(
     # `bool` is an `int` subclass, so `min_agreement: true` would slip through — reject it.
     if not isinstance(min_agreement, int) or isinstance(min_agreement, bool):
         raise ProfileError("evaluators.llm_judge.min_agreement must be an integer")
-    identity = f"{_identity(cfg, 'llm_judge')}; samples={min_agreement}"
+    identity = f"{endpoint_identity}; samples={min_agreement}"
     try:
         # `prompt_version` names the security judge's rubric; the reference judge keeps
         # its own, so neither can inherit a calibration measured for the other.
@@ -356,12 +418,12 @@ def _endpoint_call(
     what: str,
     budgets: Budgets | None,
     serves: tuple[str, ...],
-    build: EndpointBuilder,
-) -> tuple[Callable[[str], str], JudgeMeter]:
+    wiring: _Wiring,
+) -> tuple[Callable[[str], str], JudgeMeter, str]:
     """Build a `prompt -> reply` callable from an endpoint config block, bounded when asked.
 
     `serves` names the evaluators that will grade through it, so its meter can say whose
-    calls it counts.
+    calls it counts. The judge's identity is returned beside it.
     """
     endpoint = _require_str(cfg, "endpoint", what)
     model = _require_str(cfg, "model", what)
@@ -375,8 +437,33 @@ def _endpoint_call(
     problem = unusable_url(endpoint)
     if problem is not None:
         raise ProfileError(f"evaluators.{what}.endpoint {problem}")
+    connection = Connection(
+        endpoint,
+        model,
+        provider=_optional_str(cfg, "provider", what),
+        api_key_env=_optional_str(cfg, "api_key_env", what),
+        adapter=_adapter_path(cfg, what, wiring.beside),
+    )
+    builder = wiring.build
+    if not isinstance(builder, ConnectionBuilder) and (
+        connection.provider is not None or connection.adapter is not None
+    ):
+        raise ProfileError(
+            f"evaluators.{what} sets provider or adapter, which the judge endpoint builder "
+            f"this run was given cannot honour; drop them, or build judges with the "
+            f"default builder"
+        )
     try:
-        target = build(endpoint, model, _api_key(cfg, what))
+        resolved = resolve_connection(
+            connection, sending=wiring.sending, spelling=Spelling.judge(what)
+        )
+    except ConnectionConfigError as exc:
+        raise ProfileError(str(exc)) from exc
+    try:
+        if isinstance(builder, ConnectionBuilder):
+            target = builder.connect(resolved)
+        else:
+            target = builder(endpoint, model, resolved.api_key)
     except EndpointError:
         # Neither the builder's message nor the URL is repeated: a value that did not
         # parse as a URL can hold its credential where no scrubber looks for one.
@@ -386,15 +473,16 @@ def _endpoint_call(
     meter = JudgeMeter(what, target, endpoint, serves)
     if budgets is not None:
         meter.apply(budgets)
-    return meter.ask, meter
+    return meter.ask, meter, _identity(cfg, what, resolved)
 
 
-def _identity(cfg: Mapping[str, object], what: str) -> str:
+def _identity(cfg: Mapping[str, object], what: str, resolved: ResolvedConnection) -> str:
     """State which model at which endpoint grades, so a calibration can be matched to it.
 
     The endpoint is digested after canonicalisation, never written out: a URL can carry
     credentials in its userinfo or query, and two spellings of one server must not read
-    as two judges.
+    as two judges. A provider and an adapter are named only when the block sets them,
+    so the identity of a block that sets neither does not move.
     """
     model = _require_str(cfg, "model", what)
     parts = urlsplit(_require_str(cfg, "endpoint", what))
@@ -410,7 +498,12 @@ def _identity(cfg: Mapping[str, object], what: str) -> str:
     host = (parts.hostname or "").lower()
     canonical = f"{scheme}://{host}:{port}{parts.path.rstrip('/')}"
     endpoint = digest_of(canonical).split(":", 1)[-1][:12]
-    return f"model={model}; endpoint={endpoint}"
+    identity = f"model={model}; endpoint={endpoint}"
+    if cfg.get("provider") is not None:
+        identity += f"; provider={resolved.provider}"
+    if resolved.adapter_digest is not None:
+        identity += f"; adapter={resolved.adapter_digest.split(':', 1)[-1][:12]}"
+    return identity
 
 
 def _require_str(cfg: Mapping[str, object], key: str, what: str) -> str:
@@ -420,10 +513,21 @@ def _require_str(cfg: Mapping[str, object], key: str, what: str) -> str:
     return value
 
 
-def _api_key(cfg: Mapping[str, object], what: str) -> str | None:
-    env = cfg.get("api_key_env")
-    if env is None:
+def _optional_str(cfg: Mapping[str, object], key: str, what: str) -> str | None:
+    value = cfg.get(key)
+    if value is None:
         return None
-    if not isinstance(env, str):
-        raise ProfileError(f"evaluators.{what}.api_key_env must be a string")
-    return os.environ.get(env)
+    if not isinstance(value, str) or not value:
+        raise ProfileError(f"evaluators.{what}.{key} must be a non-empty string")
+    return value
+
+
+def _adapter_path(cfg: Mapping[str, object], what: str, beside: Path | None) -> Path | None:
+    """Return the block's adapter file; a relative one is read beside the profile."""
+    written = _optional_str(cfg, "adapter", what)
+    if written is None:
+        return None
+    path = Path(written)
+    if beside is None or path.is_absolute():
+        return path
+    return beside / path

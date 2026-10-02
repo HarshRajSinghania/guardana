@@ -21,9 +21,10 @@ guardana monitor (--url <base-url> --model <name> | --target <scheme://locator>)
 | `--model TEXT` | — | Model name; required unless `--target` is used |
 | `--target SCHEME://LOCATOR` | none | Build a trusted installed endpoint target for each cycle |
 | `--target-option KEY=VALUE` | none | Repeatable, non-secret configuration passed to that target |
-| `--api-key-env TEXT` | none | Env var holding the bearer API key |
-| `--provider [openai\|ollama\|tgi]` | `openai` | Endpoint wire protocol — same meaning as on `probe` |
-| `--system-prompt-file PATH` | none | File containing the system prompt already deployed in front of the model — same meaning as on `probe` |
+| `--api-key-env TEXT` | none | Env var holding the bearer API key. Unset or empty is refused (exit `3`) before the first cycle |
+| `--provider [openai\|ollama\|tgi]` | `openai` | Endpoint wire protocol — same meaning as on `probe`; any other name is refused (exit `3`) |
+| `--adapter PATH` | none | Adapter file for a guarded endpoint — same file and same refusals as on [`probe`](usage-probe.md#probing-a-guarded-endpoint); cannot be combined with `--provider` or `--api-key-env` |
+| `--system-prompt-file PATH` | none | File containing the system prompt already deployed in front of the model — same meaning as on `probe`; a file that cannot be read is refused (exit `3`) |
 | `--interval FLOAT` | `60.0` | Seconds between sampling cycles |
 | `--max-cycles INTEGER` | none (run forever) | Stop after this many cycles — mainly for testing/demos |
 | `--concurrency INTEGER` | `4` | How many rules may query the model at once, per cycle — same meaning as on `probe` |
@@ -32,6 +33,9 @@ guardana monitor (--url <base-url> --model <name> | --target <scheme://locator>)
 | `--preset [ci\|pre-training\|monitor\|release]` | none | Named policy preset (mutually exclusive with `--profile`); `--preset monitor` fails on HIGH **and** on inconclusive — see [`profiles.md`](profiles.md#named-presets---preset) |
 | `--rules PATH` | none | Directory or file of custom YAML rules; repeatable. Combined with the profile's `rules.paths` — see [`writing-rules.md`](writing-rules.md). A malformed rule file is a warning, never an abort. |
 | `--reporter TEXT` | none | Forward each **alert's** findings to a collector, e.g. `server://https://collector.example.com` |
+| `--ai-system TEXT` | none | Which AI system this watch verifies, e.g. `support-agent`, sent with each forwarded alert. Never guessed. |
+| `--environment TEXT` | none | Where it runs, e.g. `production`. Never guessed from a branch name. |
+| `--deployment-id TEXT` | none | Which version of it, if you have an identifier. |
 | `--plugins [all\|builtins\|allowlist\|disabled]` | `builtins`, or the profile's `plugins:` | Which installed plugins to load — same meaning as on `probe`. |
 | `--allow-plugin TEXT` | none | Distribution to trust; repeatable, needs `--plugins allowlist` |
 

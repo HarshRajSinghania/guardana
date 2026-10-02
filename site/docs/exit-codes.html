@@ -380,7 +380,16 @@ AI system than the one under test. <code>baseline create</code>, <code>baseline 
 to a snapshot — any open question the gate refuses, with a check that did not run
 counted whatever <code>fail_on_error</code> says — because a snapshot taken over a rule that
 never ran is missing whatever it would have found. A run that stopped exits <code>6</code> or
-<code>7</code> there, as it does on <code>scan</code>.</p>
+<code>7</code> there, as it does on <code>scan</code>. <code>calibrate</code> exits <code>1</code> when the measured error is over
+<code>--max-ece</code>, <code>2</code> when the measurement is not reliable, <code>4</code> when its judge cannot be
+reached, and <code>6</code> when the profile's <code>budgets:</code> stop its judge — then nothing is
+measured or recorded.</p>
+<p>A connection that cannot be used as written is <code>3</code> on <code>probe</code>, <code>plan probe</code>,
+<code>target inspect</code>, <code>monitor</code> and every judge, refused before anything is sent: an
+unknown <code>--provider</code>, a <code>--system-prompt-file</code> or <code>--adapter</code> that cannot be read, an
+<code>--api-key-env</code> naming an unset or empty variable, <code>--adapter</code> with <code>--provider</code> or
+<code>--api-key-env</code>, and an adapter whose <code>url:</code> differs from <code>--url</code> or whose <code>method:</code> is
+not <code>POST</code>. None of them is <code>5</code>, which is reserved for Guardana's own defects.</p>
 <p>An unused code is better than a second table.</p>
 <h3 id="changed-in-0210">Changed in 0.21.0</h3>
 <p><strong>A run where every check declined now exits <code>2</code> instead of <code>0</code>.</strong> The guard for

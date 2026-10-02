@@ -96,7 +96,7 @@ It still exits `0`. Four samples now pass instead of three. The new count shows 
 
 ## Where this check runs
 
-The check targets an endpoint, a model you talk to. `guardana scan` checks files, so it does not run this check. If you pass `--rules checks` to `scan`, it prints a note explaining this. `guardana rule test` runs the check offline on its samples, as above. `guardana probe --url <your endpoint> --rules checks` runs it against a real endpoint.
+The check targets an endpoint, a model you talk to. `guardana scan` checks files, so it does not run this check. If you pass `--rules checks` to `scan`, it prints a note explaining this. `guardana rule test` runs the check offline on its samples, as above. `guardana probe --url <your endpoint> --model <its model> --rules checks` runs it against a real endpoint.
 
 ## Before you commit this directory
 

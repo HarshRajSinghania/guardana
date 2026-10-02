@@ -188,9 +188,17 @@ Guardana version, or upgrade every Guardana install that reads the file together
 | too few graded samples, or too many abstentions | **indeterminate** | `2` |
 | no such evaluator, or an unreadable corpus | refused | `3` |
 | the judge endpoint could not be reached or rejected the request | refused | `4` |
+| the profile's `budgets:` stopped the judge before every sample was graded | **stopped** | `6` |
 
 Exit `2` rather than `0` because "we measured nothing" must not read as "we measured,
 and it was fine".
+
+A judge built from `evaluators:` is held to the profile's `budgets:`, as it is during a
+run. A calibration the budget stops records nothing, even with `--record`: a
+measurement over the samples a ceiling happened to allow is not a measurement of the
+corpus. A token ceiling the judge's transport cannot count, a judge block with an
+unknown key, and an `api_key_env` naming an unset or empty variable are refused with
+exit `3` before the judge is asked anything.
 
 ## Options
 

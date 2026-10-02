@@ -13,7 +13,16 @@ from typing import Annotated
 
 import typer
 from guardana.cli._budget_flags import override
-from guardana.cli._endpoint import build_endpoint
+from guardana.cli._connection import (
+    AdapterOption,
+    ModelOption,
+    ProviderOption,
+    SystemPromptFileOption,
+    UrlOption,
+    endpoint_for,
+    read_system_prompt,
+    resolve_flags,
+)
 from guardana.cli._evaluators import wire_config_evaluators
 from guardana.cli._exit import refuse_invalid_profile, refuse_unenforceable_budget
 from guardana.cli._formats import OutputFormat
@@ -360,20 +369,15 @@ def plan_scan(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; this
 
 
 def plan_probe(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; this is the command's surface
-    url: Annotated[
-        str | None, typer.Option(help="Base URL of the OpenAI-compatible endpoint")
-    ] = None,
-    model: Annotated[str | None, typer.Option(help="Model name")] = None,
+    url: UrlOption = None,
+    model: ModelOption = None,
     mcp: Annotated[
         str | None,
         typer.Option(help="MCP server to price instead of a model endpoint: an http(s) URL"),
     ] = None,
-    provider: Annotated[
-        str, typer.Option(help="Endpoint wire protocol: openai|ollama|tgi")
-    ] = "openai",
-    system_prompt_file: Annotated[
-        Path | None, typer.Option("--system-prompt-file", help="File containing a system prompt")
-    ] = None,
+    provider: ProviderOption = None,
+    adapter: AdapterOption = None,
+    system_prompt_file: SystemPromptFileOption = None,
     profile: Annotated[Path | None, typer.Option(help="guardana.yaml path")] = None,
     preset: Annotated[str | None, typer.Option(help=PRESET_HELP)] = None,
     format: Annotated[OutputFormat, typer.Option(help="human|json")] = OutputFormat.human,
@@ -445,6 +449,10 @@ def plan_probe(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; thi
     Judge calls are priced too. The judges `evaluators:` configures are built, as
     the probe builds them, and never asked anything; each counts against the
     request budget on a meter of its own, so each is compared with it on its own.
+    Nothing here reads a key variable: a plan needs no secret.
+
+    The budget is applied to the target as the probe applies it, so a token ceiling
+    its transport cannot report against is refused here too.
     """
     prof = resolve_profile(profile, preset)
     resolved = resolve_trust(plugins, allow_plugin, prof)
@@ -462,10 +470,11 @@ def plan_probe(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; thi
         ),
         trials=prof.trials if trials is None else trials,
     )
-    legacy_target_options = (url, model, mcp, system_prompt_file)
+    legacy_target_options = (url, model, mcp, provider, adapter, system_prompt_file)
     if target is not None and any(value is not None for value in legacy_target_options):
         raise typer.BadParameter(
-            "--target cannot be combined with --url, --model, --mcp, or --system-prompt-file"
+            "--target cannot be combined with --url, --model, --mcp, --provider, --adapter, "
+            "or --system-prompt-file"
         )
     registry = Registry.discover(resolved.trust)
     judge_meters = _wire_judges(registry, prof)
@@ -478,8 +487,19 @@ def plan_probe(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; thi
         locator=target,
         options=target_option,
         kind=TargetKind.ENDPOINT,
-        fallback=lambda: _plan_probe_target(url, model, mcp, provider, system_prompt_file),
+        fallback=lambda: _plan_probe_target(
+            url,
+            model,
+            mcp,
+            provider=provider,
+            adapter=adapter,
+            system_prompt_file=system_prompt_file,
+        ),
     )
+    try:
+        selected.apply_budgets(prof.budgets)
+    except BudgetExhausted as exc:
+        raise refuse_unenforceable_budget(exc) from exc
     _emit(
         build_plan(registry, prof, selected, judge_meters=judge_meters),
         format,
@@ -577,12 +597,12 @@ def judge_traffic(registry: Registry, profile: Profile, target: Target) -> list[
 def _wire_judges(registry: Registry, profile: Profile) -> tuple[tuple[str, ...], ...]:
     """Register the judges `profile` configures, and group their ids by the meter they share.
 
-    Wired exactly as `probe` wires them, which builds each judge endpoint and sends
-    nothing. The groups are read off the meters the wiring built, so the plan prices
-    the calls on the meters a run would actually count them on.
+    Wired as `probe` wires them, except that no key variable is read: each judge
+    endpoint is built and never asked. The groups are read off the meters the wiring
+    built, so the plan prices the calls on the meters a run would actually count them on.
     """
     try:
-        meters = wire_config_evaluators(registry, profile, profile.budgets)
+        meters = wire_config_evaluators(registry, profile, profile.budgets, sending=False)
     except BudgetExhausted as exc:
         raise refuse_unenforceable_budget(exc) from exc
     except ProfileError as exc:
@@ -597,24 +617,24 @@ def _plan_scan_path(path: Path | None, excludes: tuple[str, ...]) -> ArtifactTar
     return ArtifactTarget(path, excludes=excludes)
 
 
-def _plan_probe_target(
+def _plan_probe_target(  # noqa: PLR0913 — one argument per connection flag
     url: str | None,
     model: str | None,
     mcp: str | None,
-    provider: str,
+    *,
+    provider: str | None,
+    adapter: Path | None,
     system_prompt_file: Path | None,
 ) -> Target:
     """Build the legacy endpoint or MCP target without contacting it."""
     if mcp is not None:
         return plan_target(mcp)
     endpoint_url, model_name = require_chat_endpoint(url, model)
-    return build_endpoint(
-        endpoint_url,
-        model_name,
-        api_key=None,
-        system_prompt=_system_prompt_the_probe_will_send(system_prompt_file),
-        provider=provider,
-        transport=None,
+    connection = resolve_flags(
+        endpoint_url, model_name, provider=provider, adapter=adapter, sending=False
+    )
+    return endpoint_for(
+        connection, system_prompt=_system_prompt_the_probe_will_send(system_prompt_file)
     )
 
 
@@ -632,8 +652,9 @@ def _system_prompt_the_probe_will_send(named: Path | None) -> str:
     The content is irrelevant and never sent — a plan contacts nothing — so what
     is read from the file is used when there is one, and a stand-in otherwise.
     """
-    if named is not None:
-        return named.read_text(encoding="utf-8")
+    text = read_system_prompt(named)
+    if text is not None:
+        return text
     return "(placeholder: guardana probe plants a fresh canary here at run time)"
 
 

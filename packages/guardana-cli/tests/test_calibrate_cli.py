@@ -32,7 +32,8 @@ from guardana.core.profile import Profile
 from guardana.core.profile.errors import ProfileError
 from guardana.core.profile.model import Policy
 from guardana.core.registry import Registry
-from guardana.core.testing import FailingTransport
+from guardana.core.target.connection import Connection, resolve_connection
+from guardana.core.testing import FailingTransport, ScriptedTransport
 from guardana.core.trials import clean_bound
 from typer.testing import CliRunner, Result
 
@@ -323,11 +324,12 @@ def test_two_spellings_of_one_endpoint_are_one_judge() -> None:
 
 
 def test_a_judge_identity_never_carries_credentials_or_a_query() -> None:
-    plain_url = _identity({"model": "j", "endpoint": "https://judge.example/v1"}, "llm_judge")
-    secret = _identity(
-        {"model": "j", "endpoint": "https://user:hunter2@judge.example/v1?key=s3cr3t#frag"},
-        "llm_judge",
-    )
+    def identity(endpoint: str) -> str:
+        resolved = resolve_connection(Connection(endpoint, "j"), sending=False)
+        return _identity({"model": "j", "endpoint": endpoint}, "llm_judge", resolved)
+
+    plain_url = identity("https://judge.example/v1")
+    secret = identity("https://user:hunter2@judge.example/v1?key=s3cr3t#frag")
 
     assert secret == plain_url
     assert secret is not None
@@ -533,7 +535,7 @@ class _NetworkedPlugin(Evaluator):
 def test_a_plugin_judge_that_cannot_be_reached_is_named_by_its_id(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def wire(registry: Registry, profile: Profile) -> None:
+    def wire(registry: Registry, profile: Profile, budgets: object = None) -> None:
         registry.register_evaluator(_NetworkedPlugin())
 
     monkeypatch.setattr(calibrate_module, "wire_config_evaluators", wire)
@@ -542,3 +544,30 @@ def test_a_plugin_judge_that_cannot_be_reached_is_named_by_its_id(
 
     assert result.exit_code == ExitCode.TARGET_UNAVAILABLE, result.output
     assert "could not reach endpoint of evaluator 'acme.remote_judge'" in _one_error_line(result)
+
+
+@pytest.mark.parametrize(
+    ("ceiling", "stopped"), [(2, True), (100_000, False)], ids=["stops", "fits"]
+)
+def test_a_calibration_the_budget_stops_exits_6_and_records_nothing(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, ceiling: int, stopped: bool
+) -> None:
+    judge = ScriptedTransport('{"verdict": "pass", "confidence": 0.9}')
+    monkeypatch.setattr(endpoint_module, "transport_factory", lambda: judge)
+    profile = _judge_profile(tmp_path)
+    profile.write_text(
+        profile.read_text(encoding="utf-8") + f"budgets:\n  max_requests: {ceiling}\n",
+        encoding="utf-8",
+    )
+    record = tmp_path / "calibrations.json"
+
+    result = runner.invoke(app, ["calibrate", "--profile", str(profile), "--record", str(record)])
+
+    assert len(judge.seen) <= ceiling
+    if stopped:
+        assert result.exit_code == ExitCode.BUDGET_EXHAUSTED, result.output
+        assert "nothing was measured or recorded" in plain(result.output)
+        assert not record.exists()
+    else:
+        assert result.exit_code != ExitCode.BUDGET_EXHAUSTED, result.output
+        assert len(judge.seen) > 2, "the judge was asked past the ceiling that stops the other case"

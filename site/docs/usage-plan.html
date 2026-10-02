@@ -301,6 +301,36 @@ run they are pricing would use, so both take the same plugin-trust flags
 </thead>
 <tbody>
 <tr>
+<td><code>--profile PATH</code></td>
+<td>none (built-in default profile)</td>
+<td>Path to a <code>guardana.yaml</code> policy file; all three subcommands</td>
+</tr>
+<tr>
+<td><code>--preset [ci|pre-training|monitor|release]</code></td>
+<td>none</td>
+<td>Named policy preset (mutually exclusive with <code>--profile</code>); all three subcommands</td>
+</tr>
+<tr>
+<td><code>--format [human|json]</code></td>
+<td><code>human</code></td>
+<td>Output format; all three subcommands</td>
+</tr>
+<tr>
+<td><code>--rules PATH</code></td>
+<td>none</td>
+<td>Directory or file of custom YAML rules; repeatable; all three subcommands</td>
+</tr>
+<tr>
+<td><code>--plugins [all|builtins|allowlist|disabled]</code></td>
+<td><code>builtins</code>, or the profile's <code>plugins:</code></td>
+<td>Which installed plugins to load — same meaning as on <code>probe</code>; all three subcommands</td>
+</tr>
+<tr>
+<td><code>--allow-plugin TEXT</code></td>
+<td>none</td>
+<td>Distribution to trust; repeatable, needs <code>--plugins allowlist</code>; all three subcommands</td>
+</tr>
+<tr>
 <td><code>--target SCHEME://LOCATOR</code></td>
 <td>none</td>
 <td>Build a trusted installed target of the kind selected by <code>plan scan</code> or <code>plan probe</code></td>
@@ -311,27 +341,64 @@ run they are pricing would use, so both take the same plugin-trust flags
 <td>Repeatable, non-secret configuration passed to that target</td>
 </tr>
 <tr>
-<td><code>--plugins [all|builtins|allowlist|disabled]</code></td>
-<td><code>builtins</code>, or the profile's <code>plugins:</code></td>
-<td>Which installed plugins to load — same meaning as on <code>probe</code></td>
+<td><code>--url TEXT</code>, <code>--model TEXT</code></td>
+<td>—</td>
+<td><code>plan probe</code> only: the endpoint the probe would call, as on <code>probe</code></td>
 </tr>
 <tr>
-<td><code>--allow-plugin TEXT</code></td>
+<td><code>--mcp TEXT</code></td>
 <td>none</td>
-<td>Distribution to trust; repeatable, needs <code>--plugins allowlist</code></td>
+<td><code>plan probe</code> only: price an MCP server at this http(s) URL instead of a model endpoint</td>
+</tr>
+<tr>
+<td><code>--provider [openai|ollama|tgi]</code></td>
+<td><code>openai</code></td>
+<td><code>plan probe</code> only: the wire protocol, as on <code>probe</code>; any other name is refused (exit <code>3</code>)</td>
+</tr>
+<tr>
+<td><code>--adapter PATH</code></td>
+<td>none</td>
+<td><code>plan probe</code> only: the adapter file <code>probe --adapter</code> would use, with the same refusals; its <code>${VAR}</code> headers are not read, so a plan needs no secret</td>
+</tr>
+<tr>
+<td><code>--system-prompt-file PATH</code></td>
+<td>none</td>
+<td><code>plan probe</code> only: the system prompt <code>probe</code> would plant; a file that cannot be read is refused (exit <code>3</code>)</td>
+</tr>
+<tr>
+<td><code>--safety [passive|active|side-effecting]</code></td>
+<td><code>active</code></td>
+<td><code>plan probe</code> only: how far rules may reach, as on <code>probe</code></td>
+</tr>
+<tr>
+<td><code>--allow-destructive</code></td>
+<td>off</td>
+<td><code>plan probe</code> only: permit rules that can destroy or alter something the target owns, as on <code>probe</code></td>
 </tr>
 <tr>
 <td><code>--trials INTEGER</code></td>
 <td><code>1</code> (or <code>trials:</code> in the profile)</td>
-<td><code>plan probe</code> only: price the run at this many attempts per case, as <code>probe --trials</code> would make them</td>
+<td><code>plan probe</code> and <code>plan grade</code>: price the run at this many attempts per case, as <code>probe --trials</code> and <code>grade --trials</code> would make them</td>
 </tr>
 <tr>
-<td><code>--max-requests</code>, <code>--max-input-tokens</code>, <code>--max-output-tokens</code>, <code>--max-duration</code></td>
+<td><code>--max-requests INTEGER</code></td>
 <td>the profile's <code>budgets:</code></td>
-<td><code>plan probe</code> only: check the plan against these ceilings, as <code>probe</code> would apply them</td>
+<td><code>plan probe</code> and <code>plan grade</code>: check the plan against this request ceiling; on <code>plan grade</code> it is the ceiling each judge is held to</td>
+</tr>
+<tr>
+<td><code>--max-input-tokens</code>, <code>--max-output-tokens</code>, <code>--max-duration</code></td>
+<td>the profile's <code>budgets:</code></td>
+<td><code>plan probe</code> only: the ceilings <code>probe</code> would apply. A token ceiling on a transport that reports no token counts (an adapter, <code>--provider tgi</code>) is refused (exit <code>3</code>), as <code>probe</code> refuses it</td>
+</tr>
+<tr>
+<td><code>--no-plugins</code></td>
+<td>off</td>
+<td><code>plan scan</code> only: deprecated alias for <code>--plugins disabled</code></td>
 </tr>
 </tbody>
 </table></div>
+<p>No subcommand reads <code>--api-key-env</code>, a judge's <code>api_key_env</code> or an adapter's <code>${VAR}</code>
+headers: a plan contacts nothing, so it needs no secret.</p>
 <p><code>plan scan</code> also keeps <code>--no-plugins</code> as a deprecated alias for <code>--plugins disabled</code>,
 exactly like <code>guardana scan</code> does.</p>
 <p>Target construction is configuration-only: <code>plan</code> calls the same

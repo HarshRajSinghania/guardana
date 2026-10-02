@@ -40,6 +40,23 @@ _ALLOWED_FAIL_ON_KEYS = frozenset(
 _ALLOWED_BUDGET_KEYS = frozenset(
     {"max_requests", "max_input_tokens", "max_output_tokens", "max_duration"}
 )
+EVALUATOR_BLOCK_KEYS: Mapping[str, frozenset[str]] = {
+    "llm_judge": frozenset(
+        {
+            "endpoint",
+            "model",
+            "api_key_env",
+            "provider",
+            "adapter",
+            "prompt_version",
+            "min_agreement",
+            "calibration",
+        }
+    ),
+    "guard": frozenset({"endpoint", "model", "api_key_env", "provider", "adapter"}),
+}
+"""The blocks `evaluators:` may hold and the keys each accepts; anything else is a typo."""
+
 _ALLOWED_PRIVACY_KEYS = frozenset(
     {
         "evidence_mode",
@@ -82,6 +99,32 @@ def _reject_unknown_keys(
     unknown = sorted(set(raw) - allowed)
     if unknown:
         raise ProfileError(f"invalid profile {path}: unknown {what} key(s): {', '.join(unknown)}")
+
+
+def check_evaluator_blocks(blocks: Mapping[str, object], *, where: str = "") -> None:
+    """Refuse a block under `evaluators:` this build does not know, or a key it does not read.
+
+    A misspelled judge block was never wired, so the rules naming its evaluator were
+    skipped while the profile read as configured. `where` prefixes each message.
+    """
+    unknown = sorted(str(name) for name in set(blocks) - set(EVALUATOR_BLOCK_KEYS))
+    if unknown:
+        raise ProfileError(
+            f"{where}unknown evaluators block(s): {', '.join(unknown)}; "
+            f"known: {', '.join(sorted(EVALUATOR_BLOCK_KEYS))}"
+        )
+    for name, block in blocks.items():
+        if not isinstance(block, Mapping):
+            raise ProfileError(f"{where}evaluators.{name} must be a mapping")
+        keys = sorted(str(key) for key in set(block) - EVALUATOR_BLOCK_KEYS[name])
+        if keys:
+            raise ProfileError(f"{where}unknown evaluators.{name} key(s): {', '.join(keys)}")
+
+
+def _evaluators(raw: object, path: Path) -> dict[str, Any]:
+    blocks = _as_mapping(raw, "evaluators", path)
+    check_evaluator_blocks(blocks, where=f"invalid profile {path}: ")
+    return blocks
 
 
 def _as_glob_list(value: object, what: str, path: Path) -> tuple[str, ...]:
@@ -347,7 +390,7 @@ def load_profile(path: Path) -> Profile:
         name=str(raw.get("name", "custom")),
         policy=policy,
         rule_config=_as_mapping(raw.get("rule_config"), "rule_config", path),
-        evaluator_config=_as_mapping(raw.get("evaluators"), "evaluators", path),
+        evaluator_config=_evaluators(raw.get("evaluators"), path),
         rule_paths=_beside_the_profile(
             _as_glob_list(rules.get("paths"), "rules.paths", path), path
         ),

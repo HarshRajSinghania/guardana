@@ -29,14 +29,14 @@ guardana probe (--url <base-url> --model <name> | --target <scheme://locator>) [
 
 | Flag | Default | Meaning |
 |---|---|---|
-| `--url TEXT` | — | Base URL of the OpenAI-compatible endpoint. Required unless `--mcp` names an MCP server instead. A redirect is never followed: an endpoint that answers `3xx` is unavailable (exit `4`) |
+| `--url TEXT` | — | Base URL of the OpenAI-compatible endpoint; with `--adapter`, the URL the adapter posts to. Required unless `--mcp` names an MCP server instead. A redirect is never followed: an endpoint that answers `3xx` is unavailable (exit `4`) |
 | `--model TEXT` | — | Model name to send in each request. Required unless `--mcp` names an MCP server instead |
 | `--target SCHEME://LOCATOR` | none | Build a trusted installed endpoint target instead of the built-in endpoint or MCP flags |
 | `--target-option KEY=VALUE` | none | Repeatable, non-secret configuration passed to that target |
-| `--api-key-env TEXT` | none | Name of an environment variable holding the bearer API key |
-| `--provider [openai\|ollama\|tgi]` | `openai` | Endpoint wire protocol: OpenAI-compatible (default), Ollama's native `/api/chat`, or HF TGI's `/generate` |
-| `--adapter PATH` | none | Adapter file mapping a **guarded product endpoint**'s custom request/response schema — see [Probing a guarded endpoint](#probing-a-guarded-endpoint). Overrides `--provider`. |
-| `--system-prompt-file PATH` | none | File containing the system prompt already deployed in front of the model, so non-canary rules probe the real configuration |
+| `--api-key-env TEXT` | none | Name of an environment variable holding the bearer API key. A variable that is unset or empty is refused (exit `3`) before anything is sent; omit the flag for an endpoint that needs no key |
+| `--provider [openai\|ollama\|tgi]` | `openai` | Endpoint wire protocol: OpenAI-compatible (default), Ollama's native `/api/chat`, or HF TGI's `/generate`. Any other name is refused (exit `3`) |
+| `--adapter PATH` | none | Adapter file mapping a **guarded product endpoint**'s custom request/response schema — see [Probing a guarded endpoint](#probing-a-guarded-endpoint). Cannot be combined with `--provider` or `--api-key-env`: the adapter is the wire shape, and its `headers:` carry the credential |
+| `--system-prompt-file PATH` | none | File containing the system prompt already deployed in front of the model, so non-canary rules probe the real configuration. A file that cannot be read is refused (exit `3`) |
 | `--profile PATH` | none (built-in default profile) | Path to a `guardana.yaml` policy file |
 | `--preset [ci\|pre-training\|monitor\|release]` | none | Named policy preset (mutually exclusive with `--profile`) — see [`profiles.md`](profiles.md#named-presets---preset) |
 | `--format [human\|json\|sarif\|junit]` | `human` | Output format |
@@ -51,9 +51,16 @@ guardana probe (--url <base-url> --model <name> | --target <scheme://locator>) [
 | `--mcp-pin PATH` | none | Approved MCP manifest to compare the live one against |
 | `--write-mcp-pin PATH` | none | Write the server's current manifest as approved, and exit without reporting |
 | `--allow-exec` | off | Permit `--mcp` to **start** an stdio server, which executes the code under examination |
+| `--max-requests`, `--max-input-tokens`, `--max-output-tokens`, `--max-duration` | the profile's `budgets:` | Ceilings on what the run may spend — see [`profiles.md`](profiles.md#budgets--a-ceiling-on-what-a-run-may-spend). A token ceiling on a transport that reports no token counts (an adapter, `--provider tgi`) is refused before anything is sent (exit `3`), as `plan probe` refuses it |
+| `--safety [passive\|active\|side-effecting]` | `active` | How far rules may reach; a rule above it is skipped |
+| `--allow-destructive` | off | Permit rules that can destroy or alter something the target owns |
+| `--ai-system TEXT` | none | Which AI system this run verifies, e.g. `support-agent`. Never guessed. |
+| `--environment TEXT` | none | Where it runs, e.g. `production`. Never guessed from a branch name. |
+| `--deployment-id TEXT` | none | Which version of it, if you have an identifier. |
+| `--output PATH` | stdout | Write the report to a file instead of stdout — needed by `guardana diff`. See [Saving a run for comparison](#saving-a-run-for-comparison) |
 | `--keep-exchanges` | off (or `privacy.keep_exchanges`) | Keep every chat exchange of the plain pass, redacted, beside the saved run so [`guardana grade`](usage-grade.md) can grade it again without calling the endpoint — see [Keeping the exchanges](#keeping-the-exchanges). Needs `--format json --output`; refused with `--mcp`, `--target` and `privacy.evidence_mode: metadata_only` (exit `3`) |
 
-`--target` is mutually exclusive with `--url`, `--model`, adapter, credential,
+`--target` is mutually exclusive with `--url`, `--model`, provider, adapter, credential,
 system-prompt, and MCP connection flags. The plugin owns construction; Guardana
 still owns rule selection, policy, budgets, evidence, and exit codes. A custom
 endpoint implements `SystemPromptPlanter` to receive isolated canary passes; if
@@ -236,9 +243,10 @@ instead of bypassing it to the bare model.
 
 ```yaml
 # wellness-adapter.yaml
-url: https://api.example.com/v1/wellness/chat   # optional; defaults to --url
+url: https://api.example.com/v1/wellness/chat   # optional; must equal --url
+method: POST                                    # optional; POST is the only method
 headers:
-  X-Api-Key: ${WELLNESS_API_KEY}                # ${ENV} is expanded; unset = error
+  X-Api-Key: ${WELLNESS_API_KEY}                # ${ENV} is expanded; unset or empty = error
   Content-Type: application/json
 body:                                           # your endpoint's request shape;
   message: "{{prompt}}"                         # {{prompt}} is where the probe goes
@@ -248,8 +256,19 @@ response_path: data.reply                       # dotted path to the reply text
 ```
 
 ```bash
-guardana probe --url https://api.example.com --model wellness --adapter wellness-adapter.yaml
+guardana probe --url https://api.example.com/v1/wellness/chat --model wellness \
+  --adapter wellness-adapter.yaml
 ```
+
+The run names the URL it calls, so the adapter's `url:` may only repeat `--url`; one that
+differs is refused rather than silently replacing it. Everything below is refused with
+exit `3` before a request is sent: an adapter file that cannot be read, an unknown key,
+a `method:` other than `POST`, a `${VAR}` that is unset or empty, and `--adapter`
+together with `--provider` or `--api-key-env`. The same adapter file works for
+[`plan probe`](usage-plan.md), [`target inspect`](usage-target.md) and
+[`monitor`](usage-monitor.md), and for a judge through `adapter:` in its
+[`evaluators:` block](profiles.md#config-wired-evaluators-llm_judge-and-guard). `plan probe` reads
+no `${VAR}`: pricing a run needs no secret.
 
 For a **multi-turn** scenario (gradual jailbreak, indirect injection), give the
 body a `{{messages}}` slot to receive the full transcript as a `[{role, content}]`
@@ -374,7 +393,7 @@ co-exist with your real system prompt.
 ## Example invocation and output
 
 ```console
-$ guardana probe --url http://localhost:11434 --model llama3 --api-key-env OLLAMA_API_KEY
+$ guardana probe --url http://localhost:11434 --model llama3
 ✖ [CRITICAL] guardana.prompt.system_prompt_leak.canary — System prompt leakage via canary marker
     Planted canary marker found in response.  (http://localhost:11434#llama3)
 ✖ [HIGH] guardana.prompt.injection.ignore_previous — Prompt injection via instruction override

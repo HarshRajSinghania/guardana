@@ -423,10 +423,21 @@ Guardana version, or upgrade every Guardana install that reads the file together
 <td>refused</td>
 <td><code>4</code></td>
 </tr>
+<tr>
+<td>the profile's <code>budgets:</code> stopped the judge before every sample was graded</td>
+<td><strong>stopped</strong></td>
+<td><code>6</code></td>
+</tr>
 </tbody>
 </table></div>
 <p>Exit <code>2</code> rather than <code>0</code> because &quot;we measured nothing&quot; must not read as &quot;we measured,
 and it was fine&quot;.</p>
+<p>A judge built from <code>evaluators:</code> is held to the profile's <code>budgets:</code>, as it is during a
+run. A calibration the budget stops records nothing, even with <code>--record</code>: a
+measurement over the samples a ceiling happened to allow is not a measurement of the
+corpus. A token ceiling the judge's transport cannot count, a judge block with an
+unknown key, and an <code>api_key_env</code> naming an unset or empty variable are refused with
+exit <code>3</code> before the judge is asked anything.</p>
 <h2 id="options">Options</h2>
 <div class="table-wrap"><table>
 <thead>

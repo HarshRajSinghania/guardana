@@ -46,6 +46,13 @@ This inspection cost 3 request(s).
 
 | Flag | Default | Meaning |
 |---|---|---|
+| `--url TEXT` | — | Base URL of the endpoint; with `--adapter`, the URL the adapter posts to. Required unless `--target` is used |
+| `--model TEXT` | — | Model name; required unless `--target` is used |
+| `--api-key-env TEXT` | none | Env var holding the bearer API key. Unset or empty is refused (exit `3`) before anything is sent |
+| `--provider [openai\|ollama\|tgi]` | `openai` | Endpoint wire protocol — same meaning as on [`probe`](usage-probe.md#flags); any other name is refused (exit `3`) |
+| `--adapter PATH` | none | Adapter file for a guarded endpoint — same file and same refusals as on [`probe`](usage-probe.md#probing-a-guarded-endpoint); cannot be combined with `--provider` or `--api-key-env` |
+| `--format [human\|json]` | `human` | Output format |
+| `--require TEXT` | none | Comma-separated capabilities that must be confirmed; exit `2` if any is not |
 | `--target SCHEME://LOCATOR` | none | Build an installed custom endpoint target instead of `--url`/`--model` |
 | `--target-option KEY=VALUE` | none | Repeatable, non-secret configuration passed to that target |
 | `--plugins [all\|builtins\|allowlist\|disabled]` | `builtins`, or the profile's `plugins:` | Which installed plugins to load — same meaning as on `probe` |

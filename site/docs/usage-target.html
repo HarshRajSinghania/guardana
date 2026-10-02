@@ -302,6 +302,41 @@ This inspection cost 3 request(s).
 </thead>
 <tbody>
 <tr>
+<td><code>--url TEXT</code></td>
+<td>—</td>
+<td>Base URL of the endpoint; with <code>--adapter</code>, the URL the adapter posts to. Required unless <code>--target</code> is used</td>
+</tr>
+<tr>
+<td><code>--model TEXT</code></td>
+<td>—</td>
+<td>Model name; required unless <code>--target</code> is used</td>
+</tr>
+<tr>
+<td><code>--api-key-env TEXT</code></td>
+<td>none</td>
+<td>Env var holding the bearer API key. Unset or empty is refused (exit <code>3</code>) before anything is sent</td>
+</tr>
+<tr>
+<td><code>--provider [openai|ollama|tgi]</code></td>
+<td><code>openai</code></td>
+<td>Endpoint wire protocol — same meaning as on <a href="usage-probe.html#flags"><code>probe</code></a>; any other name is refused (exit <code>3</code>)</td>
+</tr>
+<tr>
+<td><code>--adapter PATH</code></td>
+<td>none</td>
+<td>Adapter file for a guarded endpoint — same file and same refusals as on <a href="usage-probe.html#probing-a-guarded-endpoint"><code>probe</code></a>; cannot be combined with <code>--provider</code> or <code>--api-key-env</code></td>
+</tr>
+<tr>
+<td><code>--format [human|json]</code></td>
+<td><code>human</code></td>
+<td>Output format</td>
+</tr>
+<tr>
+<td><code>--require TEXT</code></td>
+<td>none</td>
+<td>Comma-separated capabilities that must be confirmed; exit <code>2</code> if any is not</td>
+</tr>
+<tr>
 <td><code>--target SCHEME://LOCATOR</code></td>
 <td>none</td>
 <td>Build an installed custom endpoint target instead of <code>--url</code>/<code>--model</code></td>

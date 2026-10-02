@@ -49,12 +49,28 @@ run they are pricing would use, so both take the same plugin-trust flags
 
 | Flag | Default | Meaning |
 |---|---|---|
+| `--profile PATH` | none (built-in default profile) | Path to a `guardana.yaml` policy file; all three subcommands |
+| `--preset [ci\|pre-training\|monitor\|release]` | none | Named policy preset (mutually exclusive with `--profile`); all three subcommands |
+| `--format [human\|json]` | `human` | Output format; all three subcommands |
+| `--rules PATH` | none | Directory or file of custom YAML rules; repeatable; all three subcommands |
+| `--plugins [all\|builtins\|allowlist\|disabled]` | `builtins`, or the profile's `plugins:` | Which installed plugins to load — same meaning as on `probe`; all three subcommands |
+| `--allow-plugin TEXT` | none | Distribution to trust; repeatable, needs `--plugins allowlist`; all three subcommands |
 | `--target SCHEME://LOCATOR` | none | Build a trusted installed target of the kind selected by `plan scan` or `plan probe` |
 | `--target-option KEY=VALUE` | none | Repeatable, non-secret configuration passed to that target |
-| `--plugins [all\|builtins\|allowlist\|disabled]` | `builtins`, or the profile's `plugins:` | Which installed plugins to load — same meaning as on `probe` |
-| `--allow-plugin TEXT` | none | Distribution to trust; repeatable, needs `--plugins allowlist` |
-| `--trials INTEGER` | `1` (or `trials:` in the profile) | `plan probe` only: price the run at this many attempts per case, as `probe --trials` would make them |
-| `--max-requests`, `--max-input-tokens`, `--max-output-tokens`, `--max-duration` | the profile's `budgets:` | `plan probe` only: check the plan against these ceilings, as `probe` would apply them |
+| `--url TEXT`, `--model TEXT` | — | `plan probe` only: the endpoint the probe would call, as on `probe` |
+| `--mcp TEXT` | none | `plan probe` only: price an MCP server at this http(s) URL instead of a model endpoint |
+| `--provider [openai\|ollama\|tgi]` | `openai` | `plan probe` only: the wire protocol, as on `probe`; any other name is refused (exit `3`) |
+| `--adapter PATH` | none | `plan probe` only: the adapter file `probe --adapter` would use, with the same refusals; its `${VAR}` headers are not read, so a plan needs no secret |
+| `--system-prompt-file PATH` | none | `plan probe` only: the system prompt `probe` would plant; a file that cannot be read is refused (exit `3`) |
+| `--safety [passive\|active\|side-effecting]` | `active` | `plan probe` only: how far rules may reach, as on `probe` |
+| `--allow-destructive` | off | `plan probe` only: permit rules that can destroy or alter something the target owns, as on `probe` |
+| `--trials INTEGER` | `1` (or `trials:` in the profile) | `plan probe` and `plan grade`: price the run at this many attempts per case, as `probe --trials` and `grade --trials` would make them |
+| `--max-requests INTEGER` | the profile's `budgets:` | `plan probe` and `plan grade`: check the plan against this request ceiling; on `plan grade` it is the ceiling each judge is held to |
+| `--max-input-tokens`, `--max-output-tokens`, `--max-duration` | the profile's `budgets:` | `plan probe` only: the ceilings `probe` would apply. A token ceiling on a transport that reports no token counts (an adapter, `--provider tgi`) is refused (exit `3`), as `probe` refuses it |
+| `--no-plugins` | off | `plan scan` only: deprecated alias for `--plugins disabled` |
+
+No subcommand reads `--api-key-env`, a judge's `api_key_env` or an adapter's `${VAR}`
+headers: a plan contacts nothing, so it needs no secret.
 
 `plan scan` also keeps `--no-plugins` as a deprecated alias for `--plugins disabled`,
 exactly like `guardana scan` does.

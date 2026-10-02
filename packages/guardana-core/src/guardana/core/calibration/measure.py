@@ -20,6 +20,9 @@ def calibrate(evaluator: Evaluator, samples: Sequence[CalibrationSample]) -> Cal
     sure it was — with what actually happened, overall and per class. Raises on an
     empty corpus: there is no such thing as a calibration of nothing, and returning
     zeros would read like a perfect score.
+
+    A judge's `BudgetExhausted` is not caught: no partial report is returned, because a
+    measurement over the samples a ceiling happened to allow is not one of the corpus.
     """
     if not samples:
         raise ValueError("a calibration needs at least one labelled sample")

@@ -178,8 +178,10 @@ def test_judges_on_one_meter_share_it_in_the_plan_whatever_identity_they_state(
 ) -> None:
     build = evaluators_module._build_judges
 
-    def drifted(cfg: object, judge: object) -> tuple[LlmJudgeEvaluator, ReferenceJudgeEvaluator]:
-        security, reference = build(cfg, judge)  # type: ignore[arg-type]
+    def drifted(
+        cfg: object, judge: object, identity: str
+    ) -> tuple[LlmJudgeEvaluator, ReferenceJudgeEvaluator]:
+        security, reference = build(cfg, judge, identity)  # type: ignore[arg-type]
         reference.judge_identity = "model=elsewhere; endpoint=000000000000"
         return security, reference
 

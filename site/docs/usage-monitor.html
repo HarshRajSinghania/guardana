@@ -300,17 +300,22 @@
 <tr>
 <td><code>--api-key-env TEXT</code></td>
 <td>none</td>
-<td>Env var holding the bearer API key</td>
+<td>Env var holding the bearer API key. Unset or empty is refused (exit <code>3</code>) before the first cycle</td>
 </tr>
 <tr>
 <td><code>--provider [openai|ollama|tgi]</code></td>
 <td><code>openai</code></td>
-<td>Endpoint wire protocol — same meaning as on <code>probe</code></td>
+<td>Endpoint wire protocol — same meaning as on <code>probe</code>; any other name is refused (exit <code>3</code>)</td>
+</tr>
+<tr>
+<td><code>--adapter PATH</code></td>
+<td>none</td>
+<td>Adapter file for a guarded endpoint — same file and same refusals as on <a href="usage-probe.html#probing-a-guarded-endpoint"><code>probe</code></a>; cannot be combined with <code>--provider</code> or <code>--api-key-env</code></td>
 </tr>
 <tr>
 <td><code>--system-prompt-file PATH</code></td>
 <td>none</td>
-<td>File containing the system prompt already deployed in front of the model — same meaning as on <code>probe</code></td>
+<td>File containing the system prompt already deployed in front of the model — same meaning as on <code>probe</code>; a file that cannot be read is refused (exit <code>3</code>)</td>
 </tr>
 <tr>
 <td><code>--interval FLOAT</code></td>
@@ -351,6 +356,21 @@
 <td><code>--reporter TEXT</code></td>
 <td>none</td>
 <td>Forward each <strong>alert's</strong> findings to a collector, e.g. <code>server://https://collector.example.com</code></td>
+</tr>
+<tr>
+<td><code>--ai-system TEXT</code></td>
+<td>none</td>
+<td>Which AI system this watch verifies, e.g. <code>support-agent</code>, sent with each forwarded alert. Never guessed.</td>
+</tr>
+<tr>
+<td><code>--environment TEXT</code></td>
+<td>none</td>
+<td>Where it runs, e.g. <code>production</code>. Never guessed from a branch name.</td>
+</tr>
+<tr>
+<td><code>--deployment-id TEXT</code></td>
+<td>none</td>
+<td>Which version of it, if you have an identifier.</td>
 </tr>
 <tr>
 <td><code>--plugins [all|builtins|allowlist|disabled]</code></td>
