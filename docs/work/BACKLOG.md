@@ -94,8 +94,6 @@ reproduced; the rest are the sweep's reading with its anchors, not yet reproduce
   `grade` refuses.
 - `monitor` keeps no exchanges and warns when the profile asks it to; JUnit and SARIF do not
   list `not_recorded` skips, as they list no skip.
-- The runner tells a rule's own `ReplyUnavailable` apart from a later error by its message
-  prefix, which only changes an error's wording when it misses.
 - A probe-versus-regrade `diff` also prints the "different targets" note for the
   `recording:` reference beside the shared-execution note.
 

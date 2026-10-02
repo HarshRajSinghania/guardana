@@ -468,6 +468,44 @@ def test_a_rule_that_swallows_every_missing_reply_and_yields_nothing_is_still_an
     assert gate_outcome(result, Policy()) is GateOutcome.INDETERMINATE
 
 
+class ReplyUnavailableInCacheError(Exception):
+    """A rule's own fault whose class name begins like the recording's miss."""
+
+
+class _StaleReply(ReplyUnavailable):
+    """A rule's own subclass of the recording's miss."""
+
+
+class _AskingThenFailing(_Asking):
+    """Asks, swallows what the recording cannot answer, then raises `failure`."""
+
+    def __init__(self, rule_id: str, *prompts: str, failure: Exception) -> None:
+        super().__init__(rule_id, *prompts, swallow=True)
+        self._failure = failure
+
+    def run(self, target: Target, ctx: RuleContext) -> Iterable[Finding]:
+        """Quote every reply it got, then fail."""
+        yield from super().run(target, ctx)
+        raise self._failure
+
+
+@pytest.mark.parametrize(
+    ("failure", "named"),
+    [
+        (ReplyUnavailableInCacheError("cache cold"), True),
+        (_StaleReply("acme.quiet", UnmeasuredReason.NOT_RECORDED, "stale"), False),
+    ],
+)
+def test_a_later_fault_is_told_from_the_missing_reply_by_its_type_not_its_name(
+    failure: Exception, named: bool
+) -> None:
+    rule = _AskingThenFailing("acme.quiet", "first?", "second?", failure=failure)
+    result = _run(_recording(_line("acme.quiet", "first?", "one")), rule)
+    (reason,) = _errors_from(result, "acme.quiet")
+    assert "'second?'" in reason
+    assert ("; then: " in reason) is named
+
+
 def test_a_rule_that_reaches_an_altered_reply_is_an_error() -> None:
     rule = _Asking("acme.quiet", "first?", swallow=True)
     result = _run(_recording(_line("acme.quiet", "first?", "one", altered=True)), rule)

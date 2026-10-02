@@ -51,6 +51,9 @@ class _RuleOutcome:
     suite: SuiteSummary | None = None
     """What a suite concluded, carried from its context; None for every other rule."""
 
+    raised: type[Exception] | None = None
+    """The class of the exception `error` was built from, None when no exception was."""
+
     examined: frozenset[str] = frozenset()
     """The files this rule examined in its own format, those it reported on included."""
 
@@ -365,6 +368,7 @@ class Runner:
                 ctx.recorded(),
                 error=CheckError.from_exception(rule.meta.id, "run", exc),
                 suite=ctx.concluded(),
+                raised=type(exc),
             )
         except Exception as exc:
             return _RuleOutcome(
@@ -374,6 +378,7 @@ class Runner:
                 ctx.recorded(),
                 error=CheckError.from_exception(rule.meta.id, "run", exc),
                 suite=ctx.concluded(),
+                raised=type(exc),
             )
         reported = {split_ref(f.target_ref)[0] for f in (*findings, *unverified)}
         return _RuleOutcome(
@@ -524,9 +529,12 @@ def _unanswered(outcome: _RuleOutcome, target: Target, ctx: RuleContext) -> _Rul
         f"{len(missed)} request(s) got no gradable reply from the recording, so the rule "
         f"did not grade what it set out to; the first: {missed[0]}"
     )
-    if outcome.error is not None and not outcome.error.reason.startswith(ReplyUnavailable.__name__):
+    if outcome.error is not None and not (
+        outcome.raised is not None and issubclass(outcome.raised, ReplyUnavailable)
+    ):
         reason = f"{reason}; then: {outcome.error.reason}"
-    return replace(outcome, error=CheckError(source=outcome.rule_id, stage="run", reason=reason))
+    error = CheckError(source=outcome.rule_id, stage="run", reason=reason)
+    return replace(outcome, error=error, raised=None)
 
 
 _UNANSWERED = frozenset({UnmeasuredReason.NOT_RECORDED, UnmeasuredReason.REPLY_ALTERED})
