@@ -150,6 +150,7 @@ class HttpAdapterTransport:
         *,
         fetch: Fetch | None = None,
         timeout: float | None = None,
+        source_digest: str | None = None,
     ) -> None:
         scheme = urlsplit(config.url).scheme
         if scheme not in _ALLOWED_SCHEMES:
@@ -165,6 +166,8 @@ class HttpAdapterTransport:
                 f"the probe would never reach the endpoint"
             )
         self._config = config
+        self.source_digest = source_digest
+        """The SHA-256 of the adapter file as written, when it was read from one."""
         if fetch is None:
             fetch = _default_fetch if timeout is None else partial(_post, timeout=timeout)
         self._fetch = fetch
@@ -195,5 +198,16 @@ class HttpAdapterTransport:
             conversation = [{"role": m.role, "content": m.content} for m in messages]
             body = _put_messages(body, cfg.messages_token, conversation)
         body = _fill(body, {cfg.prompt_token: prompt, cfg.system_token: system or ""})
-        payload = self._fetch(cfg.url, json.dumps(body).encode("utf-8"), cfg.headers)
+        payload = self._fetch(cfg.url, json.dumps(body).encode("utf-8"), _json_headers(cfg.headers))
         return extract_path(payload, cfg.response_path, ref=display_url(cfg.url))
+
+
+def _json_headers(headers: Mapping[str, str]) -> dict[str, str]:
+    """Declare the JSON body as JSON unless the adapter file names its own content type.
+
+    Without it urllib labels a POST body form-encoded, which an endpoint may reject or
+    parse as something else.
+    """
+    if any(name.lower() == "content-type" for name in headers):
+        return dict(headers)
+    return {**headers, "Content-Type": "application/json"}

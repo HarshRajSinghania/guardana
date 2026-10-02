@@ -460,6 +460,10 @@ an <code>application</code> and the other a <code>model_harness</code>, a note n
 without the application's prompt, tools and data answers differently, so a difference may be
 that rather than the system changing. A run started without a recipe declared nothing, and
 no note is added.</p>
+<p>When both runs recorded a profile digest, a provider wire, an adapter digest or a system-prompt
+digest and they differ, a note names the settings that changed: a difference between the runs
+may come from that rather than from the system. A setting one run did not record is unknown,
+and no note is added for it.</p>
 <h2 id="in-ci">In CI</h2>
 <pre><code class="language-yaml">- name: Save this run
   run: guardana scan . --format json --output current.json

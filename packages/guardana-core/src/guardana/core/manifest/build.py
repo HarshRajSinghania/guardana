@@ -227,6 +227,19 @@ def _coverage(
     )
 
 
+@dataclass(frozen=True, slots=True)
+class ConnectionFacts:
+    """How a run reached its endpoint: the built-in wire, and digests of the operator's files.
+
+    `system_prompt_digest` covers the operator's prompt, never a planted canary, so two runs
+    of one configuration record the same digest.
+    """
+
+    provider: str | None = None
+    adapter_digest: str | None = None
+    system_prompt_digest: str | None = None
+
+
 def build_run_manifest(  # noqa: PLR0913 — a manifest is assembled from independent facts
     registry: Registry,
     profile: Profile,
@@ -245,6 +258,7 @@ def build_run_manifest(  # noqa: PLR0913 — a manifest is assembled from indepe
     exchanges: ExchangesRecord | None = None,
     recording: RecordingRecord | None = None,
     run_id: str | None = None,
+    connection: ConnectionFacts | None = None,
 ) -> RunManifest:
     """Describe the run that produced `result`, digesting the rules that actually ran.
 
@@ -313,6 +327,9 @@ def build_run_manifest(  # noqa: PLR0913 — a manifest is assembled from indepe
             profile_name=profile.name,
             profile_digest=profile_digest(profile),
             plugins=registry.trust,
+            provider=None if connection is None else connection.provider,
+            adapter_digest=None if connection is None else connection.adapter_digest,
+            system_prompt_digest=None if connection is None else connection.system_prompt_digest,
         ),
         # The ceilings are recorded whether or not the run hit them. Without them a
         # run that exits `6` says it stopped and never says what it hit, which

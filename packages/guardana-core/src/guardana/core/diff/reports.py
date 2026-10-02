@@ -45,6 +45,7 @@ def compare_reports(before: RunReport, after: RunReport) -> RunDiff:
     notes = (
         _target_note(before, after)
         + _subject_note(before, after)
+        + _configuration_note(before, after)
         + _version_note(before, after)
         + _coverage_note(before, after)
         + _migration_note(before, after)
@@ -242,6 +243,40 @@ def _target_note(before: RunReport, after: RunReport) -> tuple[str, ...]:
         f"the runs examined different targets ({before.manifest.target.ref} and "
         f"{after.manifest.target.ref}) — intended when comparing two models, worth "
         f"a second look otherwise",
+    )
+
+
+CONFIGURATION_LABELS = {
+    "profile_digest": "the profile",
+    "system_prompt_digest": "the system prompt",
+    "tool_manifest_digest": "the tool manifest",
+    "retriever_digest": "the retriever",
+    "dataset_digest": "the dataset",
+    "adapter_digest": "the adapter file",
+    "provider": "the provider wire",
+    "plugins": "the plugin trust",
+}
+"""What each recorded setting is called in a note; every field but the profile's name."""
+
+
+def _configuration_note(before: RunReport, after: RunReport) -> tuple[str, ...]:
+    """Say which recorded settings differ, so a change is not read as the system changing.
+
+    A setting one side did not record is unknown, never different.
+    """
+    first, second = before.manifest.configuration, after.manifest.configuration
+    changed = [
+        label
+        for name, label in CONFIGURATION_LABELS.items()
+        if (was := getattr(first, name)) is not None
+        and (now := getattr(second, name)) is not None
+        and was != now
+    ]
+    if not changed:
+        return ()
+    return (
+        f"the runs were configured differently ({', '.join(changed)} changed) — a "
+        f"difference may come from that rather than from the system",
     )
 
 

@@ -37,6 +37,7 @@ from guardana.core.gate import GateOutcome, OpenQuestion, exit_code_for, gate_ou
 from guardana.core.gate import open_questions as _open_questions
 from guardana.core.keeping import ExchangeKeeper
 from guardana.core.manifest.build import (
+    ConnectionFacts,
     build_run_manifest,
     load_profile_calibrations,
     target_identity,
@@ -68,6 +69,7 @@ from guardana.core.report.serialize import run_to_dict
 from guardana.core.rule import Rule
 from guardana.core.runner import DEFAULT_ENDPOINT_CONCURRENCY, Runner, select_rules
 from guardana.core.target import ArtifactTarget, EndpointError, Target, TargetKind
+from guardana.core.target.adapter import HttpAdapterTransport
 from guardana.core.target.endpoint import EndpointTarget
 from guardana.core.target.mcp import McpServerTarget
 from guardana.core.target.recorded import RecordedTarget
@@ -535,6 +537,7 @@ class Verifier:
             if isinstance(target, RecordedTarget)
             else None,
             run_id=run_id,
+            connection=_connection_facts(target),
         )
         return Verification(
             result=result,
@@ -614,6 +617,26 @@ def refuse_other_trials(recording: Recording, registry: Registry) -> None:
             f"{'…' if len(differing) > _NAMED_AT_MOST else ''}); grade it with "
             f"the trials the probe ran"
         )
+
+
+def _connection_facts(target: Target) -> ConnectionFacts | None:
+    """Describe how an endpoint run reached its model; None for any other target.
+
+    Read off the target the caller passed, before a canary is planted on a view of it.
+    """
+    if not isinstance(target, EndpointTarget):
+        return None
+    transport = target.transport
+    prompt = target.system_prompt
+    return ConnectionFacts(
+        provider=target.provider,
+        adapter_digest=transport.source_digest
+        if isinstance(transport, HttpAdapterTransport)
+        else None,
+        system_prompt_digest=None
+        if prompt is None
+        else DocumentDigest.of(prompt.encode("utf-8"), DigestKind.CONTENT).digest,
+    )
 
 
 def _recording_record(recording: Recording) -> RecordingRecord:

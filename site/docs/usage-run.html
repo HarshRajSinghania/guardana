@@ -485,7 +485,7 @@ wire the run spoke, and the <code>incomplete_recording</code> coverage shortfall
 </tr>
 <tr>
 <td><code>configuration</code></td>
-<td>which settings produced it, <strong>by digest</strong>: <code>profile_digest</code> covers every setting of the resolved profile except its name, where it was read from and its <code>plugins:</code>; <code>plugins</code> is the trust in force, <code>{mode, allowed}</code>; <code>provider</code> is the provider wire the run spoke to its target, <code>null</code> when it reached none or did not record it</td>
+<td>which settings produced it, <strong>by digest</strong>: <code>profile_digest</code> covers every setting of the resolved profile except its name, where it was read from and its <code>plugins:</code>; <code>plugins</code> is the trust in force, <code>{mode, allowed}</code>; <code>provider</code> is the provider wire the run spoke to its target, <code>null</code> when it reached none, reached it through an adapter or did not record it; <code>adapter_digest</code> is the SHA-256 of the adapter file as written, and <code>system_prompt_digest</code> of the operator's <code>--system-prompt-file</code>, never of a planted canary, so two runs of one configuration record the same digests</td>
 </tr>
 <tr>
 <td><code>execution</code></td>

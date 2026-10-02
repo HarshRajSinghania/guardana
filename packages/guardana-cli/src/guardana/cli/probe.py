@@ -290,6 +290,20 @@ def probe(  # noqa: C901, PLR0913, PLR0917 — Typer surface, target modes
         raise typer.BadParameter("--target-option needs --target scheme://locator")
 
     if mcp is not None:
+        chat_flags = {
+            "--url": url,
+            "--model": model,
+            "--api-key-env": api_key_env,
+            "--provider": provider,
+            "--adapter": adapter,
+            "--system-prompt-file": system_prompt_file,
+        }
+        chat = [name for name, value in chat_flags.items() if value is not None]
+        if chat:
+            raise typer.BadParameter(
+                f"--mcp probes an MCP server; {', '.join(chat)} configure a chat endpoint "
+                f"and would be ignored"
+            )
         examined = run_judged(
             lambda: _carried_out(
                 lambda: run_mcp_probe(

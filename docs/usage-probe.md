@@ -46,7 +46,7 @@ guardana probe (--url <base-url> --model <name> | --target <scheme://locator>) [
 | `--trials INTEGER` | `1` (or `trials:` in the profile) | Independent attempts per case for rules that grade a sampled reply — see [Repeated trials](#repeated-trials). Every preset uses `1`; we recommend `5` for a release gate, which is also garak's default number of generations per prompt |
 | `--concurrency INTEGER` | `4` | How many rules may query the model at once. The probe is almost entirely spent waiting on the model, so overlapping rules is the biggest speed-up available; results stay in rule order, so two runs match. Rate limits (429) are retried with backoff — lower this if an endpoint keeps refusing. Each retry counts against `--max-requests` and in the run's usage. |
 | `--reporter TEXT` | none | Forward findings to a collector, e.g. `server://https://collector.example.com` |
-| `--mcp TEXT` | none | Examine an **MCP server** instead of a chat model — see [Probing an MCP server](#probing-an-mcp-server) |
+| `--mcp TEXT` | none | Examine an **MCP server** instead of a chat model — see [Probing an MCP server](#probing-an-mcp-server). Refused with `--url`, `--model`, `--provider`, `--api-key-env`, `--adapter` or `--system-prompt-file`, which configure a chat endpoint (exit `3`) |
 | `--mcp-token-env TEXT` | none | Name of an environment variable holding a bearer token for the MCP server |
 | `--mcp-pin PATH` | none | Approved MCP manifest to compare the live one against |
 | `--write-mcp-pin PATH` | none | Write the server's current manifest as approved, and exit without reporting |
@@ -269,6 +269,12 @@ together with `--provider` or `--api-key-env`. The same adapter file works for
 [`monitor`](usage-monitor.md), and for a judge through `adapter:` in its
 [`evaluators:` block](profiles.md#config-wired-evaluators-llm_judge-and-guard). `plan probe` reads
 no `${VAR}`: pricing a run needs no secret.
+
+The body is sent as JSON with `Content-Type: application/json` unless `headers:` names its
+own content type. A `429` or `503` is retried, honouring `Retry-After`, within
+`--max-requests`; a `500`, `502` or `504` is not, because your application may have acted
+before it failed ([providers](providers.md)). A saved run records the digest of the adapter
+file as written, before `${VAR}` expansion, in `run.configuration.adapter_digest`.
 
 For a **multi-turn** scenario (gradual jailbreak, indirect injection), give the
 body a `{{messages}}` slot to receive the full transcript as a `[{role, content}]`

@@ -31,7 +31,7 @@ def test_transport_fills_prompt_and_extracts_wrapped_reply() -> None:
     )
     assert reply == "the model said hi"
     assert b"hello there" in captured["data"]  # type: ignore[operator]
-    assert captured["headers"] == {"X-Api-Key": "secret123"}
+    assert captured["headers"] == {"X-Api-Key": "secret123", "Content-Type": "application/json"}
     assert captured["url"] == "https://api.example.com/v1/wellness/chat"
 
 

@@ -203,6 +203,11 @@ without the application's prompt, tools and data answers differently, so a diffe
 that rather than the system changing. A run started without a recipe declared nothing, and
 no note is added.
 
+When both runs recorded a profile digest, a provider wire, an adapter digest or a system-prompt
+digest and they differ, a note names the settings that changed: a difference between the runs
+may come from that rather than from the system. A setting one run did not record is unknown,
+and no note is added for it.
+
 ## In CI
 
 ```yaml

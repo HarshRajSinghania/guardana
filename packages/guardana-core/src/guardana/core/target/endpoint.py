@@ -562,6 +562,7 @@ class EndpointTarget(Target):
         self._model = model
         self._api_key = api_key
         self._system_prompt = system_prompt
+        self._provider = provider if transport is None else None
         if transport is None:
             # Lazy import breaks the endpoint<->providers cycle and keeps any heavy
             # backend a provider might need out of the registry-walk path.
@@ -608,6 +609,16 @@ class EndpointTarget(Target):
     def model(self) -> str:
         """The model under test, by the name the endpoint knows it as."""
         return self._model
+
+    @property
+    def provider(self) -> str | None:
+        """The built-in wire protocol this endpoint speaks; None when a transport was supplied."""
+        return self._provider
+
+    @property
+    def system_prompt(self) -> str | None:
+        """The system prompt this endpoint sends, canaries planted on this view included."""
+        return self._system_prompt
 
     @property
     def ref(self) -> str:

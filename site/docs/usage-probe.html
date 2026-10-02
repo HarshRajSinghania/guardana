@@ -376,7 +376,7 @@ Hugging Face TGI's <code>/generate</code>.</p>
 <tr>
 <td><code>--mcp TEXT</code></td>
 <td>none</td>
-<td>Examine an <strong>MCP server</strong> instead of a chat model — see <a href="#probing-an-mcp-server">Probing an MCP server</a></td>
+<td>Examine an <strong>MCP server</strong> instead of a chat model — see <a href="#probing-an-mcp-server">Probing an MCP server</a>. Refused with <code>--url</code>, <code>--model</code>, <code>--provider</code>, <code>--api-key-env</code>, <code>--adapter</code> or <code>--system-prompt-file</code>, which configure a chat endpoint (exit <code>3</code>)</td>
 </tr>
 <tr>
 <td><code>--mcp-token-env TEXT</code></td>
@@ -641,6 +641,11 @@ together with <code>--provider</code> or <code>--api-key-env</code>. The same ad
 <a href="usage-monitor.html"><code>monitor</code></a>, and for a judge through <code>adapter:</code> in its
 <a href="profiles.html#config-wired-evaluators-llm_judge-and-guard"><code>evaluators:</code> block</a>. <code>plan probe</code> reads
 no <code>${VAR}</code>: pricing a run needs no secret.</p>
+<p>The body is sent as JSON with <code>Content-Type: application/json</code> unless <code>headers:</code> names its
+own content type. A <code>429</code> or <code>503</code> is retried, honouring <code>Retry-After</code>, within
+<code>--max-requests</code>; a <code>500</code>, <code>502</code> or <code>504</code> is not, because your application may have acted
+before it failed (<a href="providers.html">providers</a>). A saved run records the digest of the adapter
+file as written, before <code>${VAR}</code> expansion, in <code>run.configuration.adapter_digest</code>.</p>
 <p>For a <strong>multi-turn</strong> scenario (gradual jailbreak, indirect injection), give the
 body a <code>{{messages}}</code> slot to receive the full transcript as a <code>[{role, content}]</code>
 list, if your endpoint speaks multi-turn:</p>

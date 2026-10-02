@@ -15,12 +15,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Saved runs use schema 14.** A coverage shortfall can be `incomplete_recording`; `run.recipe` and `run.configuration.provider` are recorded as null until a run fills them. A schema-13 run migrates with both null.
+- **Saved runs use schema 14.** `run.configuration.provider` records the provider wire, and `adapter_digest` and `system_prompt_digest`, which existed and were never filled, now hold the adapter file as written and the operator's system-prompt file, never a planted canary. A coverage shortfall can be `incomplete_recording`; `run.recipe` is recorded as null until a run fills it. A schema-13 run migrates with `recipe` and `provider` null.
 - **The adapter retries `429` and `503` within `--max-requests`, honouring `Retry-After`, and never `500`, `502` or `504`,** which an application may answer after it already acted.
 - **Ollama's token counts are read**, so a token ceiling over Ollama is enforced instead of refused. A LangChain tool turn carries its token counts, so an agent run under a token ceiling no longer stops at its first tool turn.
 - **`usage.requests_missing_token_counts` also counts a request that reported only one of its two token counts**, such as an Ollama reply to a cached prompt; the reported half still adds to its sum.
 - **Breaking: a connection the run cannot honour is refused before any request (exit `3`).** An `--api-key-env` or judge `api_key_env` naming an unset or empty variable, which used to send no key; `--adapter` with `--api-key-env` or an explicit `--provider`, which the adapter ignored; an adapter `url:` that differs from `--url`, which replaced it while the run named `--url`; an adapter `method:` other than `POST`, which was ignored; and a misspelled key or block name under `evaluators:`, which was ignored although `profiles.md` said it was an error. `plan probe` and `plan grade` read no key.
 - **`calibrate` holds its judge to the profile's `budgets:`;** a calibration the budget stops exits `6` and records nothing.
+- **`probe --mcp` refuses `--url`, `--model`, `--provider`, `--api-key-env`, `--adapter` and `--system-prompt-file`** (exit `3`) instead of ignoring them.
+- **`guardana diff` names a changed profile, provider wire, adapter file or system prompt** when both runs recorded it, so a difference is not read as the system changing.
 
 ### Fixed
 
@@ -29,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **A graded recording from a probe its budget stopped no longer passes.** A suite counted every unrecorded trial as failed and could still clear its bar, while the stop survived only in `run.recording.origin`. Such a run now carries an `incomplete_recording` coverage shortfall naming the origin run: it is indeterminate (exit `2`) unless a finding fails it (exit `1`), and `plan grade` refuses it.
 - **An unknown `--provider` or an unreadable `--system-prompt-file` is invalid usage (exit `3`)** on `probe`, `plan probe`, `target inspect` and `monitor`; it used to end as an internal error (exit `5`).
 - **`plan probe` refuses a token ceiling `probe` refuses**, so a plan no longer prices a run that cannot start.
+- **The adapter sends its body as `application/json`** unless its `headers:` name another type; it sent no content type, so urllib labelled the JSON form-encoded.
 
 ## [0.35.0] - 2026-10-02 — grading prior answers, kept probe exchanges, paired diffs, and secret redaction
 

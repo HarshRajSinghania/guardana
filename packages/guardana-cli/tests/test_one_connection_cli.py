@@ -4,6 +4,7 @@ A refusal is checked at the wire: a local server counts what reached it, so a re
 that only printed a message while a request still went out fails here.
 """
 
+import hashlib
 import json
 import re
 import threading
@@ -430,3 +431,67 @@ def test_a_judge_asks_through_its_adapter_read_beside_the_profile(
     judged = [headers for headers in wire.requests if headers.get("x-judge") == "sekret"]
     assert judged, result.output
     assert len(judged) < len(wire.requests), "the target is asked without the judge's header"
+
+
+def _saved(tmp_path: Path, wire: _Wire, name: str, *flags: str) -> dict[str, object]:
+    output = tmp_path / f"{name}.json"
+    result = _invoke("probe", wire, *flags, "--format", "json", "--output", str(output))
+    assert result.exit_code in {ExitCode.OK, ExitCode.POLICY_FAILED}, result.output
+    configuration = json.loads(output.read_text(encoding="utf-8"))["run"]["configuration"]
+    assert isinstance(configuration, dict)
+    return configuration
+
+
+def test_a_saved_probe_records_its_wire_and_the_operators_prompt_never_a_canary(
+    tmp_path: Path, wire: _Wire
+) -> None:
+    prompt = tmp_path / "prompt.txt"
+    prompt.write_text("You are the support bot.\n", encoding="utf-8")
+    rules = _one_rule(tmp_path)
+    flags = ("--provider", "openai", "--system-prompt-file", str(prompt), *rules)
+
+    first = _saved(tmp_path, wire, "first", *flags)
+    second = _saved(tmp_path, wire, "second", *flags)
+
+    expected = "sha256:" + hashlib.sha256(prompt.read_bytes()).hexdigest()
+    assert first["provider"] == "openai"
+    assert first["system_prompt_digest"] == second["system_prompt_digest"] == expected
+    assert first["adapter_digest"] is None
+
+
+def test_a_probe_through_an_adapter_records_the_file_and_sends_its_body_as_json(
+    tmp_path: Path, wire: _Wire
+) -> None:
+    adapter = _adapter(tmp_path)
+
+    configuration = _saved(tmp_path, wire, "run", "--adapter", str(adapter), *_one_rule(tmp_path))
+
+    assert configuration["adapter_digest"] == (
+        "sha256:" + hashlib.sha256(adapter.read_bytes()).hexdigest()
+    )
+    assert configuration["provider"] is None
+    assert {headers.get("content-type") for headers in wire.requests} == {"application/json"}
+
+
+def test_an_adapter_that_names_its_own_content_type_keeps_it(tmp_path: Path, wire: _Wire) -> None:
+    adapter = _adapter(tmp_path, "headers:\n  Content-Type: application/vnd.acme+json\n")
+
+    _saved(tmp_path, wire, "run", "--adapter", str(adapter), *_one_rule(tmp_path))
+
+    assert {headers.get("content-type") for headers in wire.requests} == {
+        "application/vnd.acme+json"
+    }
+
+
+@pytest.mark.parametrize(
+    "flags",
+    [["--url", "http://127.0.0.1:9"], ["--model", "m"], ["--provider", "ollama"]],
+)
+def test_an_mcp_probe_refuses_the_chat_connection_flags_rather_than_ignoring_them(
+    wire: _Wire, flags: list[str]
+) -> None:
+    result = runner.invoke(app, ["probe", "--mcp", wire.url, *flags])
+
+    assert result.exit_code == ExitCode.INVALID_USAGE, result.output
+    assert "configure a chat endpoint" in normalised(result.output)
+    assert wire.requests == []
