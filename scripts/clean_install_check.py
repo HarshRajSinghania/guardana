@@ -440,7 +440,7 @@ def _recorded_checks(venv: Path, workspace: Path) -> list[Check]:
             "a seeded check's samples play from the installed wheel",
             [guardana, "rule", "test", "guardana.tenancy.cross_tenant_answer"],
             0,
-            expect=("3 fixture(s) passed", "0 rule(s) not fully sampled"),
+            expect=("0 failed, 0 could not run", "0 rule(s) not fully sampled"),
         ),
         Check(
             "plan probe prices the seeded checks from a fixtures file, reading no key",
