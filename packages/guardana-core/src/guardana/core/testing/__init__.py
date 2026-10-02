@@ -64,6 +64,7 @@ from guardana.core.testing.manifests import FIXED_RUN_TIME, manifest_for
 from guardana.core.testing.mcp import ScriptedMcpServer
 from guardana.core.testing.secrets import (
     fake_aws_key,
+    fake_github_pat,
     fake_jwt,
     fake_llm_key,
     fake_secrets,
@@ -94,6 +95,7 @@ __all__ = [
     "build_onnx",
     "build_safetensors",
     "fake_aws_key",
+    "fake_github_pat",
     "fake_jwt",
     "fake_llm_key",
     "fake_secrets",

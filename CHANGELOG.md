@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`guardana.core.testing.fake_github_pat` builds a fine-grained GitHub token shape for redaction tests.** `fake_secrets()` now includes it beside the AWS, OpenAI and JWT shapes.
+
 ### Fixed
 
 - **The terminal report escapes bidirectional controls and Unicode line separators.** Previously, U+202E and the other explicit direction controls (U+061C, U+200E, U+200F, U+202A to U+202E, U+2066 to U+2069) and U+2028 and U+2029 in a target's text reached the terminal, where an override can make a finding read in an order the target did not write. They now print escaped, as `\u202e`.

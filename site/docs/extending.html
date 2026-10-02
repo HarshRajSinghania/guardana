@@ -762,8 +762,9 @@ a redaction test does not put a secret-shaped literal in the repository:</p>
 <li><code>fake_aws_key</code> — input for a secret-detection rule to hunt: shaped exactly
 like a real AWS access key id, without being one.</li>
 <li><code>fake_llm_key</code> — the same, shaped like an OpenAI API key.</li>
+<li><code>fake_github_pat</code> — the same, shaped like a fine-grained GitHub token.</li>
 <li><code>fake_jwt</code> — a JWT-shaped token (three base64url segments).</li>
-<li><code>fake_secrets</code> — all three above, for a test asserting that none leaked.</li>
+<li><code>fake_secrets</code> — all four above, for a test asserting that none leaked.</li>
 </ul>
 <p><strong>A scripted MCP server</strong>, <code>ScriptedMcpServer</code>, stands in for a live one,
 reached exactly the way the real one is (through a <code>Sender</code>) and
