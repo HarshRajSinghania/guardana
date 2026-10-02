@@ -320,10 +320,10 @@ and every <code>guardana recipe</code> command regrade them. A format-1 dataset
 <a href="https://guardana.dev/schemas/dataset/v2.schema.json"><code>dataset-v2.schema.json</code></a> and
 <a href="https://guardana.dev/schemas/dataset/v1.schema.json"><code>dataset-v1.schema.json</code></a>.</p>
 <p><strong>A regression dataset is a gate every case must pass.</strong> A dataset holding any
-<code>observed</code>/<code>accepted</code> pair or any case tagged <code>regression</code> refuses, when the suite is loaded,
-a suite that declares <code>sample:</code> or whose <code>gate.min_pass_rate</code> is below 1, since a case that
-may not run, or that other cases can outvote, prevents nothing. Set <code>gate.min_sample</code> to at
-most the number of cases.</p>
+<code>observed</code>/<code>accepted</code> pair refuses, when the suite is loaded, a suite that declares <code>sample:</code>
+or whose <code>gate.min_pass_rate</code> is below 1, since a case that may not run, or that other cases
+can outvote, prevents nothing. Set <code>gate.min_sample</code> to at most the number of cases. A case
+tagged <code>regression</code> without a pair is a label only and changes no gate.</p>
 <p>This rule grades the dataset and gates its pass rate:</p>
 <pre><code class="language-yaml">id: acme.quality.support_answers
 title: The support bot still answers the golden set

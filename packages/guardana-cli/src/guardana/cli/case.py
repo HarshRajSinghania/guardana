@@ -122,7 +122,7 @@ def add(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; the comman
         promotion = promote(suite, promoted_case(recording, exchange, reviewed), version)
         proof = _proof(promotion)
     except (_Refused, PromotionRefusedError) as exc:
-        typer.echo(f"error: {exc}", err=True)
+        typer.echo(f"error: {_escaped(str(exc))}", err=True)
         raise typer.Exit(code=ExitCode.INVALID_USAGE) from None
     for text in _describe(suite, recording, exchange, promotion, proof, full=full):
         typer.echo(text)
@@ -141,7 +141,7 @@ def add(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; the comman
     try:
         _write_atomically(suite, promotion.text)
     except _Refused as exc:
-        typer.echo(f"error: {exc}", err=True)
+        typer.echo(f"error: {_escaped(str(exc))}", err=True)
         raise typer.Exit(code=ExitCode.INVALID_USAGE) from None
     typer.echo(
         f"wrote {suite.dataset_path}: {promotion.dataset.identity}, case on line "
@@ -161,13 +161,14 @@ def list_cases(
     try:
         recording = _recording(recording_path)
     except _Refused as exc:
-        typer.echo(f"error: {exc}", err=True)
+        typer.echo(f"error: {_escaped(str(exc))}", err=True)
         raise typer.Exit(code=ExitCode.INVALID_USAGE) from None
     full = show or _terminal()
     for exchange in recording.exchanges:
         reply = "altered" if recording.reply_altered(exchange) else "verbatim"
         typer.echo(
-            f"line {exchange.line}  rule {exchange.rule}  key {exchange.key or '-'}  reply {reply}"
+            f"line {exchange.line}  rule {_escaped(exchange.rule)}  "
+            f"key {_escaped(exchange.key or '-')}  reply {reply}"
         )
         if full:
             typer.echo(f"    input: {_preview(_joined(exchange))}")
@@ -265,13 +266,13 @@ def _describe(  # noqa: PLR0913 — every fact the summary names
     """Name what would be written; quote it only when `full`."""
     case = promotion.case
     pair = case.pair
-    tags = ", ".join(case.tags)
+    tags = _escaped(", ".join(case.tags))
     lines = [
         f"suite: {promotion.rule.meta.id} ({suite.path})",
         f"dataset: {suite.dataset_path} {suite.dataset.identity} -> "
         f"{promotion.dataset.identity}, new case on line {case.line}",
-        f"from: {recording.identity} line {exchange.line}, rule {exchange.rule}, "
-        f"key {exchange.key or '-'}",
+        f"from: {_escaped(recording.identity)} line {exchange.line}, "
+        f"rule {_escaped(exchange.rule)}, key {_escaped(exchange.key or '-')}",
         _measure("input", _input_text(promotion)),
     ]
     if pair is not None:
@@ -324,7 +325,31 @@ def _escaped(text: str) -> str:
 
 
 def _write_atomically(suite: SuiteFile, text: str) -> None:
-    """Replace the dataset in one step, refusing when it changed since it was read."""
+    """Replace the dataset in one step under a lock file, refusing when either file changed.
+
+    The lock keeps two `case add` runs from both proving against one version and the later
+    replacing the earlier's case; it excludes only writers that take it too.
+    """
+    target = suite.dataset_path
+    lock = target.with_name(f".{target.name}.lock")
+    try:
+        os.close(os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600))
+    except FileExistsError:
+        raise _Refused(
+            f"{lock} exists, so another `guardana case add` is writing {target}; nothing was "
+            f"written. If none is running, remove {lock} and run again"
+        ) from None
+    except OSError as exc:
+        raise _Refused(f"{lock} could not be created: {exc}") from exc
+    try:
+        _refuse_changed(suite)
+        _replace(target, text)
+    finally:
+        lock.unlink(missing_ok=True)
+
+
+def _refuse_changed(suite: SuiteFile) -> None:
+    """Refuse when the suite or its dataset is no longer the text the case was proven against."""
     target = suite.dataset_path
     try:
         current = read_dataset_text(target)
@@ -332,6 +357,16 @@ def _write_atomically(suite: SuiteFile, text: str) -> None:
         raise _Refused(str(exc)) from exc
     if current != suite.dataset_text:
         raise _Refused(f"{target} changed while the case was being proven; nothing was written")
+    try:
+        rule = suite.path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise _Refused(f"{suite.path} could not be read again: {exc}") from exc
+    if rule != suite.text:
+        raise _Refused(f"{suite.path} changed while the case was being proven; nothing was written")
+
+
+def _replace(target: Path, text: str) -> None:
+    """Write `text` beside `target` and rename it over `target`, keeping its permissions."""
     mode = stat.S_IMODE(target.stat().st_mode)
     handle, temporary = tempfile.mkstemp(
         dir=target.parent, prefix=f".{target.name}.", suffix=".tmp"

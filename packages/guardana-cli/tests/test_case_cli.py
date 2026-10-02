@@ -17,7 +17,7 @@ from guardana.cli import case as case_cli
 from guardana.cli.exit_codes import ExitCode
 from guardana.cli.main import app
 from guardana.core import promotion as promotion_module
-from guardana.core.dataset import read_dataset
+from guardana.core.dataset import read_dataset, read_dataset_text
 from guardana.core.evaluator.base import Evaluator, Expectation, Verdict
 from guardana.core.exchange import Exchange
 from guardana.core.recording import messages_key
@@ -188,6 +188,7 @@ def test_write_appends_one_proven_case_under_the_new_version_and_keeps_every_oth
     assert isinstance(rule, SuiteRule)
     assert [case.line for case in rule.regression_cases] == [3]
     assert "case on line 3" in normalised(result.output)
+    assert not _lock(suite).exists()
 
 
 def test_a_redacted_reply_needs_a_reviewers_stand_in_and_is_tagged_synthetic(
@@ -207,6 +208,26 @@ def test_a_redacted_reply_needs_a_reviewers_stand_in_and_is_tagged_synthetic(
     assert "observed:synthetic" in case.tags
     assert case.pair is not None
     assert case.pair.observed == "Your key is sk-test-0000."
+
+
+@pytest.mark.parametrize("flag", ["--input-file", "--observed-file", "--accepted-file"])
+def test_a_reviewers_file_holding_a_redaction_placeholder_is_refused(
+    tmp_path: Path, flag: str
+) -> None:
+    suite, recording = _team(tmp_path)
+    before = _dataset(suite).read_bytes()
+    texts = {
+        "--input-file": "Mail [redacted:email] a reset link",
+        "--observed-file": "Your key is [redacted:api-key].",
+        "--accepted-file": "Mail [redacted:email] and request a reset link.",
+    }
+    written = _file(tmp_path, "reviewed.txt", texts[flag])
+
+    refused = _add(suite, recording, "--write", flag, str(written))
+
+    assert refused.exit_code == ExitCode.INVALID_USAGE, refused.output
+    assert f"{flag} holds a redaction placeholder" in normalised(refused.output)
+    assert _dataset(suite).read_bytes() == before
 
 
 @pytest.mark.parametrize(
@@ -438,6 +459,73 @@ def test_a_dataset_changed_during_the_proof_is_not_overwritten(
     assert result.exit_code == ExitCode.INVALID_USAGE
     assert "changed while the case was being proven" in normalised(result.output)
     assert "Another question?" in _dataset(suite).read_text(encoding="utf-8")
+    assert not _lock(suite).exists()
+
+
+def _lock(suite: Path) -> Path:
+    return suite.parent / ".support.jsonl.lock"
+
+
+def test_a_suite_changed_during_the_proof_leaves_the_dataset_as_it_was(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    suite, recording = _team(tmp_path)
+    before = _dataset(suite).read_bytes()
+    proven = prove
+
+    def edited_meanwhile(*args: object, **kwargs: object) -> object:
+        rule = json.loads(suite.read_text(encoding="utf-8"))
+        suite.write_text(json.dumps({**rule, "title": "Edited"}), encoding="utf-8")
+        return proven(*args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(case_cli, "prove", edited_meanwhile)
+
+    result = _add(suite, recording, "--write")
+
+    assert result.exit_code == ExitCode.INVALID_USAGE, result.output
+    assert f"{suite} changed while the case was being proven" in normalised(result.output)
+    assert _dataset(suite).read_bytes() == before
+    assert not _lock(suite).exists()
+
+
+def test_a_second_case_add_while_one_is_writing_is_refused_and_the_first_case_is_kept(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    suite, recording = _team(tmp_path)
+    reread = read_dataset_text
+    concurrent: list[Result] = []
+
+    def while_holding_the_lock(path: Path) -> str:
+        if not concurrent:
+            concurrent.append(_add(suite, recording, "--write", "--label", "the second"))
+        return reread(path)
+
+    monkeypatch.setattr(case_cli, "read_dataset_text", while_holding_the_lock)
+
+    first = _add(suite, recording, "--write", "--label", "the first")
+
+    (second,) = concurrent
+    assert second.exit_code == ExitCode.INVALID_USAGE, second.output
+    assert "another `guardana case add` is writing" in normalised(second.output)
+    assert first.exit_code == ExitCode.OK, first.output
+    labels = [t for c in read_dataset(_dataset(suite)).cases for t in c.tags if "label:" in t]
+    assert labels == ["label:the first"]
+    assert not _lock(suite).exists()
+
+
+def test_a_lock_left_by_another_writer_refuses_the_write_and_is_not_removed(
+    tmp_path: Path,
+) -> None:
+    suite, recording = _team(tmp_path)
+    before = _dataset(suite).read_bytes()
+    _lock(suite).write_text("", encoding="utf-8")
+
+    result = _add(suite, recording, "--write")
+
+    assert result.exit_code == ExitCode.INVALID_USAGE, result.output
+    assert "if none is running, remove" in normalised(result.output).casefold()
+    assert _dataset(suite).read_bytes() == before
+    assert _lock(suite).exists()
 
 
 def test_case_list_names_every_exchange_and_quotes_none_off_a_terminal(tmp_path: Path) -> None:
@@ -468,6 +556,31 @@ def test_case_list_with_show_shortens_and_escapes_what_it_quotes(tmp_path: Path)
     assert "\\x1b[31mred" in listed.output
     assert "y" * 300 not in listed.output
     assert f"input: {_QUESTION}" in listed.output
+
+
+def test_names_read_from_the_recording_are_escaped_like_its_text(tmp_path: Path) -> None:
+    suite = _suite(tmp_path)
+    recording = _recording(
+        tmp_path, _line(_QUESTION, _BAD, key=_key(_QUESTION), rule="acme\x1b[2J.support")
+    )
+    header, line = recording.read_text(encoding="utf-8").splitlines()
+    renamed = {**json.loads(header), "name": "replies\x1b]0;owned\x07"}
+    recording.write_text(f"{json.dumps(renamed)}\n{line}\n", encoding="utf-8")
+    _file(tmp_path, "accepted.txt", _GOOD)
+
+    listed = runner.invoke(app, ["case", "list", str(recording)])
+    shown = _add(suite, recording)
+    refused = _add(suite, recording, line="9")
+
+    assert listed.exit_code == ExitCode.OK, listed.output
+    assert shown.exit_code == ExitCode.OK, shown.output
+    assert refused.exit_code == ExitCode.INVALID_USAGE, refused.output
+    for result in (listed, shown):
+        assert "acme\\x1b[2J.support" in result.output
+    for result in (listed, shown, refused):
+        assert "\x1b" not in result.output
+    for result in (shown, refused):
+        assert "replies\\x1b]0;owned\\x07" in result.output
 
 
 def test_case_list_refuses_an_unreadable_recording(tmp_path: Path) -> None:

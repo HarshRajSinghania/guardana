@@ -45,11 +45,22 @@ case is appended to that suite's dataset:
 | `tags` | `regression`, `label:<text>` with `--label`, and `origin:<run id>` when the recording names the run it was kept from. |
 
 The dataset's header gets `--version`, which must differ from its current version. Every
-other line is kept byte for byte, and a format-1 dataset is rewritten as format 2. The file
-is replaced in one step, and not at all if it changed while the case was being proven.
+other line is kept byte for byte, and a format-1 dataset is rewritten as format 2.
+
+**How the file is written.** With `--write`, `case add` creates a lock file beside the
+dataset (`.<dataset>.lock`), reads the suite and the dataset again, and refuses, writing
+nothing, when either differs from the text the case was proven against. It then writes the
+new dataset to a temporary file in the same directory and renames it over the dataset, so a
+reader sees the old file or the new one, never part of either, and removes the lock file
+whatever happened. A second `case add` that finds the lock file refuses (exit `3`) rather
+than wait, so two promotions into one dataset never both write over the same version. The
+lock excludes only other `case add` runs: an editor that saves the dataset between that
+last read and the rename is not detected. A lock file left by a process that was killed is
+not removed for you; delete it once no `case add` is running.
 
 A file you write for `--input-file`, `--observed-file` or `--accepted-file` is read as UTF-8
-text; one line ending at its end is dropped, and an empty file is refused.
+text; one line ending at its end is dropped, and an empty file, or one holding a redaction
+placeholder, is refused.
 
 ### The proof
 
@@ -87,6 +98,8 @@ the evaluator's reasons, which may quote a reply, are printed only to a terminal
 | `--key` and `--line` both or neither; a key on several lines (pick one with `--line`); a line with no key, which only `--line` names; a line or key the recording does not hold | `3` |
 | an input that was altered — it holds a redaction placeholder, it no longer matches the key taken before redaction, or the line has no key and the recording is not verbatim — without `--input-file` | `3` |
 | an altered reply without `--observed-file` | `3` |
+| a file for `--input-file`, `--observed-file` or `--accepted-file` that holds a redaction placeholder | `3` |
+| with `--write`: the dataset's lock file exists, or the suite or the dataset changed while the case was being proven | `3`, nothing written |
 | a `RULE` that is not one YAML suite, that does not load, that lies in an installed distribution, or whose dataset or its directory is not writable | `3` |
 | an evaluator that cannot prove the case without sending | `3` |
 | `--expect` that is not a JSON object, or a field the evaluator does not read | `3` |
@@ -95,11 +108,12 @@ the evaluator's reasons, which may quote a reply, are printed only to a terminal
 
 ## The suite stays a regression gate
 
-A dataset that holds any `observed`/`accepted` pair or any case tagged `regression` refuses,
-whenever the suite is loaded, a suite that declares `sample:` or whose `gate.min_pass_rate` is
-below 1: a regression case that may not run, or that other cases can outvote, prevents
-nothing. Set `gate.min_sample` to at most the number of cases, since its default of 30 refuses
-a small suite at load. See [quality suites](usage-suites.md).
+A dataset that holds any `observed`/`accepted` pair refuses, whenever the suite is loaded, a
+suite that declares `sample:` or whose `gate.min_pass_rate` is below 1: a regression case that
+may not run, or that other cases can outvote, prevents nothing. Set `gate.min_sample` to at
+most the number of cases, since its default of 30 refuses a small suite at load. The
+`regression` tag is a label: a case that carries it without a pair changes no gate. See
+[quality suites](usage-suites.md).
 
 ## Regrading
 
@@ -107,12 +121,13 @@ A live run sends the case's input and grades the target's reply; it never reads 
 `accepted`, and neither is part of the case's identity.
 
 - `guardana rule test` regrades every pair of every selected suite with the rule as it is now,
-  sending nothing, and fails naming each case whose pair no longer holds
-  ([testing rules](usage-rule-test.md)).
+  sending nothing, and names each case whose pair no longer holds: exit `1` when a side graded
+  the wrong way, `2` when a side declined or the evaluator raised, and `3` when the suite's
+  evaluator cannot regrade without sending ([testing rules](usage-rule-test.md)).
 - `guardana recipe lock`, `recipe lock --check` and `recipe run` regrade the pairs of every
-  selected suite before they compare anything. A pair that no longer holds is a refusal:
-  `lock` writes nothing and exits `1`, `lock --check` exits `1`, and `run` sends nothing and
-  exits `3` ([recipes](usage-recipe.md)).
+  selected suite before they compare anything. Any of those four states is a refusal there,
+  with one code: `lock` writes nothing and exits `1`, `lock --check` exits `1`, and `run`
+  sends nothing and exits `3` ([recipes](usage-recipe.md)).
 
 The suite's digest covers its dataset, so after `case add --write` the recipe's lock no
 longer holds: `recipe run` sends nothing until you run `guardana recipe lock` and commit the

@@ -72,12 +72,28 @@ class Connection:
 
 
 @dataclass(frozen=True, slots=True)
+class Credential:
+    """One value a connection authenticates with, held as a digest and named by its source.
+
+    Two connections that hold a credential with the same digest send the same secret,
+    whichever way each one sends it.
+    """
+
+    digest: str
+    source: str
+    """Where the value comes from, never the value: `the key in ACME_KEY`, `header X-Key`."""
+
+
+@dataclass(frozen=True, slots=True)
 class LoadedAdapter:
     """An adapter file read into its configuration, with the digest of the file as written."""
 
     config: AdapterConfig
     digest: str
     """The SHA-256 of the file's bytes, taken before any `${VAR}` is expanded."""
+
+    credentials: tuple[Credential, ...] = ()
+    """What the expanded headers authenticate with; empty when the headers were not expanded."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -95,11 +111,12 @@ class ResolvedConnection:
     api_key: str | None
     transport: ChatTransport | None
     adapter_digest: str | None
-    credential: str | None = None
-    """A digest of what authenticates the requests: the key, or the adapter's expanded headers.
+    credentials: tuple[Credential, ...] = ()
+    """What authenticates the requests: the key, or each `${VAR}` an adapter header expands,
+    each such header as expanded and the headers as a whole.
 
-    Set only for a connection resolved to send that names a key or an adapter, so two
-    connections can be told apart by what they send without holding the secret twice.
+    Set only for a connection resolved to send, so two connections can be told apart by
+    what they send without holding the secret twice.
     """
 
     def endpoint(
@@ -154,7 +171,9 @@ def resolve_connection(
         api_key=api_key,
         transport=None,
         adapter_digest=None,
-        credential=None if api_key is None else digest_of("credential", "key", api_key),
+        credentials=()
+        if api_key is None
+        else (Credential(_secret(api_key), f"the key in {connection.api_key_env}"),),
     )
 
 
@@ -202,15 +221,37 @@ def load_adapter(
     if not isinstance(raw_headers, dict):
         raise ConnectionConfigError(f"invalid adapter {path}: 'headers' must be a mapping")
     target = _adapter_url(raw.get("url"), url, path, names)
-    headers = (
-        {}
-        if environ is None
-        else {str(key): _expand(str(value), path, environ) for key, value in raw_headers.items()}
+    headers, credentials = (
+        ({}, ()) if environ is None else _expanded_headers(raw_headers, path, environ)
     )
     config = AdapterConfig(
         url=target, body=raw["body"], response_path=response_path, headers=headers
     )
-    return LoadedAdapter(config=config, digest=digest)
+    return LoadedAdapter(config=config, digest=digest, credentials=credentials)
+
+
+def _expanded_headers(
+    raw: Mapping[object, object], path: Path, environ: Mapping[str, str]
+) -> tuple[dict[str, str], tuple[Credential, ...]]:
+    """Expand every header, naming as a credential each one that reads a `${VAR}` and each value.
+
+    The headers as a whole are one more, so two adapters whose literal headers are the
+    same send the same thing even when no header reads a variable.
+    """
+    headers: dict[str, str] = {}
+    credentials: list[Credential] = []
+    for key, value in raw.items():
+        name = str(key)
+        expanded, used = _expand(str(value), path, environ)
+        headers[name] = expanded
+        if used:
+            credentials.append(Credential(_secret(expanded), f"header {name}"))
+            credentials.extend(
+                Credential(_secret(found), f"${{{variable}}} in header {name}")
+                for variable, found in used
+            )
+    credentials.append(Credential(_headers_digest(headers), "its headers as a whole"))
+    return headers, tuple(credentials)
 
 
 def _through_adapter(
@@ -238,11 +279,16 @@ def _through_adapter(
         api_key=None,
         transport=transport,
         adapter_digest=loaded.digest,
-        credential=None if environ is None else _headers_credential(loaded.config.headers),
+        credentials=loaded.credentials,
     )
 
 
-def _headers_credential(headers: Mapping[str, str]) -> str:
+def _secret(value: str) -> str:
+    """Digest one secret value, the same way wherever it is sent from."""
+    return digest_of("credential", "value", value)
+
+
+def _headers_digest(headers: Mapping[str, str]) -> str:
     """Digest expanded headers, names case-folded because HTTP compares them that way."""
     folded = {name.casefold(): value for name, value in headers.items()}
     return digest_of("credential", "headers", json.dumps(folded, sort_keys=True))
@@ -269,12 +315,15 @@ def _adapter_url(written: object, url: str, path: Path, names: Spelling) -> str:
     return url
 
 
-def _expand(value: str, path: Path, environ: Mapping[str, str]) -> str:
-    """Replace each `${VAR}` with its value, refusing a variable that is unset or empty.
+def _expand(
+    value: str, path: Path, environ: Mapping[str, str]
+) -> tuple[str, list[tuple[str, str]]]:
+    """Replace each `${VAR}` with its value, returning the text and each variable it read.
 
-    A header that expanded to an empty token would send unauthenticated requests whose
-    rejections read as refusals.
+    A variable that is unset or empty is refused: a header that expanded to an empty
+    token would send unauthenticated requests whose rejections read as refusals.
     """
+    used: list[tuple[str, str]] = []
 
     def replace(match: re.Match[str]) -> str:
         name = match.group(1)
@@ -284,9 +333,10 @@ def _expand(value: str, path: Path, environ: Mapping[str, str]) -> str:
                 f"adapter {path} references ${{{name}}}, which is unset or empty in this "
                 f"environment"
             )
+        used.append((name, found))
         return found
 
-    return _ENV_REF.sub(replace, value)
+    return _ENV_REF.sub(replace, value), used
 
 
 def _check_provider(provider: str, names: Spelling) -> None:
@@ -314,6 +364,7 @@ __all__ = [
     "DEFAULT_PROVIDER",
     "Connection",
     "ConnectionConfigError",
+    "Credential",
     "LoadedAdapter",
     "ResolvedConnection",
     "Spelling",

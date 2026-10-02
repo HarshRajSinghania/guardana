@@ -65,6 +65,7 @@ def _context(report: RunReport) -> RunContext:
         tool_version=report.manifest.guardana.version,
         grading=_grading(report),
         fixtures=None if report.manifest.fixtures is None else report.manifest.fixtures.digest,
+        markers=None if report.manifest.fixtures is None else report.manifest.fixtures.markers,
     )
 
 

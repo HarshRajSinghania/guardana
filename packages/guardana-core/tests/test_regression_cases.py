@@ -102,11 +102,6 @@ _CONTAINS: Mapping[str, Evaluator] = {"contains": ContainsEvaluator()}
         (_regression(), {"sample": {"size": 1, "seed": 7}}, "'sample' would leave cases unsent"),
         (_regression(), {"gate": {"min_pass_rate": 0.9, "min_sample": 1}}, "outvote"),
         (
-            {"input": _QUESTION, "expect": _EXPECT, "tags": ["regression"]},
-            {"gate": {"min_pass_rate": 0.99, "min_sample": 1}},
-            "outvote",
-        ),
-        (
             {"input": _QUESTION, "expect": _EXPECT, **_PAIR},
             {"gate": {"min_pass_rate": 0.5, "min_sample": 1}},
             "outvote",
@@ -133,6 +128,30 @@ def test_the_same_suite_without_a_regression_case_may_sample_and_tolerate(
     )
 
     assert _load(path).sample == (1, 7)
+
+
+@pytest.mark.parametrize("dataset_format", [1, 2])
+@pytest.mark.parametrize(
+    "overrides",
+    [{"gate": {"min_pass_rate": 0.9, "min_sample": 1}}, {"sample": {"size": 1, "seed": 7}}],
+)
+def test_a_hand_written_regression_tag_without_a_pair_keeps_its_suite_loading(
+    tmp_path: Path, dataset_format: int, overrides: dict[str, object]
+) -> None:
+    path = _suite(
+        tmp_path,
+        [
+            {"input": _QUESTION, "expect": _EXPECT, "tags": ["regression"]},
+            {"input": "Where is my invoice?"},
+        ],
+        **overrides,
+    )
+    dataset = tmp_path / "support.jsonl"
+    header, *cases = dataset.read_text("utf-8").splitlines()
+    rewritten = json.dumps({**json.loads(header), "guardana_dataset": dataset_format})
+    dataset.write_text("\n".join([rewritten, *cases]) + "\n", encoding="utf-8")
+
+    assert _load(path).regression_cases == ()
 
 
 def test_a_regression_suite_at_a_bar_of_one_loads_with_its_pair(tmp_path: Path) -> None:

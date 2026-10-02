@@ -185,7 +185,9 @@ many hold, and a case whose pair no longer holds is named by its dataset line:
 
 Only an evaluator that declares itself deterministic and declares that a verdict asks no judge
 can regrade without sending; a suite holding pairs with any other evaluator is refused, never
-skipped.
+skipped. `rule test` tells the states of a pair apart in its exit code (`1`, `2` or `3`, in the
+table below); `recipe lock` refuses all of them with one code, `1`
+([recipes](usage-recipe.md)).
 
 ## Exit codes
 

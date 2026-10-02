@@ -279,8 +279,9 @@ class Fixtures:
 
         With an adapter on the run, every tenant names an adapter for the same URL. Two
         tenants that would authenticate the same way are refused: by variable name or
-        adapter digest when nothing is sent, so a plan and a lock read no key, and by the
-        key or the adapter's expanded headers when sending.
+        adapter digest when nothing is sent, so a plan and a lock read no key, and when
+        sending by any secret value they share, whether one sends it as a key and the
+        other through an adapter header or both through adapters.
         """
         names = spelling or Spelling()
         resolved: list[ResolvedTenant] = []
@@ -292,9 +293,8 @@ class Fixtures:
                     f"every tenant then names an adapter for the same URL, so each speaks the "
                     f"wire the run does"
                 )
-            connection = Connection(
-                url=run.url,
-                model=run.model,
+            connection = replace(
+                run,
                 provider=None if tenant.adapter is not None else run.provider,
                 api_key_env=tenant.api_key_env,
                 adapter=tenant.adapter,
@@ -312,14 +312,17 @@ class Fixtures:
             except ConnectionConfigError as exc:
                 raise FixturesError(str(exc)) from exc
             resolved.append(ResolvedTenant(tenant.name, connected))
-        _refuse_shared(
-            [
-                (declared.name, _credential(declared, connected.connection, sending=sending))
-                for declared, connected in zip(self.tenants, resolved, strict=True)
-            ],
-            self.path,
-            "authenticate with",
-        )
+        if sending:
+            _refuse_shared_secrets(resolved, self.path)
+        else:
+            _refuse_shared(
+                [
+                    (declared.name, _declared_credential(declared, connected.connection))
+                    for declared, connected in zip(self.tenants, resolved, strict=True)
+                ],
+                self.path,
+                "authenticate with",
+            )
         return tuple(resolved)
 
     def subject_files(self, resolved: Sequence[ResolvedTenant]) -> dict[str, str]:
@@ -331,16 +334,30 @@ class Fixtures:
         return files
 
 
-def _credential(tenant: Tenant, connection: ResolvedConnection, *, sending: bool) -> str:
-    """Name what a tenant authenticates with, at the depth the caller may read.
-
-    Sending, it is a digest of the key or the expanded headers, never the secret itself.
-    """
-    if sending:
-        return f"credential {connection.credential or 'none'}"
+def _declared_credential(tenant: Tenant, connection: ResolvedConnection) -> str:
+    """Name what a tenant authenticates with as declared, for a caller that reads no secret."""
     if connection.adapter_digest is not None:
         return f"adapter {connection.adapter_digest}"
     return f"api_key_env {tenant.api_key_env}"
+
+
+def _refuse_shared_secrets(resolved: Sequence[ResolvedTenant], path: Path) -> None:
+    """Refuse two tenants that send any secret value in common, naming where, never what.
+
+    A tenant that sends no credential at all shares that absence with another such tenant.
+    """
+    seen: dict[str, tuple[str, str]] = {}
+    for tenant in resolved:
+        sources = {c.digest: c.source for c in tenant.connection.credentials}
+        for digest, source in (sources or {"none": "no credential"}).items():
+            owner = seen.setdefault(digest, (tenant.name, source))
+            if owner[0] != tenant.name:
+                raise FixturesError(
+                    f"{path}: tenants {owner[0]} and {tenant.name} each send the same "
+                    f"credential ({owner[0]}: {owner[1]}; {tenant.name}: {source}); two "
+                    f"tenants with the same credentials are one tenant to the application, so "
+                    f"a reply crossing between them would read as each one's own"
+                )
 
 
 def normalise(text: str) -> str:
@@ -546,9 +563,8 @@ def _refuse_shared(credentials: list[tuple[str, str]], path: Path, verb: str) ->
     seen: dict[str, str] = {}
     for tenant, credential in credentials:
         if credential in seen:
-            shown = "the same credential" if credential.startswith("credential") else credential
             raise FixturesError(
-                f"{path}: tenants {seen[credential]} and {tenant} each {verb} {shown}; two "
+                f"{path}: tenants {seen[credential]} and {tenant} each {verb} {credential}; two "
                 f"tenants with the same credentials are one tenant to the application, so a "
                 f"reply crossing between them would read as each one's own"
             )

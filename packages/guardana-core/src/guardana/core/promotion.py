@@ -46,9 +46,13 @@ class PromotionRefusedError(ValueError):
 
 @dataclass(frozen=True, slots=True)
 class SuiteFile:
-    """A YAML suite file as it loads now, with its dataset's path and exact text."""
+    """A YAML suite file as it loads now, with its own text and its dataset's path and text.
+
+    Both texts are what the proof was built from, so a writer can tell either file changed.
+    """
 
     path: Path
+    text: str
     raw: Mapping[str, object]
     rule: SuiteRule
     dataset_path: Path
@@ -88,7 +92,8 @@ def open_suite(path: Path) -> SuiteFile:
     load are refused.
     """
     try:
-        raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+        source = path.read_text(encoding="utf-8")
+        raw = yaml.safe_load(source)
     except (yaml.YAMLError, OSError, UnicodeDecodeError) as exc:
         raise PromotionRefusedError(f"{path} could not be read as YAML: {exc}") from exc
     if not isinstance(raw, dict):
@@ -104,7 +109,7 @@ def open_suite(path: Path) -> SuiteFile:
         dataset = parse_dataset(text, str(dataset_path))
     except (RuleLoadError, DatasetError) as exc:
         raise PromotionRefusedError(f"the suite does not load as it is: {exc}") from exc
-    return SuiteFile(path, MappingProxyType(raw), rule, dataset_path, text, dataset)
+    return SuiteFile(path, source, MappingProxyType(raw), rule, dataset_path, text, dataset)
 
 
 def select_exchange(recording: Recording, *, key: str | None, line: int | None) -> RecordedExchange:
@@ -152,7 +157,8 @@ def promoted_case(
     """Build the case a kept exchange and a reviewer's additions make, or refuse it.
 
     An altered input is refused unless the reviewer rewrote it; an altered reply is
-    refused unless the reviewer reconstructed it. Each replacement is tagged.
+    refused unless the reviewer reconstructed it. Each replacement is tagged, and no text
+    the reviewer wrote may hold a redaction placeholder.
     """
     tags = [REGRESSION_TAG]
     if reviewed.label is not None:
@@ -161,9 +167,17 @@ def promoted_case(
         tags.append(f"label:{reviewed.label}")
     if recording.origin is not None:
         tags.append(f"origin:{recording.origin.run_id}")
+    for flag, written in (
+        ("--input-file", reviewed.input),
+        ("--observed-file", reviewed.observed),
+        ("--accepted-file", reviewed.accepted),
+    ):
+        if written is not None and holds_redaction_marker(written):
+            raise PromotionRefusedError(
+                f"{flag} holds a redaction placeholder; write the text the case is to hold, "
+                f"never what a redactor left of it"
+            )
     if reviewed.input is not None:
-        if holds_redaction_marker(reviewed.input):
-            raise PromotionRefusedError("the rewritten input holds a redaction placeholder")
         case_input: str | tuple[ChatMessage, ...] = reviewed.input
         tags.append(INPUT_REWRITTEN_TAG)
     else:

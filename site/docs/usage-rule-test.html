@@ -475,7 +475,9 @@ many hold, and a case whose pair no longer holds is named by its dataset line:</
 </code></pre>
 <p>Only an evaluator that declares itself deterministic and declares that a verdict asks no judge
 can regrade without sending; a suite holding pairs with any other evaluator is refused, never
-skipped.</p>
+skipped. <code>rule test</code> tells the states of a pair apart in its exit code (<code>1</code>, <code>2</code> or <code>3</code>, in the
+table below); <code>recipe lock</code> refuses all of them with one code, <code>1</code>
+(<a href="usage-recipe.html">recipes</a>).</p>
 <h2 id="exit-codes">Exit codes</h2>
 <div class="table-wrap"><table>
 <thead>

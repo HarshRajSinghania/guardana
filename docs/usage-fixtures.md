@@ -72,8 +72,12 @@ evidence to pass it:
 **A tenant's connection is complete on its own.** When the run sends through an adapter,
 every tenant names an adapter for the same URL; otherwise each names `api_key_env` or an
 adapter. Two tenants are told apart by their key variable or adapter digest when nothing is
-sent, so `plan` and `recipe lock` read no key, and by the key itself or the adapter's expanded
-headers when sending; a refusal never prints either. The run's own connection, which every
+sent, so `plan` and `recipe lock` read no key. When sending, two tenants that share any
+secret value are refused, whichever way each sends it: one tenant's key and another's
+adapter header, or two adapters' headers. A tenant adapter header that reads a `${VAR}`
+counts as a credential, as does the variable's value, and the refusal names the tenants and
+where each sends the value, never the value itself. Put a header value that is not a secret
+in the adapter file as written. The run's own connection, which every
 other rule uses, is not a tenant.
 
 ## Markers
@@ -117,7 +121,7 @@ A recipe names the file as `subject.fixtures`, beside a `connection`, with
 `schema_version: 2` ([`usage-recipe.md`](usage-recipe.md)). The recipe reads the file once,
 so the digest the lock pins and the items a run asks about come from the same bytes. The
 lock pins the file's digest and every tenant adapter; `recipe run` resolves every tenant,
-checks each key is set and the tenants' credentials differ, and re-reads every tenant adapter
+checks each key is set and that no two tenants share a secret value, and re-reads every tenant adapter
 against its pin before it sends anything. `subject.fixtures` together with
 `subject.recording` is refused.
 
@@ -126,6 +130,7 @@ against its pin before it sends anything. `subject.fixtures` together with
 A run given fixtures records them as `run.fixtures`: the name, the file's digest, `data`
 labelled as declared, the tenants, how many documents, records and tools the file declares,
 and the `markers` algorithm ([`usage-run.md`](usage-run.md)). `guardana diff` reads two runs
-given different fixtures, or fixtures on one side only, as an incomplete comparison (exit
-`2`): an item one file declares and the other does not was asked about by one run only, so
-its absence would otherwise read as a fixed leak ([`usage-diff.md`](usage-diff.md)).
+given different fixtures, the same fixtures under different `markers` algorithms, or
+fixtures on one side only, as an incomplete comparison (exit `2`): an item one run asked
+about the other never did, so its absence would otherwise read as a fixed leak
+([`usage-diff.md`](usage-diff.md)).

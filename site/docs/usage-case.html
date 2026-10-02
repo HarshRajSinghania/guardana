@@ -328,10 +328,20 @@ case is appended to that suite's dataset:</p>
 </tbody>
 </table></div>
 <p>The dataset's header gets <code>--version</code>, which must differ from its current version. Every
-other line is kept byte for byte, and a format-1 dataset is rewritten as format 2. The file
-is replaced in one step, and not at all if it changed while the case was being proven.</p>
+other line is kept byte for byte, and a format-1 dataset is rewritten as format 2.</p>
+<p><strong>How the file is written.</strong> With <code>--write</code>, <code>case add</code> creates a lock file beside the
+dataset (<code>.&lt;dataset&gt;.lock</code>), reads the suite and the dataset again, and refuses, writing
+nothing, when either differs from the text the case was proven against. It then writes the
+new dataset to a temporary file in the same directory and renames it over the dataset, so a
+reader sees the old file or the new one, never part of either, and removes the lock file
+whatever happened. A second <code>case add</code> that finds the lock file refuses (exit <code>3</code>) rather
+than wait, so two promotions into one dataset never both write over the same version. The
+lock excludes only other <code>case add</code> runs: an editor that saves the dataset between that
+last read and the rename is not detected. A lock file left by a process that was killed is
+not removed for you; delete it once no <code>case add</code> is running.</p>
 <p>A file you write for <code>--input-file</code>, <code>--observed-file</code> or <code>--accepted-file</code> is read as UTF-8
-text; one line ending at its end is dropped, and an empty file is refused.</p>
+text; one line ending at its end is dropped, and an empty file, or one holding a redaction
+placeholder, is refused.</p>
 <h3 id="the-proof">The proof</h3>
 <p>Before anything is written, the suite's evaluator grades <code>observed</code> and <code>accepted</code> against
 the case's effective expectation. <strong>The case holds only when <code>observed</code> grades <code>fail</code> and
@@ -390,6 +400,14 @@ the evaluator's reasons, which may quote a reply, are printed only to a terminal
 <td><code>3</code></td>
 </tr>
 <tr>
+<td>a file for <code>--input-file</code>, <code>--observed-file</code> or <code>--accepted-file</code> that holds a redaction placeholder</td>
+<td><code>3</code></td>
+</tr>
+<tr>
+<td>with <code>--write</code>: the dataset's lock file exists, or the suite or the dataset changed while the case was being proven</td>
+<td><code>3</code>, nothing written</td>
+</tr>
+<tr>
 <td>a <code>RULE</code> that is not one YAML suite, that does not load, that lies in an installed distribution, or whose dataset or its directory is not writable</td>
 <td><code>3</code></td>
 </tr>
@@ -412,22 +430,24 @@ the evaluator's reasons, which may quote a reply, are printed only to a terminal
 </tbody>
 </table></div>
 <h2 id="the-suite-stays-a-regression-gate">The suite stays a regression gate</h2>
-<p>A dataset that holds any <code>observed</code>/<code>accepted</code> pair or any case tagged <code>regression</code> refuses,
-whenever the suite is loaded, a suite that declares <code>sample:</code> or whose <code>gate.min_pass_rate</code> is
-below 1: a regression case that may not run, or that other cases can outvote, prevents
-nothing. Set <code>gate.min_sample</code> to at most the number of cases, since its default of 30 refuses
-a small suite at load. See <a href="usage-suites.html">quality suites</a>.</p>
+<p>A dataset that holds any <code>observed</code>/<code>accepted</code> pair refuses, whenever the suite is loaded, a
+suite that declares <code>sample:</code> or whose <code>gate.min_pass_rate</code> is below 1: a regression case that
+may not run, or that other cases can outvote, prevents nothing. Set <code>gate.min_sample</code> to at
+most the number of cases, since its default of 30 refuses a small suite at load. The
+<code>regression</code> tag is a label: a case that carries it without a pair changes no gate. See
+<a href="usage-suites.html">quality suites</a>.</p>
 <h2 id="regrading">Regrading</h2>
 <p>A live run sends the case's input and grades the target's reply; it never reads <code>observed</code> or
 <code>accepted</code>, and neither is part of the case's identity.</p>
 <ul>
 <li><code>guardana rule test</code> regrades every pair of every selected suite with the rule as it is now,
-sending nothing, and fails naming each case whose pair no longer holds
-(<a href="usage-rule-test.html">testing rules</a>).</li>
+sending nothing, and names each case whose pair no longer holds: exit <code>1</code> when a side graded
+the wrong way, <code>2</code> when a side declined or the evaluator raised, and <code>3</code> when the suite's
+evaluator cannot regrade without sending (<a href="usage-rule-test.html">testing rules</a>).</li>
 <li><code>guardana recipe lock</code>, <code>recipe lock --check</code> and <code>recipe run</code> regrade the pairs of every
-selected suite before they compare anything. A pair that no longer holds is a refusal:
-<code>lock</code> writes nothing and exits <code>1</code>, <code>lock --check</code> exits <code>1</code>, and <code>run</code> sends nothing and
-exits <code>3</code> (<a href="usage-recipe.html">recipes</a>).</li>
+selected suite before they compare anything. Any of those four states is a refusal there,
+with one code: <code>lock</code> writes nothing and exits <code>1</code>, <code>lock --check</code> exits <code>1</code>, and <code>run</code>
+sends nothing and exits <code>3</code> (<a href="usage-recipe.html">recipes</a>).</li>
 </ul>
 <p>The suite's digest covers its dataset, so after <code>case add --write</code> the recipe's lock no
 longer holds: <code>recipe run</code> sends nothing until you run <code>guardana recipe lock</code> and commit the

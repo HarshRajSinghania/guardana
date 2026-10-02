@@ -93,18 +93,20 @@ sending; any other evaluator — an undeclared plugin is treated as a judge — 
 reconstruction, not on what the application said; its tag says so.
 
 Without `--write` the command shows what it would write and writes nothing; with it, it writes
-the file atomically. The full text of the case is printed only to a terminal or with `--show`;
-otherwise the output names the line, key, digests and lengths, so a dry run scripted in CI does
-not copy replies the redactor missed into a log. The person who runs it with `--write` is the
-promotion. It refuses: a key that matches several lines (`--line` picks one) and a line with no
-key without `--line`; a case line over the dataset's line limit; a `RULE` that is not a writable
-YAML suite outside an installed distribution.
+the file atomically, under a lock file that a second `case add` refuses on. The full text of the
+case is printed only to a terminal or with `--show`; otherwise the output names the line, key,
+digests and lengths, so a dry run scripted in CI does not copy replies the redactor missed into
+a log. The person who runs it with `--write` is the promotion. It refuses: a key that matches
+several lines (`--line` picks one) and a line with no key without `--line`; a case line over the
+dataset's line limit; a `RULE` that is not a writable YAML suite outside an installed
+distribution.
 
-**The suite stays a regression gate.** A dataset holding any `observed`/`accepted` pair or a
-`regression` tag refuses, at load, a suite that samples or whose bar is below 1, whenever the
-suite is loaded, not only by `case add`: a case that may not run, or that other cases can
-outvote, prevents nothing. Such a suite has to set `gate.min_sample` to at most its case count,
-since the default refuses a small suite at load.
+**The suite stays a regression gate.** A dataset holding any `observed`/`accepted` pair
+refuses, at load, a suite that samples or whose bar is below 1, whenever the suite is loaded,
+not only by `case add`: a case that may not run, or that other cases can outvote, prevents
+nothing. Such a suite has to set `gate.min_sample` to at most its case count, since the default
+refuses a small suite at load. A `regression` tag alone is a label and changes no gate, so a
+dataset an author tagged before pairs existed keeps loading under the bar it had.
 
 **Regrade.** Dataset format 2 adds the optional per-case `observed` and `accepted`, both or
 neither. `guardana rule test` regrades every pair with the rule as it is now and fails naming
@@ -165,8 +167,10 @@ topic; a change or send tool without `sink` and `reversible`; `subject.recording
 `subject.fixtures`. A tenant's connection is complete on its own: with `--adapter` every tenant
 names an adapter for the same URL; otherwise a tenant names `api_key_env` or an adapter. A
 tenant's credential identity is its variable name or its adapter's digest when nothing is sent
-(`plan` and `lock` read no key), and the key value or the adapter's expanded headers when
-sending. The run's own connection, which every other rule uses, is not a tenant.
+(`plan` and `lock` read no key), and when sending every secret value it sends: the key, or each
+`${VAR}` an adapter header reads and that header as expanded. Two tenants sharing any of them
+are refused, a key against an adapter header as well as adapter against adapter. The run's own
+connection, which every other rule uses, is not a tenant.
 
 Every seeded item — document or record — gets a **retrieval term** (a word unique to it, in its
 text and in its question), a **presence marker** (the answer to its question; a record carries it
@@ -188,12 +192,12 @@ comes from the text models, as every attack prompt does.
 A recipe names the file as `subject.fixtures` (recipe schema 2; an older build refuses the
 version, not a key). The lock pins its digest and every tenant adapter. The run records
 `fixtures` (name, digest, `data`, tenants, counts of documents, records and tools; run schema
-15). `diff` marks a comparison incomplete when the fixtures digest differs or only one side has
-fixtures — a removed item would otherwise read as a fixed leak. `probe` and `plan probe` take
-`--fixtures FILE`. The run and the report label `data` as declared, not verified. A recipe
-reads the fixtures file once, so its digest and its items come from the same bytes, and
-re-checks it and every tenant adapter against the lock before sending; the lock's stand-in
-target carries `seeded_data`.
+15). `diff` marks a comparison incomplete when the fixtures digest or the markers algorithm
+differs or only one side has fixtures — a removed item would otherwise read as a fixed leak.
+`probe` and `plan probe` take `--fixtures FILE`. The run and the report label `data` as
+declared, not verified. A recipe reads the fixtures file once, so its digest and its items come
+from the same bytes, and re-checks it and every tenant adapter against the lock before sending;
+the lock's stand-in target carries `seeded_data`.
 
 Rejected: Guardana writing documents into the index through an adapter (a write it starts and
 must undo); markers the team types into its documents (a typo is a control that never

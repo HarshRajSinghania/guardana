@@ -250,3 +250,41 @@ def test_a_first_lock_over_a_broken_pair_writes_no_lock(
 
     assert result.exit_code == ExitCode.POLICY_FAILED, result.output
     assert not (tmp_path / "guardana-recipe.lock.yaml").exists()
+
+
+def _declines_the_correct_reply(reply: str | None) -> Verdict | None:
+    return Verdict("inconclusive", 0.0, "unsure", "contains") if reply == _GOOD else None
+
+
+def _raises_on_the_failure(reply: str | None) -> Verdict | None:
+    if reply == _BAD:
+        raise RuntimeError("the evaluator broke")
+    return None
+
+
+_Broken = tuple[Callable[[str | None], Verdict | None] | None, bool, str]
+
+
+@pytest.mark.parametrize(
+    "broken",
+    [
+        (_declines_the_correct_reply, True, "accepted graded declined"),
+        (_raises_on_the_failure, True, "observed graded raised"),
+        (None, False, "cannot be regraded without sending"),
+    ],
+    ids=["declined", "raised", "unprovable"],
+)
+def test_recipe_lock_refuses_every_state_of_a_pair_that_rule_test_tells_apart_with_one(
+    tmp_path: Path, wire: _Wire, monkeypatch: pytest.MonkeyPatch, broken: _Broken
+) -> None:
+    grade, deterministic, says = broken
+    recipe = _recipe(tmp_path, wire.url)
+    if grade is not None:
+        _evaluating(monkeypatch, grade)
+    monkeypatch.setattr(ContainsEvaluator, "deterministic", deterministic)
+
+    result = _recipe_command("lock", str(recipe))
+
+    assert result.exit_code == ExitCode.POLICY_FAILED, result.output
+    assert says in normalised(result.output)
+    assert not (tmp_path / "guardana-recipe.lock.yaml").exists()

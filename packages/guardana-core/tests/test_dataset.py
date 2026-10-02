@@ -438,10 +438,10 @@ def test_a_pair_in_a_fixture_dataset_is_refused_rather_than_never_regraded(
     assert "fixture dataset" in message
 
 
-def test_a_regression_tag_alone_marks_a_regression_dataset(tmp_path: Path) -> None:
+def test_a_regression_tag_alone_does_not_make_a_regression_dataset(tmp_path: Path) -> None:
     path = _write(tmp_path / "golden.jsonl", HEADER, {**STRING_CASE, "tags": ["regression"]})
 
-    assert read_dataset(path).holds_regressions
+    assert not read_dataset(path).holds_regressions
 
 
 @pytest.mark.parametrize(

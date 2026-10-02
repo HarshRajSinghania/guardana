@@ -75,8 +75,9 @@ def _report(day: int, fixtures: FixturesRecord | None) -> RunReport:
         (_A, _B, "given different fixtures"),
         (_A, None, "only the first run was given fixtures"),
         (None, _B, "only the second run was given fixtures"),
+        (_A, replace(_A, markers=2), "different algorithms (1 and 2)"),
     ],
-    ids=["different digests", "first only", "second only"],
+    ids=["different digests", "first only", "second only", "different markers"],
 )
 def test_a_change_of_fixtures_makes_the_comparison_incomplete(
     before: FixturesRecord | None, after: FixturesRecord | None, says: str

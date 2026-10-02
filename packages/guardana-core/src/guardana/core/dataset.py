@@ -33,7 +33,7 @@ READ_FORMATS = (1, 2)
 """Every `guardana_dataset` value this build reads."""
 
 REGRESSION_TAG = "regression"
-"""The tag that marks a case as a regression case, whether or not it carries a pair."""
+"""The tag `case add` writes on a promoted case; a label only, it changes no gate."""
 
 MAX_CASES = 100_000
 """Cases read from one dataset; a file with more is refused, never cut short."""
@@ -100,12 +100,13 @@ class Dataset:
 
     @property
     def holds_regressions(self) -> bool:
-        """Whether any case carries a pair or the `regression` tag.
+        """Whether any case carries an `observed`/`accepted` pair.
 
         Such a dataset is a regression gate: a suite over it may neither sample nor set
-        a bar below 1.
+        a bar below 1. A tag never makes one, so a dataset an author tagged by hand keeps
+        loading under the bar it already had.
         """
-        return any(case.pair is not None or REGRESSION_TAG in case.tags for case in self.cases)
+        return any(case.pair is not None for case in self.cases)
 
 
 def resolve_dataset_path(raw: str, rule_file: Path) -> Path:

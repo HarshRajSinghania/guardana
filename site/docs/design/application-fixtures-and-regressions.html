@@ -356,17 +356,19 @@ sending; any other evaluator — an undeclared plugin is treated as a judge — 
 <code>3</code>), never skipped. A synthetic observed reply proves the expectation on the reviewer's
 reconstruction, not on what the application said; its tag says so.</p>
 <p>Without <code>--write</code> the command shows what it would write and writes nothing; with it, it writes
-the file atomically. The full text of the case is printed only to a terminal or with <code>--show</code>;
-otherwise the output names the line, key, digests and lengths, so a dry run scripted in CI does
-not copy replies the redactor missed into a log. The person who runs it with <code>--write</code> is the
-promotion. It refuses: a key that matches several lines (<code>--line</code> picks one) and a line with no
-key without <code>--line</code>; a case line over the dataset's line limit; a <code>RULE</code> that is not a writable
-YAML suite outside an installed distribution.</p>
-<p><strong>The suite stays a regression gate.</strong> A dataset holding any <code>observed</code>/<code>accepted</code> pair or a
-<code>regression</code> tag refuses, at load, a suite that samples or whose bar is below 1, whenever the
-suite is loaded, not only by <code>case add</code>: a case that may not run, or that other cases can
-outvote, prevents nothing. Such a suite has to set <code>gate.min_sample</code> to at most its case count,
-since the default refuses a small suite at load.</p>
+the file atomically, under a lock file that a second <code>case add</code> refuses on. The full text of the
+case is printed only to a terminal or with <code>--show</code>; otherwise the output names the line, key,
+digests and lengths, so a dry run scripted in CI does not copy replies the redactor missed into
+a log. The person who runs it with <code>--write</code> is the promotion. It refuses: a key that matches
+several lines (<code>--line</code> picks one) and a line with no key without <code>--line</code>; a case line over the
+dataset's line limit; a <code>RULE</code> that is not a writable YAML suite outside an installed
+distribution.</p>
+<p><strong>The suite stays a regression gate.</strong> A dataset holding any <code>observed</code>/<code>accepted</code> pair
+refuses, at load, a suite that samples or whose bar is below 1, whenever the suite is loaded,
+not only by <code>case add</code>: a case that may not run, or that other cases can outvote, prevents
+nothing. Such a suite has to set <code>gate.min_sample</code> to at most its case count, since the default
+refuses a small suite at load. A <code>regression</code> tag alone is a label and changes no gate, so a
+dataset an author tagged before pairs existed keeps loading under the bar it had.</p>
 <p><strong>Regrade.</strong> Dataset format 2 adds the optional per-case <code>observed</code> and <code>accepted</code>, both or
 neither. <code>guardana rule test</code> regrades every pair with the rule as it is now and fails naming
 each case whose pair no longer holds; it still sends nothing, and a suite whose resolved
@@ -417,8 +419,10 @@ topic; a change or send tool without <code>sink</code> and <code>reversible</cod
 <code>subject.fixtures</code>. A tenant's connection is complete on its own: with <code>--adapter</code> every tenant
 names an adapter for the same URL; otherwise a tenant names <code>api_key_env</code> or an adapter. A
 tenant's credential identity is its variable name or its adapter's digest when nothing is sent
-(<code>plan</code> and <code>lock</code> read no key), and the key value or the adapter's expanded headers when
-sending. The run's own connection, which every other rule uses, is not a tenant.</p>
+(<code>plan</code> and <code>lock</code> read no key), and when sending every secret value it sends: the key, or each
+<code>${VAR}</code> an adapter header reads and that header as expanded. Two tenants sharing any of them
+are refused, a key against an adapter header as well as adapter against adapter. The run's own
+connection, which every other rule uses, is not a tenant.</p>
 <p>Every seeded item — document or record — gets a <strong>retrieval term</strong> (a word unique to it, in its
 text and in its question), a <strong>presence marker</strong> (the answer to its question; a record carries it
 in a <code>reference_code</code> field) and, when poisoned, an <strong>instruction marker</strong> (two halves the
@@ -437,12 +441,12 @@ comes from the text models, as every attack prompt does.</p>
 <p>A recipe names the file as <code>subject.fixtures</code> (recipe schema 2; an older build refuses the
 version, not a key). The lock pins its digest and every tenant adapter. The run records
 <code>fixtures</code> (name, digest, <code>data</code>, tenants, counts of documents, records and tools; run schema
-15). <code>diff</code> marks a comparison incomplete when the fixtures digest differs or only one side has
-fixtures — a removed item would otherwise read as a fixed leak. <code>probe</code> and <code>plan probe</code> take
-<code>--fixtures FILE</code>. The run and the report label <code>data</code> as declared, not verified. A recipe
-reads the fixtures file once, so its digest and its items come from the same bytes, and
-re-checks it and every tenant adapter against the lock before sending; the lock's stand-in
-target carries <code>seeded_data</code>.</p>
+15). <code>diff</code> marks a comparison incomplete when the fixtures digest or the markers algorithm
+differs or only one side has fixtures — a removed item would otherwise read as a fixed leak.
+<code>probe</code> and <code>plan probe</code> take <code>--fixtures FILE</code>. The run and the report label <code>data</code> as
+declared, not verified. A recipe reads the fixtures file once, so its digest and its items come
+from the same bytes, and re-checks it and every tenant adapter against the lock before sending;
+the lock's stand-in target carries <code>seeded_data</code>.</p>
 <p>Rejected: Guardana writing documents into the index through an adapter (a write it starts and
 must undo); markers the team types into its documents (a typo is a control that never
 succeeds).</p>

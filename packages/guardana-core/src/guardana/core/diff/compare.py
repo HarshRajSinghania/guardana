@@ -111,6 +111,11 @@ class RunContext:
 
     The monitor leaves it None on both sides, since one process runs both cycles."""
 
+    markers: int | None = None
+    """The algorithm the run's seeded markers were derived with; None without fixtures.
+
+    The same file under another algorithm seeds other markers, so it asks other questions."""
+
 
 _NO_CONTEXT = RunContext()
 """What the monitor gets: two cycles of one process, one target, one rule set."""
@@ -199,7 +204,7 @@ def compare(
         measurement=measurement,
         incomplete=(
             *_incomplete(before, after),
-            *_fixtures_changed(before_context.fixtures, after_context.fixtures),
+            *_fixtures_changed(before_context, after_context),
             *(
                 f"{rule_id}: trials changed {was} → {now}, so its results are not answers "
                 f"to one question and it was not compared"
@@ -357,15 +362,23 @@ def _incomplete(before: ScanResult, after: ScanResult) -> tuple[str, ...]:
     )
 
 
-def _fixtures_changed(before: str | None, after: str | None) -> tuple[str, ...]:
+def _fixtures_changed(before_context: RunContext, after_context: RunContext) -> tuple[str, ...]:
     """Say when the two runs asked about different seeded data.
 
     An item one fixtures file declares and the other does not was asked about by one
     run only, so a finding on it that disappears reads as a fixed leak when it was
-    never asked again.
+    never asked again. The same file under another markers algorithm seeds other
+    markers, which an index seeded for one run does not hold for the other.
     """
+    before, after = before_context.fixtures, after_context.fixtures
     if before == after:
-        return ()
+        if before is None or before_context.markers == after_context.markers:
+            return ()
+        return (
+            f"the runs derived the markers of the same fixtures with different algorithms "
+            f"({before_context.markers} and {after_context.markers}), so they asked about "
+            f"different seeded text and are not comparable",
+        )
     if before is None or after is None:
         given = "first" if after is None else "second"
         return (

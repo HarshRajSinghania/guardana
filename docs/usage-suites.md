@@ -36,10 +36,10 @@ and every `guardana recipe` command regrade them. A format-1 dataset
 [`dataset-v1.schema.json`](https://guardana.dev/schemas/dataset/v1.schema.json).
 
 **A regression dataset is a gate every case must pass.** A dataset holding any
-`observed`/`accepted` pair or any case tagged `regression` refuses, when the suite is loaded,
-a suite that declares `sample:` or whose `gate.min_pass_rate` is below 1, since a case that
-may not run, or that other cases can outvote, prevents nothing. Set `gate.min_sample` to at
-most the number of cases.
+`observed`/`accepted` pair refuses, when the suite is loaded, a suite that declares `sample:`
+or whose `gate.min_pass_rate` is below 1, since a case that may not run, or that other cases
+can outvote, prevents nothing. Set `gate.min_sample` to at most the number of cases. A case
+tagged `regression` without a pair is a label only and changes no gate.
 
 This rule grades the dataset and gates its pass rate:
 

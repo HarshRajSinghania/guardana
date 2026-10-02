@@ -117,8 +117,10 @@ unknown `--provider`, a `--system-prompt-file` or `--adapter` that cannot be rea
 not `POST`. None of them is `5`, which is reserved for Guardana's own defects.
 
 `recipe lock` exits `0` once it wrote the lock, `1`, writing nothing, when a regression
-case of a selected suite no longer holds — its failing reply passes or its correct reply
-fails with the rule as it is now — `2` when what it would pin cannot be
+case of a selected suite no longer holds with the rule as it is now — a side graded the
+wrong way, a side declined, the evaluator raised, or the suite's evaluator cannot regrade
+without sending — where `rule test` tells those apart as `1`, `2`, `2` and `3`; `2` when
+what it would pin cannot be
 pinned — nothing selected, plugin trust refused an installed extension, a selected check
 that would not grade — and also `2`, having written the lock, when a selected check is
 unpinned; `3` for a recipe it cannot read. `recipe lock --check` uses the same codes and

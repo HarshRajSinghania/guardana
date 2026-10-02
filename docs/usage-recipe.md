@@ -89,7 +89,7 @@ direct URL can change its code under one version, so it is listed under `unpinne
 |---|---|---|---|
 | written, or every pin holds | `0` | `0` | the run's own code |
 | a pin moved | — | `1` | `3`, nothing sent |
-| a regression pair of a selected suite no longer holds | `1`, nothing written | `1` | `3`, nothing sent |
+| a regression pair of a selected suite no longer holds: a side graded the wrong way or declined, the evaluator raised, or it cannot regrade without sending | `1`, nothing written | `1` | `3`, nothing sent |
 | something selected is `unpinned` | `2`, written | `2` | runs, and the run records what is unpinned |
 | nothing selected, plugin trust refused an installed extension, or a selected check would not grade (a rule file that did not load, an evaluator nobody registered) | `2`, nothing written | `2` | `3` (the lock cannot match) |
 | recipe or lock missing, unreadable, or from a newer Guardana | `3` | `3` | `3` |
@@ -119,7 +119,7 @@ fails it, whatever the profile's `fail_on_*` switches say.
 Before it sends anything, `recipe run` also checks what the lock does not cover: the
 subject's key variable and every judge's key variable must be set, and an adapter file read
 again to send must still have the digest the lock holds. With fixtures, every tenant's key
-variable must be set, no two tenants may send the same key or the same adapter headers, and
+variable must be set, no two tenants may send a secret value in common, as a key or in an adapter header, and
 every tenant adapter read again must still have its pinned digest; the fixtures file is read
 once, so the items a run asks about are the bytes the lock compared. Each refusal exits `3` and is
 written into the artifact. When the lock lists unpinned checks, the run says so on stderr,

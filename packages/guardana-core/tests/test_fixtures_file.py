@@ -7,14 +7,15 @@ whose markers cannot be mistaken for each other or for the question that asks fo
 
 import copy
 import json
-from collections.abc import Callable
-from dataclasses import replace
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
 import pytest
 import yaml
 from _fixtures_file import fixtures_document
+from guardana.core import fixtures as fixtures_module
 from guardana.core.fixtures import (
     DOCUMENT_FACT,
     DOCUMENT_QUESTION,
@@ -25,10 +26,12 @@ from guardana.core.fixtures import (
     Fixtures,
     FixturesError,
     ItemKind,
+    Markers,
     SeededItem,
     ToolOp,
     appears_in,
     assert_disjoint,
+    derive_markers,
     load_fixtures,
     normalise,
     parse_fixtures,
@@ -37,7 +40,12 @@ from guardana.core.fixtures import (
 from guardana.core.plugins import PluginMode, PluginTrust
 from guardana.core.registry import Registry
 from guardana.core.target import EndpointTarget
-from guardana.core.target.connection import Connection
+from guardana.core.target.connection import (
+    Connection,
+    ResolvedConnection,
+    Spelling,
+    resolve_connection,
+)
 from guardana.core.testing import RefusingTransport
 from guardana.core.verify import Verifier
 
@@ -171,6 +179,23 @@ def test_render_writes_one_line_per_document_with_id_tenant_and_text(tmp_path: P
 
 
 # Markers: deterministic, and moved by any edit of what they derive from
+
+
+def test_markers_algorithm_1_derives_exactly_these_markers() -> None:
+    """A change to the derivation that keeps `MARKERS_ALGORITHM` turns this red.
+
+    A run records the algorithm, not the markers, so two runs under one number must
+    have asked about the same text.
+    """
+    digest = "sha256:" + "ab" * 32
+
+    assert MARKERS_ALGORITHM == 1
+    assert derive_markers("support-bot", digest, poisoned=True) == Markers(
+        term="japevavato", presence="7566-RC4L", instruction=("F8ELK", "HYLUF")
+    )
+    assert derive_markers("support-bot", digest, poisoned=False, attempt=1) == Markers(
+        term="suvijolere", presence="8B8H-453T"
+    )
 
 
 def test_markers_are_the_same_on_every_load(tmp_path: Path) -> None:
@@ -507,6 +532,103 @@ def test_two_adapters_expanding_to_the_same_headers_are_refused_when_sending(
     assert len(fixtures.resolve_tenants(run, sending=False, environ=environ)) == 2
     with pytest.raises(FixturesError, match="the same credential"):
         fixtures.resolve_tenants(run, sending=True, environ=environ)
+
+
+_BEARER = (
+    'body:\n  message: "{{prompt}}"\nresponse_path: reply\nheaders:\n'
+    '  Authorization: "Bearer ${%s}"\n  X-Trace: "%s"\n'
+)
+
+
+def _mixed(tmp_path: Path, adapter: str) -> Fixtures:
+    """Load fixtures whose acme sends a key and whose globex sends `adapter`'s headers."""
+    written = document()
+    (tmp_path / "globex.yaml").write_text(adapter, encoding="utf-8")
+    written["tenants"]["globex"] = {"adapter": "globex.yaml"}
+    return _load(tmp_path, written)
+
+
+@pytest.mark.parametrize(
+    "adapter",
+    [_ADAPTER % "GLOBEX_KEY", _BEARER % ("GLOBEX_KEY", "globex")],
+    ids=["header-is-the-key", "header-carries-the-key"],
+)
+def test_a_key_tenant_and_an_adapter_tenant_sending_the_same_secret_are_refused(
+    tmp_path: Path, adapter: str
+) -> None:
+    fixtures = _mixed(tmp_path, adapter)
+    run = Connection(url=_URL, model="m")
+
+    with pytest.raises(FixturesError, match="the same credential") as refused:
+        fixtures.resolve_tenants(
+            run, sending=True, environ={"ACME_KEY": "shared-0451", "GLOBEX_KEY": "shared-0451"}
+        )
+    distinct = fixtures.resolve_tenants(
+        run, sending=True, environ={"ACME_KEY": "acme-0451", "GLOBEX_KEY": "globex-0451"}
+    )
+
+    assert "shared-0451" not in str(refused.value)
+    assert "the key in ACME_KEY" in str(refused.value)
+    assert [t.name for t in distinct] == ["acme", "globex"]
+
+
+def test_two_adapters_sharing_a_secret_under_different_other_headers_are_refused(
+    tmp_path: Path,
+) -> None:
+    written = document()
+    for name in ("acme", "globex"):
+        variable = f"{name.upper()}_KEY"
+        (tmp_path / f"{name}.yaml").write_text(_BEARER % (variable, name), encoding="utf-8")
+        written["tenants"][name] = {"adapter": f"{name}.yaml"}
+    fixtures = _load(tmp_path, written)
+    run = Connection(url=_URL, model="m")
+
+    with pytest.raises(FixturesError, match="the same credential") as refused:
+        fixtures.resolve_tenants(
+            run, sending=True, environ={"ACME_KEY": "shared-0451", "GLOBEX_KEY": "shared-0451"}
+        )
+    distinct = fixtures.resolve_tenants(
+        run, sending=True, environ={"ACME_KEY": "acme-0451", "GLOBEX_KEY": "globex-0451"}
+    )
+
+    assert "shared-0451" not in str(refused.value)
+    assert "header Authorization" in str(refused.value)
+    assert len(distinct) == 2
+
+
+@dataclass(frozen=True, slots=True)
+class _WiderConnection(Connection):
+    """A connection with one more field, as the next one added would be."""
+
+    read_timeout: float | None = None
+
+
+def test_every_field_of_the_runs_connection_reaches_each_tenant_but_its_credentials(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fixtures = _load(tmp_path)
+    run = _WiderConnection(url=_URL, model="m", provider="ollama", read_timeout=7.5)
+    built: list[Connection] = []
+    resolve = resolve_connection
+
+    def recording(
+        connection: Connection,
+        *,
+        sending: bool,
+        spelling: Spelling | None = None,
+        environ: Mapping[str, str] | None = None,
+    ) -> ResolvedConnection:
+        built.append(connection)
+        return resolve(connection, sending=sending, spelling=spelling, environ=environ)
+
+    monkeypatch.setattr(fixtures_module, "resolve_connection", recording)
+
+    fixtures.resolve_tenants(run, sending=False)
+
+    assert built == [
+        replace(run, api_key_env="ACME_KEY"),
+        replace(run, api_key_env="GLOBEX_KEY"),
+    ]
 
 
 def test_with_an_adapter_on_the_run_every_tenant_names_one(tmp_path: Path) -> None:

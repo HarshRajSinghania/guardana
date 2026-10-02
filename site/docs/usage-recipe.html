@@ -412,7 +412,7 @@ direct URL can change its code under one version, so it is listed under <code>un
 <td><code>3</code>, nothing sent</td>
 </tr>
 <tr>
-<td>a regression pair of a selected suite no longer holds</td>
+<td>a regression pair of a selected suite no longer holds: a side graded the wrong way or declined, the evaluator raised, or it cannot regrade without sending</td>
 <td><code>1</code>, nothing written</td>
 <td><code>1</code></td>
 <td><code>3</code>, nothing sent</td>
@@ -458,7 +458,7 @@ fails it, whatever the profile's <code>fail_on_*</code> switches say.</p>
 <p>Before it sends anything, <code>recipe run</code> also checks what the lock does not cover: the
 subject's key variable and every judge's key variable must be set, and an adapter file read
 again to send must still have the digest the lock holds. With fixtures, every tenant's key
-variable must be set, no two tenants may send the same key or the same adapter headers, and
+variable must be set, no two tenants may send a secret value in common, as a key or in an adapter header, and
 every tenant adapter read again must still have its pinned digest; the fixtures file is read
 once, so the items a run asks about are the bytes the lock compared. Each refusal exits <code>3</code> and is
 written into the artifact. When the lock lists unpinned checks, the run says so on stderr,
