@@ -6,6 +6,7 @@ from guardana.core.evaluator.base import (
     Measurement,
     Outcome,
     Verdict,
+    grade,
 )
 from guardana.core.evaluator.canary import CanaryEvaluator
 from guardana.core.evaluator.contains import ContainsEvaluator
@@ -46,4 +47,5 @@ __all__ = [
     "RegexEvaluator",
     "ToolCallEvaluator",
     "Verdict",
+    "grade",
 ]

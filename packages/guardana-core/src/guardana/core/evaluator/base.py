@@ -1,7 +1,7 @@
 import math
 from abc import ABC, abstractmethod
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import ClassVar, Literal
 
 from guardana.core.assessment import Direction
@@ -177,6 +177,34 @@ class Evaluator(ABC):
         Be honest about `confidence`: a cheap heuristic that reports 0.99 is worse
         than one that reports 0.5, because a policy trusts the number. When the
         exchange has no reply to grade (`reply_text is None`), return
-        `inconclusive`, never `pass`.
+        `inconclusive`, never `pass`. Every built-in rule kind grades through `grade`,
+        which turns a `pass` on an exchange with no reply text and no agent run into
+        `inconclusive`; a `fail` stands. A Python rule that asks an evaluator calls it too.
         """
         raise NotImplementedError
+
+
+def grade(evaluator: Evaluator, exchange: Exchange, expectation: Expectation) -> Verdict:
+    """Ask `evaluator` for a verdict, refusing a `pass` on an exchange with nothing to grade.
+
+    Evaluators are third-party plugins, and one that only looks for something bad finds
+    nothing bad in an empty reply. An agent run is exempt: a grader of its tool calls
+    may clear a run that ended without final text.
+    """
+    verdict = evaluator.evaluate(exchange, expectation)
+    if (
+        verdict.outcome != "pass"
+        or exchange.reply_text is not None
+        or exchange.trajectory is not None
+    ):
+        return verdict
+    return replace(
+        verdict,
+        outcome="inconclusive",
+        confidence=0.0,
+        rationale=(
+            f"no reply to grade: the exchange ended without reply text, so the evaluator's "
+            f"pass carries no evidence ({verdict.rationale})"
+        ),
+        measurement=None,
+    )

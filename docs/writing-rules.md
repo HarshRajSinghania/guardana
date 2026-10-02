@@ -468,8 +468,9 @@ measurement, not only the failure:
 
 ```python
 from guardana.core.assessment import case_id_for, from_verdict
+from guardana.core.evaluator import grade
 
-verdict = evaluator.evaluate(exchange, self.expectation)
+verdict = grade(evaluator, exchange, self.expectation)
 ctx.record(
     from_verdict(
         verdict,

@@ -2,7 +2,7 @@ from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import dataclass, replace
 
 from guardana.core.assessment import case_id_for, from_verdict
-from guardana.core.evaluator.base import Evaluator, Expectation, Verdict
+from guardana.core.evaluator.base import Evaluator, Expectation, Verdict, grade
 from guardana.core.exchange import Exchange
 from guardana.core.report import Evidence, Finding
 from guardana.core.rule.base import Rule, RuleContext, RuleMeta
@@ -213,7 +213,7 @@ class ScenarioRule(Rule):
                 )
                 read_until.append((step.evaluator, step.expect, len(messages)))
                 exchange = Exchange(tuple(messages), graded_from=start)
-                verdict = scope.evaluator.evaluate(exchange, scope.expectation)
+                verdict = grade(scope.evaluator, exchange, scope.expectation)
                 yield scope, verdict, exchange.transcript
         if self.conversation_expect is not None:
             scope = _GradedScope(
@@ -223,7 +223,7 @@ class ScenarioRule(Rule):
                 "",
             )
             exchange = Exchange(tuple(messages))
-            yield scope, scope.evaluator.evaluate(exchange, scope.expectation), exchange.transcript
+            yield scope, grade(scope.evaluator, exchange, scope.expectation), exchange.transcript
 
 
 @dataclass(frozen=True, slots=True)

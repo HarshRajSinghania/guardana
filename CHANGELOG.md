@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **The engine never lets an evaluator pass a reply with no text.** A `pass` on an empty or whitespace-only reply becomes `inconclusive` for every built-in rule kind and in calibration, so a third-party evaluator that returned `pass` for silence no longer turns an endpoint that answered nothing into a clean run. A trajectory is exempt; a `fail` stays a finding. A Python rule that asks an evaluator itself gets the same check from `guardana.core.evaluator.grade`.
+
 ### Fixed
 
 - **`guardana.supply_chain.hallucinated_package` honours the scan's file scope.** It walked the tree itself, so a package installed into an in-tree `.venv`, or a file under an excluded directory, counted as local and hid the lead for an import nobody declared. It now reads the target's own listing, which also removes two tree walks per scan, and nothing under a `site-packages` directory counts as the project's own module or declaration, whatever the virtualenv is called.

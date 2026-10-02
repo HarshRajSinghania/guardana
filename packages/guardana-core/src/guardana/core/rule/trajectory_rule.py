@@ -2,7 +2,7 @@ from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, replace
 
 from guardana.core.assessment import case_id_for, from_verdict
-from guardana.core.evaluator.base import Evaluator, Expectation, Verdict
+from guardana.core.evaluator.base import Evaluator, Expectation, Verdict, grade
 from guardana.core.evaluator.tool_call import ToolCallEvaluator, _undelivered
 from guardana.core.exchange import Exchange
 from guardana.core.report import Evidence, Finding
@@ -273,7 +273,7 @@ class TrajectoryRule(Rule):
         return Verdict("inconclusive", 0.0, why, evaluator.id)
 
     def _graded(self, evaluator: Evaluator, run: Trajectory) -> Verdict:
-        return evaluator.evaluate(Exchange.from_trajectory(run), self._graded_expectation)
+        return grade(evaluator, Exchange.from_trajectory(run), self._graded_expectation)
 
     def _unless_delivered(self, verdict: Verdict, run: Trajectory) -> Verdict:
         """Turn a pass on a run the payload never reached into `inconclusive`; a failure stands.

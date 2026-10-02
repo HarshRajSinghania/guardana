@@ -4,7 +4,7 @@ from pathlib import Path
 
 import yaml
 from guardana.core.assessment import case_id_for, from_verdict
-from guardana.core.evaluator.base import Expectation, Verdict
+from guardana.core.evaluator.base import Expectation, Verdict, grade
 from guardana.core.exchange import Exchange
 from guardana.core.report import Evidence, Finding
 from guardana.core.rule._digest import declaration_digest
@@ -132,7 +132,7 @@ class YamlRule(Rule):
                             ChatMessage(role="assistant", content=reply),
                         )
                     )
-                    verdict = evaluator.evaluate(exchange, self.expectation)
+                    verdict = grade(evaluator, exchange, self.expectation)
                     # `pass` included: without the passes there is no denominator. The
                     # `dataset` is this rule's declaration digest — the same hash `diff`
                     # uses for "rule definition changed", so a sharpened corpus makes two

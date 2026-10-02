@@ -6,7 +6,7 @@ from guardana.core.calibration.report import (
     class_caveat,
 )
 from guardana.core.calibration.sample import CalibrationSample
-from guardana.core.evaluator.base import Evaluator
+from guardana.core.evaluator.base import Evaluator, grade
 
 _BINS = 10
 # (probability the attack succeeded, what the evaluator said, what happened)
@@ -30,7 +30,7 @@ def calibrate(evaluator: Evaluator, samples: Sequence[CalibrationSample]) -> Cal
     abstained = {True: 0, False: 0}
     assessors: set[str] = set()
     for sample in samples:
-        verdict = evaluator.evaluate(sample.exchange, sample.expectation)
+        verdict = grade(evaluator, sample.exchange, sample.expectation)
         assessors.add(verdict.evaluator_id)
         if verdict.outcome == "inconclusive":
             abstained[sample.attack_succeeded] += 1

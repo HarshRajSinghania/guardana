@@ -128,8 +128,16 @@ class MyEvaluator(Evaluator):
 ```
 
 The fail-closed convention above is project law, not a style choice: an
-evaluator that cannot actually grade returns `"inconclusive"` (surfaced on
-the run's `unverified` channel), never a confident all-clear.
+evaluator that cannot actually grade returns `"inconclusive"` (surfaced on the
+run's `unverified` channel), never a confident all-clear. Built-in YAML,
+scenario, suite, and trajectory rules and calibration all grade through
+`guardana.core.evaluator.grade`. Third-party Python rules call the evaluator
+directly and are covered only if they use `guardana.core.evaluator.grade`, as
+they should. That function changes an evaluator's `"pass"` to `"inconclusive"`
+with confidence 0.0 under that evaluator's id when the exchange has no reply
+text (`reply_text is None`). A `"fail"` stands, and an exchange built from an
+agent run (`exchange.trajectory` set) is exempt, because a grader of tool
+calls may clear a run that ended without final text.
 
 `Exchange.graded_from` is the index into `messages` where the turns under grade
 begin; the messages before it are context. It defaults to `0`, so an agent run

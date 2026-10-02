@@ -20,7 +20,7 @@ from guardana.core.assessment import (
 from guardana.core.budget import BudgetExhausted
 from guardana.core.calibration.corpus import bundled_corpus
 from guardana.core.calibration.store import corpus_digest
-from guardana.core.evaluator.base import Expectation, Verdict
+from guardana.core.evaluator.base import Expectation, Verdict, grade
 from guardana.core.exchange import Exchange
 from guardana.core.manifest.records import SuiteOutcome, SuiteSummary
 from guardana.core.report import Evidence, Finding
@@ -171,7 +171,7 @@ class SuiteRule(Rule):
                     (*case.messages, ChatMessage(role="assistant", content=reply)),
                     graded_from=len(case.messages),
                 )
-                verdict = evaluator.evaluate(exchange, case.expectation)
+                verdict = grade(evaluator, exchange, case.expectation)
                 ctx.record(
                     from_verdict(
                         verdict,
