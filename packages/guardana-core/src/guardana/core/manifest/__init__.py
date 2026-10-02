@@ -18,7 +18,6 @@ from guardana.core.manifest.records import (
     RecordingRecord,
     ResultSummary,
     RuleRecord,
-    SubjectKind,
     SubjectSource,
     SuiteCorrection,
     SuiteOutcome,
@@ -32,6 +31,7 @@ from guardana.core.manifest.settings import (
     PrivacyRecord,
 )
 from guardana.core.manifest.usage import JudgeUsage, RunUsage
+from guardana.core.subject import SubjectKind
 from guardana.core.usage import TargetUsage, TokenUsage
 
 __all__ = [

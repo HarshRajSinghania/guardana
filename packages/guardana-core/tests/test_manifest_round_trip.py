@@ -45,7 +45,6 @@ from guardana.core.manifest.records import (
     RecordingRecord,
     ResultSummary,
     RuleRecord,
-    SubjectKind,
     SubjectSource,
     SuiteCorrection,
     SuiteOutcome,
@@ -62,6 +61,7 @@ from guardana.core.manifest.settings import (
 from guardana.core.manifest.usage import JudgeUsage, RunUsage
 from guardana.core.report.shortfall import CoverageShortfall, ShortfallKind
 from guardana.core.report.skipped import SkippedRule, SkipReason
+from guardana.core.subject import SubjectKind
 from guardana.core.target import TargetKind
 
 _NOT_IN_THE_RUN_BLOCK = frozenset({"schema_version"})

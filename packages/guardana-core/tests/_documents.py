@@ -38,7 +38,6 @@ from guardana.core.manifest.records import (
     RecordingRecord,
     ResultSummary,
     RuleRecord,
-    SubjectKind,
     SubjectSource,
     SuiteCorrection,
     SuiteOutcome,
@@ -60,6 +59,7 @@ from guardana.core.report.result import ScanResult
 from guardana.core.report.shortfall import CoverageShortfall, ShortfallKind
 from guardana.core.report.skipped import SkippedRule, SkipReason
 from guardana.core.severity import Severity
+from guardana.core.subject import SubjectKind
 from guardana.core.target import TargetKind
 from guardana.core.target.scope import ExcludePattern, ExcludeSource, FileScope
 from guardana.core.taxonomy import TaxonomyRef

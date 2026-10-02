@@ -147,6 +147,14 @@ def test_the_superseded_run_schemas_stay_pinned_to_the_versions_they_describe() 
         )
 
 
+def test_the_superseded_recording_schema_stays_pinned_to_format_1() -> None:
+    """A format-1 recording is still read, so its contract stays as it was written."""
+    header = _schema("recording-v1.schema.json")["$defs"]["header"]["properties"]  # type: ignore[index]
+
+    assert header["guardana_recording"]["const"] == 1
+    assert "subject_kind" not in header
+
+
 @pytest.mark.parametrize(
     ("version", "added_later"),
     [(1, ("span", "agent")), (2, ("approval", "approver_kind"))],

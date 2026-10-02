@@ -7,6 +7,7 @@ from typing import Any
 import pytest
 from guardana.core import recording as recording_module
 from guardana.core.fingerprint import DigestKind
+from guardana.core.manifest import SubjectKind
 from guardana.core.recording import (
     RECORDING_FORMAT,
     RecordedExchange,
@@ -22,7 +23,9 @@ from guardana.core.target import ChatMessage, Target
 from guardana.core.target._scoped import RuleScoped
 from jsonschema import Draft202012Validator
 
-_SCHEMA = Path(__file__).resolve().parents[3] / "schemas" / "recording-v1.schema.json"
+_SCHEMAS = Path(__file__).resolve().parents[3] / "schemas"
+_SCHEMA = _SCHEMAS / "recording-v2.schema.json"
+_V1_SCHEMA = _SCHEMAS / "recording-v1.schema.json"
 RULE = "acme.support.refund_policy"
 OTHER_RULE = "acme.support.tone"
 KEY = "sha256:" + "0" * 64
@@ -51,8 +54,8 @@ def _refusal(path: Path) -> str:
     return str(caught.value)
 
 
-def _validator() -> Draft202012Validator:
-    schema: dict[str, Any] = json.loads(_SCHEMA.read_text(encoding="utf-8"))
+def _validator(path: Path = _SCHEMA) -> Draft202012Validator:
+    schema: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
     return Draft202012Validator(schema)
 
 
@@ -63,6 +66,7 @@ def _full_recording() -> Recording:
         version="2026.10",
         verbatim=True,
         subject="support-bot staging",
+        subject_kind=SubjectKind.MODEL_HARNESS,
         origin=RecordingOrigin(
             run_id="run-1",
             target="https://bot.invalid/v1",
@@ -157,7 +161,7 @@ def test_rendering_is_deterministic_and_omits_what_is_absent() -> None:
 
     assert text == render_recording(minimal)
     assert text == (
-        '{"guardana_recording":1,"name":"n","version":"1","verbatim":true}\n'
+        '{"guardana_recording":2,"name":"n","version":"1","verbatim":true}\n'
         '{"rule":"acme.support.refund_policy","input":[{"role":"user","content":"żółw"}],'
         '"reply":"a"}\n'
     )
@@ -169,7 +173,7 @@ def test_every_rendered_line_validates_against_the_published_schema() -> None:
         assert not list(validator.iter_errors(json.loads(line))), line
 
 
-def test_the_schema_describes_the_format_this_build_reads() -> None:
+def test_the_schema_describes_the_format_this_build_writes() -> None:
     schema = json.loads(_SCHEMA.read_text(encoding="utf-8"))
 
     assert schema["$defs"]["header"]["properties"]["guardana_recording"]["const"] == (
@@ -177,14 +181,27 @@ def test_the_schema_describes_the_format_this_build_reads() -> None:
     )
 
 
+def test_a_format_1_recording_still_validates_against_the_v1_schema() -> None:
+    validator = _validator(_V1_SCHEMA)
+    header = {**HEADER, "guardana_recording": 1, "subject": "bot"}
+
+    for record in (header, LINE):
+        assert not list(validator.iter_errors(record)), record
+    assert list(validator.iter_errors({**header, "subject_kind": "application"}))
+    assert list(validator.iter_errors(HEADER))
+
+
 @pytest.mark.parametrize(
     "record",
     [
-        {"guardana_recording": 2, "name": "n", "version": "1", "verbatim": True},
-        {"guardana_recording": 1, "name": "n", "version": "1"},
-        {"guardana_recording": 1, "name": "n", "version": "1", "verbatim": "true"},
-        {"guardana_recording": 1, "name": "", "version": "1", "verbatim": True},
-        {"guardana_recording": 1, "name": "n", "version": "1", "verbatim": True, "extra": 1},
+        {"guardana_recording": 1, "name": "n", "version": "1", "verbatim": True},
+        {"guardana_recording": 3, "name": "n", "version": "1", "verbatim": True},
+        {"guardana_recording": 2, "name": "n", "version": "1"},
+        {"guardana_recording": 2, "name": "n", "version": "1", "verbatim": "true"},
+        {"guardana_recording": 2, "name": "", "version": "1", "verbatim": True},
+        {"guardana_recording": 2, "name": "n", "version": "1", "verbatim": True, "extra": 1},
+        {**HEADER, "subject_kind": ""},
+        {**HEADER, "subject_kind": "service"},
         {"rule": RULE, "input": "q"},
         {"rule": RULE, "input": [], "reply": "a"},
         {"rule": RULE, "input": [{"role": "tool", "content": "x"}], "reply": "a"},
@@ -248,13 +265,69 @@ def test_a_verbatim_written_as_a_string_is_refused(tmp_path: Path) -> None:
     assert "verbatim" in message
 
 
-def test_another_format_is_refused_naming_the_format_this_build_reads(tmp_path: Path) -> None:
-    path = _write(tmp_path / "r.jsonl", {**HEADER, "guardana_recording": 2}, LINE)
+def test_another_format_is_refused_naming_the_formats_this_build_reads(tmp_path: Path) -> None:
+    path = _write(tmp_path / "r.jsonl", {**HEADER, "guardana_recording": 3}, LINE)
 
     message = _refusal(path)
 
     assert f"{path}:1:" in message
-    assert f"reads format {RECORDING_FORMAT}" in message
+    assert "recording format 3" in message
+    assert "reads formats 1 and 2" in message
+
+
+def test_a_recording_with_a_subject_kind_is_written_as_format_2_and_reads_back(
+    tmp_path: Path,
+) -> None:
+    original = replace(_full_recording(), subject_kind=SubjectKind.APPLICATION)
+    path = tmp_path / "kind.jsonl"
+    path.write_text(render_recording(original), encoding="utf-8")
+
+    header = json.loads(path.read_text(encoding="utf-8").splitlines()[0])
+    loaded = read_recording(path)
+
+    assert header["guardana_recording"] == 2
+    assert header["subject_kind"] == "application"
+    assert loaded.subject_kind is SubjectKind.APPLICATION
+    assert _as_written(loaded) == original
+
+
+def test_a_recording_without_a_subject_kind_is_written_without_the_key() -> None:
+    text = render_recording(replace(_full_recording(), subject_kind=None))
+
+    assert "subject_kind" not in json.loads(text.splitlines()[0])
+
+
+def test_a_format_1_recording_reads_as_declaring_no_subject_kind(tmp_path: Path) -> None:
+    path = _write(tmp_path / "r.jsonl", {**HEADER, "guardana_recording": 1}, LINE)
+    data = path.read_bytes()
+
+    loaded = read_recording(path)
+
+    assert loaded.subject_kind is None
+    assert loaded.exchanges[0].reply == LINE["reply"]
+    assert loaded.digest is not None
+    assert loaded.digest.digest == f"sha256:{hashlib.sha256(data).hexdigest()}"
+
+
+def test_a_format_1_header_carrying_a_subject_kind_is_refused(tmp_path: Path) -> None:
+    header = {**HEADER, "guardana_recording": 1, "subject_kind": "application"}
+    path = _write(tmp_path / "r.jsonl", header, LINE)
+
+    message = _refusal(path)
+
+    assert f"{path}:1:" in message
+    assert "subject_kind" in message
+
+
+@pytest.mark.parametrize("kind", ["service", "", 1, None])
+def test_a_subject_kind_that_is_not_a_known_kind_is_refused(tmp_path: Path, kind: object) -> None:
+    path = _write(tmp_path / "r.jsonl", {**HEADER, "subject_kind": kind}, LINE)
+
+    message = _refusal(path)
+
+    assert f"{path}:1:" in message
+    assert "subject_kind" in message
+    assert "application, model_harness" in message
 
 
 def test_a_boolean_format_is_refused(tmp_path: Path) -> None:

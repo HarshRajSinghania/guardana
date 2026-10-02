@@ -3,6 +3,7 @@
 Requests are counted at a local server, so "nothing was sent" is measured at the wire.
 """
 
+import hashlib
 import json
 import re
 import threading
@@ -234,6 +235,103 @@ def test_a_recording_subject_is_graded_without_calling_anything(tmp_path: Path) 
     assert result.exit_code == ExitCode.POLICY_FAILED, result.output
     run = json.loads((_artifact(recipe) / "run.json").read_text(encoding="utf-8"))["run"]
     assert run["recipe"]["source"] == "recording"
+
+
+def _graded_recording(tmp_path: Path, *, kind: str | None, recorded: str | None) -> Path:
+    """A recipe grading `answers.jsonl`, each side declaring a kind or leaving it out."""
+    recipe = _team(tmp_path, "http://127.0.0.1:9")
+    text = recipe.read_text(encoding="utf-8")
+    declared = "" if kind is None else f"  kind: {kind}\n"
+    subject = f"subject:\n{declared}  recording: answers.jsonl\n"
+    recipe.write_text(text[: text.index("subject:")] + subject, encoding="utf-8")
+    header: dict[str, object] = {
+        "guardana_recording": 2,
+        "name": "replies",
+        "version": "1",
+        "verbatim": True,
+    }
+    if recorded is not None:
+        header["subject_kind"] = recorded
+    line = {"rule": "acme.support.refuses", "input": _PROMPT, "reply": "Sure! Here."}
+    (tmp_path / "answers.jsonl").write_text(
+        f"{json.dumps(header)}\n{json.dumps(line)}\n", encoding="utf-8"
+    )
+    _locked(recipe)
+    return recipe
+
+
+@pytest.mark.parametrize(
+    ("kind", "recorded"), [(None, "model_harness"), ("model_harness", "model_harness")]
+)
+def test_a_recording_recipe_runs_as_the_kind_its_recording_declares(
+    tmp_path: Path, kind: str | None, recorded: str
+) -> None:
+    recipe = _graded_recording(tmp_path, kind=kind, recorded=recorded)
+
+    result = _invoke("run", str(recipe))
+
+    assert result.exit_code == ExitCode.POLICY_FAILED, result.output
+    run = json.loads((_artifact(recipe) / "run.json").read_text(encoding="utf-8"))["run"]
+    assert run["recipe"]["kind"] == "model_harness"
+    assert run["recipe"]["source"] == "recording"
+
+
+def test_a_kind_the_recording_contradicts_is_refused_before_anything_is_graded(
+    tmp_path: Path,
+) -> None:
+    recipe = _graded_recording(tmp_path, kind="application", recorded="model_harness")
+
+    result = _invoke("run", str(recipe))
+
+    assert result.exit_code == ExitCode.INVALID_USAGE
+    said = normalised(result.output)
+    assert "subject.kind: application" in said
+    assert "subject_kind: model_harness" in said
+    out = _artifact(recipe)
+    assert not (out / "run.json").exists()
+    assert json.loads((out / MARKER).read_text(encoding="utf-8"))["status"] == "refused"
+
+
+def test_a_kind_nobody_declares_is_refused_before_anything_is_graded(tmp_path: Path) -> None:
+    recipe = _graded_recording(tmp_path, kind=None, recorded=None)
+
+    result = _invoke("run", str(recipe))
+
+    assert result.exit_code == ExitCode.INVALID_USAGE
+    assert "it has no default" in normalised(result.output)
+    assert not (_artifact(recipe) / "run.json").exists()
+
+
+def test_a_connection_recipe_without_a_kind_is_refused(tmp_path: Path, wire: _Wire) -> None:
+    recipe = _team(tmp_path, wire.url)
+    recipe.write_text(
+        recipe.read_text(encoding="utf-8").replace("  kind: application\n", ""), encoding="utf-8"
+    )
+
+    result = _invoke("lock", str(recipe))
+
+    assert result.exit_code == ExitCode.INVALID_USAGE
+    assert "subject.kind" in normalised(result.output)
+    assert wire.requests == []
+
+
+def test_kept_exchanges_in_the_artifact_carry_the_recipe_kind(tmp_path: Path, wire: _Wire) -> None:
+    recipe = _team(
+        tmp_path, wire.url, kind="model_harness", extra="privacy:\n  keep_exchanges: true\n"
+    )
+    recipe.write_text(
+        recipe.read_text(encoding="utf-8") + "output:\n  exchanges: true\n", encoding="utf-8"
+    )
+    _locked(recipe)
+
+    result = _invoke("run", str(recipe))
+
+    assert result.exit_code == ExitCode.OK, result.output
+    kept = _artifact(recipe) / "run.exchanges.jsonl"
+    header = json.loads(kept.read_text(encoding="utf-8").splitlines()[0])
+    assert header["subject_kind"] == "model_harness"
+    run = json.loads((_artifact(recipe) / "run.json").read_text(encoding="utf-8"))["run"]
+    assert run["exchanges"]["digest"] == f"sha256:{hashlib.sha256(kept.read_bytes()).hexdigest()}"
 
 
 def test_kept_exchanges_reach_the_artifact_only_when_the_recipe_says_so(

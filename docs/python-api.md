@@ -45,6 +45,7 @@ A run that fails, stays indeterminate or is stopped by its budget is returned li
 | `registry` | A registry you assembled yourself. Nothing is discovered or loaded into it, so passing `rule_paths`, `rules` or `evaluators` with it raises `ValueError`, and the profile's `rules.paths` are not loaded either: load them on it with `registry.load_yaml_rule_dirs(profile.rule_paths)`. Its own trust is the one in force and recorded. Each run works on a copy that gets the profile's trials and the judges under `evaluators:`, so the registry is never changed. |
 | `judge_endpoint` | An `EndpointBuilder`: how the endpoint of each judge under `evaluators:` is built from its URL, model and key. Defaults to the HTTP client; a test passes one that returns an `EndpointTarget` on a scripted transport. A judge block that sets `provider` or `adapter` is refused with `ProfileError` when you pass your own builder, which could not honour either. |
 | `demanded_rules` | Rule ids the run must complete. One that is skipped, errors or is never reached becomes a `demanded_check` coverage shortfall, so the run cannot pass whatever `fail_on_*` says. Empty by default; `guardana recipe run` demands every rule its lock pins. |
+| `subject_kind` | What answered, a `SubjectKind` (`application` or `model_harness`), written as `subject_kind` into the exchanges the run keeps. `None` by default, which declares nothing; `guardana recipe run` passes its recipe's kind. |
 
 Budgets, failure bars, redaction and trials come from the profile, as on the command line.
 

@@ -134,6 +134,18 @@ def test_a_kept_probe_writes_its_exchanges_beside_the_run_and_says_so(
     assert run["run"]["exchanges"]["count"] == len(_ANSWERS)
 
 
+def test_a_kept_probe_declares_no_subject_kind(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A probe is told only an endpoint, so what answered is not its to declare."""
+    sidecar = _kept(monkeypatch, tmp_path)
+
+    header = json.loads(sidecar.read_text("utf-8").splitlines()[0])
+
+    assert header["guardana_recording"] == 2
+    assert "subject_kind" not in header
+
+
 def test_grading_a_kept_probe_sends_nothing_to_the_target(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

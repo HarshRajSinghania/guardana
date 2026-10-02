@@ -105,6 +105,56 @@ def test_a_recipe_that_cannot_be_trusted_as_written_is_refused(
         load_recipe(_write(tmp_path, edit(_RECIPE)))
 
 
+_CONNECTION = "  connection:\n    url: http://127.0.0.1:8080\n    model: support-bot\n"
+
+
+def _recording_recipe(tmp_path: Path, kind: str | None) -> Recipe:
+    text = _RECIPE.replace(_CONNECTION, "  recording: answers.jsonl\n")
+    declared = "" if kind is None else f"  kind: {kind}\n"
+    return load_recipe(_write(tmp_path, text.replace("  kind: application\n", declared)))
+
+
+def test_a_recording_recipe_may_leave_the_kind_to_the_recording(tmp_path: Path) -> None:
+    recipe = _recording_recipe(tmp_path, None)
+
+    assert recipe.kind is None
+    assert recipe.run_kind(SubjectKind.MODEL_HARNESS) is SubjectKind.MODEL_HARNESS
+
+
+@pytest.mark.parametrize("recorded", [SubjectKind.APPLICATION, None])
+def test_a_declared_kind_is_the_run_kind_when_the_recording_agrees_or_is_silent(
+    tmp_path: Path, recorded: SubjectKind | None
+) -> None:
+    recipe = _recording_recipe(tmp_path, "application")
+
+    assert recipe.run_kind(recorded) is SubjectKind.APPLICATION
+
+
+def test_a_kind_the_recording_contradicts_is_refused_naming_both(tmp_path: Path) -> None:
+    recipe = _recording_recipe(tmp_path, "application")
+
+    with pytest.raises(RecipeError) as caught:
+        recipe.run_kind(SubjectKind.MODEL_HARNESS)
+
+    message = str(caught.value)
+    assert "subject.kind: application" in message
+    assert "subject_kind: model_harness" in message
+    assert str(recipe.path) in message
+    assert str(tmp_path / "answers.jsonl") in message
+
+
+def test_a_kind_neither_the_recipe_nor_the_recording_declares_is_refused(tmp_path: Path) -> None:
+    recipe = _recording_recipe(tmp_path, None)
+
+    with pytest.raises(RecipeError, match="it has no default"):
+        recipe.run_kind(None)
+
+
+def test_a_recording_recipe_with_a_kind_that_names_none_is_refused(tmp_path: Path) -> None:
+    with pytest.raises(RecipeError, match=r"subject\.kind must be one of"):
+        _recording_recipe(tmp_path, "staging")
+
+
 class _Judge(Evaluator):
     """A judge-shaped evaluator whose identity a test can change."""
 

@@ -29,11 +29,11 @@ guardana plan grade answers.jsonl --rules rules/      # what it would cost: judg
 ## A recording
 
 A recording is a JSONL file. Its first non-blank line is the header; every other non-blank
-line answers one question. The [JSON Schema](https://guardana.dev/schemas/recording/v1.schema.json)
+line answers one question. The [JSON Schema](https://guardana.dev/schemas/recording/v2.schema.json)
 describes both lines.
 
 ```json
-{"guardana_recording": 1, "name": "support-bot", "version": "2026-10-01", "verbatim": true, "rule": "acme.quality.support_answers"}
+{"guardana_recording": 2, "name": "support-bot", "version": "2026-10-01", "verbatim": true, "subject_kind": "application", "rule": "acme.quality.support_answers"}
 {"input": "How do I reset my password?", "reply": "Open Settings, then Security."}
 {"input": "Where do I find my invoices?", "reply": "Ask your account manager."}
 {"input": "Can I export my data?", "reply": "Settings has an Export button."}
@@ -41,10 +41,11 @@ describes both lines.
 
 | Header key | Meaning |
 |---|---|
-| `guardana_recording` | Required. The format, `1`. |
+| `guardana_recording` | Required. The format, `2` or `1`. Guardana writes `2` and reads both; a format-1 file declares no `subject_kind`. |
 | `name`, `version` | Required. What answered, and which version of the answers: they name the recording in the saved run. |
 | `verbatim` | Required, `true` or `false`, no default. `true` says every reply is exactly what the application said; `false` makes every reply count as altered, so none is graded. |
 | `subject` | Optional. What answered, as findings name it; defaults to `name@version`. |
+| `subject_kind` | Optional, format `2` only. What answered: `application` or `model_harness`, with the meanings a [recipe](usage-recipe.md) gives them. A recipe grading the recording takes it when the recipe declares no `subject.kind`. `recipe run` writes its recipe's kind into the exchanges it keeps; `probe --keep-exchanges` writes none. |
 | `rule` | Optional. The rule a line answers when the line names none. |
 | `origin` | Written by `probe --keep-exchanges`: the run id, the target, when it started, what stopped it, its gate, each rule's trials per case and every rule the run planned. |
 

@@ -5,6 +5,9 @@ are exactly what the application said; every other non-blank line is one exchang
 messages a rule sent and the reply it got. A team writes one by hand, or `probe` keeps one
 beside a run. The dataset is the grading side; a recording is only the answers.
 
+Format 2 adds the header's optional `subject_kind`; a format-1 file is still read, as a
+recording that declares no kind.
+
 This module reads, bounds, renders and digests the file and nothing more. Matching an
 exchange to the rule that asks for it belongs to the target that replays it.
 """
@@ -19,17 +22,24 @@ from typing import Literal
 
 from guardana.core.fingerprint import DigestKind, DocumentDigest, digest_of
 from guardana.core.redaction import holds_redaction_marker
+from guardana.core.subject import SubjectKind
 from guardana.core.target import ChatMessage
 from guardana.core.trace.limits import MAX_RECORD_BYTES, MAX_TRACE_BYTES
 
-RECORDING_FORMAT = 1
-"""The header's `guardana_recording` value this build reads and writes."""
+RECORDING_FORMAT = 2
+"""The header's `guardana_recording` value this build writes."""
+
+READ_FORMATS = (1, 2)
+"""Every `guardana_recording` value this build reads."""
 
 MAX_EXCHANGES = 1_000_000
 """Exchanges read from one recording; a file with more is refused, never cut short."""
 
 _FORMAT_KEY = "guardana_recording"
-_HEADER_KEYS = frozenset({_FORMAT_KEY, "name", "version", "verbatim", "subject", "rule", "origin"})
+_V1_HEADER_KEYS = frozenset(
+    {_FORMAT_KEY, "name", "version", "verbatim", "subject", "rule", "origin"}
+)
+_HEADER_KEYS = {1: _V1_HEADER_KEYS, 2: _V1_HEADER_KEYS | {"subject_kind"}}
 _ORIGIN_KEYS = frozenset(
     {"run_id", "target", "started_at", "stopped_by", "gate", "trials", "rules"}
 )
@@ -83,6 +93,8 @@ class Recording:
     """A loaded recording: its identity, what it claims about itself, and its exchanges.
 
     `digest` covers every byte read and is None for a recording built in memory.
+    `subject_kind` is what answered, as the producer declared it; None when it declared
+    nothing, as every format-1 file does.
     """
 
     name: str
@@ -92,6 +104,7 @@ class Recording:
     origin: RecordingOrigin | None
     exchanges: tuple[RecordedExchange, ...]
     digest: DocumentDigest | None
+    subject_kind: SubjectKind | None = None
 
     @property
     def identity(self) -> str:
@@ -124,7 +137,10 @@ def messages_key(messages: Sequence[ChatMessage]) -> str:
 
 
 def read_recording(path: Path) -> Recording:
-    """Read and validate the recording at `path`, refusing the whole file on any bad line."""
+    """Read and validate the recording at `path`, refusing the whole file on any bad line.
+
+    Formats 1 and 2 are read; a format-1 file reads with `subject_kind` None.
+    """
     try:
         with path.open("rb") as handle:
             data = handle.read(MAX_TRACE_BYTES + 1)
@@ -147,9 +163,9 @@ def read_recording(path: Path) -> Recording:
 def render_recording(recording: Recording) -> str:
     """Render `recording` as JSONL text that `read_recording` reads back field for field.
 
-    The output is deterministic: header first, then one compact object per exchange in
-    order, keys in a fixed order, absent optional keys left out. A recording the reader
-    would refuse is refused here instead of written.
+    The output is deterministic and always format 2: header first, then one compact object
+    per exchange in order, keys in a fixed order, absent optional keys left out. A recording
+    the reader would refuse is refused here instead of written.
     """
     lines = [_dump(_header_record(recording))]
     lines.extend(_dump(_exchange_record(exchange)) for exchange in recording.exchanges)
@@ -174,6 +190,8 @@ def _header_record(recording: Recording) -> dict[str, object]:
     }
     if recording.subject is not None:
         record["subject"] = recording.subject
+    if recording.subject_kind is not None:
+        record["subject_kind"] = recording.subject_kind.value
     origin = recording.origin
     if origin is not None:
         record["origin"] = {
@@ -229,6 +247,7 @@ class _Header:
     version: str
     verbatim: bool
     subject: str | None
+    subject_kind: SubjectKind | None
     rule: str | None
     origin: RecordingOrigin | None
 
@@ -276,6 +295,7 @@ def _parse_text(text: str, where: str) -> Recording:
         origin=header.origin,
         exchanges=tuple(exchanges),
         digest=None,
+        subject_kind=header.subject_kind,
     )
 
 
@@ -319,14 +339,16 @@ def _header(record: dict[str, object], where: str, number: int) -> _Header:
     fmt = record[_FORMAT_KEY]
     if not isinstance(fmt, int) or isinstance(fmt, bool):
         raise RecordingError(
-            f"{where}:{number}: `{_FORMAT_KEY}` must be the integer {RECORDING_FORMAT}, not {fmt!r}"
+            f"{where}:{number}: `{_FORMAT_KEY}` must be the integer "
+            f"{' or '.join(map(str, READ_FORMATS))}, not {fmt!r}"
         )
-    if fmt != RECORDING_FORMAT:
+    allowed = _HEADER_KEYS.get(fmt)
+    if allowed is None:
         raise RecordingError(
             f"{where}:{number}: recording format {fmt} was written by another Guardana "
-            f"version; this build reads format {RECORDING_FORMAT}"
+            f"version; this build reads formats {' and '.join(map(str, READ_FORMATS))}"
         )
-    _refuse_unknown(record, _HEADER_KEYS, "header", where, number)
+    _refuse_unknown(record, allowed, "header", where, number)
     verbatim = record.get("verbatim")
     if not isinstance(verbatim, bool):
         raise RecordingError(
@@ -338,8 +360,23 @@ def _header(record: dict[str, object], where: str, number: int) -> _Header:
         version=_non_blank(record.get("version"), "the header's `version`", where, number),
         verbatim=verbatim,
         subject=_optional(record, "subject", "the header's `subject`", where, number),
+        subject_kind=_subject_kind(record, where, number),
         rule=_optional(record, "rule", "the header's `rule`", where, number),
         origin=_origin(record["origin"], where, number) if "origin" in record else None,
+    )
+
+
+def _subject_kind(record: Mapping[str, object], where: str, number: int) -> SubjectKind | None:
+    """Read the header's optional `subject_kind`, refusing a value that names no kind."""
+    if "subject_kind" not in record:
+        return None
+    value = record["subject_kind"]
+    for kind in SubjectKind:
+        if value == kind.value:
+            return kind
+    choices = ", ".join(kind.value for kind in SubjectKind)
+    raise RecordingError(
+        f"{where}:{number}: the header's `subject_kind` must be one of {choices}, not {value!r}"
     )
 
 

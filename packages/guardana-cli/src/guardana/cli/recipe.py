@@ -22,7 +22,7 @@ from guardana.core import __version__
 from guardana.core.budget import BudgetExhausted
 from guardana.core.calibration.store import RecordedCalibration
 from guardana.core.fingerprint import DigestKind, DocumentDigest
-from guardana.core.manifest import DeploymentRef, RecipeRecord
+from guardana.core.manifest import DeploymentRef, RecipeRecord, SubjectKind
 from guardana.core.plan import build_plan
 from guardana.core.plugins import PluginTrust
 from guardana.core.profile import Profile, ProfileError
@@ -177,6 +177,7 @@ def run(
     try:
         prepared, lock_text = _checked(read)
         subject = _subject(prepared)
+        kind = _run_kind(loaded, subject)
     except _Refusal as refused:
         _refuse(loaded, f"the run did not start: {refused.reason}")
         typer.echo(f"error: {refused.reason}", err=True)
@@ -187,7 +188,7 @@ def run(
     if prepared.lock.unpinned:
         typer.echo(f"warning: {_unpinned(prepared.lock)}", err=True)
     try:
-        verification = _verify(prepared, subject, concurrency)
+        verification = _verify(prepared, subject, concurrency, kind)
     except typer.Exit as exc:
         if exc.exit_code == ExitCode.INVALID_USAGE:
             _refuse(loaded, "the run was refused before it sent anything; see the error output")
@@ -196,7 +197,7 @@ def run(
         name=loaded.name,
         digest=loaded.digest,
         lock_digest=parse_lock(lock_text, loaded.lock_path).digest,
-        kind=loaded.kind,
+        kind=kind,
         source=loaded.source,
         unpinned=prepared.lock.unpinned,
     )
@@ -405,6 +406,15 @@ def _subject(prepared: _Prepared) -> Target:
     )
 
 
+def _run_kind(recipe: Recipe, subject: Target) -> SubjectKind:
+    """Resolve what answered from the recipe and the recording it grades, or raise `_Refusal`."""
+    recorded = subject.recording.subject_kind if isinstance(subject, RecordedTarget) else None
+    try:
+        return recipe.run_kind(recorded)
+    except RecipeError as exc:
+        raise _Refusal(str(exc)) from exc
+
+
 def _exit_if_unpinned(current: RecipeLock) -> None:
     if not current.unpinned:
         return
@@ -447,7 +457,9 @@ def _refuse(recipe: Recipe, reason: str) -> None:
     )
 
 
-def _verify(prepared: _Prepared, subject: Target, concurrency: int) -> Verification:
+def _verify(
+    prepared: _Prepared, subject: Target, concurrency: int, kind: SubjectKind
+) -> Verification:
     """Run the recipe's subject through the verifier `probe` and `grade` use."""
     recipe = prepared.recipe
     verifier = Verifier(
@@ -458,6 +470,7 @@ def _verify(prepared: _Prepared, subject: Target, concurrency: int) -> Verificat
         concurrency=concurrency,
         judge_endpoint=judge_endpoint,
         demanded_rules=frozenset(prepared.lock.rules),
+        subject_kind=kind,
     )
     deployment = DeploymentRef(
         ai_system=recipe.deployment.get("ai_system"),

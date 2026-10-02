@@ -320,8 +320,8 @@ output:
 </tr>
 <tr>
 <td><code>subject.kind</code></td>
-<td>yes</td>
-<td>What answers: <code>application</code> or <code>model_harness</code>. No default.</td>
+<td>with <code>connection</code></td>
+<td>What answers: <code>application</code> or <code>model_harness</code>. No default. With <code>recording</code> it may be left out when the recording's header declares <code>subject_kind</code>; a run where neither declares one, or the two differ, is refused before anything is graded (exit <code>3</code>).</td>
 </tr>
 <tr>
 <td><code>subject.connection</code></td>

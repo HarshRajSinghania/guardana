@@ -333,6 +333,10 @@ verification.save(Path(&quot;run.json&quot;))  # the document `--format json --o
 <td><code>demanded_rules</code></td>
 <td>Rule ids the run must complete. One that is skipped, errors or is never reached becomes a <code>demanded_check</code> coverage shortfall, so the run cannot pass whatever <code>fail_on_*</code> says. Empty by default; <code>guardana recipe run</code> demands every rule its lock pins.</td>
 </tr>
+<tr>
+<td><code>subject_kind</code></td>
+<td>What answered, a <code>SubjectKind</code> (<code>application</code> or <code>model_harness</code>), written as <code>subject_kind</code> into the exchanges the run keeps. <code>None</code> by default, which declares nothing; <code>guardana recipe run</code> passes its recipe's kind.</td>
+</tr>
 </tbody>
 </table></div>
 <p>Budgets, failure bars, redaction and trials come from the profile, as on the command line.</p>

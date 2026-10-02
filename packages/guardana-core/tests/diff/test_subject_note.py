@@ -12,11 +12,10 @@ import pytest
 from guardana.core.diff import compare_reports
 from guardana.core.diff.reports import CONFIGURATION_LABELS
 from guardana.core.gate import GateOutcome
-from guardana.core.manifest import RunManifest, TargetIdentity, ToolInfo
+from guardana.core.manifest import RunManifest, SubjectKind, TargetIdentity, ToolInfo
 from guardana.core.manifest.records import (
     RecipeRecord,
     ResultSummary,
-    SubjectKind,
     SubjectSource,
 )
 from guardana.core.manifest.settings import ConfigurationRef, ExecutionSettings

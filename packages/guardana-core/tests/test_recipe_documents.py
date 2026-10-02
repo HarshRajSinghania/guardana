@@ -104,6 +104,26 @@ def test_a_recording_recipe_is_read_and_its_schema_accepts_both_subjects(tmp_pat
     assert list(validator.iter_errors(_recipe())) == []
 
 
+def test_the_schema_requires_a_kind_only_beside_a_connection(tmp_path: Path) -> None:
+    validator = _validator("recipe-v1.schema.json")
+    unkinded = _recipe()
+    unkinded["subject"] = {"recording": "answers.jsonl"}
+    path = tmp_path / "guardana-recipe.yaml"
+    path.write_text(yaml.safe_dump(unkinded), encoding="utf-8")
+    connected = _recipe()
+    connected["subject"] = {
+        key: value for key, value in connected["subject"].items() if key != "kind"
+    }
+    both = _recipe()
+    both["subject"] = {**both["subject"], "recording": "answers.jsonl"}
+    both["subject"].pop("kind")
+
+    assert load_recipe(path).kind is None
+    assert list(validator.iter_errors(unkinded)) == []
+    assert list(validator.iter_errors(connected))
+    assert list(validator.iter_errors(both))
+
+
 def _lock() -> RecipeLock:
     """A lock with every field occupied, so no deletion can match a default by chance."""
     return RecipeLock(

@@ -26,7 +26,6 @@ from guardana.core.manifest.records import (
     RecordingRecord,
     ResultSummary,
     RuleRecord,
-    SubjectKind,
     SubjectSource,
     SuiteCorrection,
     SuiteOutcome,
@@ -40,6 +39,7 @@ from guardana.core.plugins import PluginMode, PluginTrust
 from guardana.core.report.shortfall import CoverageShortfall, ShortfallKind
 from guardana.core.report.skipped import SkippedRule, SkipReason
 from guardana.core.report.stop import StopReason
+from guardana.core.subject import SubjectKind
 from guardana.core.target import TargetKind
 from guardana.core.trials import check_trials
 

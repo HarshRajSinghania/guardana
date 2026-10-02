@@ -46,7 +46,7 @@ output:
 | `schema_version` | yes | `1`. A newer version is refused with "upgrade Guardana". |
 | `name` | yes | The recipe's name, recorded in the run. |
 | `profile` | yes | The `guardana.yaml` the checks come from, beside the recipe. |
-| `subject.kind` | yes | What answers: `application` or `model_harness`. No default. |
+| `subject.kind` | with `connection` | What answers: `application` or `model_harness`. No default. With `recording` it may be left out when the recording's header declares `subject_kind`; a run where neither declares one, or the two differ, is refused before anything is graded (exit `3`). |
 | `subject.connection` | one of the two | `url`, `model`, and optionally `provider`, `api_key_env`, `adapter`, `system_prompt_file`, with the meanings `guardana probe` gives the same flags. |
 | `subject.recording` | one of the two | A recording to grade, as `guardana grade` reads it. Nothing is sent to the application. |
 | `deployment` | no | `ai_system`, `environment`, `deployment_id`, as the `probe` flags of the same names. |

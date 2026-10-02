@@ -115,9 +115,8 @@ left for the owner, or are design gaps already documented elsewhere.
 - **A read timeout is a rule error, not an unreachable endpoint.** urllib raises a bare
   `TimeoutError` for a slow reply, which the runner records per rule (exit `2`) instead of
   ending the run as unreachable (exit `4`). Never a pass, but the wrong cause.
-- **A recording carries no subject kind**, so a recipe grading a probe's kept exchanges
-  declares the kind again; and a recording's origin (`stopped_by`, planned rules) is declared,
-  not checked against the origin's `run.json`.
+- **A recording's origin** (`stopped_by`, planned rules) is declared, not checked against the
+  origin's `run.json`.
 - **Recipes speak the built-in connection only:** no pack `--target`, no MCP subject, no
   `--reporter`, and no SARIF in the artifact (SARIF carries no subject label yet).
 - **A Python rule's or evaluator's code is pinned by its distribution version only**; an

@@ -69,6 +69,7 @@ from guardana.core.report.serialize import run_to_dict
 from guardana.core.report.shortfall import CoverageShortfall, ShortfallKind
 from guardana.core.rule import Rule
 from guardana.core.runner import DEFAULT_ENDPOINT_CONCURRENCY, Runner, select_rules
+from guardana.core.subject import SubjectKind
 from guardana.core.target import ArtifactTarget, EndpointError, Target, TargetKind
 from guardana.core.target.adapter import HttpAdapterTransport
 from guardana.core.target.endpoint import EndpointTarget
@@ -226,6 +227,12 @@ class Verifier:
 
     Empty by default. A recipe demands every rule its lock pins, so a recording that answers
     none of a locked rule's questions cannot leave the run green.
+    """
+
+    subject_kind: SubjectKind | None = None
+    """What answered, as the caller declares it, written into the exchanges a run keeps.
+
+    None by default, which declares nothing; `guardana recipe run` passes its recipe's kind.
     """
 
     _prepared: list[Registry] = field(default_factory=list, init=False, repr=False)
@@ -598,6 +605,7 @@ class Verifier:
             ),
             exchanges=recorded,
             digest=None,
+            subject_kind=self.subject_kind,
         )
         data = render_recording(recording).encode("utf-8")
         digest = DocumentDigest(

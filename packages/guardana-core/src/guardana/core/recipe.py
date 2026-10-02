@@ -57,13 +57,14 @@ class Recipe:
     """A loaded `guardana-recipe.yaml`, every path resolved beside the file.
 
     `connection` is the mapping as written; the command that sends turns it into a
-    connection and validates it, so a recipe can be locked where no key is set.
+    connection and validates it, so a recipe can be locked where no key is set. `kind`
+    is None only for a recording subject that leaves the kind to the recording.
     """
 
     name: str
     path: Path
     profile: Path
-    kind: SubjectKind
+    kind: SubjectKind | None
     connection: Mapping[str, str] | None
     recording: Path | None
     deployment: Mapping[str, str]
@@ -87,6 +88,29 @@ class Recipe:
         raw = None if self.connection is None else self.connection.get(key)
         return None if raw is None else self.path.parent / raw
 
+    def run_kind(self, recorded: SubjectKind | None) -> SubjectKind:
+        """Return what answered the run: the recipe's kind, else the one its recording declares.
+
+        `recorded` is the recording's `subject_kind`. A recipe and a recording that declare
+        different kinds, or neither declaring one, raise `RecipeError` naming both places.
+        """
+        if self.kind is not None and recorded is not None and self.kind is not recorded:
+            raise RecipeError(
+                f"{self.path} declares `subject.kind: {self.kind}` and the recording "
+                f"{self.recording} declares `subject_kind: {recorded}`; a run has one subject, "
+                f"so make them agree or remove `subject.kind` from the recipe"
+            )
+        resolved = self.kind if self.kind is not None else recorded
+        if resolved is None:
+            choices = ", ".join(kind.value for kind in SubjectKind)
+            raise RecipeError(
+                f"{self.path} declares no `subject.kind` and the recording {self.recording} "
+                f"declares no `subject_kind`; declare `subject.kind` ({choices}) in the recipe: "
+                f"it has no default, because what answered is what a reader of the result needs "
+                f"to know first"
+            )
+        return resolved
+
 
 def load_recipe(path: Path) -> Recipe:
     """Read and validate a recipe; raise `RecipeError` naming what is wrong."""
@@ -109,8 +133,8 @@ def parse_recipe(text: str, path: Path) -> Recipe:
     _schema(document.get("schema_version"), RECIPE_SCHEMA_VERSION, "recipe", where)
     subject = _mapping(document.get("subject"), f"{where}: subject")
     _refuse_unknown(subject, _SUBJECT_KEYS, f"{where}: subject")
-    kind = _kind(subject.get("kind"), where)
     connection, recording = _source(subject, path, where)
+    kind = None if recording is not None and "kind" not in subject else _kind(subject, where)
     output = document.get("output", {})
     output = _mapping(output, f"{where}: output")
     _refuse_unknown(output, _OUTPUT_KEYS, f"{where}: output")
@@ -150,9 +174,9 @@ def _source(
     return connection, None
 
 
-def _kind(raw: object, where: str) -> SubjectKind:
+def _kind(subject: Mapping[str, Any], where: str) -> SubjectKind:
     try:
-        return SubjectKind(str(raw))
+        return SubjectKind(str(subject.get("kind")))
     except ValueError:
         choices = ", ".join(kind.value for kind in SubjectKind)
         raise RecipeError(

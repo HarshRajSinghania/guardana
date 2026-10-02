@@ -11,6 +11,7 @@ from guardana.core.calibration.report import MIN_RELIABLE_SAMPLES
 from guardana.core.gate import GateOutcome
 from guardana.core.report.skipped import SkippedRule
 from guardana.core.report.stop import StopReason
+from guardana.core.subject import SubjectKind
 
 if TYPE_CHECKING:
     from guardana.core.trials import RuleTrials
@@ -642,16 +643,6 @@ class RecordingRecord:
 
     origin: RecordingOriginRecord | None
     """The probe it was kept from; None for a recording written by hand."""
-
-
-class SubjectKind(StrEnum):
-    """What answered a recipe's run, as the team declared it."""
-
-    APPLICATION = "application"
-    """The endpoint the team's users reach, with its own prompt, tools and data behind it."""
-
-    MODEL_HARNESS = "model_harness"
-    """A model reached without the application's prompt, tools and data."""
 
 
 class SubjectSource(StrEnum):
