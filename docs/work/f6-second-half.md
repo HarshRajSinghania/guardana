@@ -51,8 +51,8 @@ See the design. Lane-level:
 
 | # | lane | files (main ones) | owner | depends on | verify | done |
 |---|---|---|---|---|---|---|
-| A | regression cases | `core/dataset.py`, `core/suite.py`, new `core/regression.py`, new `cli/case.py`, `cli/main.py`, `cli/rule.py`, `core/recipe.py`, `cli/recipe.py`, `schemas/dataset-v1/v2`, `docs/usage-case.md` | coder | — | core+cli pytest, ruff, mypy, lint-imports, generators `--check` | [ ] |
-| B | fixtures file | new `core/fixtures.py`, new `cli/fixtures.py`, `core/recipe.py` (schema 2, `subject.fixtures`), `cli/recipe.py` (lock pins), `core/manifest/*` (run schema 15 `fixtures`), `core/diff/*`, `schemas/fixtures-v1`, `schemas/recipe-v2`, `schemas/run-v15`, `docs/usage-fixtures.md` | coder | — | same | [ ] |
+| A | regression cases | `core/dataset.py`, `core/suite.py`, new `core/regression.py`, new `cli/case.py`, `cli/main.py`, `cli/rule.py`, `core/recipe.py`, `cli/recipe.py`, `schemas/dataset-v1/v2`, `docs/usage-case.md` | coder | — | core+cli pytest, ruff, mypy, lint-imports, generators `--check` | [x] `0535d78b` |
+| B | fixtures file | new `core/fixtures.py`, new `cli/fixtures.py`, `core/recipe.py` (schema 2, `subject.fixtures`), `cli/recipe.py` (lock pins), `core/manifest/*` (run schema 15 `fixtures`), `core/diff/*`, `schemas/fixtures-v1`, `schemas/recipe-v2`, `schemas/run-v15`, `docs/usage-fixtures.md` | coder | — | same | [x] `ef6b00e6` |
 | C | tenancy target and rules | `core/target/base.py` (`SEEDED_DATA`), new `core/target/seeded.py`, `cli/probe.py`, `cli/plan.py`, `cli/recipe.py`, `core/plan.py` (target-aware estimate), `core/manifest/*` (`seed_not_reached`), new rules in `guardana-rules`, taxonomy refs, docs | coder | B | same + `guardana rule test` on the two rules + `generate_docs.py` | [ ] |
 | D | stateful doubles | new `core/doubles.py`, docs page | coder | B | same | [ ] |
 | E | reference application | new `examples/retrieval_pilot/`, `scripts/ci_local.sh`, `.github/workflows/ci.yml` | coder | C, D | the isolated example suite | [ ] |
@@ -70,7 +70,14 @@ Parallel: A with B; then C with D; then E.
 ## Handoff
 
 - Done: step 0 (`8943e148` one connection builder, `63740137` recording subject kind); design
-  reviewed twice as an adversary.
-- Next: lanes A and B in parallel.
+  reviewed twice as an adversary (`884a7a76`); lane A (`0535d78b`) and lane B (`ef6b00e6`,
+  cherry-picked onto A; `usage-fixtures.md` moved to nav_order 87, site regenerated).
+- Next: lanes C and D in parallel, then E.
+- API for C and D: `guardana.core.fixtures` — `load_fixtures`, `Fixtures` (`items`,
+  `owned_by(tenant, channel)`, `resolve_tenants(run, sending=…)` → `ResolvedTenant(name,
+  connection)`, `record()` for `Verifier(fixtures=…)`), `SeededItem` (`markers`, `question`,
+  `channel`, `served_fields()`), `Tool`/`ToolOp`, `appears_in(marker, reply)`;
+  `ShortfallKind.SEED_NOT_REACHED` exists, nothing emits it yet.
 - How to verify where we are: `git log --oneline f6b`, the lane table above.
-- Surprises: —
+- Surprises: lanes A and B both regenerated `site/` for the design page; a page added on `f6b`
+  needs `scripts/build_site.py` in the same commit.

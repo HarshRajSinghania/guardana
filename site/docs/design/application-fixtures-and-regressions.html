@@ -546,7 +546,7 @@ user reaches); a judge deciding whether a reply followed a document (a marker is
 <li>Dataset format 2: per-case <code>observed</code> and <code>accepted</code>; format 1 read; JSON schemas v1 and v2.</li>
 <li>Fixtures schema 1, new, with a JSON schema.</li>
 <li>Recipe schema 2: <code>subject.fixtures</code>; schema 1 read. The lock stays at 1: <code>subject_files</code>
-already pins any named file, and <code>regression_case_broken</code> is a drift kind, not a lock field.</li>
+already pins any named file, and a broken regression pair is a refusal, not a lock field.</li>
 <li>Run schema 15: <code>fixtures</code> and the <code>seed_not_reached</code> shortfall; a schema-14 run migrates with
 <code>fixtures</code> null. The collector envelope is unchanged.</li>
 <li>Rule API, additive: <code>RuleContext.shortfall</code> and <code>Rule.estimated_requests_for</code>; a new
