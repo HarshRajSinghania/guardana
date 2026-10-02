@@ -324,13 +324,6 @@ read 2026-10-02): the tool does not write into the index.</li>
 <li>LangSmith moves a reviewed run into a dataset through an annotation queue, then evaluates
 the dataset in CI (<a href="https://docs.langchain.com/langsmith/annotation-queues">docs</a>, read
 2026-10-02): promotion is a reviewer's act, per run.</li>
-<li>Second opinions (GPT through codex and Gemini through agy, one call each). Both: an unseeded
-document, an unwired double or an empty trace must not pass, and a seeded document needs a
-positive control. They disagreed on doubles in the application's process or behind an HTTP
-server, seeding by the team or by Guardana, and promotion per exchange or in bulk.</li>
-<li>An adversarial review of the first draft reproduced two exits <code>0</code> it relied on: a doubles
-trace with no call, and a call recorded without a tenant. &quot;What review changed&quot; lists every
-finding it acted on.</li>
 </ul>
 <h2 id="decisions">Decisions</h2>
 <h3 id="1-a-regression-case-is-promoted-one-exchange-at-a-time-and-proven-on-both-sides">1. A regression case is promoted one exchange at a time and proven on both sides</h3>
@@ -565,35 +558,6 @@ call <code>rule test</code> never makes); reproducing a case against the subject
 regraded; labelling replies for judge calibration; doubles for a process that is not Python;
 verifying a recording's origin against its run; SARIF and the collector envelope for recipe
 runs; a tenant reached through another host than the run's URL.</p>
-<h2 id="what-review-changed">What review changed</h2>
-<p>The first draft was reviewed as an adversary before any code. Acted on:</p>
-<ul>
-<li>Tenant verdicts no longer read the doubles' trace, where the tenant is the application's own
-claim (blocker): Guardana's sent-as tenant and markers decide; the trace is evidence.</li>
-<li>An unused doubles file and a call with no tenant no longer reach exit <code>0</code> (both reproduced):
-the trace is created at the first call, and a call without a tenant raises.</li>
-<li>Controls cover the asking tenant, not only the item's owner; fewer than two tenants, or a
-tenant with nothing seeded, is refused; a failed control is a shortfall with no switch.</li>
-<li>Markers derive from the item's content, so a stale index fails its control.</li>
-<li>The proof is two-sided (<code>accepted</code>), redacted failures can be promoted with a synthetic
-stand-in, the full case is shown before <code>--write</code>, and the recipe regrades every pair.</li>
-<li>Topic overlap, quoted instructions, ambiguous keys, line limits, identical tenant
-credentials, shared budgets, plan pricing, <code>diff</code> across fixtures, the process model, the
-recipe schema version and the identity dimension each got a rule above.</li>
-</ul>
-<p>A second adversarial pass found the revision still left a coder to guess, each time in the
-unsafe direction. Specified since: the shortfall sink a rule reports through; the broken pair as
-a refusal in the preparation <code>lock</code>, <code>--check</code> and <code>run</code> share; &quot;deterministic&quot; as the
-evaluator's declaration, not the absence of a judge identity; controls through the same channel;
-the cost API and its gate; the trace written with its first span and signed off; the bar checked
-at every load; fixtures demanding their rules; the doubles enforcing tenancy; marker
-normalisation and disjointness; what holds a pair; <code>diff</code> incompleteness; the altered-input test;
-printing only to a terminal; the recipe's re-checks; the marker algorithm's version; the rules'
-mappings and the wording of a clean result.</p>
-<p>Not acted on, with the reason: reproducing a case live before writing it, and binding the
-doubles' trace into the recipe (both under &quot;Not done here&quot;); running the example against a real
-vector store (it would put a vendor's library in a suite the project maintains, and the pilot's
-evidence is a team's own target, which the roadmap row now waits for).</p>
 
 </main>
 </div>

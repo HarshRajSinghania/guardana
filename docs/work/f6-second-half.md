@@ -55,6 +55,10 @@ See the design. Lane-level:
 | B | fixtures file | new `core/fixtures.py`, new `cli/fixtures.py`, `core/recipe.py` (schema 2, `subject.fixtures`), `cli/recipe.py` (lock pins), `core/manifest/*` (run schema 15 `fixtures`), `core/diff/*`, `schemas/fixtures-v1`, `schemas/recipe-v2`, `schemas/run-v15`, `docs/usage-fixtures.md` | coder | — | same | [x] `ef6b00e6` |
 | C | tenancy target and rules | `core/target/base.py` (`SEEDED_DATA`), new `core/target/seeded.py`, `cli/probe.py`, `cli/plan.py`, `cli/recipe.py`, `core/plan.py` (target-aware estimate), `core/manifest/*` (`seed_not_reached`), new rules in `guardana-rules`, taxonomy refs, docs | coder | B | same + `guardana rule test` on the two rules + `generate_docs.py` | [ ] |
 | D | stateful doubles | new `core/doubles.py`, docs page | coder | B | same | [ ] |
+| F1a | strict trace reader, profile file checks, doctor allowlist | `core/trace/_native.py`, `cli/trace.py`, `cli/config.py`, `cli/doctor.py`, docs | coder | — | core+cli pytest, examples | [ ] |
+| F1b | exact sibling pins, `--version`, refusal markers, conformance kit, new-pack taxonomy, torch storages, `_codecs.encode`, 4xx message, docs | `scripts/bump_version.py`, `packages/*/pyproject.toml`, `cli/main.py`, `core/evaluator/{keyword,answered}.py`, `core/testing/conformance.py`, `cli/pack_templates/`, `rules/supply_chain/pickle_opcode.py`, `cli/_errors.py`, docs | coder | — | pytest, `new_pack_check.py` | [ ] |
+| F2 | after C: plan plants canaries for `--target`, retry note; `--keep-exchanges` for an `EndpointTarget`-based `--target`; `deterministic` on evaluator records (run schema 15) | `core/plan.py`, `cli/plan.py`, `cli/probe.py`, `core/manifest/records.py`, `cli/run.py` | coder | C | pytest | [ ] |
+| AB-fix | review findings 2–11 on lanes A and B | `core/dataset.py`, `core/rule/_suite_schema.py`, `cli/case.py`, `core/promotion.py`, `core/fixtures.py`, `core/diff/*`, round-trip inventory test, docs | coder | — | pytest | [ ] |
 | E | reference application | new `examples/retrieval_pilot/`, `scripts/ci_local.sh`, `.github/workflows/ci.yml` | coder | C, D | the isolated example suite | [ ] |
 
 Parallel: A with B; then C with D; then E.
@@ -79,5 +83,17 @@ Parallel: A with B; then C with D; then E.
   `channel`, `served_fields()`), `Tool`/`ToolOp`, `appears_in(marker, reply)`;
   `ShortfallKind.SEED_NOT_REACHED` exists, nothing emits it yet.
 - How to verify where we are: `git log --oneline f6b`, the lane table above.
+- Also in v0.37: F1a, F1b, F2 (gaps in the trace reader, profile checks, packaging pins,
+  evaluators, the conformance kit, pickle members, plan and keeping).
+- For the owner: an HTTP 400 mid-probe ends the run with exit 4 and nothing saved — recommend a
+  per-rule error (exit 2, run saved), then adapter `declines:`; an exit-code reclassification,
+  so not built without a decision.
+- To ROADMAP (proposed v0.38, a guarded application): adapter `declines:`, `retry_statuses:`,
+  `metadata_paths:`, a graded-share floor in the gate, recipe `target:`, a directory-installed
+  pack pinned by content.
+- To BACKLOG: one pickle finding per file (fingerprints move), streaming the secret scan past
+  16 MiB, `evaluator_config:`, case-level request fields, `trace validate`, `decision_required`
+  contracts, contract `when_available`, the shortfall reason under `metadata_only`, per-minor
+  upgrade notes, a dataset shared by two suites after `case add`.
 - Surprises: lanes A and B both regenerated `site/` for the design page; a page added on `f6b`
   needs `scripts/build_site.py` in the same commit.

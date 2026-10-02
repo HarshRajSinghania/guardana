@@ -59,13 +59,6 @@ Three things are missing.
 - LangSmith moves a reviewed run into a dataset through an annotation queue, then evaluates
   the dataset in CI ([docs](https://docs.langchain.com/langsmith/annotation-queues), read
   2026-10-02): promotion is a reviewer's act, per run.
-- Second opinions (GPT through codex and Gemini through agy, one call each). Both: an unseeded
-  document, an unwired double or an empty trace must not pass, and a seeded document needs a
-  positive control. They disagreed on doubles in the application's process or behind an HTTP
-  server, seeding by the team or by Guardana, and promotion per exchange or in bulk.
-- An adversarial review of the first draft reproduced two exits `0` it relied on: a doubles
-  trace with no call, and a call recorded without a tenant. "What review changed" lists every
-  finding it acted on.
 
 ## Decisions
 
@@ -335,35 +328,3 @@ call `rule test` never makes); reproducing a case against the subject before it 
 regraded; labelling replies for judge calibration; doubles for a process that is not Python;
 verifying a recording's origin against its run; SARIF and the collector envelope for recipe
 runs; a tenant reached through another host than the run's URL.
-
-## What review changed
-
-The first draft was reviewed as an adversary before any code. Acted on:
-
-- Tenant verdicts no longer read the doubles' trace, where the tenant is the application's own
-  claim (blocker): Guardana's sent-as tenant and markers decide; the trace is evidence.
-- An unused doubles file and a call with no tenant no longer reach exit `0` (both reproduced):
-  the trace is created at the first call, and a call without a tenant raises.
-- Controls cover the asking tenant, not only the item's owner; fewer than two tenants, or a
-  tenant with nothing seeded, is refused; a failed control is a shortfall with no switch.
-- Markers derive from the item's content, so a stale index fails its control.
-- The proof is two-sided (`accepted`), redacted failures can be promoted with a synthetic
-  stand-in, the full case is shown before `--write`, and the recipe regrades every pair.
-- Topic overlap, quoted instructions, ambiguous keys, line limits, identical tenant
-  credentials, shared budgets, plan pricing, `diff` across fixtures, the process model, the
-  recipe schema version and the identity dimension each got a rule above.
-
-A second adversarial pass found the revision still left a coder to guess, each time in the
-unsafe direction. Specified since: the shortfall sink a rule reports through; the broken pair as
-a refusal in the preparation `lock`, `--check` and `run` share; "deterministic" as the
-evaluator's declaration, not the absence of a judge identity; controls through the same channel;
-the cost API and its gate; the trace written with its first span and signed off; the bar checked
-at every load; fixtures demanding their rules; the doubles enforcing tenancy; marker
-normalisation and disjointness; what holds a pair; `diff` incompleteness; the altered-input test;
-printing only to a terminal; the recipe's re-checks; the marker algorithm's version; the rules'
-mappings and the wording of a clean result.
-
-Not acted on, with the reason: reproducing a case live before writing it, and binding the
-doubles' trace into the recipe (both under "Not done here"); running the example against a real
-vector store (it would put a vendor's library in a suite the project maintains, and the pilot's
-evidence is a team's own target, which the roadmap row now waits for).
