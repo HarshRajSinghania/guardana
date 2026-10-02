@@ -89,6 +89,9 @@ These are additive extension points for a rule:
 |---|---|
 | `RuleContext.calibrations` | Read calibrations available to the rule. |
 | `RuleContext.conclude(summary)` | Record the rule's conclusion. |
+| `RuleContext.shortfall(CoverageShortfall)` | Report coverage the rule could not get. It joins the run's `coverage_shortfall`, which has no switch, so the run is `indeterminate` unless a finding fails it. |
+| `Rule.estimated_requests_for(target)` | Price the rule against the target it is planned for; defaults to `estimated_requests`. `plan` reads this one. |
+| `Rule.not_applicable_to(target)` | Return why the rule has nothing to check on `target`, or `None`. The run and the plan record it as skipped `not_applicable`, never as a check that ran. |
 | `RuleFixture.rule` | Use the variant of the declaring rule that a sample runs. |
 | `Runner(calibrations=...)` | Pass calibrations to the runner. |
 | `ScanResult.suites` | Read suite results from the scan result. |
@@ -338,11 +341,14 @@ only by a query apart; it does not hide a short or guessable value.
 | `TraceReader` | `read_trace` + dimensions | `trace` |
 | `ToolListing` | `list_tools` | `list_tools` |
 | `AuthorizationInspector` | `inspect_authorization` | `authorization`, `conversation` |
+| `SeededData` | `seeded_data` | `fixtures`, `ask_as` |
 
 Built-ins are `ArtifactTarget` (files: pickles, GGUF, ONNX, ML formats,
 requirements/lockfiles, manifests), `EndpointTarget`
 (OpenAI-compatible / Ollama / vLLM / HF-TGI chat), `TraceTarget` (a recorded
-execution) and `McpServerTarget`. A rule declares the capabilities it needs via
+execution), `McpServerTarget` and `SeededTarget` (an endpoint with a
+[fixtures file](usage-fixtures.md)'s items and one endpoint per tenant, every one on the
+run's meter; `guardana.core.testing.seeded_target` builds one over a double). A rule declares the capabilities it needs via
 `required_capabilities` in `RuleMeta`; the `Runner` skips a rule whose target
 cannot satisfy them rather than crashing.
 
@@ -524,6 +530,15 @@ reached exactly the way the real one is (through a `Sender`) and
 configurable for authorization, session handling, caching headers, and both
 eras of the protocol — so an authorization rule gets a positive and a
 negative server with no network.
+
+**A seeded application**, `SeededApplication`, stands in for a team's own
+retrieval pipeline over a [fixtures file](usage-fixtures.md): it answers an
+item's question with its marker when the asking tenant's key may read it, and
+switches break its tenant filter per channel, leave items out of its index, or
+make it obey a poisoned document. `seeded_target` builds a `SeededTarget` over
+it — the run's endpoint and one endpoint per tenant, on one meter — so a rule
+that needs `seeded_data` gets a leaking and a holding application with no
+network.
 
 **A run manifest**: `manifest_for` builds a `RunManifest` describing a
 `ScanResult` with test-stable circumstances, and `FIXED_RUN_TIME` is the

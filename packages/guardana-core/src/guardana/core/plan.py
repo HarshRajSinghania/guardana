@@ -16,7 +16,7 @@ from guardana.core.registry import Registry
 from guardana.core.report import CheckError, ScanResult, SkippedRule
 from guardana.core.report.shortfall import CoverageShortfall
 from guardana.core.rule import Rule, RuleLoadError
-from guardana.core.target import Target, TargetKind
+from guardana.core.target import SeededTarget, Target, TargetKind
 from guardana.core.target.recorded import RecordedTarget
 
 
@@ -100,8 +100,9 @@ class RunPlan:
     """
 
     shortfall: tuple[CoverageShortfall, ...] = field(default=(), metadata={"in_document": False})
-    """The coverage shortfall the run would record whatever its rules find, from
-    `incomplete_recording`. It has no switch, so a plan carrying one cannot pass.
+    """The coverage shortfall the run would record whatever its rules find: a stopped
+    recording's, and each check its fixtures demand that it would not select. It has no
+    switch, so a plan carrying one cannot pass.
     """
 
     @property
@@ -179,6 +180,7 @@ def build_plan(
         pre_run_errors,
         select_rules,
     )
+    from guardana.core.verify import unfinished_demands  # noqa: PLC0415 — verify is downstream
 
     # Only an endpoint run samples a reply; a file plan given `trials: 5` in a shared
     # profile would otherwise list every artifact rule as declining something it
@@ -203,7 +205,7 @@ def build_plan(
             single_attempt.append(meta.id)
         if replayed:
             continue
-        declared = rule.estimated_requests
+        declared = rule.estimated_requests_for(target)
         if declared is None:
             # A rule that sends and did not say how much sends at least once.
             unknown.append(meta.id)
@@ -211,6 +213,11 @@ def build_plan(
         else:
             ceiling += declared
             floor += 1 if declared > 0 else 0
+    errors = (*pre_run_errors(registry, target), *_unknown_evaluators(graded, registry))
+    demanded = target.fixtures.demanded_checks() if isinstance(target, SeededTarget) else ()
+    foreseen = ScanResult(
+        findings=(), rules_run=tuple(selected), rules_skipped=tuple(skipped), errors=errors
+    )
     return RunPlan(
         rules=tuple(selected),
         skipped=tuple(skipped),
@@ -225,8 +232,8 @@ def build_plan(
         judge=None
         if judge_meters is None
         else _price_judges(graded, registry.evaluators(), judge_meters),
-        errors=(*pre_run_errors(registry, target), *_unknown_evaluators(graded, registry)),
-        shortfall=incomplete_recording(target),
+        errors=errors,
+        shortfall=(*incomplete_recording(target), *unfinished_demands(demanded, foreseen)),
     )
 
 

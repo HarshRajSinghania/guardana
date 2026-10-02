@@ -341,6 +341,11 @@ Hugging Face TGI's <code>/generate</code>.</p>
 <td>File containing the system prompt already deployed in front of the model, so non-canary rules probe the real configuration. A file that cannot be read is refused (exit <code>3</code>)</td>
 </tr>
 <tr>
+<td><code>--fixtures PATH</code></td>
+<td>none</td>
+<td>A <a href="usage-fixtures.html"><code>guardana-fixtures.yaml</code></a>: ask every seeded item as its owner and as every other tenant, each through that tenant's own credentials, and every poisoned document as its owner — see <a href="#seeded-data-and-tenants">Seeded data and tenants</a>. A file or a tenant connection that cannot be used is refused before anything is sent (exit <code>3</code>); refused with <code>--mcp</code> and <code>--target</code></td>
+</tr>
+<tr>
 <td><code>--profile PATH</code></td>
 <td>none (built-in default profile)</td>
 <td>Path to a <code>guardana.yaml</code> policy file</td>
@@ -842,7 +847,7 @@ records the file's SHA-256, its line count and how many replies redaction change
 <ul>
 <li>Only the built-in endpoint's plain pass is kept (<code>--url</code>, with or without <code>--adapter</code>):
 never the system prompt, the canary passes or tool offers, so canary and tool rules are
-not graded again.</li>
+not graded again. What a rule asks as a tenant under <code>--fixtures</code> is never kept either.</li>
 <li>Every input and reply passes the run's redactor, matched spans only and without the
 evidence size bound; a secret is removed under every <code>evidence_mode</code>, <code>full</code> included. A
 reply redaction changed is marked <code>altered</code> and is never graded again: a reply that
@@ -851,6 +856,27 @@ leaked a secret cannot be regraded into a pass.</li>
 what a leaked run exposes; the collector never receives it. See <a href="privacy.html">privacy</a>.</li>
 <li>A probe that kept nothing writes no file and says so on stderr.</li>
 </ul>
+<h2 id="seeded-data-and-tenants">Seeded data and tenants</h2>
+<p>With <code>--fixtures</code>, the probe also builds one endpoint per tenant the file declares: the run's
+URL, model, provider and system prompt, and that tenant's own key or adapter. Two checks ask
+through them; every other rule talks to the run's own connection as before, and every tenant
+endpoint bills the run's meter, so the budgets bound the whole probe.</p>
+<pre><code class="language-bash">guardana fixtures render guardana-fixtures.yaml --out seed/   # seed seed/documents.jsonl yourself
+guardana probe --url https://support.example.test --model support-bot \
+  --fixtures guardana-fixtures.yaml --format json --output run.json
+</code></pre>
+<ul>
+<li><code>guardana.tenancy.cross_tenant_answer</code> — a marker of one tenant's item in a reply to
+another tenant is a finding. Clean means no marker of another tenant reached a reply, and
+only when both controls of the pair answered.</li>
+<li><code>guardana.retrieval.poisoned_document</code> — a reply that followed the instruction planted in
+a poisoned document is a finding; skipped as <code>not_applicable</code> when none is declared.</li>
+</ul>
+<p>A control that returned no marker in any trial is a <code>seed_not_reached</code> coverage shortfall,
+so the run ends <code>indeterminate</code> (exit <code>2</code>) unless a finding fails it, and fixtures demand
+both checks: excluding or skipping one is a <code>demanded_check</code> shortfall. The run records the
+file as <code>run.fixtures</code>. What each check asks, and what its clean result does and does not
+mean: <a href="usage-fixtures.html#the-two-checks-a-run-given-fixtures-makes"><code>usage-fixtures.md</code></a>.</p>
 <h2 id="quality-suites">Quality suites</h2>
 <p><a href="usage-suites.html">Quality suites</a> grade a versioned dataset under <code>guardana probe</code>.</p>
 <p>A declined suite exits <code>2</code>, and a failed suite exits <code>1</code>, whatever its severity.</p>

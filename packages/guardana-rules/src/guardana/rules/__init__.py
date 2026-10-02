@@ -32,6 +32,7 @@ from guardana.rules.mcp import (
 from guardana.rules.output.secrets import OutputSecretsRule
 from guardana.rules.prompt.hidden_instructions import HiddenInstructionsRule
 from guardana.rules.prompt.mcp_tool_poisoning import McpToolPoisoningRule
+from guardana.rules.seeded import CrossTenantAnswerRule, PoisonedDocumentRule
 from guardana.rules.supply_chain.chat_template import ChatTemplateRule
 from guardana.rules.supply_chain.code_execution import CodeExecutionRule
 from guardana.rules.supply_chain.dependency_risk import DependencyRiskRule
@@ -114,6 +115,8 @@ def provide_rules() -> list[Rule]:
         SecretInToolArgumentRule(),
         CrossTenantRetrievalRule(),
         HandoffAuthorityExpansionRule(),
+        CrossTenantAnswerRule(),
+        PoisonedDocumentRule(),
         *_load_catalog_rules(),
     ]
 

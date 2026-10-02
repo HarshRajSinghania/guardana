@@ -434,6 +434,30 @@ def _recorded_checks(venv: Path, workspace: Path) -> list[Check]:
             0,
             expect=("wrote", "2 document(s), 1 poisoned"),
         ),
+        # The seeded checks' samples play through the seeded application double, which
+        # the installed core wheel has to carry beside the rules that declare them.
+        Check(
+            "a seeded check's samples play from the installed wheel",
+            [guardana, "rule", "test", "guardana.tenancy.cross_tenant_answer"],
+            0,
+            expect=("3 fixture(s) passed", "0 rule(s) not fully sampled"),
+        ),
+        Check(
+            "plan probe prices the seeded checks from a fixtures file, reading no key",
+            [
+                guardana,
+                "plan",
+                "probe",
+                "--url",
+                "http://127.0.0.1:9",
+                "--model",
+                "support-bot",
+                "--fixtures",
+                str(_fixtures(workspace)),
+            ],
+            0,
+            expect=("No request was sent",),
+        ),
         *_case_checks(guardana, workspace, recording),
     ]
 

@@ -37,12 +37,14 @@ from guardana.core.target.protocols import (
     AuthorizationInspector,
     ChatEndpoint,
     FileReader,
+    SeededData,
     SystemPromptPlanter,
     ToolListing,
     ToolOfferingEndpoint,
     TraceReader,
 )
 from guardana.core.target.recorded import RecordedTarget, ReplyUnavailable
+from guardana.core.target.seeded import SeededTarget
 from guardana.core.target.trace import TraceTarget, capability_for, dimensions_of
 
 __all__ = [
@@ -72,6 +74,8 @@ __all__ = [
     "McpTool",
     "RecordedTarget",
     "ReplyUnavailable",
+    "SeededData",
+    "SeededTarget",
     "Sender",
     "Sessions",
     "SystemPromptPlanter",

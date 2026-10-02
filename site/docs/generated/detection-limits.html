@@ -402,8 +402,23 @@
 <li><code>MCP03:2025</code>: Tool Poisoning</li>
 <li><code>MCP10:2025</code>: Context Injection &amp; Over-Sharing</li>
 </ul>
-<h2 id="scenario">scenario</h2>
+<h2 id="retrieval">retrieval</h2>
 <h3 id="tested-invariant-2">Tested invariant</h3>
+<ul>
+<li><code>guardana.retrieval.poisoned_document</code>: The application followed an instruction planted in a retrieved document</li>
+</ul>
+<h3 id="framework-entries-these-rules-are-relevant-to-not-coverage-of-them-4">Framework entries these rules are relevant to, not coverage of them</h3>
+<ul>
+<li><code>AML.T0051</code>: LLM Prompt Injection</li>
+<li><code>AML.T0080</code>: AI Agent Context Poisoning</li>
+<li><code>ASI06:2026</code>: Memory and Context Poisoning</li>
+<li><code>LLM01:2025</code>: Prompt Injection</li>
+<li><code>LLM01:2026</code>: Prompt Injection</li>
+<li><code>LLM08:2025</code>: Vector and Embedding Weaknesses</li>
+<li><code>LLM09:2026</code>: Vector and Embedding Weaknesses</li>
+</ul>
+<h2 id="scenario">scenario</h2>
+<h3 id="tested-invariant-3">Tested invariant</h3>
 <ul>
 <li><code>guardana.scenario.indirect_injection</code>: Indirect prompt injection via a retrieved document</li>
 </ul>
@@ -411,7 +426,7 @@
 <ul>
 <li><code>guardana.scenario.gradual_jailbreak</code>: Gradual multi-turn jailbreak</li>
 </ul>
-<h3 id="framework-entries-these-rules-are-relevant-to-not-coverage-of-them-4">Framework entries these rules are relevant to, not coverage of them</h3>
+<h3 id="framework-entries-these-rules-are-relevant-to-not-coverage-of-them-5">Framework entries these rules are relevant to, not coverage of them</h3>
 <ul>
 <li><code>AML.T0051</code>: LLM Prompt Injection</li>
 <li><code>AML.T0080</code>: AI Agent Context Poisoning</li>
@@ -444,7 +459,7 @@
 <li><code>guardana.supply_chain.remote_code_config</code>: Model config requests custom-code execution on load</li>
 <li><code>guardana.supply_chain.saved_model_ops</code>: TensorFlow SavedModel filesystem operator</li>
 </ul>
-<h3 id="framework-entries-these-rules-are-relevant-to-not-coverage-of-them-5">Framework entries these rules are relevant to, not coverage of them</h3>
+<h3 id="framework-entries-these-rules-are-relevant-to-not-coverage-of-them-6">Framework entries these rules are relevant to, not coverage of them</h3>
 <ul>
 <li><code>AML.T0018</code>: Manipulate AI Model</li>
 <li><code>ASI05:2026</code>: Unexpected Code Execution</li>
@@ -456,6 +471,19 @@
 <li><code>LLM10:2026</code>: Improper Output Handling</li>
 <li><code>ML06:2023</code>: AI Supply Chain Attacks</li>
 <li><code>supply-chain</code>: GenAI Supply Chain Attack</li>
+</ul>
+<h2 id="tenancy">tenancy</h2>
+<h3 id="tested-invariant-4">Tested invariant</h3>
+<ul>
+<li><code>guardana.tenancy.cross_tenant_answer</code>: Another tenant's seeded data reached a reply</li>
+</ul>
+<h3 id="framework-entries-these-rules-are-relevant-to-not-coverage-of-them-7">Framework entries these rules are relevant to, not coverage of them</h3>
+<ul>
+<li><code>AML.T0057</code>: LLM Data Leakage</li>
+<li><code>LLM02:2025</code>: Sensitive Information Disclosure</li>
+<li><code>LLM02:2026</code>: Sensitive Information Disclosure</li>
+<li><code>LLM08:2025</code>: Vector and Embedding Weaknesses</li>
+<li><code>LLM09:2026</code>: Vector and Embedding Weaknesses</li>
 </ul>
 <h2 id="trace">trace</h2>
 <h3 id="invariant-not-sampled-3">Invariant, not sampled</h3>
@@ -473,7 +501,7 @@
 <ul>
 <li><code>guardana.trace.secret_in_tool_argument</code>: A credential appeared in a recorded tool argument</li>
 </ul>
-<h3 id="framework-entries-these-rules-are-relevant-to-not-coverage-of-them-6">Framework entries these rules are relevant to, not coverage of them</h3>
+<h3 id="framework-entries-these-rules-are-relevant-to-not-coverage-of-them-8">Framework entries these rules are relevant to, not coverage of them</h3>
 <ul>
 <li><code>AML.T0057</code>: LLM Data Leakage</li>
 <li><code>ASI02:2026</code>: Tool Misuse</li>
@@ -493,7 +521,7 @@
 <ul>
 <li><code>guardana.training.dataset_integrity</code>: Training-data integrity gap (loader script or unpinned dataset)</li>
 </ul>
-<h3 id="framework-entries-these-rules-are-relevant-to-not-coverage-of-them-7">Framework entries these rules are relevant to, not coverage of them</h3>
+<h3 id="framework-entries-these-rules-are-relevant-to-not-coverage-of-them-9">Framework entries these rules are relevant to, not coverage of them</h3>
 <ul>
 <li><code>LLM04:2025</code>: Data and Model Poisoning</li>
 <li><code>LLM05:2026</code>: Data and Model Poisoning</li>

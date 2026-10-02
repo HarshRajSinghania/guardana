@@ -691,7 +691,7 @@ then hand the resulting rules to a <code>Registry</code>.</li>
 </ol>
 <h2 id="path-2-python-plugin-when-yaml-cant-express-the-logic">Path 2: Python plugin (when YAML can't express the logic)</h2>
 <p>Use this for custom parsers, stateful probes, or any check against an
-<strong>artifact</strong> target. Of the 51 built-in rules, 19 are build-time (artifact-kind)
+<strong>artifact</strong> target. Of the 53 built-in rules, 19 are build-time (artifact-kind)
 Python plugins — pickle opcodes (incl. ZIP-archive recursion), model format,
 chat-template code-execution gadgets, risky ONNX graph constructs, Keras
 Lambda-layer RCE, TensorFlow SavedModel operators, dependency risk, remote-code
@@ -714,8 +714,10 @@ this one but endpoint-kind: <code>output.secrets</code>, the tool-calling
 the <code>mcp.*</code> checks (the MCP authorization surface — session binding, token
 audience, scope breadth, and others), and the <code>trace.*</code> checks (graded from a
 recorded <code>Trace</code> rather than a live chat — credential passthrough, identity
-disagreement, cross-tenant retrieval, and others). The
-<a href="generated/rule-summary.html">rule summary</a> counts them by surface and kind.</p>
+disagreement, cross-tenant retrieval, and others), and the two checks a
+<a href="usage-fixtures.html">fixtures file</a> brings, <code>tenancy.cross_tenant_answer</code> and
+<code>retrieval.poisoned_document</code>. The <a href="generated/rule-summary.html">rule summary</a> counts them by
+surface and kind.</p>
 <p>Subclass <code>Rule</code>, set <code>meta</code> to a <code>RuleMeta</code>, implement <code>run</code>:</p>
 <pre><code class="language-python">from collections.abc import Iterable
 
@@ -771,6 +773,17 @@ reading bytes for secrets says nothing about whether the model is safe to load.<
     yield from self._scan(path)
     ctx.examined(path)
 </code></pre>
+<p><strong>Say when a precondition of the check did not hold.</strong> A rule whose own control failed —
+a seeded item that never answered — calls <code>ctx.shortfall(CoverageShortfall(...))</code> with a
+kind from <code>guardana.core.report.shortfall</code>. The run carries it into <code>coverage_shortfall</code>,
+which has no switch, so the run is <code>indeterminate</code> unless a finding fails it; an
+inconclusive verdict alone would sit behind <code>fail_on_inconclusive</code>, which defaults off.
+Yield an inconclusive verdict for it too, so <code>rule test</code> sees the decline.</p>
+<p><strong>Price and skip against the target.</strong> A rule whose request count depends on what the
+target holds overrides <code>estimated_requests_for(target)</code>, which <code>plan</code> reads; it defaults to
+<code>estimated_requests</code>. A rule with nothing to check on a target returns the reason from
+<code>not_applicable_to(target)</code>, and is recorded as skipped <code>not_applicable</code> in the run and
+its plan alike. <code>guardana.retrieval.poisoned_document</code> does both.</p>
 <p><strong>Ask the target for parsed source — never parse it yourself.</strong> A scan runs
 every rule over the same tree, so a rule that reads and parses a file for itself
 multiplies the cost of the whole scan by the number of rules:</p>

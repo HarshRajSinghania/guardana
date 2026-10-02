@@ -1168,6 +1168,76 @@
       ]
     },
     {
+      "id": "guardana.retrieval.poisoned_document",
+      "namespace": "guardana",
+      "family": "retrieval",
+      "title": "The application followed an instruction planted in a retrieved document",
+      "severity": "HIGH",
+      "surface": "runtime",
+      "target_kind": "endpoint",
+      "evaluator": null,
+      "impact": "active",
+      "destructive": false,
+      "maturity": "stable",
+      "detection": "invariant",
+      "requires": [
+        "seeded_data"
+      ],
+      "estimated_requests": null,
+      "goal": null,
+      "taxonomy": [
+        {
+          "reference": "LLM01:2025",
+          "framework": "OWASP-LLM-2025",
+          "id": "LLM01",
+          "title": "Prompt Injection",
+          "rank": 1
+        },
+        {
+          "reference": "LLM08:2025",
+          "framework": "OWASP-LLM-2025",
+          "id": "LLM08",
+          "title": "Vector and Embedding Weaknesses",
+          "rank": 8
+        },
+        {
+          "reference": "LLM01:2026",
+          "framework": "OWASP-LLM-2026",
+          "id": "LLM01",
+          "title": "Prompt Injection",
+          "rank": 1
+        },
+        {
+          "reference": "LLM09:2026",
+          "framework": "OWASP-LLM-2026",
+          "id": "LLM09",
+          "title": "Vector and Embedding Weaknesses",
+          "rank": 9
+        },
+        {
+          "reference": "ASI06:2026",
+          "framework": "OWASP-ASI-2026",
+          "id": "ASI06",
+          "title": "Memory and Context Poisoning",
+          "rank": 6
+        },
+        {
+          "reference": "AML.T0051",
+          "framework": "MITRE-ATLAS",
+          "id": "AML.T0051",
+          "title": "LLM Prompt Injection",
+          "rank": null
+        },
+        {
+          "reference": "AML.T0080",
+          "framework": "MITRE-ATLAS",
+          "id": "AML.T0080",
+          "title": "AI Agent Context Poisoning",
+          "rank": null
+        }
+      ]
+    },
+    {
       "id": "guardana.scenario.gradual_jailbreak",
       "namespace": "guardana",
       "family": "scenario",
@@ -2124,6 +2194,62 @@
           "id": "ASI05",
           "title": "Unexpected Code Execution",
           "rank": 5
+        }
+      ]
+    },
+    {
+      "id": "guardana.tenancy.cross_tenant_answer",
+      "namespace": "guardana",
+      "family": "tenancy",
+      "title": "Another tenant's seeded data reached a reply",
+      "severity": "CRITICAL",
+      "surface": "runtime",
+      "target_kind": "endpoint",
+      "evaluator": null,
+      "impact": "active",
+      "destructive": false,
+      "maturity": "stable",
+      "detection": "invariant",
+      "requires": [
+        "seeded_data"
+      ],
+      "estimated_requests": null,
+      "goal": null,
+      "taxonomy": [
+        {
+          "reference": "LLM02:2025",
+          "framework": "OWASP-LLM-2025",
+          "id": "LLM02",
+          "title": "Sensitive Information Disclosure",
+          "rank": 2
+        },
+        {
+          "reference": "LLM08:2025",
+          "framework": "OWASP-LLM-2025",
+          "id": "LLM08",
+          "title": "Vector and Embedding Weaknesses",
+          "rank": 8
+        },
+        {
+          "reference": "LLM02:2026",
+          "framework": "OWASP-LLM-2026",
+          "id": "LLM02",
+          "title": "Sensitive Information Disclosure",
+          "rank": 2
+        },
+        {
+          "reference": "LLM09:2026",
+          "framework": "OWASP-LLM-2026",
+          "id": "LLM09",
+          "title": "Vector and Embedding Weaknesses",
+          "rank": 9
+        },
+        {
+          "reference": "AML.T0057",
+          "framework": "MITRE-ATLAS",
+          "id": "AML.T0057",
+          "title": "LLM Data Leakage",
+          "rank": null
         }
       ]
     },

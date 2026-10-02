@@ -5,12 +5,14 @@ aliases below and read them through `resolve_flags`, so a refusal reads the same
 and none of them can send something the others would refuse.
 """
 
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Annotated
 
 import typer
 from guardana.cli._endpoint import seam_transport
-from guardana.core.target import EndpointTarget
+from guardana.core.fixtures import Fixtures, FixturesError, ResolvedTenant, load_fixtures
+from guardana.core.target import EndpointTarget, SeededTarget
 from guardana.core.target.connection import (
     Connection,
     ConnectionConfigError,
@@ -39,6 +41,14 @@ AdapterOption = Annotated[
     typer.Option(
         "--adapter",
         help="Adapter file mapping a guarded endpoint's custom request/response schema.",
+    ),
+]
+FixturesOption = Annotated[
+    Path | None,
+    typer.Option(
+        "--fixtures",
+        help="guardana-fixtures.yaml: ask each seeded item as its owner and every other "
+        "tenant, each through that tenant's own credentials.",
     ),
 ]
 SystemPromptFileOption = Annotated[
@@ -95,14 +105,63 @@ def endpoint_for(
     return connection.endpoint(system_prompt=system_prompt, meter=meter, transport=substitute)
 
 
+def read_fixtures(path: Path | None) -> Fixtures | None:
+    """Read `--fixtures` once, refusing a file that cannot be used as invalid usage."""
+    if path is None:
+        return None
+    try:
+        return load_fixtures(path)
+    except FixturesError as exc:
+        raise typer.BadParameter(str(exc), param_hint="'--fixtures'") from exc
+
+
+def resolve_tenants(
+    fixtures: Fixtures, run: Connection, *, sending: bool
+) -> tuple[ResolvedTenant, ...]:
+    """Resolve every tenant against the run's connection, refusing a bad one as invalid usage."""
+    try:
+        return fixtures.resolve_tenants(run, sending=sending)
+    except FixturesError as exc:
+        raise typer.BadParameter(str(exc), param_hint="'--fixtures'") from exc
+
+
+def seeded_endpoint(
+    endpoint: EndpointTarget,
+    fixtures: Fixtures,
+    tenants: Sequence[ResolvedTenant],
+    *,
+    system_prompt: str | None = None,
+) -> SeededTarget:
+    """Build the seeded target: the run's endpoint and one endpoint per tenant, on its meter.
+
+    Every tenant endpoint is built by `endpoint_for`, so the test seam and the run's
+    budgets reach each one. A tenant sends the system prompt the run's endpoint sends,
+    because it reaches the same application.
+    """
+    return SeededTarget(
+        endpoint,
+        fixtures,
+        {
+            tenant.name: endpoint_for(
+                tenant.connection, system_prompt=system_prompt, meter=endpoint.meter
+            )
+            for tenant in tenants
+        },
+    )
+
+
 __all__ = [
     "AdapterOption",
     "ApiKeyEnvOption",
+    "FixturesOption",
     "ModelOption",
     "ProviderOption",
     "SystemPromptFileOption",
     "UrlOption",
     "endpoint_for",
+    "read_fixtures",
     "read_system_prompt",
     "resolve_flags",
+    "resolve_tenants",
+    "seeded_endpoint",
 ]

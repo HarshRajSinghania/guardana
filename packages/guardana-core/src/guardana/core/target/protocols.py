@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Protocol, runtime_checkable
 from guardana.core.target.base import Capability, Target
 
 if TYPE_CHECKING:
+    from guardana.core.fixtures import Fixtures
     from guardana.core.source import PythonSource, UnreadSource
     from guardana.core.target._mcp_authorization import McpAuthorizationView
     from guardana.core.target.endpoint import ChatMessage, ToolCallReply, ToolSpec
@@ -140,11 +141,35 @@ class AuthorizationInspector(Protocol):
         raise NotImplementedError
 
 
+@runtime_checkable
+class SeededData(Protocol):
+    """The surface `Capability.SEEDED_DATA` promises: seeded items, and a way to ask as a tenant.
+
+    Every tenant's endpoint shares the run's meter, so the run's budgets bound what a
+    rule asks through any of them.
+    """
+
+    @property
+    def fixtures(self) -> "Fixtures":
+        """The fixtures file the items were seeded from, with every item's markers."""
+        raise NotImplementedError
+
+    def ask_as(self, tenant: str, question: str) -> str:
+        """Send `question` through `tenant`'s own connection and return the reply text.
+
+        Raises when no reply text arrives, as `ChatEndpoint.chat` does: a refused request
+        read as a reply without a marker would be a control that failed silently, or a
+        boundary that held by default.
+        """
+        raise NotImplementedError
+
+
 __all__ = [
     "CAPABILITY_SURFACE",
     "AuthorizationInspector",
     "ChatEndpoint",
     "FileReader",
+    "SeededData",
     "SystemPromptPlanter",
     "ToolListing",
     "ToolOfferingEndpoint",
@@ -160,6 +185,7 @@ CAPABILITY_SURFACE: Mapping[Capability, type] = {
     Capability.LIST_TOOLS: ToolListing,
     Capability.INSPECT_AUTHORIZATION: AuthorizationInspector,
     Capability.READ_TRACE: TraceReader,
+    Capability.SEEDED_DATA: SeededData,
 }
 """Which protocol each capability promises, for the capabilities that promise one.
 

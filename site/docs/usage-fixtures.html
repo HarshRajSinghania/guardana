@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>guardana fixtures — Guardana documentation</title>
-<meta name="description" content="guardana-fixtures.yaml declares the synthetic data your application runs with in CI — tenants, seeded documents, records and tools — and guardana fixtures render writes the documents you seed into your own index, each carrying markers derived from what you declared">
+<meta name="description" content="guardana-fixtures.yaml declares the synthetic data your application runs with in CI — tenants, seeded documents, records and tools — guardana fixtures render writes the documents you seed into your own index, and --fixtures asks them as every tenant to check a tenant boundary and a poisoned document">
 <link rel="canonical" href="https://guardana.dev/docs/usage-fixtures">
 <link rel="icon" href="../favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="../assets/brand/v1/tokens.css">
@@ -276,7 +276,7 @@
 </nav>
 </details>
 <main>
-<h1><code>guardana fixtures</code> — declare the synthetic data your application runs with<span class="status beta">beta</span></h1><p class="lede"><code>guardana-fixtures.yaml</code> declares the synthetic data your application runs with in CI — tenants, seeded documents, records and tools — and <code>guardana fixtures render</code> writes the documents you seed into your own index, each carrying markers derived from what you declared</p><p>A fixtures file says, once, which tenants your application serves in CI, which documents you
+<h1><code>guardana fixtures</code> — declare the synthetic data your application runs with<span class="status beta">beta</span></h1><p class="lede"><code>guardana-fixtures.yaml</code> declares the synthetic data your application runs with in CI — tenants, seeded documents, records and tools — <code>guardana fixtures render</code> writes the documents you seed into your own index, and <code>--fixtures</code> asks them as every tenant to check a tenant boundary and a poisoned document</p><p>A fixtures file says, once, which tenants your application serves in CI, which documents you
 seed into its own index, which records and tools its test doubles serve, and that all of it is
 synthetic. Guardana derives a marker for every seeded item from the item as you declared it,
 so a reply can be checked for whose data reached it.</p>
@@ -419,14 +419,86 @@ HTML comment. Nothing is sent and no key is read. <code>FILE</code> defaults to
 </tr>
 </tbody>
 </table></div>
+<h2 id="the-two-checks-a-run-given-fixtures-makes">The two checks a run given fixtures makes</h2>
+<pre><code class="language-bash">guardana probe --url https://support.example.test --model support-bot \
+  --fixtures guardana-fixtures.yaml --format json --output run.json
+</code></pre>
+<p><code>--fixtures</code> (on <code>probe</code> and <code>plan probe</code>, and <code>subject.fixtures</code> in a recipe) builds one
+endpoint per tenant beside the run's own: the same URL, model, provider and system prompt,
+each tenant's own credentials. Every rule but the two below talks to the run's own
+connection as before. Both checks send chat requests only (<code>impact: active</code>), and every
+tenant endpoint bills the run's meter, so <code>--max-requests</code> and the other budgets bound all
+of them together. What a check asks as a tenant is never kept as an exchange, so it is never
+promoted into a regression case.</p>
+<p><strong><code>guardana.tenancy.cross_tenant_answer</code></strong> asks every item's question as its owner — the
+item's control — and as every other tenant, each through that tenant's own endpoint. A marker
+of the item (its presence marker, or a poisoned document's instruction marker or either half)
+in a reply to another tenant is a finding. A pair (item, asking tenant) is clean only when, in
+this run, the item's own control returned its presence marker <strong>and</strong> a control of the asking
+tenant through the same channel did too: one of its own documents for a document, one of its
+own records in the same collection for a record. A clean result means <strong>no marker of another
+tenant reached a reply</strong>. It does not mean retrieval is filtered: a document retrieved into the
+context and withheld by the model is clean here, and only your application's own trace can
+show it (<code>guardana.trace.cross_tenant_retrieval</code> checks every retrieval a trace records).</p>
+<p><strong><code>guardana.retrieval.poisoned_document</code></strong> asks each poisoned document's question as its
+owner. The joined instruction marker in the reply is a finding; the presence marker without it
+is clean. Fixtures that declare no poisoned document skip it as <code>not_applicable</code>.</p>
+<p><strong>A control that never answers is never clean.</strong> A pair or a poisoned document whose control
+returned no marker in any trial is a <code>seed_not_reached</code> coverage shortfall naming the item and
+the tenant, and an inconclusive verdict. The shortfall has no switch, so the run is
+<code>indeterminate</code> (exit <code>2</code>) unless a finding fails it: an index seeded only in part cannot pass
+on the items that happened to arrive. A request that ends without a reply — refused, or out of
+retries — is never read as a reply without a marker; the run stops as it does for any
+unreachable endpoint. A finding in any trial is a finding; one trial in which a control
+answered is enough for it.</p>
+<p><strong>Fixtures demand their checks.</strong> A run given fixtures must complete the tenant check, and
+the poisoned-document check when a poisoned document is declared. Leaving either out of the
+selection (<code>rules.exclude</code>, <code>--safety passive</code>, a narrowed <code>include</code>), or a skip, is a
+<code>demanded_check</code> shortfall, so a run cannot record seeded data and check none of it.
+<code>plan probe --fixtures</code> reports the same shortfall before anything is sent and exits <code>3</code>.</p>
+<p><strong>Cost.</strong> <code>plan probe --fixtures</code> prices the tenant check at one request per item and tenant
+per trial, and the poisoned-document check at one request per poisoned document per trial;
+no key is read. The fixtures above, at one trial: 5 items × 2 tenants + 1 poisoned document
+= 11 requests.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Exit</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>0</code></td>
+<td>every pair and every poisoned document was reached and clean, and every other rule passed</td>
+</tr>
+<tr>
+<td><code>1</code></td>
+<td>a marker crossed a tenant boundary, or a poisoned document's instruction was followed</td>
+</tr>
+<tr>
+<td><code>2</code></td>
+<td>a control did not answer, or a demanded check did not run</td>
+</tr>
+<tr>
+<td><code>3</code></td>
+<td>the fixtures file or a tenant's connection was refused; nothing was sent</td>
+</tr>
+<tr>
+<td><code>6</code></td>
+<td>the budget ran out, across the run's endpoint and every tenant</td>
+</tr>
+</tbody>
+</table></div>
 <h2 id="in-a-recipe">In a recipe</h2>
 <p>A recipe names the file as <code>subject.fixtures</code>, beside a <code>connection</code>, with
 <code>schema_version: 2</code> (<a href="usage-recipe.html"><code>usage-recipe.md</code></a>). The recipe reads the file once,
 so the digest the lock pins and the items a run asks about come from the same bytes. The
-lock pins the file's digest and every tenant adapter; <code>recipe run</code> resolves every tenant,
-checks each key is set and that no two tenants share a secret value, and re-reads every tenant adapter
-against its pin before it sends anything. <code>subject.fixtures</code> together with
-<code>subject.recording</code> is refused.</p>
+lock pins the file's digest and every tenant adapter, and the stand-in target it prices
+carries the seeded data, so the two checks are selected and pinned. <code>recipe run</code> resolves
+every tenant, checks each key is set and that no two tenants share a secret value, re-reads
+every tenant adapter against its pin before it sends anything, and then asks as every tenant.
+<code>subject.fixtures</code> together with <code>subject.recording</code> is refused.</p>
 <h2 id="in-the-saved-run-and-in-diff">In the saved run and in <code>diff</code></h2>
 <p>A run given fixtures records them as <code>run.fixtures</code>: the name, the file's digest, <code>data</code>
 labelled as declared, the tenants, how many documents, records and tools the file declares,

@@ -36,6 +36,7 @@ frameworks it maps to. A rule without a mapping does not ship.
 | `guardana.prompt.mcp_tool_poisoning` | HIGH | build | `LLM01:2025`, `LLM01:2026`, `LLM05:2025`, `LLM10:2026`, `AML.T0051`, `ASI04:2026`, `MCP03:2025`, `MCP10:2025`, `AML.T0110`, `AML.T0011.002` |
 | `guardana.prompt.system_prompt_leak.canary` | CRITICAL | runtime | `LLM07:2025`, `LLM08:2026`, `AML.T0056` |
 | `guardana.prompt.unbounded_consumption` | MEDIUM | runtime | `LLM10:2025`, `LLM06:2026` |
+| `guardana.retrieval.poisoned_document` | HIGH | runtime | `LLM01:2025`, `LLM08:2025`, `LLM01:2026`, `LLM09:2026`, `ASI06:2026`, `AML.T0051`, `AML.T0080` |
 | `guardana.scenario.gradual_jailbreak` | HIGH | runtime | `LLM01:2025`, `LLM01:2026`, `AML.T0051` |
 | `guardana.scenario.indirect_injection` | HIGH | runtime | `LLM01:2025`, `LLM01:2026`, `LLM08:2025`, `LLM09:2026`, `ASI01:2026`, `AML.T0051`, `AML.T0080` |
 | `guardana.supply_chain.chat_template` | CRITICAL | build | `LLM03:2025`, `LLM04:2026`, `LLM05:2025`, `LLM10:2026`, `AML.T0018`, `supply-chain`, `ASI05:2026` |
@@ -54,6 +55,7 @@ frameworks it maps to. A rule without a mapping does not ship.
 | `guardana.supply_chain.remote_code` | HIGH | build | `LLM03:2025`, `LLM04:2026`, `supply-chain`, `ASI05:2026` |
 | `guardana.supply_chain.remote_code_config` | HIGH | build | `LLM03:2025`, `LLM04:2026`, `AML.T0018`, `supply-chain`, `ASI05:2026` |
 | `guardana.supply_chain.saved_model_ops` | MEDIUM | build | `LLM05:2025`, `LLM10:2026`, `ML06:2023`, `AML.T0018`, `supply-chain`, `ASI05:2026` |
+| `guardana.tenancy.cross_tenant_answer` | CRITICAL | runtime | `LLM02:2025`, `LLM08:2025`, `LLM02:2026`, `LLM09:2026`, `AML.T0057` |
 | `guardana.trace.consent_scope_exceeded` | HIGH | runtime | `MCP02:2025`, `ASI03:2026`, `LLM03:2026` |
 | `guardana.trace.credential_passthrough` | HIGH | runtime | `MCP01:2025`, `ASI03:2026`, `LLM03:2026` |
 | `guardana.trace.cross_tenant_retrieval` | CRITICAL | runtime | `LLM09:2026`, `LLM02:2026` |

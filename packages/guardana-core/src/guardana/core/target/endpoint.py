@@ -616,6 +616,11 @@ class EndpointTarget(Target):
         return self._provider
 
     @property
+    def meter(self) -> UsageMeter:
+        """The meter every request of this endpoint is billed to, shared with its views."""
+        return self._meter
+
+    @property
     def system_prompt(self) -> str | None:
         """The system prompt this endpoint sends, canaries planted on this view included."""
         return self._system_prompt

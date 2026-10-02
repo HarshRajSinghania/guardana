@@ -51,6 +51,14 @@ not — without either being real:
     open_to_anyone = ScriptedMcpServer(url, tools=[{"name": "read", "description": "..."}])
     assert list(MyRule().run(McpServerTarget(url, sender=open_to_anyone), RuleContext()))
 
+**A seeded application** stands in for a team's own retrieval pipeline over a fixtures
+file, so the tenant and poisoned-document checks can be driven against a filter that
+holds — and one that leaks — without either being real:
+
+    from guardana.core.testing import SeededApplication, seeded_target
+
+    leaky = seeded_target(fixtures, SeededApplication(fixtures, leaking={"documents"}))
+
 **A run manifest** stands in for the circumstances of a run, so a test about what
 a renderer emits does not have to invent a clock, a run id and a tool version:
 
@@ -69,6 +77,7 @@ from guardana.core.testing.secrets import (
     fake_llm_key,
     fake_secrets,
 )
+from guardana.core.testing.seeded import SeededApplication, seeded_target
 from guardana.core.testing.transports import (
     EchoingTransport,
     FailingTransport,
@@ -90,6 +99,7 @@ __all__ = [
     "ScriptedAgentTransport",
     "ScriptedMcpServer",
     "ScriptedTransport",
+    "SeededApplication",
     "ToolCallingScriptedTransport",
     "build_gguf",
     "build_onnx",
@@ -100,4 +110,5 @@ __all__ = [
     "fake_llm_key",
     "fake_secrets",
     "manifest_for",
+    "seeded_target",
 ]

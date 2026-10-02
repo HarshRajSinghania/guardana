@@ -82,6 +82,9 @@ class _RuleOutcome:
     examined: frozenset[str] = frozenset()
     """The files this rule examined in its own format, those it reported on included."""
 
+    shortfalls: tuple[CoverageShortfall, ...] = ()
+    """The coverage this rule reported it could not get, through `RuleContext.shortfall`."""
+
     stopped_by: StopReason | None = None
     """Set when the run ran out of budget part-way through this rule.
 
@@ -183,6 +186,7 @@ class Runner:
         examined: set[str] = set()
         assessments: list[Assessment] = []
         suites: dict[str, SuiteSummary] = {}
+        reported: list[CoverageShortfall] = []
         stopped_by: StopReason | None = None
         for outcome in self._execute(plan, target):
             executed.append(outcome.rule_id)
@@ -194,6 +198,9 @@ class Runner:
             # Kept from a cut-off rule, like its findings: a case measured before
             # the ceiling was measured. The rule still stays out of `rules_run`.
             assessments.extend(outcome.assessments)
+            # Kept from a rule that did not finish too: a control that failed before the
+            # rule stopped failed, and the stop alone would not say which item it was.
+            reported.extend(outcome.shortfalls)
             if outcome.stopped_by is not None:
                 stopped_by = outcome.stopped_by
             elif outcome.error is not None:
@@ -245,6 +252,7 @@ class Runner:
                 *_coverage_shortfall(self.profile, target),
                 *incomplete_recording(target),
                 *_unexamined_components(target, observations, examined),
+                *reported,
             ),
             stopped_by=stopped_by,
             trials_per_case={
@@ -376,6 +384,7 @@ class Runner:
                 ctx.recorded(),
                 suite=ctx.concluded(),
                 stopped_by=StopReason.BUDGET_EXHAUSTED,
+                shortfalls=ctx.shortfalls(),
             )
         except (URLError, EndpointError) as exc:
             # The endpoint being unreachable is a fact about the run, not about
@@ -395,6 +404,7 @@ class Runner:
                 error=CheckError.from_exception(rule.meta.id, "run", exc),
                 suite=ctx.concluded(),
                 raised=type(exc),
+                shortfalls=ctx.shortfalls(),
             )
         except Exception as exc:
             return _RuleOutcome(
@@ -405,6 +415,7 @@ class Runner:
                 error=CheckError.from_exception(rule.meta.id, "run", exc),
                 suite=ctx.concluded(),
                 raised=type(exc),
+                shortfalls=ctx.shortfalls(),
             )
         reported = {split_ref(f.target_ref)[0] for f in (*findings, *unverified)}
         return _RuleOutcome(
@@ -414,6 +425,7 @@ class Runner:
             ctx.recorded(),
             suite=ctx.concluded(),
             examined=ctx.examined_paths() | reported,
+            shortfalls=ctx.shortfalls(),
         )
 
 
@@ -433,8 +445,10 @@ def select_rules(
         meta = rule.meta
         if meta.target_kind != target.kind or not profile.policy.matches(meta.id):
             continue
-        refusal = safety_refusal(profile, rule) or capability_refusal(
-            rule, target.ref, capabilities
+        refusal = (
+            safety_refusal(profile, rule)
+            or capability_refusal(rule, target.ref, capabilities)
+            or applicability_refusal(rule, target)
         )
         if refusal is None and isinstance(target, RecordedTarget):
             refusal = _unrecorded(rule, target)
@@ -512,6 +526,27 @@ def capability_refusal(
         reason=SkipReason.MISSING_CAPABILITY,
         missing=names,
         detail=f"{target_ref} does not support {', '.join(names)}, which {rule.meta.id} needs",
+    )
+
+
+def applicability_refusal(rule: Rule, target: Target) -> SkippedRule | None:
+    """Skip a rule that says it has nothing to check on `target`, and record why.
+
+    Not a coverage gap: nothing the rule needs is missing. A rule whose
+    `not_applicable_to` raises is run instead, so its own failure is recorded as an error
+    rather than read as having nothing to check.
+    """
+    try:
+        reason = rule.not_applicable_to(target)
+    except Exception:
+        return None
+    if reason is None:
+        return None
+    return SkippedRule(
+        rule_id=rule.meta.id,
+        reason=SkipReason.NOT_APPLICABLE,
+        missing=(),
+        detail=f"{rule.meta.id} has nothing to check on {target.ref}: {reason}",
     )
 
 

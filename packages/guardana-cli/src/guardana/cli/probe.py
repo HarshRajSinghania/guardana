@@ -8,13 +8,17 @@ from guardana.cli._budget_flags import override
 from guardana.cli._connection import (
     AdapterOption,
     ApiKeyEnvOption,
+    FixturesOption,
     ModelOption,
     ProviderOption,
     SystemPromptFileOption,
     UrlOption,
     endpoint_for,
+    read_fixtures,
     read_system_prompt,
     resolve_flags,
+    resolve_tenants,
+    seeded_endpoint,
 )
 from guardana.cli._errors import EndpointFlag, run_against_endpoint, run_judged
 from guardana.cli._evaluators import judge_endpoint, wire_config_evaluators
@@ -41,12 +45,14 @@ from guardana.cli._safety_flags import parse_impact
 from guardana.cli._target_locator import resolve_target
 from guardana.cli.exit_codes import ExitCode
 from guardana.core.budget import BudgetExhausted
+from guardana.core.fixtures import Fixtures
 from guardana.core.manifest import DeploymentRef
 from guardana.core.profile import Profile, ProfileError
 from guardana.core.recording import render_recording
 from guardana.core.redaction import EvidenceMode
 from guardana.core.registry import Registry
-from guardana.core.target import Target, TargetKind, display_url
+from guardana.core.target import EndpointTarget, Target, TargetKind, display_url
+from guardana.core.target.connection import Connection
 from guardana.core.usage import UsageMeter
 from guardana.core.verify import (
     JudgeUnreachableError,
@@ -80,6 +86,7 @@ def probe(  # noqa: C901, PLR0913, PLR0917 — Typer surface, target modes
     provider: ProviderOption = None,
     adapter: AdapterOption = None,
     system_prompt_file: SystemPromptFileOption = None,
+    fixtures: FixturesOption = None,
     profile: Annotated[Path | None, typer.Option(help="guardana.yaml path")] = None,
     preset: Annotated[str | None, typer.Option(help=PRESET_HELP)] = None,
     format: Annotated[
@@ -202,6 +209,7 @@ def probe(  # noqa: C901, PLR0913, PLR0917 — Typer surface, target modes
     """Run dynamic security checks against a live model endpoint, or an MCP server."""
     check_reporter_url(reporter)
     refuse_incomparable_output(output, format.value)
+    seeded = _fixtures(fixtures, elsewhere=target is not None or mcp is not None)
     deployment = detect_deployment(ai_system, environment, deployment_id)
     prof = resolve_profile(profile, preset)
     prof = replace(
@@ -243,6 +251,7 @@ def probe(  # noqa: C901, PLR0913, PLR0917 — Typer surface, target modes
             calibrations=calibrations,
             concurrency=concurrency,
             judge_endpoint=judge_endpoint,
+            fixtures=None if seeded is None else seeded.record(),
         )
 
     def verified(target: Target, of: Profile = prof) -> Verification:
@@ -339,16 +348,21 @@ def probe(  # noqa: C901, PLR0913, PLR0917 — Typer surface, target modes
         adapter=adapter,
         sending=True,
     )
-    # Every pass of the probe — one per planted canary — bills this one meter, so the
-    # profile's budgets bound the probe rather than each pass of it.
+    prompt = read_system_prompt(system_prompt_file)
+    # Every pass of the probe — one per planted canary — and every tenant endpoint bills
+    # this one meter, so the profile's budgets bound the probe rather than each part of it.
     selected_endpoint = endpoint_for(
-        connection,
-        system_prompt=read_system_prompt(system_prompt_file),
-        meter=UsageMeter(prof.budgets),
+        connection, system_prompt=prompt, meter=UsageMeter(prof.budgets)
     )
-    probed = run_against_endpoint(
-        endpoint_url, lambda: verified(selected_endpoint), accepts=_ACCEPTED_FLAGS
+    subject = _seeded(
+        selected_endpoint,
+        seeded,
+        Connection(
+            endpoint_url, model_name, provider=provider, api_key_env=api_key_env, adapter=adapter
+        ),
+        prompt,
     )
+    probed = run_against_endpoint(endpoint_url, lambda: verified(subject), accepts=_ACCEPTED_FLAGS)
     _finish_probe(
         probed,
         selected_endpoint.ref,
@@ -358,6 +372,26 @@ def probe(  # noqa: C901, PLR0913, PLR0917 — Typer surface, target modes
         reporter=reporter,
         keep=prof.privacy.keep_exchanges,
     )
+
+
+def _fixtures(path: Path | None, *, elsewhere: bool) -> Fixtures | None:
+    """Read `--fixtures`, refusing it beside `--mcp` or `--target`, which hold no seeded items."""
+    if path is not None and elsewhere:
+        raise typer.BadParameter(
+            "--fixtures asks the seeded items through --url, once per tenant; an MCP server "
+            "or a pack's --target holds none"
+        )
+    return read_fixtures(path)
+
+
+def _seeded(
+    endpoint: EndpointTarget, fixtures: Fixtures | None, written: Connection, prompt: str | None
+) -> Target:
+    """Return the endpoint, or with `--fixtures` the seeded target over it and every tenant."""
+    if fixtures is None:
+        return endpoint
+    tenants = resolve_tenants(fixtures, written, sending=True)
+    return seeded_endpoint(endpoint, fixtures, tenants, system_prompt=prompt)
 
 
 def _carried_out(run: Callable[[], _Run]) -> _Run:

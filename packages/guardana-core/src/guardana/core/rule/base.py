@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, ClassVar
 from guardana.core.assessment import Assessment
 from guardana.core.evaluator.base import Evaluator, Expectation
 from guardana.core.report import Finding
+from guardana.core.report.shortfall import CoverageShortfall
 from guardana.core.rule._digest import digest_parts
 from guardana.core.safety import Detection, Impact, Maturity
 from guardana.core.severity import Severity
@@ -95,6 +96,7 @@ class RuleContext:
     _assessments: list[Assessment] = field(default_factory=list, repr=False)
     _conclusions: list["SuiteSummary"] = field(default_factory=list, repr=False)
     _examined: set[str] = field(default_factory=set, repr=False)
+    _shortfalls: list[CoverageShortfall] = field(default_factory=list, repr=False)
 
     def get(self, key: str, default: object) -> object:
         """Read one config value, falling back to `default`."""
@@ -142,6 +144,21 @@ class RuleContext:
     def examined_paths(self) -> frozenset[str]:
         """Every path `examined` was given."""
         return frozenset(self._examined)
+
+    def shortfall(self, gap: CoverageShortfall) -> None:
+        """Report coverage this rule was asked for and could not get. The runner carries it.
+
+        A shortfall joins the run's `coverage_shortfall`, the channel with no switch, so
+        the run is `indeterminate` unless a finding fails it. Use it where a check's own
+        precondition did not hold — a seeded control that never answered — and an
+        inconclusive verdict alone would sit behind `fail_on_inconclusive`, which
+        defaults off.
+        """
+        self._shortfalls.append(gap)
+
+    def shortfalls(self) -> tuple[CoverageShortfall, ...]:
+        """Everything `shortfall` was given, in the order it arrived."""
+        return tuple(self._shortfalls)
 
 
 class Rule(ABC):
@@ -213,6 +230,24 @@ class Rule(ABC):
         rules` declares it once, in `guardana.rules._base.ArtifactRule`, for
         the built-ins it ships and measures — nothing upstream of that
         declares it for anyone else.
+        """
+        return None
+
+    def estimated_requests_for(self, target: Target) -> int | None:
+        """Upper bound on the requests this rule will send to `target`, or None if unknown.
+
+        Defaults to `estimated_requests`. A rule whose cost depends on what the target
+        holds — one request per seeded item and tenant — overrides it, and `guardana
+        plan` prices the run with this rather than with the target-free declaration.
+        """
+        return self.estimated_requests
+
+    def not_applicable_to(self, target: Target) -> str | None:
+        """Return why this rule has nothing to check on `target`, or None when it applies.
+
+        Consulted when rules are selected, after the capabilities, so the run and its
+        plan both record the rule as skipped `not_applicable` rather than as a check
+        that ran and found nothing. None by default.
         """
         return None
 

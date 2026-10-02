@@ -14,7 +14,7 @@ guardana plan probe --url https://api.example.com --model gpt-4o-mini
 ```
 
 ```text
-14 rule(s) would run, 9 skipped.
+14 rule(s) would run, 11 skipped.
 requests: at least 14, at most 47
 trials: 1 attempt(s) per case, counted in the requests above
 judge calls: none — no selected rule grades with a judge
@@ -62,6 +62,7 @@ run they are pricing would use, so both take the same plugin-trust flags
 | `--provider [openai\|ollama\|tgi]` | `openai` | `plan probe` only: the wire protocol, as on `probe`; any other name is refused (exit `3`) |
 | `--adapter PATH` | none | `plan probe` only: the adapter file `probe --adapter` would use, with the same refusals; its `${VAR}` headers are not read, so a plan needs no secret |
 | `--system-prompt-file PATH` | none | `plan probe` only: the system prompt `probe` would plant; a file that cannot be read is refused (exit `3`) |
+| `--fixtures PATH` | none | `plan probe` only: price the seeded checks from this [fixtures file](usage-fixtures.md) — see [Pricing seeded data](#pricing-seeded-data). No tenant key is read; refused with `--mcp` and `--target` |
 | `--safety [passive\|active\|side-effecting]` | `active` | `plan probe` only: how far rules may reach, as on `probe` |
 | `--allow-destructive` | off | `plan probe` only: permit rules that can destroy or alter something the target owns, as on `probe` |
 | `--trials INTEGER` | `1` (or `trials:` in the profile) | `plan probe` and `plan grade`: price the run at this many attempts per case, as `probe --trials` and `grade --trials` would make them |
@@ -166,6 +167,25 @@ one place, so a second copy cannot drift from the first.
 guardana plan probe --url https://api.example.com --model m --safety passive
 ```
 
+## Pricing seeded data
+
+`plan probe --fixtures FILE` prices the two checks a [fixtures file](usage-fixtures.md)
+brings from the file itself: the tenant check at one request per seeded item and tenant per
+trial, and the poisoned-document check at one request per poisoned document per trial. A
+rule whose cost depends on what the target holds declares it through
+`Rule.estimated_requests_for(target)`; without fixtures both checks are skipped for a
+missing capability and cost nothing.
+
+```bash
+guardana plan probe --url https://support.example.test --model support-bot \
+  --fixtures guardana-fixtures.yaml --trials 2
+```
+
+Each tenant is resolved as the probe would resolve it, without reading its key, so a
+fixtures file the probe would refuse is refused here too (exit `3`). A run given fixtures
+must complete both checks, so a plan that would not select one — a profile that excludes
+it, `--safety passive` — names it as a coverage shortfall and exits `3`.
+
 ## Pricing an MCP server
 
 `plan probe --mcp` prices an MCP run the same way, and it is where this command
@@ -242,6 +262,8 @@ on stderr, one line per cause:
 
 - **no rule would run** — the profile, the flags and the target select none, and a
   run that verifies nothing reports no verdict;
+- **a coverage shortfall** — a check the run's fixtures demand that it would not select,
+  or a graded recording whose run stopped;
 - **a rule it would skip while `fail_on.fail_on_skipped` is on** — a capability the
   target does not declare, or a safety mode that refuses the rule;
 - **a file under `calibrations:` that would stop the run** — missing, unreadable, or

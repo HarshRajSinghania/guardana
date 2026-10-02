@@ -51,6 +51,7 @@ provides:
     - guardana.prompt.mcp_tool_poisoning
     - guardana.prompt.system_prompt_leak.canary
     - guardana.prompt.unbounded_consumption
+    - guardana.retrieval.poisoned_document
     - guardana.scenario.gradual_jailbreak
     - guardana.scenario.indirect_injection
     - guardana.supply_chain.chat_template
@@ -69,6 +70,7 @@ provides:
     - guardana.supply_chain.remote_code
     - guardana.supply_chain.remote_code_config
     - guardana.supply_chain.saved_model_ops
+    - guardana.tenancy.cross_tenant_answer
     - guardana.trace.consent_scope_exceeded
     - guardana.trace.credential_passthrough
     - guardana.trace.cross_tenant_retrieval

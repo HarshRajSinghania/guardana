@@ -8,7 +8,7 @@ from typing import Annotated
 
 import typer
 from guardana.cli._artifact import MARKER, ArtifactRefusedError, claim, publish
-from guardana.cli._connection import endpoint_for, read_system_prompt
+from guardana.cli._connection import endpoint_for, read_system_prompt, seeded_endpoint
 from guardana.cli._errors import run_against_endpoint, run_judged
 from guardana.cli._evaluators import judge_endpoint, wire_config_evaluators
 from guardana.cli._exit import exit_with, refuse_invalid_profile, refuse_unenforceable_budget
@@ -377,7 +377,8 @@ def _stand_in(
 
     A recording stands in as one holding no reply, so a rule it leaves unanswered is
     still a rule the configuration selected. Fixtures pin their file and every tenant
-    adapter, resolved without reading a key.
+    adapter, resolved without reading a key, and the stand-in carries `seeded_data`, so
+    the checks they demand are selected and pinned.
     """
     if recipe.connection is None:
         empty = Recording(
@@ -393,10 +394,13 @@ def _stand_in(
         files["adapter"] = resolved.adapter_digest
     if prompt is not None:
         files["system_prompt_file"] = _text_digest(prompt)
-    if fixtures is not None:
-        files.update(fixtures.subject_files(_tenants(recipe, fixtures, sending=False)))
-    target = endpoint_for(resolved, system_prompt=prompt or system_prompt_the_probe_will_send(None))
-    return target, files
+    stand_in_prompt = prompt or system_prompt_the_probe_will_send(None)
+    target = endpoint_for(resolved, system_prompt=stand_in_prompt)
+    if fixtures is None:
+        return target, files
+    tenants = _tenants(recipe, fixtures, sending=False)
+    files.update(fixtures.subject_files(tenants))
+    return seeded_endpoint(target, fixtures, tenants, system_prompt=stand_in_prompt), files
 
 
 def _connection(recipe: Recipe) -> Connection:
@@ -435,12 +439,18 @@ def _subject(prepared: _Prepared) -> Target:
     except ConnectionConfigError as exc:
         raise _Refusal(f"{recipe.path}: {exc}") from exc
     found = {"adapter": resolved.adapter_digest}
+    tenants = None
     if prepared.fixtures is not None:
         tenants = _tenants(recipe, prepared.fixtures, sending=True)
         found.update(prepared.fixtures.subject_files(tenants))
     _refuse_moved(prepared.lock, found)
-    return endpoint_for(
+    endpoint = endpoint_for(
         resolved, system_prompt=prepared.system_prompt, meter=UsageMeter(prepared.profile.budgets)
+    )
+    if prepared.fixtures is None or tenants is None:
+        return endpoint
+    return seeded_endpoint(
+        endpoint, prepared.fixtures, tenants, system_prompt=prepared.system_prompt
     )
 
 
@@ -534,6 +544,7 @@ def _verify(
         judge_endpoint=judge_endpoint,
         demanded_rules=frozenset(prepared.lock.rules),
         subject_kind=kind,
+        fixtures=None if prepared.fixtures is None else prepared.fixtures.record(),
     )
     deployment = DeploymentRef(
         ai_system=recipe.deployment.get("ai_system"),

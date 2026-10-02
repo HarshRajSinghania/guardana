@@ -69,13 +69,16 @@
   <url><loc>https://guardana.dev/docs/recipe-recorded-answers</loc></url>
   <url><loc>https://guardana.dev/docs/rules/by/cost-1-4</loc></url>
   <url><loc>https://guardana.dev/docs/rules/by/cost-5-plus</loc></url>
+  <url><loc>https://guardana.dev/docs/rules/by/cost-undeclared</loc></url>
   <url><loc>https://guardana.dev/docs/rules/by/cost-zero</loc></url>
   <url><loc>https://guardana.dev/docs/rules/by/family-agent</loc></url>
   <url><loc>https://guardana.dev/docs/rules/by/family-mcp</loc></url>
   <url><loc>https://guardana.dev/docs/rules/by/family-output</loc></url>
   <url><loc>https://guardana.dev/docs/rules/by/family-prompt</loc></url>
+  <url><loc>https://guardana.dev/docs/rules/by/family-retrieval</loc></url>
   <url><loc>https://guardana.dev/docs/rules/by/family-scenario</loc></url>
   <url><loc>https://guardana.dev/docs/rules/by/family-supply_chain</loc></url>
+  <url><loc>https://guardana.dev/docs/rules/by/family-tenancy</loc></url>
   <url><loc>https://guardana.dev/docs/rules/by/family-trace</loc></url>
   <url><loc>https://guardana.dev/docs/rules/by/family-training</loc></url>
   <url><loc>https://guardana.dev/docs/rules/by/framework-MITRE-ATLAS</loc></url>
@@ -167,6 +170,7 @@
   <url><loc>https://guardana.dev/docs/rules/guardana.prompt.mcp_tool_poisoning</loc></url>
   <url><loc>https://guardana.dev/docs/rules/guardana.prompt.system_prompt_leak.canary</loc></url>
   <url><loc>https://guardana.dev/docs/rules/guardana.prompt.unbounded_consumption</loc></url>
+  <url><loc>https://guardana.dev/docs/rules/guardana.retrieval.poisoned_document</loc></url>
   <url><loc>https://guardana.dev/docs/rules/guardana.scenario.gradual_jailbreak</loc></url>
   <url><loc>https://guardana.dev/docs/rules/guardana.scenario.indirect_injection</loc></url>
   <url><loc>https://guardana.dev/docs/rules/guardana.supply_chain.chat_template</loc></url>
@@ -185,6 +189,7 @@
   <url><loc>https://guardana.dev/docs/rules/guardana.supply_chain.remote_code</loc></url>
   <url><loc>https://guardana.dev/docs/rules/guardana.supply_chain.remote_code_config</loc></url>
   <url><loc>https://guardana.dev/docs/rules/guardana.supply_chain.saved_model_ops</loc></url>
+  <url><loc>https://guardana.dev/docs/rules/guardana.tenancy.cross_tenant_answer</loc></url>
   <url><loc>https://guardana.dev/docs/rules/guardana.trace.consent_scope_exceeded</loc></url>
   <url><loc>https://guardana.dev/docs/rules/guardana.trace.credential_passthrough</loc></url>
   <url><loc>https://guardana.dev/docs/rules/guardana.trace.cross_tenant_retrieval</loc></url>

@@ -138,6 +138,22 @@ A framework mapping says a rule is relevant to that entry, not that the entry is
 - `MCP03:2025`: Tool Poisoning
 - `MCP10:2025`: Context Injection & Over-Sharing
 
+## retrieval
+
+### Tested invariant
+
+- `guardana.retrieval.poisoned_document`: The application followed an instruction planted in a retrieved document
+
+### Framework entries these rules are relevant to, not coverage of them
+
+- `AML.T0051`: LLM Prompt Injection
+- `AML.T0080`: AI Agent Context Poisoning
+- `ASI06:2026`: Memory and Context Poisoning
+- `LLM01:2025`: Prompt Injection
+- `LLM01:2026`: Prompt Injection
+- `LLM08:2025`: Vector and Embedding Weaknesses
+- `LLM09:2026`: Vector and Embedding Weaknesses
+
 ## scenario
 
 ### Tested invariant
@@ -194,6 +210,20 @@ A framework mapping says a rule is relevant to that entry, not that the entry is
 - `LLM10:2026`: Improper Output Handling
 - `ML06:2023`: AI Supply Chain Attacks
 - `supply-chain`: GenAI Supply Chain Attack
+
+## tenancy
+
+### Tested invariant
+
+- `guardana.tenancy.cross_tenant_answer`: Another tenant's seeded data reached a reply
+
+### Framework entries these rules are relevant to, not coverage of them
+
+- `AML.T0057`: LLM Data Leakage
+- `LLM02:2025`: Sensitive Information Disclosure
+- `LLM02:2026`: Sensitive Information Disclosure
+- `LLM08:2025`: Vector and Embedding Weaknesses
+- `LLM09:2026`: Vector and Embedding Weaknesses
 
 ## trace
 

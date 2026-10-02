@@ -333,7 +333,7 @@ Three ways, all real:
 ## Path 2: Python plugin (when YAML can't express the logic)
 
 Use this for custom parsers, stateful probes, or any check against an
-**artifact** target. Of the 51 built-in rules, 19 are build-time (artifact-kind)
+**artifact** target. Of the 53 built-in rules, 19 are build-time (artifact-kind)
 Python plugins — pickle opcodes (incl. ZIP-archive recursion), model format,
 chat-template code-execution gadgets, risky ONNX graph constructs, Keras
 Lambda-layer RCE, TensorFlow SavedModel operators, dependency risk, remote-code
@@ -356,8 +356,10 @@ this one but endpoint-kind: `output.secrets`, the tool-calling
 the `mcp.*` checks (the MCP authorization surface — session binding, token
 audience, scope breadth, and others), and the `trace.*` checks (graded from a
 recorded `Trace` rather than a live chat — credential passthrough, identity
-disagreement, cross-tenant retrieval, and others). The
-[rule summary](generated/rule-summary.md) counts them by surface and kind.
+disagreement, cross-tenant retrieval, and others), and the two checks a
+[fixtures file](usage-fixtures.md) brings, `tenancy.cross_tenant_answer` and
+`retrieval.poisoned_document`. The [rule summary](generated/rule-summary.md) counts them by
+surface and kind.
 
 Subclass `Rule`, set `meta` to a `RuleMeta`, implement `run`:
 
@@ -422,6 +424,19 @@ for path in target.iter_files((".tflite",)):
     yield from self._scan(path)
     ctx.examined(path)
 ```
+
+**Say when a precondition of the check did not hold.** A rule whose own control failed —
+a seeded item that never answered — calls `ctx.shortfall(CoverageShortfall(...))` with a
+kind from `guardana.core.report.shortfall`. The run carries it into `coverage_shortfall`,
+which has no switch, so the run is `indeterminate` unless a finding fails it; an
+inconclusive verdict alone would sit behind `fail_on_inconclusive`, which defaults off.
+Yield an inconclusive verdict for it too, so `rule test` sees the decline.
+
+**Price and skip against the target.** A rule whose request count depends on what the
+target holds overrides `estimated_requests_for(target)`, which `plan` reads; it defaults to
+`estimated_requests`. A rule with nothing to check on a target returns the reason from
+`not_applicable_to(target)`, and is recorded as skipped `not_applicable` in the run and
+its plan alike. `guardana.retrieval.poisoned_document` does both.
 
 **Ask the target for parsed source — never parse it yourself.** A scan runs
 every rule over the same tree, so a rule that reads and parses a file for itself

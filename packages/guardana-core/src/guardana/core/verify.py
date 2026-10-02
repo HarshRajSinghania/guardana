@@ -33,6 +33,7 @@ from guardana.core.evaluator.config import (
     wire_config_evaluators,
 )
 from guardana.core.fingerprint import DigestKind, DocumentDigest
+from guardana.core.fixtures import TENANCY_CHECK
 from guardana.core.gate import GateOutcome, OpenQuestion, exit_code_for, gate_outcome
 from guardana.core.gate import open_questions as _open_questions
 from guardana.core.keeping import ExchangeKeeper
@@ -71,7 +72,14 @@ from guardana.core.report.shortfall import CoverageShortfall, ShortfallKind
 from guardana.core.rule import Rule
 from guardana.core.runner import DEFAULT_ENDPOINT_CONCURRENCY, Runner, select_rules
 from guardana.core.subject import SubjectKind
-from guardana.core.target import ArtifactTarget, EndpointError, Target, TargetKind
+from guardana.core.target import (
+    ArtifactTarget,
+    Capability,
+    EndpointError,
+    SeededTarget,
+    Target,
+    TargetKind,
+)
 from guardana.core.target.adapter import HttpAdapterTransport
 from guardana.core.target.endpoint import EndpointTarget
 from guardana.core.target.mcp import McpServerTarget
@@ -241,7 +249,12 @@ class Verifier:
 
     None by default. A caller that builds its target from fixtures passes
     `Fixtures.record()`, so the saved run says which seeded data it asked about and `diff`
-    refuses to read a change of fixtures as a change of the system.
+    refuses to read a change of fixtures as a change of the system. A `SeededTarget`
+    records its own fixtures when this is None, and is refused when this names others.
+
+    Fixtures demand their checks: the tenant check always, the poisoned-document check
+    when a poisoned document is declared. Either one not completed is a `demanded_check`
+    shortfall, so a run cannot record seeded data and verify none of it.
     """
 
     _prepared: list[Registry] = field(default_factory=list, init=False, repr=False)
@@ -365,6 +378,7 @@ class Verifier:
                 f"{target.ref} is a trace; run `guardana analyze-trace`, which reads its "
                 f"unreadable records and its contracts"
             )
+        fixtures = self._fixtures_of(target)
         keeping = self._keeps(target)
         spent = target.usage()
         if spent is not None and spent.requests:
@@ -409,9 +423,24 @@ class Verifier:
             source=source,
             deployment=deployment,
             kept=None if keeper is None or planned is None else (keeper, planned),
+            fixtures=fixtures,
+            demanded=self.demanded_rules | _demanded_by_fixtures(fixtures, target),
         )
 
-    def _keeps(self, target: Target) -> EndpointTarget | None:
+    def _fixtures_of(self, target: Target) -> FixturesRecord | None:
+        """Return the fixtures the run records, refusing a record that names other fixtures."""
+        if not isinstance(target, SeededTarget):
+            return self.fixtures
+        seeded = target.fixtures.record()
+        if self.fixtures is not None and self.fixtures.digest != seeded.digest:
+            raise UnsupportedTargetError(
+                f"the run was given fixtures {self.fixtures.name} ({self.fixtures.digest}) and "
+                f"{target.ref} was seeded from {seeded.name} ({seeded.digest}); the run would "
+                f"record fixtures it did not ask about"
+            )
+        return seeded
+
+    def _keeps(self, target: Target) -> EndpointTarget | SeededTarget | None:
         """Return the endpoint whose exchanges this run keeps, refusing one that cannot keep them.
 
         Only an endpoint run has chat exchanges, and a recording is already what it answers
@@ -425,7 +454,7 @@ class Verifier:
             or isinstance(target, RecordedTarget)
         ):
             return None
-        if not isinstance(target, EndpointTarget):
+        if not isinstance(target, EndpointTarget | SeededTarget):
             raise UnsupportedTargetError(
                 f"privacy.keep_exchanges keeps the chat exchanges of the built-in endpoint "
                 f"target (`--url`, `--adapter`); {target.ref} is a {type(target).__name__}, "
@@ -437,13 +466,15 @@ class Verifier:
         """Return each rule the plain pass plans, with its trials per case.
 
         A rule that plants a canary runs in a planted pass whose exchanges are never kept,
-        so it is left out: a regrade cannot plant one either.
+        so it is left out: a regrade cannot plant one either. So is a rule that asks as a
+        tenant: tenant endpoints keep nothing, and a regrade has no tenant to ask as.
         """
         chosen, _ = select_rules(registry, self.profile, target)
         return {
             rule.meta.id: rule.trials_per_case
             for rule in chosen
             if rule.with_canary(_CANARY_PROBE) is None
+            and Capability.SEEDED_DATA not in rule.meta.required_capabilities
         }
 
     def _calibrations(self) -> Mapping[str, RecordedCalibration]:
@@ -516,6 +547,8 @@ class Verifier:
         source: RunSource | None,
         deployment: DeploymentRef | None,
         kept: tuple[ExchangeKeeper, dict[str, int]] | None = None,
+        fixtures: FixturesRecord | None = None,
+        demanded: frozenset[str] = frozenset(),
     ) -> Verification:
         """Relativize, redact, apply the baseline, gate and describe — in that order.
 
@@ -532,7 +565,7 @@ class Verifier:
             result,
             coverage_shortfall=(
                 *result.coverage_shortfall,
-                *unfinished_demands(self.demanded_rules, result),
+                *unfinished_demands(demanded, result),
             ),
         )
         gate = gate_outcome(result, self.profile.policy)
@@ -570,8 +603,8 @@ class Verifier:
             run_id=run_id,
             connection=_connection_facts(target),
         )
-        if self.fixtures is not None:
-            manifest = replace(manifest, fixtures=self.fixtures)
+        if fixtures is not None:
+            manifest = replace(manifest, fixtures=fixtures)
         return Verification(
             result=result,
             manifest=manifest,
@@ -678,11 +711,27 @@ def unfinished_demands(
     return tuple(gaps)
 
 
+def _demanded_by_fixtures(fixtures: FixturesRecord | None, target: Target) -> frozenset[str]:
+    """Return the checks the run's fixtures demand; none for a run given no fixtures.
+
+    A run that records fixtures and was not handed a seeded target demands the tenant
+    check, which then cannot run, so the run cannot pass on fixtures it never asked about.
+    """
+    if isinstance(target, SeededTarget):
+        return target.fixtures.demanded_checks()
+    if fixtures is not None:
+        return frozenset({TENANCY_CHECK})
+    return frozenset()
+
+
 def _connection_facts(target: Target) -> ConnectionFacts | None:
     """Describe how an endpoint run reached its model; None for any other target.
 
-    Read off the target the caller passed, before a canary is planted on a view of it.
+    Read off the target the caller passed, before a canary is planted on a view of it; a
+    seeded target is described by the run's own endpoint, which is never a tenant.
     """
+    if isinstance(target, SeededTarget):
+        target = target.endpoint
     if not isinstance(target, EndpointTarget):
         return None
     transport = target.transport

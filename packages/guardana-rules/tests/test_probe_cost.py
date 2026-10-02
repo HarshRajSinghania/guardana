@@ -15,15 +15,18 @@ switched off fails open at a level no rule can defend.
 from collections import Counter
 from collections.abc import Mapping, Sequence
 from contextlib import suppress
+from pathlib import Path
 
 from guardana.core.evaluator import Evaluator, Expectation, Verdict
 from guardana.core.exchange import Exchange
+from guardana.core.fixtures import DOCUMENTS_CHANNEL, parse_fixtures
 from guardana.core.plugins import PluginMode, PluginTrust
 from guardana.core.registry import Registry
 from guardana.core.rule import Rule, RuleContext, RuleError
 from guardana.core.rule.trajectory_rule import TrajectoryRule
-from guardana.core.target import Capability, EndpointTarget, TargetKind
+from guardana.core.target import Capability, EndpointTarget, SeededTarget, TargetKind
 from guardana.core.target.endpoint import ChatMessage, ToolCall, ToolCallReply, ToolSpec
+from guardana.core.testing.seeded import SeededApplication, seeded_target
 from guardana.core.trajectory import MAX_STEPS_CEILING
 from guardana.rules import provide_evaluators, provide_rules
 
@@ -187,8 +190,19 @@ def _requests_spent(rule: Rule) -> int:
 
 def test_every_shipped_endpoint_rule_declares_what_it_will_spend() -> None:
     # `plan` reports "N requests, plus M rules of unknown cost". A built-in in the
-    # second group would make our own pre-flight estimate useless.
-    undeclared = [r.meta.id for r in _endpoint_rules() if r.estimated_requests is None]
+    # second group would make our own pre-flight estimate useless. A seeded rule's cost
+    # is the fixtures', so it declares it against the target it is planned for.
+    seeded = {r.meta.id for r in _seeded_rules()}
+    undeclared = [
+        r.meta.id
+        for r in _endpoint_rules()
+        if (
+            r.estimated_requests_for(_seeded_target())
+            if r.meta.id in seeded
+            else r.estimated_requests
+        )
+        is None
+    ]
     assert not undeclared, f"these shipped rules do not declare a request count: {undeclared}"
 
 
@@ -253,11 +267,11 @@ def test_a_rule_that_repeats_declares_and_spends_the_same_at_one_trial() -> None
         assert _requests_spent(once) == _requests_spent(rule), rule.meta.id
 
 
-def test_every_rule_that_repeats_is_measured_by_the_chat_gate() -> None:
-    # The gate above runs repeated rules against a chat endpoint. A rule of the MCP
-    # shape that started repeating would be measured refusing to run, not spending.
-    chat = {r.meta.id for r in _chat_rules()}
-    outside = [r.meta.id for r in _repeated(_endpoint_rules(), 3) if r.meta.id not in chat]
+def test_every_rule_that_repeats_is_measured_by_the_chat_or_the_seeded_gate() -> None:
+    # The gates run repeated rules against a chat endpoint or a seeded target. A rule of
+    # the MCP shape that started repeating would be measured refusing to run, not spending.
+    measured = {r.meta.id for r in _chat_rules()} | {r.meta.id for r in _seeded_rules()}
+    outside = [r.meta.id for r in _repeated(_endpoint_rules(), 3) if r.meta.id not in measured]
     assert not outside, f"these rules repeat but no gate measures their trials: {outside}"
 
 
@@ -286,13 +300,17 @@ def _mcp_rules() -> list[Rule]:
     return [r for r in _endpoint_rules() if not r.meta.required_capabilities - reachable]
 
 
-def test_every_endpoint_rule_belongs_to_one_of_the_two_run_shapes() -> None:
+def test_every_endpoint_rule_belongs_to_one_of_the_three_run_shapes() -> None:
     # The split above is only trustworthy while it is exhaustive: a rule needing
-    # capabilities from both sets would be priced by neither ceiling and skipped by
-    # every real target, which is lost coverage nobody would notice.
-    accounted = {r.meta.id for r in _chat_rules()} | {r.meta.id for r in _mcp_rules()}
+    # capabilities from two sets would be priced by no ceiling and skipped by every
+    # real target, which is lost coverage nobody would notice.
+    accounted = (
+        {r.meta.id for r in _chat_rules()}
+        | {r.meta.id for r in _mcp_rules()}
+        | {r.meta.id for r in _seeded_rules()}
+    )
     orphans = [r.meta.id for r in _endpoint_rules() if r.meta.id not in accounted]
-    assert not orphans, f"these rules can run against neither a chat endpoint nor MCP: {orphans}"
+    assert not orphans, f"these rules can run against no chat, MCP or seeded target: {orphans}"
 
 
 def test_a_chat_probe_has_a_knowable_ceiling() -> None:
@@ -362,6 +380,87 @@ def test_the_mcp_rule_declares_the_one_listing_it_makes() -> None:
     assert target.usage().requests == rule.estimated_requests
 
 
+# --- The third run shape: a target seeded from a fixtures file. ---
+#
+# A seeded rule asks through one endpoint per tenant, so the count that matters is
+# every request any tenant sent, and it is taken from the meter they share. The
+# application answers every tenant every item and obeys every poisoned document,
+# which is the most a seeded rule can be made to spend.
+
+
+def _seeded_rules() -> list[Rule]:
+    """Endpoint rules that need seeded data, which only a target built with `--fixtures` has."""
+    return [r for r in _endpoint_rules() if Capability.SEEDED_DATA in r.meta.required_capabilities]
+
+
+_SEEDED_FIXTURES = """\
+schema_version: 1
+name: cost-gate
+data: synthetic
+tenants:
+  acme: {api_key_env: ACME_KEY}
+  globex: {api_key_env: GLOBEX_KEY}
+  initech: {api_key_env: INITECH_KEY}
+documents:
+  - {id: a-1, tenant: acme, topic: "the loyalty programme"}
+  - {id: a-2, tenant: acme, topic: "returning an order", poisoned: true}
+  - {id: g-1, tenant: globex, topic: "shipping times", poisoned: true}
+  - {id: i-1, tenant: initech, topic: "office hours"}
+records:
+  orders:
+    - {id: A-100, tenant: acme}
+    - {id: G-200, tenant: globex}
+    - {id: I-300, tenant: initech}
+"""
+
+
+def _seeded_target() -> SeededTarget:
+    fixtures = parse_fixtures(_SEEDED_FIXTURES.encode("utf-8"), Path("guardana-fixtures.yaml"))
+    talkative = SeededApplication(
+        fixtures, leaking={DOCUMENTS_CHANNEL, "records/orders"}, obeys=True
+    )
+    return seeded_target(fixtures, talkative)
+
+
+def _seeded_spent(rule: Rule) -> tuple[int, int | None]:
+    """Run one rule against a fresh seeded target; return what the meter counted and the bound."""
+    target = _seeded_target()
+    list(rule.run(target, _CTX))
+    return target.usage().requests, rule.estimated_requests_for(target)
+
+
+def test_the_seeded_rules_are_registered_and_measured() -> None:
+    assert {r.meta.id for r in _seeded_rules()} == {
+        "guardana.tenancy.cross_tenant_answer",
+        "guardana.retrieval.poisoned_document",
+    }
+
+
+def test_a_seeded_rule_spends_exactly_what_it_declared_against_the_target() -> None:
+    # Exact: every item is asked as every tenant, and every poisoned document as its
+    # owner, whatever the replies hold. Seven items, three tenants, two poisoned.
+    spent = {r.meta.id: _seeded_spent(r) for r in _seeded_rules()}
+    assert spent == {
+        "guardana.tenancy.cross_tenant_answer": (21, 21),
+        "guardana.retrieval.poisoned_document": (2, 2),
+    }
+
+
+def test_a_seeded_rule_spends_exactly_what_it_declared_for_every_trial() -> None:
+    repeated = _repeated(_seeded_rules(), 3)
+    assert len(repeated) == len(_seeded_rules())
+    for rule in repeated:
+        spent, declared = _seeded_spent(rule)
+        assert rule.trials_per_case == 3
+        assert spent == declared, f"{rule.meta.id} sent {spent} of {declared} at K = 3"
+
+
+def test_a_seeded_rule_without_seeded_data_declares_no_cost_rather_than_zero() -> None:
+    # `None` is reported as unknown; zero would price a run against fixtures as free.
+    for rule in _seeded_rules():
+        assert rule.estimated_requests is None
+
+
 # --- What a rule grades, measured the same way. ---
 #
 # `guardana plan probe` prices judge calls as the verdicts each rule declares per
@@ -420,6 +519,14 @@ def test_no_shipped_rule_grades_more_verdicts_than_it_declared() -> None:
             f"declaration of {rule.graded_verdicts}"
         )
     assert measured, "no rule graded anything, so this gate measured nothing"
+
+
+def test_no_seeded_rule_grades_with_an_evaluator_it_did_not_declare() -> None:
+    for rule in _seeded_rules():
+        tally: Counter[str] = Counter()
+        list(rule.run(_seeded_target(), _counting_context(tally)))
+        assert rule.graded_verdicts == {}
+        assert not _over(rule.graded_verdicts, tally), rule.meta.id
 
 
 def test_no_mcp_rule_grades_with_an_evaluator_it_did_not_declare() -> None:

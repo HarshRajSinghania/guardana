@@ -24,6 +24,7 @@ For maturity and known gaps, read [Product status](docs/product-status.md).
 | Promote a reviewed failure into a regression case | `guardana case add`, `guardana case list` | one kept exchange added to a suite's dataset, labelled and versioned, only once its expectation fails the failure and passes a correct reply |
 | Declare the synthetic data an application runs with | `guardana-fixtures.yaml`, `guardana fixtures render FILE --out DIR` | tenants with their own credentials, seeded documents and records each carrying markers derived from what was declared, the documents a team ingests, and a recipe lock that pins the file and every tenant adapter |
 | Serve an application's tools in CI | `guardana.core.doubles.open_doubles(FILE, trace=PATH)` | the declared tools over an in-memory copy of the declared records, each call acting for one tenant and seeing only its records, and a trace of every call and effect for `analyze-trace` |
+| Check a tenant boundary and a poisoned document in the application's own index | `guardana probe --fixtures FILE`, `plan probe --fixtures FILE`, a recipe's `subject.fixtures` | every seeded item asked as its owner and as every other tenant, each through its own credentials on the run's meter; a marker of one tenant in another's reply, or a followed instruction planted in a document, is a finding, and a control that never answered leaves the run `indeterminate` |
 | Inspect available evidence | `guardana trace inspect TRACE` | recorded dimensions and policy gaps |
 | Compare releases | `guardana diff BEFORE AFTER` | deterioration, improvement, or an explicit refusal to compare |
 | Re-run checks on a schedule | `guardana monitor ...` | each cycle gated and compared with the first cycle |
@@ -113,6 +114,8 @@ Active and trace-backed checks cover:
   scope breadth, discovery targets, issuer identification, and cache scope;
 - recorded identity, consent, policy, approval, handoff, retrieval, credential,
   and side-effect boundaries;
+- a tenant boundary and a poisoned document checked through the application's own
+  index, from what was sent as which tenant;
 - application-owned security contracts compiled into rules.
 
 Every built-in rule id, severity, target, maturity, and framework mapping is in the

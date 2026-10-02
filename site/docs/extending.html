@@ -356,6 +356,18 @@ only for a rule that grades in its own code and stamps verdicts with its own id,
 <td>Record the rule's conclusion.</td>
 </tr>
 <tr>
+<td><code>RuleContext.shortfall(CoverageShortfall)</code></td>
+<td>Report coverage the rule could not get. It joins the run's <code>coverage_shortfall</code>, which has no switch, so the run is <code>indeterminate</code> unless a finding fails it.</td>
+</tr>
+<tr>
+<td><code>Rule.estimated_requests_for(target)</code></td>
+<td>Price the rule against the target it is planned for; defaults to <code>estimated_requests</code>. <code>plan</code> reads this one.</td>
+</tr>
+<tr>
+<td><code>Rule.not_applicable_to(target)</code></td>
+<td>Return why the rule has nothing to check on <code>target</code>, or <code>None</code>. The run and the plan record it as skipped <code>not_applicable</code>, never as a check that ran.</td>
+</tr>
+<tr>
 <td><code>RuleFixture.rule</code></td>
 <td>Use the variant of the declaring rule that a sample runs.</td>
 </tr>
@@ -610,12 +622,19 @@ only by a query apart; it does not hide a short or guessable value.</p>
 <td><code>inspect_authorization</code></td>
 <td><code>authorization</code>, <code>conversation</code></td>
 </tr>
+<tr>
+<td><code>SeededData</code></td>
+<td><code>seeded_data</code></td>
+<td><code>fixtures</code>, <code>ask_as</code></td>
+</tr>
 </tbody>
 </table></div>
 <p>Built-ins are <code>ArtifactTarget</code> (files: pickles, GGUF, ONNX, ML formats,
 requirements/lockfiles, manifests), <code>EndpointTarget</code>
 (OpenAI-compatible / Ollama / vLLM / HF-TGI chat), <code>TraceTarget</code> (a recorded
-execution) and <code>McpServerTarget</code>. A rule declares the capabilities it needs via
+execution), <code>McpServerTarget</code> and <code>SeededTarget</code> (an endpoint with a
+<a href="usage-fixtures.html">fixtures file</a>'s items and one endpoint per tenant, every one on the
+run's meter; <code>guardana.core.testing.seeded_target</code> builds one over a double). A rule declares the capabilities it needs via
 <code>required_capabilities</code> in <code>RuleMeta</code>; the <code>Runner</code> skips a rule whose target
 cannot satisfy them rather than crashing.</p>
 <p><strong>Check it, rather than assuming it.</strong> <code>guardana.testing.conformance</code> ships in the
@@ -799,6 +818,14 @@ reached exactly the way the real one is (through a <code>Sender</code>) and
 configurable for authorization, session handling, caching headers, and both
 eras of the protocol — so an authorization rule gets a positive and a
 negative server with no network.</p>
+<p><strong>A seeded application</strong>, <code>SeededApplication</code>, stands in for a team's own
+retrieval pipeline over a <a href="usage-fixtures.html">fixtures file</a>: it answers an
+item's question with its marker when the asking tenant's key may read it, and
+switches break its tenant filter per channel, leave items out of its index, or
+make it obey a poisoned document. <code>seeded_target</code> builds a <code>SeededTarget</code> over
+it — the run's endpoint and one endpoint per tenant, on one meter — so a rule
+that needs <code>seeded_data</code> gets a leaking and a holding application with no
+network.</p>
 <p><strong>A run manifest</strong>: <code>manifest_for</code> builds a <code>RunManifest</code> describing a
 <code>ScanResult</code> with test-stable circumstances, and <code>FIXED_RUN_TIME</code> is the
 fixed instant it stamps everywhere — so two renderings of the same result

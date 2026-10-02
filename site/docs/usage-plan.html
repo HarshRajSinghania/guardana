@@ -279,7 +279,7 @@
 <h1><code>guardana plan</code> — what a run would cost, before it costs anything</h1><p class="lede"><code>guardana plan</code>: what a run would cost, before it costs anything</p><p><code>guardana plan</code> estimates request costs when you need to budget a probe or scan without sending a request.</p>
 <pre><code class="language-bash">guardana plan probe --url https://api.example.com --model gpt-4o-mini
 </code></pre>
-<pre><code class="language-text">14 rule(s) would run, 9 skipped.
+<pre><code class="language-text">14 rule(s) would run, 11 skipped.
 requests: at least 14, at most 47
 trials: 1 attempt(s) per case, counted in the requests above
 judge calls: none — no selected rule grades with a judge
@@ -376,6 +376,11 @@ run they are pricing would use, so both take the same plugin-trust flags
 <td><code>--system-prompt-file PATH</code></td>
 <td>none</td>
 <td><code>plan probe</code> only: the system prompt <code>probe</code> would plant; a file that cannot be read is refused (exit <code>3</code>)</td>
+</tr>
+<tr>
+<td><code>--fixtures PATH</code></td>
+<td>none</td>
+<td><code>plan probe</code> only: price the seeded checks from this <a href="usage-fixtures.html">fixtures file</a> — see <a href="#pricing-seeded-data">Pricing seeded data</a>. No tenant key is read; refused with <code>--mcp</code> and <code>--target</code></td>
 </tr>
 <tr>
 <td><code>--safety [passive|active|side-effecting]</code></td>
@@ -483,6 +488,20 @@ would go on to refuse. The selection is now literally the runner's, called from
 one place, so a second copy cannot drift from the first.</p>
 <pre><code class="language-bash">guardana plan probe --url https://api.example.com --model m --safety passive
 </code></pre>
+<h2 id="pricing-seeded-data">Pricing seeded data</h2>
+<p><code>plan probe --fixtures FILE</code> prices the two checks a <a href="usage-fixtures.html">fixtures file</a>
+brings from the file itself: the tenant check at one request per seeded item and tenant per
+trial, and the poisoned-document check at one request per poisoned document per trial. A
+rule whose cost depends on what the target holds declares it through
+<code>Rule.estimated_requests_for(target)</code>; without fixtures both checks are skipped for a
+missing capability and cost nothing.</p>
+<pre><code class="language-bash">guardana plan probe --url https://support.example.test --model support-bot \
+  --fixtures guardana-fixtures.yaml --trials 2
+</code></pre>
+<p>Each tenant is resolved as the probe would resolve it, without reading its key, so a
+fixtures file the probe would refuse is refused here too (exit <code>3</code>). A run given fixtures
+must complete both checks, so a plan that would not select one — a profile that excludes
+it, <code>--safety passive</code> — names it as a coverage shortfall and exits <code>3</code>.</p>
 <h2 id="pricing-an-mcp-server">Pricing an MCP server</h2>
 <p><code>plan probe --mcp</code> prices an MCP run the same way, and it is where this command
 earns its keep. Reading a manifest costs three requests; the authorization checks
@@ -538,6 +557,8 @@ on stderr, one line per cause:</p>
 <ul>
 <li><strong>no rule would run</strong> — the profile, the flags and the target select none, and a
 run that verifies nothing reports no verdict;</li>
+<li><strong>a coverage shortfall</strong> — a check the run's fixtures demand that it would not select,
+or a graded recording whose run stopped;</li>
 <li><strong>a rule it would skip while <code>fail_on.fail_on_skipped</code> is on</strong> — a capability the
 target does not declare, or a safety mode that refuses the rule;</li>
 <li><strong>a file under <code>calibrations:</code> that would stop the run</strong> — missing, unreadable, or

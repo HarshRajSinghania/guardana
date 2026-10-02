@@ -57,6 +57,8 @@ class Capability(StrEnum):
     READ_POLICY_DECISIONS = "read_policy_decisions"
     READ_APPROVALS = "read_approvals"
     READ_SIDE_EFFECTS = "read_side_effects"
+    SEEDED_DATA = "seeded_data"
+    """The target holds a fixtures file's seeded items and one endpoint per declared tenant."""
 
 
 class LocatorError(ValueError):

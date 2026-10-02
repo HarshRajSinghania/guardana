@@ -37,6 +37,7 @@ guardana probe (--url <base-url> --model <name> | --target <scheme://locator>) [
 | `--provider [openai\|ollama\|tgi]` | `openai` | Endpoint wire protocol: OpenAI-compatible (default), Ollama's native `/api/chat`, or HF TGI's `/generate`. Any other name is refused (exit `3`) |
 | `--adapter PATH` | none | Adapter file mapping a **guarded product endpoint**'s custom request/response schema — see [Probing a guarded endpoint](#probing-a-guarded-endpoint). Cannot be combined with `--provider` or `--api-key-env`: the adapter is the wire shape, and its `headers:` carry the credential |
 | `--system-prompt-file PATH` | none | File containing the system prompt already deployed in front of the model, so non-canary rules probe the real configuration. A file that cannot be read is refused (exit `3`) |
+| `--fixtures PATH` | none | A [`guardana-fixtures.yaml`](usage-fixtures.md): ask every seeded item as its owner and as every other tenant, each through that tenant's own credentials, and every poisoned document as its owner — see [Seeded data and tenants](#seeded-data-and-tenants). A file or a tenant connection that cannot be used is refused before anything is sent (exit `3`); refused with `--mcp` and `--target` |
 | `--profile PATH` | none (built-in default profile) | Path to a `guardana.yaml` policy file |
 | `--preset [ci\|pre-training\|monitor\|release]` | none | Named policy preset (mutually exclusive with `--profile`) — see [`profiles.md`](profiles.md#named-presets---preset) |
 | `--format [human\|json\|sarif\|junit]` | `human` | Output format |
@@ -508,7 +509,7 @@ records the file's SHA-256, its line count and how many replies redaction change
 
 - Only the built-in endpoint's plain pass is kept (`--url`, with or without `--adapter`):
   never the system prompt, the canary passes or tool offers, so canary and tool rules are
-  not graded again.
+  not graded again. What a rule asks as a tenant under `--fixtures` is never kept either.
 - Every input and reply passes the run's redactor, matched spans only and without the
   evidence size bound; a secret is removed under every `evidence_mode`, `full` included. A
   reply redaction changed is marked `altered` and is never graded again: a reply that
@@ -516,6 +517,31 @@ records the file's SHA-256, its line count and how many replies redaction change
 - Keeping is off by default. The file holds every reply, passes included, so it widens
   what a leaked run exposes; the collector never receives it. See [privacy](privacy.md).
 - A probe that kept nothing writes no file and says so on stderr.
+
+## Seeded data and tenants
+
+With `--fixtures`, the probe also builds one endpoint per tenant the file declares: the run's
+URL, model, provider and system prompt, and that tenant's own key or adapter. Two checks ask
+through them; every other rule talks to the run's own connection as before, and every tenant
+endpoint bills the run's meter, so the budgets bound the whole probe.
+
+```bash
+guardana fixtures render guardana-fixtures.yaml --out seed/   # seed seed/documents.jsonl yourself
+guardana probe --url https://support.example.test --model support-bot \
+  --fixtures guardana-fixtures.yaml --format json --output run.json
+```
+
+- `guardana.tenancy.cross_tenant_answer` — a marker of one tenant's item in a reply to
+  another tenant is a finding. Clean means no marker of another tenant reached a reply, and
+  only when both controls of the pair answered.
+- `guardana.retrieval.poisoned_document` — a reply that followed the instruction planted in
+  a poisoned document is a finding; skipped as `not_applicable` when none is declared.
+
+A control that returned no marker in any trial is a `seed_not_reached` coverage shortfall,
+so the run ends `indeterminate` (exit `2`) unless a finding fails it, and fixtures demand
+both checks: excluding or skipping one is a `demanded_check` shortfall. The run records the
+file as `run.fixtures`. What each check asks, and what its clean result does and does not
+mean: [`usage-fixtures.md`](usage-fixtures.md#the-two-checks-a-run-given-fixtures-makes).
 
 ## Quality suites
 

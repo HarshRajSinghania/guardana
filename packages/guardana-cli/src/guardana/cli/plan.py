@@ -15,13 +15,17 @@ import typer
 from guardana.cli._budget_flags import override
 from guardana.cli._connection import (
     AdapterOption,
+    FixturesOption,
     ModelOption,
     ProviderOption,
     SystemPromptFileOption,
     UrlOption,
     endpoint_for,
+    read_fixtures,
     read_system_prompt,
     resolve_flags,
+    resolve_tenants,
+    seeded_endpoint,
 )
 from guardana.cli._evaluators import wire_config_evaluators
 from guardana.cli._exit import refuse_invalid_profile, refuse_unenforceable_budget
@@ -46,12 +50,14 @@ from guardana.cli._target_locator import resolve_target
 from guardana.cli.exit_codes import ExitCode
 from guardana.core.budget import BudgetExhausted, Budgets
 from guardana.core.entrypoints import InstalledEntryPoint
+from guardana.core.fixtures import Fixtures
 from guardana.core.gate import OpenQuestion
 from guardana.core.plan import JudgePlan, RunPlan, build_plan
 from guardana.core.profile import Profile, ProfileError
 from guardana.core.recording import RecordingError, read_recording
 from guardana.core.registry import Registry
 from guardana.core.target import ArtifactTarget, Target, TargetKind
+from guardana.core.target.connection import Connection
 from guardana.core.target.recorded import RecordedTarget
 from guardana.core.verify import RecordingRefusedError, refuse_other_trials
 
@@ -378,6 +384,7 @@ def plan_probe(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; thi
     provider: ProviderOption = None,
     adapter: AdapterOption = None,
     system_prompt_file: SystemPromptFileOption = None,
+    fixtures: FixturesOption = None,
     profile: Annotated[Path | None, typer.Option(help="guardana.yaml path")] = None,
     preset: Annotated[str | None, typer.Option(help=PRESET_HELP)] = None,
     format: Annotated[OutputFormat, typer.Option(help="human|json")] = OutputFormat.human,
@@ -453,6 +460,10 @@ def plan_probe(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; thi
 
     The budget is applied to the target as the probe applies it, so a token ceiling
     its transport cannot report against is refused here too.
+
+    With `--fixtures`, the two seeded checks are priced from the file — one request per
+    item and tenant per trial, and one per poisoned document per trial — and each tenant
+    is resolved as the probe resolves it, without reading a key.
     """
     prof = resolve_profile(profile, preset)
     resolved = resolve_trust(plugins, allow_plugin, prof)
@@ -470,12 +481,18 @@ def plan_probe(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; thi
         ),
         trials=prof.trials if trials is None else trials,
     )
-    legacy_target_options = (url, model, mcp, provider, adapter, system_prompt_file)
+    legacy_target_options = (url, model, mcp, provider, adapter, system_prompt_file, fixtures)
     if target is not None and any(value is not None for value in legacy_target_options):
         raise typer.BadParameter(
             "--target cannot be combined with --url, --model, --mcp, --provider, --adapter, "
-            "or --system-prompt-file"
+            "--system-prompt-file or --fixtures"
         )
+    if fixtures is not None and mcp is not None:
+        raise typer.BadParameter(
+            "--fixtures asks the seeded items through --url, once per tenant; an MCP server "
+            "holds none"
+        )
+    seeded = read_fixtures(fixtures)
     registry = Registry.discover(resolved.trust)
     judge_meters = _wire_judges(registry, prof)
     warn_about_load_errors(registry, resolved, what="rule")
@@ -494,6 +511,7 @@ def plan_probe(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; thi
             provider=provider,
             adapter=adapter,
             system_prompt_file=system_prompt_file,
+            fixtures=seeded,
         ),
     )
     try:
@@ -625,17 +643,22 @@ def _plan_probe_target(  # noqa: PLR0913 — one argument per connection flag
     provider: str | None,
     adapter: Path | None,
     system_prompt_file: Path | None,
+    fixtures: Fixtures | None = None,
 ) -> Target:
-    """Build the legacy endpoint or MCP target without contacting it."""
+    """Build the legacy endpoint or MCP target without contacting it, seeded when given fixtures."""
     if mcp is not None:
         return plan_target(mcp)
     endpoint_url, model_name = require_chat_endpoint(url, model)
     connection = resolve_flags(
         endpoint_url, model_name, provider=provider, adapter=adapter, sending=False
     )
-    return endpoint_for(
-        connection, system_prompt=system_prompt_the_probe_will_send(system_prompt_file)
-    )
+    prompt = system_prompt_the_probe_will_send(system_prompt_file)
+    endpoint = endpoint_for(connection, system_prompt=prompt)
+    if fixtures is None:
+        return endpoint
+    written = Connection(endpoint_url, model_name, provider=provider, adapter=adapter)
+    tenants = resolve_tenants(fixtures, written, sending=False)
+    return seeded_endpoint(endpoint, fixtures, tenants, system_prompt=prompt)
 
 
 def system_prompt_the_probe_will_send(named: Path | None) -> str:
