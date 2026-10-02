@@ -48,51 +48,38 @@ def _imports(source: PythonSource) -> Iterator[tuple[int, str]]:
     yield from sorted(found)
 
 
-def _iterdir(path: Path) -> tuple[Path, ...]:
-    """List a directory, treating an unreadable one as empty.
+_INSTALLED_PACKAGES = "site-packages"
 
-    The scanned repo is untrusted input: an access error must skip the directory,
-    never abort the whole scan.
-    """
+
+def _relative_parts(path: Path, root: Path) -> tuple[str, ...]:
+    """Split a listed path below the scan root; the root's own name is never a module."""
     try:
-        return tuple(path.iterdir())
-    except OSError:
-        return ()
+        parts = path.relative_to(root).parts
+    except ValueError:
+        return (path.name,)
+    return parts or (path.name,)
 
 
-def _walk(root: Path) -> Iterator[Path]:
-    pending = [root]
-    while pending:
-        for child in _iterdir(pending.pop()):
-            yield child
-            if child.is_dir() and not child.is_symlink():
-                pending.append(child)
+def _local_modules(files: Iterable[Path], root: Path) -> frozenset[str]:
+    """Name every module the target's own listing provides.
 
-
-def _looks_like_package(children: tuple[Path, ...]) -> bool:
-    """Report whether a dir holds a .py file, or a child dir does (namespace package)."""
-    if any(_module_name(child) for child in children if child.is_file()):
-        return True
-    return any(
-        child.is_dir() and any(_module_name(grandchild) for grandchild in _iterdir(child))
-        for child in children
-    )
-
-
-def _local_modules(root: Path) -> frozenset[str]:
-    names = set()
-    for path in _walk(root):
-        module = _module_name(path)
-        if module is not None and not path.is_dir():
+    A module file names itself, its package and, for a namespace package, the
+    directory above that; anything under a `src/` directory names its top-level
+    package. Only listed files count, so a directory the scan skips or excludes
+    cannot make an unknown import look local.
+    """
+    names: set[str] = set()
+    for path in files:
+        *directories, filename = _relative_parts(path, root)
+        module = _module_name(Path(filename))
+        if module is not None:
             names.add(module)
-        elif path.is_dir():
-            children = _iterdir(path)
-            if any(child.name == "__init__.py" for child in children):
-                names.add(path.name)
-            if path.name == "src":
-                names.update(child.name for child in children if child.is_dir())
-            elif _looks_like_package(children):
-                names.add(path.name)
+            names.update(directories[-2:])
+        names.update(
+            directories[index + 1]
+            for index, directory in enumerate(directories[:-1])
+            if directory == "src"
+        )
     return frozenset(names)
 
 
@@ -117,12 +104,19 @@ class HallucinatedPackageRule(ArtifactRule):
         if not isinstance(target, FileReader):
             return
         root = Path(target.ref)
-        local = _local_modules(root)
+        # An installed package names itself and declares its own dependencies; neither
+        # is this project's, so it must not make an unknown import look known.
+        files = tuple(
+            path
+            for path in target.iter_files()
+            if _INSTALLED_PACKAGES not in _relative_parts(path, root)
+        )
+        local = _local_modules(files, root)
         known = _STDLIB | KNOWN_DISTRIBUTIONS | installed_import_names() | local
         # The repo's own declared dependencies (requirements/pyproject), normalized —
         # so a real, in-requirements package is known even under an isolated install
         # where it isn't importable in Guardana's env.
-        declared = declared_import_names(root)
+        declared = declared_import_names(files)
         for path in target.iter_files((".py",)):
             source = target.python_source(path)
             if source is not None:

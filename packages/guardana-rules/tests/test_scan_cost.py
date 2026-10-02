@@ -25,10 +25,8 @@ from guardana.core.runner import Runner
 from guardana.core.target import ArtifactTarget
 
 _SOURCE_FILES = 6
-# One walk belongs to the target. The second is `_declared_deps`, which reads the
-# repo's requirements/pyproject to tell a real dependency from a hallucinated one;
-# it looks for two filenames, not for every file, and runs once per scan.
-_MAX_TREE_WALKS = 2
+# The one walk belongs to the target; every rule filters its listing.
+_MAX_TREE_WALKS = 1
 
 # Inert fixture text, never imported or executed: `verify=False` and `os.system`
 # are here because they are what `insecure_transport` and `code_execution` must
@@ -51,12 +49,15 @@ def repo(tmp_path: Path) -> Path:
     return tmp_path
 
 
-def _run(root: Path) -> int:
-    result = Runner(
+def _runner() -> Runner:
+    return Runner(
         registry=Registry.discover(PluginTrust(mode=PluginMode.BUILTINS)),
         profile=Profile(name="t", policy=Policy()),
-    ).run(ArtifactTarget(root))
-    return result.rules_run_count
+    )
+
+
+def _run(root: Path) -> int:
+    return _runner().run(ArtifactTarget(root)).rules_run_count
 
 
 def test_a_source_file_is_parsed_once_however_many_rules_read_it(
@@ -94,6 +95,38 @@ def test_the_tree_is_walked_a_bounded_number_of_times(
     assert walks <= _MAX_TREE_WALKS, (
         f"{walks} tree walks — a rule is walking the target itself instead of "
         f"filtering `target.iter_files()`"
+    )
+
+
+def test_each_directory_is_listed_once_per_scan(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Every directory listing goes through `os.scandir` or `os.listdir`, whichever
+    # spelling a rule's hand-rolled walk uses on this Python.
+    (repo / "pkg" / "sub").mkdir(parents=True)
+    (repo / "pkg" / "sub" / "notes.txt").write_text("text\n", encoding="utf-8")
+    directories = 1 + sum(1 for path in repo.rglob("*") if path.is_dir())
+    runner = _runner()
+    listings = 0
+    real_scandir = os.scandir
+    real_listdir = os.listdir
+
+    def counting_scandir(path: str | Path = ".") -> object:
+        nonlocal listings
+        listings += 1
+        return real_scandir(path)
+
+    def counting_listdir(path: str | Path = ".") -> list[str]:
+        nonlocal listings
+        listings += 1
+        return real_listdir(path)
+
+    monkeypatch.setattr(os, "scandir", counting_scandir)
+    monkeypatch.setattr(os, "listdir", counting_listdir)
+    assert runner.run(ArtifactTarget(repo)).rules_run_count > 0
+    assert listings <= directories, (
+        f"{listings} directory listings for {directories} directories — a rule is "
+        f"listing the tree itself instead of filtering `target.iter_files()`"
     )
 
 

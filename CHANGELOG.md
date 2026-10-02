@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`guardana.supply_chain.hallucinated_package` honours the scan's file scope.** It walked the tree itself, so a package installed into an in-tree `.venv`, or a file under an excluded directory, counted as local and hid the lead for an import nobody declared. It now reads the target's own listing, which also removes two tree walks per scan, and nothing under a `site-packages` directory counts as the project's own module or declaration, whatever the virtualenv is called.
+
 ## [0.36.0] - 2026-10-02 — recipe locks, shared endpoint connections, token counts, and coverage shortfalls
 
 ### Added
