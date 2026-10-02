@@ -33,7 +33,7 @@ def diff(
     profile: Annotated[Path | None, typer.Option(help="guardana.yaml path")] = None,
     preset: Annotated[str | None, typer.Option(help=PRESET_HELP)] = None,
 ) -> None:
-    """Compare two saved runs and fail if the second is worse than the first."""
+    """Compare two saved runs and fail if the second is worse at the policy's severity bar."""
     prof = resolve_profile(profile, preset)
     try:
         comparison = compare_reports(load_report(before), load_report(after))

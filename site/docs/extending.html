@@ -392,8 +392,16 @@ class MyEvaluator(Evaluator):
         )
 </code></pre>
 <p>The fail-closed convention above is project law, not a style choice: an
-evaluator that cannot actually grade returns <code>&quot;inconclusive&quot;</code> (surfaced on
-the run's <code>unverified</code> channel), never a confident all-clear.</p>
+evaluator that cannot actually grade returns <code>&quot;inconclusive&quot;</code> (surfaced on the
+run's <code>unverified</code> channel), never a confident all-clear. Built-in YAML,
+scenario, suite, and trajectory rules and calibration all grade through
+<code>guardana.core.evaluator.grade</code>. Third-party Python rules call the evaluator
+directly and are covered only if they use <code>guardana.core.evaluator.grade</code>, as
+they should. That function changes an evaluator's <code>&quot;pass&quot;</code> to <code>&quot;inconclusive&quot;</code>
+with confidence 0.0 under that evaluator's id when the exchange has no reply
+text (<code>reply_text is None</code>). A <code>&quot;fail&quot;</code> stands, and an exchange built from an
+agent run (<code>exchange.trajectory</code> set) is exempt, because a grader of tool
+calls may clear a run that ended without final text.</p>
 <p><code>Exchange.graded_from</code> is the index into <code>messages</code> where the turns under grade
 begin; the messages before it are context. It defaults to <code>0</code>, so an agent run
 or a whole conversation puts every reply under grade. A scenario step starts it
@@ -605,10 +613,13 @@ cannot satisfy them rather than crashing.</p>
 <p><strong>Check it, rather than assuming it.</strong> <code>guardana.testing.conformance</code> ships in the
 package for this, and it checks <em>both</em> directions — including the one that produces
 no error at all:</p>
-<pre><code class="language-python">from guardana.testing import assert_target_conforms
+<pre><code class="language-python">from pathlib import Path
 
-def test_my_target_satisfies_the_contract() -&gt; None:
-    assert_target_conforms(MyTarget(&quot;s3://models/&quot;))
+from guardana.testing import assert_target_conforms
+
+def test_my_target_satisfies_the_contract(tmp_path: Path) -&gt; None:
+    (tmp_path / &quot;model.PKL&quot;).write_bytes(b&quot;\x80\x02N.&quot;)
+    assert_target_conforms(MyTarget(tmp_path))
 </code></pre>
 <p>A target that declares a capability it has no surface for is refused by the runner
 with one clear error. A target that implements a surface and <em>forgets to declare
@@ -617,7 +628,10 @@ the scan comes back green, and nothing in the report separates that from a targe
 with no problems. The conformance kit fails on it.</p>
 <p>For a <code>FileReader</code> it also asks <code>iter_files</code> for the suffixes of up to five of the
 target's own files, in lowercase and in capitals, and fails when a file is left out:
-a target that filters <code>.pkl</code> by exact case hands <code>model.PKL</code> to no rule.</p>
+a target that filters <code>.pkl</code> by exact case hands <code>model.PKL</code> to no rule.
+Point the target at a directory that holds a file, as above: the check samples the
+files the target lists, so over an empty or missing root it has nothing to sample
+and passes without having looked.</p>
 <p>A file run records every path <code>iter_files()</code> listed, so <code>diff</code> can tell a file that
 left the scan from one that was fixed. A target that applies its own excludes can say
 which by implementing <code>file_scope()</code> (<code>guardana.core.target.scope.ReportsFileScope</code>);

@@ -282,7 +282,7 @@ guardana analyze-trace trace.jsonl --format json --output run.json
 </code></pre>
 <ol>
 <li>Write the answers as a <a href="usage-grade.html#a-recording">recording</a>: a header naming them and stating whether the replies are verbatim, then one line per question with your application's reply, naming the rule whose question it answers.</li>
-<li><code>grade</code> grades every recorded reply. A question the recording does not answer, a reply marked altered, and a reply nobody asked for leave the run indeterminate; none of them is counted as passed.</li>
+<li><code>grade</code> grades every recorded reply. A rule the recording holds no line for is skipped as <code>not_recorded</code>, which does not fail the default gate: select the rules it answers with <code>rules.include</code>, or use <code>--preset release</code>, which refuses the skip. Inside a rule the recording answers, a question it does not answer and a reply nobody asked for are errors that leave the run indeterminate, and an altered reply is never graded; none of them is counted as passed.</li>
 <li>To grade a live probe's replies again — a new rule, a sharper expectation, another judge — run the probe once with <code>--keep-exchanges</code> and grade the file it keeps beside the run.</li>
 </ol>
 <p><code>analyze-trace</code> grades what a trace records, as described in <a href="usage-analyze-trace.html"><code>usage-analyze-trace.md</code></a>.</p>

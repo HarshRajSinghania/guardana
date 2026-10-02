@@ -300,12 +300,12 @@ guardana diff before.json after.json
 <tbody>
 <tr>
 <td><code>0</code></td>
-<td>Nothing got worse</td>
+<td>No regression meets both the policy's severity bar and <code>min_confidence</code>, and none lacks evidence; regressions below either bar are still printed</td>
 <td>pass</td>
 </tr>
 <tr>
 <td><code>1</code></td>
-<td>A regression above your policy's bar</td>
+<td>A regression meets both the policy's severity bar and <code>min_confidence</code>, or lacks evidence to weigh</td>
 <td><strong>fail</strong></td>
 </tr>
 <tr>
@@ -470,7 +470,8 @@ may come from that rather than from the system. A setting one run did not record
 and no note is added for it.</p>
 <h2 id="in-ci">In CI</h2>
 <pre><code class="language-yaml">- name: Save this run
-  run: guardana scan . --format json --output current.json
+  # exit 1 is a finding the comparison will judge; 2 and above still stop the job
+  run: guardana scan . --format json --output current.json || test $? -eq 1
 
 - name: Compare against the last green run
   run: guardana diff baseline.json current.json --preset ci

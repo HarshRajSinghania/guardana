@@ -285,7 +285,7 @@ uv run guardana scan examples/vulnerable-model   # exits 1: finds the planted is
 uv add guardana-cli                       # or add it to a project
 pip install guardana-cli                  # or plain pip
 </code></pre>
-<p>The <code>guardana</code> console script comes from <code>guardana-cli</code>, which installs <code>guardana-core</code>, <code>guardana-rules</code>, and <code>guardana-report</code>. Use <code>--from guardana-cli</code> so <code>uvx</code> finds the script. The optional collector has a separate install: <code>pip install guardana-server</code>.</p>
+<p>The <code>guardana</code> console script comes from <code>guardana-cli</code>, which installs <code>guardana-core</code>, <code>guardana-rules</code>, and <code>guardana-report</code>. Use <code>--from guardana-cli</code> so <code>uvx</code> finds the script. The optional collector has a separate install: <code>pip install &quot;guardana-server[serve]&quot;</code>, where the <code>serve</code> extra brings the ASGI server <code>guardana-collector serve</code> needs.</p>
 <p>Run the Git repository with <code>uvx</code>:</p>
 <pre><code class="language-bash">uvx --from git+https://github.com/guardana/guardana#subdirectory=packages/guardana-cli guardana scan .
 </code></pre>

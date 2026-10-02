@@ -77,7 +77,8 @@ than the last accepted run, save both runs and compare them:
 
 ```yaml
       - name: Scan and save this run
-        run: guardana scan . --format json --output current.json
+        # exit 1 is a finding the comparison will judge; 2 and above still stop the job
+        run: guardana scan . --format json --output current.json || test $? -eq 1
 
       - name: Compare against the last accepted run
         run: guardana diff accepted.json current.json --preset ci

@@ -26,7 +26,7 @@ guardana grade answers.jsonl --rules rules/ --profile guardana.yaml --format jso
 ```
 
 1. Write the answers as a [recording](usage-grade.md#a-recording): a header naming them and stating whether the replies are verbatim, then one line per question with your application's reply, naming the rule whose question it answers.
-2. `grade` grades every recorded reply. A question the recording does not answer, a reply marked altered, and a reply nobody asked for leave the run indeterminate; none of them is counted as passed.
+2. `grade` grades every recorded reply. A rule the recording holds no line for is skipped as `not_recorded`, which does not fail the default gate: select the rules it answers with `rules.include`, or use `--preset release`, which refuses the skip. Inside a rule the recording answers, a question it does not answer and a reply nobody asked for are errors that leave the run indeterminate, and an altered reply is never graded; none of them is counted as passed.
 3. To grade a live probe's replies again — a new rule, a sharper expectation, another judge — run the probe once with `--keep-exchanges` and grade the file it keeps beside the run.
 
 `analyze-trace` grades what a trace records, as described in [`usage-analyze-trace.md`](usage-analyze-trace.md).

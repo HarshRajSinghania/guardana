@@ -21,6 +21,7 @@ and nothing is sent anywhere unless a run is given `--reporter`.
 ## Standing one up: three commands
 
 ```bash
+pip install "guardana-server[serve]"                    # the collector and the ASGI server serve needs
 export GUARDANA_DATABASE_URL=postgresql://guardana:secret@db:5432/guardana
 guardana-collector migrate
 guardana-collector bootstrap --org acme --project web   # prints the key, once

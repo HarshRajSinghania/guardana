@@ -17,7 +17,7 @@ guardana probe --url https://staging.example.com --model my-app --max-requests 5
 
 1. `plan probe` estimates the cost and lists what would run without sending a request.
 2. `target inspect` asks the endpoint what it can do. If a rule needs a capability the endpoint lacks, the rule is visibly skipped instead of counted as passed.
-3. `probe` sends at most `--max-requests` requests and saves the run. The saved run does not record which plugin trust was in force. If your endpoint uses its own request and response format, map it with `--adapter` ([guarded endpoints](usage-probe.md#probing-a-guarded-endpoint)).
+3. `probe` sends at most `--max-requests` requests and saves the run. The saved run records the plugin trust in force (`run.configuration.plugins`). If your endpoint uses its own request and response format, map it with `--adapter` ([guarded endpoints](usage-probe.md#probing-a-guarded-endpoint)).
 
 Probe staging, not production. Your application can act on the model's output, and real probe requests can cost money. Read [safe testing](safe-testing.md) first. Run your own checks, such as the starter's `checks/`, with `--rules checks`.
 

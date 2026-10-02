@@ -39,8 +39,8 @@ guardana diff before.json after.json
 
 | Code | Meaning | In CI |
 |---|---|---|
-| `0` | Nothing got worse | pass |
-| `1` | A regression above your policy's bar | **fail** |
+| `0` | No regression meets both the policy's severity bar and `min_confidence`, and none lacks evidence; regressions below either bar are still printed | pass |
+| `1` | A regression meets both the policy's severity bar and `min_confidence`, or lacks evidence to weigh | **fail** |
 | `2` | The two runs could not be compared | **fail** |
 
 `2` is not a softer `0`. A comparison nobody could make and a comparison that
@@ -212,7 +212,8 @@ and no note is added for it.
 
 ```yaml
 - name: Save this run
-  run: guardana scan . --format json --output current.json
+  # exit 1 is a finding the comparison will judge; 2 and above still stop the job
+  run: guardana scan . --format json --output current.json || test $? -eq 1
 
 - name: Compare against the last green run
   run: guardana diff baseline.json current.json --preset ci

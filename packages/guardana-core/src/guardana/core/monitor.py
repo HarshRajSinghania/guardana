@@ -60,7 +60,12 @@ class MonitorSummary:
     unsampled: int
     """Cycles a transient endpoint failure prevented, so nothing was verified in them."""
     exit_code: int
-    """The worst result code any sampled cycle earned; `2` when no cycle was sampled."""
+    """The worst result code any sampled cycle earned; `2` when no cycle was sampled.
+
+    A result code only: a cycle that could not be sampled verified nothing and is not in
+    it, so `0` with `unsampled` above zero is not a pass. The `monitor` command turns that
+    `0` into `4`; a caller reading this summary checks `unsampled` the same way.
+    """
 
 
 @dataclass(frozen=True, slots=True)

@@ -102,7 +102,9 @@ files is refused rather than written over; there is no `--force`. `.git`,
 - **Rules.** Change the prompts and the samples together, and keep the marker
   shape: it is what makes a positive sample evidence rather than an opinion.
 - **The manifest.** Add every new id to `provides`. `guardana pack validate` fails
-  when the manifest and the registrations disagree, in either direction — see
+  when the manifest declares an id nothing registers, or a rule another installed
+  distribution registers; an id registered and not declared is not an error, and
+  `pack lock` lists it as unlocked — see
   [`guardana pack`](usage-pack.md).
 - **The API range.** `extension_api` pins the extension API, not Guardana's release
   number. Widen it after reading what changed, never before.

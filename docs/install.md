@@ -35,7 +35,7 @@ uv add guardana-cli                       # or add it to a project
 pip install guardana-cli                  # or plain pip
 ```
 
-The `guardana` console script comes from `guardana-cli`, which installs `guardana-core`, `guardana-rules`, and `guardana-report`. Use `--from guardana-cli` so `uvx` finds the script. The optional collector has a separate install: `pip install guardana-server`.
+The `guardana` console script comes from `guardana-cli`, which installs `guardana-core`, `guardana-rules`, and `guardana-report`. Use `--from guardana-cli` so `uvx` finds the script. The optional collector has a separate install: `pip install "guardana-server[serve]"`, where the `serve` extra brings the ASGI server `guardana-collector serve` needs.
 
 Run the Git repository with `uvx`:
 

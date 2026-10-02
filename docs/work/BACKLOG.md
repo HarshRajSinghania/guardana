@@ -73,6 +73,43 @@ reproduced; the rest are the sweep's reading with its anchors, not yet reproduce
 - `llm_judge` places the transcript into its prompt unfenced (`core/evaluator/llm_judge.py:26`).
 - Container base images are pinned by tag, not by digest (`deploy/docker/cli.Dockerfile:12`).
 
+## From the codex review of 0.36.0
+
+A whole-codebase and documentation review (GPT through codex, read-only, 2026-10-02). Every
+finding was reproduced or read in the code before anything changed; these were confirmed and
+left for the owner, or are design gaps already documented elsewhere.
+
+- **`--preset ci` passes a run with an unreadable notebook or model file** (UNVERIFIED, exit
+  `0`); `--preset release` fails it. Pinned by `test_ci_preset_fails_on_high` and
+  `docs/profiles.md`. Recommendation: keep, the outputs flag it.
+- **A model file whose parser failed counts as examined**, so it is an inconclusive finding
+  (exit `0` under `ci`) where a file no reader exists for is an `unexamined_component`
+  shortfall (exit `2`). Pinned by `test_unexamined_components.py`.
+- **MCP discovery can be rebound after the private-address check** (DNS rebinding); written down
+  as residual risk in `docs/threat-model.md`. Pinning the resolved address is the fix.
+- **`pack validate` does not check who registers a declared evaluator, target or taxonomy.**
+  The registry records evaluator and target origins (`registry.py`), so two of the three could
+  be checked; taxonomy origins are dropped at discovery. Checking them may fail packs that pass
+  today.
+- **`MonitorSummary.exit_code` is `0` after cycles that could not be sampled**; the `monitor`
+  command exits `4`. The engine owns result codes only, and the field now says so.
+- **`assert_target_conforms` passes a file target with no files**: it samples the files the
+  target lists. The extension guide's example now points at a directory holding one; failing an
+  empty target would change the kit for every pack test.
+- **CLAUDE.md principle 3 says the only traffic is to the target under test**; a judge or guard
+  under `evaluators:` is a configured destination, and an MCP probe reads the authorization
+  metadata the server advertises, which may sit on another host (the landing page and
+  `privacy.md` now say so).
+- **An archive whose early members use up the opcode bound reports a later payload as not
+  scanned** (LOW, `ci` passes) rather than finding it. A member padded past 64 MiB already had
+  the same effect; failing `ci` on a not-scanned pickle archive is the owner's call.
+- `pickle_opcode` still decompresses each non-pickle member up to 64 MiB before it stops
+  parsing; reading a short probe first would cut that cost. A raw `.pkl` has no opcode budget,
+  but its cost grows with its own size.
+- Documented gaps it re-found: third-party reporters cannot be selected (F4), the `Capability`
+  set is closed (`target/base.py`), and `Verifier` does not run trace analysis
+  (`docs/python-api.md`).
+
 ## Left by F6, first half (0.36.0)
 
 - **A read timeout is a rule error, not an unreachable endpoint.** urllib raises a bare

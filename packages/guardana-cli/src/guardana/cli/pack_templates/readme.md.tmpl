@@ -43,7 +43,9 @@ decline. A rule with no samples is reported as unchecked, never as passing.
   so a positive sample is evidence rather than an opinion about tone. Keep that
   shape when you rewrite them.
 - **The manifest.** Add every new rule id to `provides`. `guardana pack validate`
-  fails when the two disagree, in either direction.
+  fails when the manifest declares an id nothing registers, or a rule another
+  installed distribution registers; an id registered and not declared is not an
+  error, and `pack lock` lists it as unlocked.
 - **The API range.** `extension_api` pins the extension API, not Guardana's version.
   When Guardana's extension API moves past the range, widen it here after checking
   what changed — a pack outside the range is refused in both directions.

@@ -280,7 +280,8 @@ that expire, every state change is <strong>audited</strong>, and <strong>retenti
 operator applies. Still ahead of it: RBAC and human identities.</p>
 </blockquote>
 <h2 id="standing-one-up-three-commands">Standing one up: three commands</h2>
-<pre><code class="language-bash">export GUARDANA_DATABASE_URL=postgresql://guardana:secret@db:5432/guardana
+<pre><code class="language-bash">pip install &quot;guardana-server[serve]&quot;                    # the collector and the ASGI server serve needs
+export GUARDANA_DATABASE_URL=postgresql://guardana:secret@db:5432/guardana
 guardana-collector migrate
 guardana-collector bootstrap --org acme --project web   # prints the key, once
 guardana-collector serve                                # http://127.0.0.1:8000

@@ -7,7 +7,7 @@ status: accepted
 
 # Non-executing declarative packs
 
-**Status:** accepted, not yet implemented · **Written:** 2026-09-30 · **Decided:** 2026-09-30 by the
+**Status:** accepted, not yet implemented (built-in plugin trust by default shipped in 0.33.0) · **Written:** 2026-09-30 · **Decided:** 2026-09-30 by the
 maintainer · **Serves:** ROADMAP F2, backlog B12 · **Follows:** [the direction audit](audit-0.31-direction.md)
 
 ## Decision
@@ -39,8 +39,9 @@ author's code.
   (`pack_templates/package_init.py.tmpl`), and so is the built-in one (`rules/__init__.py`).
 - **Trust is decided before the import**, per distribution (`core/plugins.py:47-62`); a refused
   entry point is recorded as a `discovery` error, so a refused pack makes the run
-  indeterminate rather than quietly smaller. The default mode is `all` for `scan`, `probe`
-  and `plan` (`cli/_plugins.py`); the profile has no key for it.
+  indeterminate rather than quietly smaller. The default mode was `all` for `scan`, `probe`
+  and `plan` when this was written; since 0.33.0 it is `builtins` for every command
+  (`cli/_plugins.py`), and a profile's `plugins:` key sets it.
 - **Declarative rules already run without third-party code**: `--rules` and `rules.paths` read
   YAML from disk (`Registry.load_yaml_rule_dirs`), and `--plugins builtins` keeps the built-in
   evaluators. What is missing is packaging: such a directory has no version, no install path

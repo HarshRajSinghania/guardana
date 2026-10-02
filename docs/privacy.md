@@ -14,8 +14,12 @@ way a finding leaves the process goes through it.
 
 ## Defaults
 
-Every command defaults to `redacted`. Nothing is sent anywhere: there is no
-telemetry, no account, and the collector is opt-in in both directions.
+Every command defaults to `redacted`; artifact scans send nothing, and Guardana sends no
+telemetry and needs no account. Probes contact the named target and send graded exchanges
+to judges or guards under `evaluators:`; when an MCP target requires authorization, they
+also read its advertised protected-resource metadata and the metadata of the authorization
+server it names, possibly on other hosts. Nothing else is contacted, and the collector
+receives results only with `--reporter`.
 
 ```yaml
 privacy:

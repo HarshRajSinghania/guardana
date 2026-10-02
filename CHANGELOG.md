@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **A safetensors file that cannot be opened is reported as not scanned**, never as a structural finding about a file nobody read.
 - **A collector's error body is read up to 64 KiB.** A collector answering with an endless body could exhaust the scanning machine's memory.
 - **A taxonomy provider that fails part-way leaves none of its references registered**, so a rule cannot cite a reference whose provider was reported broken.
+- **Documentation now matches the code** where a review found it did not: a recording that names no line for a rule skips it rather than failing the default gate; `guardana diff` exit `0` means nothing worse at the policy's severity and confidence bars; the README's saved-probe command needs `--format json`; the CI examples let a scan's exit `1` reach the comparison; an unreadable Python file is an error; the collector install includes the `serve` extra; saved runs record plugin trust; `pack validate` refuses an id nothing registers and a rule another distribution registers; the target conformance example points at a directory holding a file; and a configured judge or guard, and the authorization metadata an MCP server advertises, are named as the destinations besides the target. The rule-author guide grades through `grade`.
 
 ## [0.36.0] - 2026-10-02 — recipe locks, shared endpoint connections, token counts, and coverage shortfalls
 

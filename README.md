@@ -64,8 +64,8 @@ guardana scan path/to/your/project     # static, offline, no model needed
 guardana init                          # write a guardana.yaml policy file
 guardana scan . --format sarif         # SARIF 2.1.0 for GitHub code scanning
 
-guardana probe --url http://localhost:11434 --model llama3 --preset ci --output run.json
-guardana diff accepted-run.json run.json   # 0 nothing worse · 1 it is · 2 cannot tell
+guardana probe --url http://localhost:11434 --model llama3 --preset ci --format json --output run.json
+guardana diff accepted-run.json run.json   # 0 nothing worse at the policy's bars · 1 it is · 2 cannot tell
 ```
 
 Choose a guide for [your own project](docs/recipe-local-scan.md), [a run your application recorded](docs/recipe-recorded-answers.md), or [the application your users talk to](docs/recipe-real-application.md).

@@ -351,10 +351,13 @@ package for this, and it checks *both* directions — including the one that pro
 no error at all:
 
 ```python
+from pathlib import Path
+
 from guardana.testing import assert_target_conforms
 
-def test_my_target_satisfies_the_contract() -> None:
-    assert_target_conforms(MyTarget("s3://models/"))
+def test_my_target_satisfies_the_contract(tmp_path: Path) -> None:
+    (tmp_path / "model.PKL").write_bytes(b"\x80\x02N.")
+    assert_target_conforms(MyTarget(tmp_path))
 ```
 
 A target that declares a capability it has no surface for is refused by the runner
@@ -366,6 +369,9 @@ with no problems. The conformance kit fails on it.
 For a `FileReader` it also asks `iter_files` for the suffixes of up to five of the
 target's own files, in lowercase and in capitals, and fails when a file is left out:
 a target that filters `.pkl` by exact case hands `model.PKL` to no rule.
+Point the target at a directory that holds a file, as above: the check samples the
+files the target lists, so over an empty or missing root it has nothing to sample
+and passes without having looked.
 
 A file run records every path `iter_files()` listed, so `diff` can tell a file that
 left the scan from one that was fixed. A target that applies its own excludes can say

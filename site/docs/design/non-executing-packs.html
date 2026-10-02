@@ -268,7 +268,7 @@
 </nav>
 </details>
 <main>
-<h1>Non-executing declarative packs<span class="status accepted">accepted</span></h1><p class="lede">whether a pack can ship checks that execute no Python, and which plugin trust a command starts with when the user says nothing</p><p><strong>Status:</strong> accepted, not yet implemented · <strong>Written:</strong> 2026-09-30 · <strong>Decided:</strong> 2026-09-30 by the
+<h1>Non-executing declarative packs<span class="status accepted">accepted</span></h1><p class="lede">whether a pack can ship checks that execute no Python, and which plugin trust a command starts with when the user says nothing</p><p><strong>Status:</strong> accepted, not yet implemented (built-in plugin trust by default shipped in 0.33.0) · <strong>Written:</strong> 2026-09-30 · <strong>Decided:</strong> 2026-09-30 by the
 maintainer · <strong>Serves:</strong> ROADMAP F2, backlog B12 · <strong>Follows:</strong> <a href="audit-0.31-direction.html">the direction audit</a></p>
 <h2 id="decision">Decision</h2>
 <ul>
@@ -297,8 +297,9 @@ manifest is found through <code>importlib.resources.files(module)</code>, which 
 (<code>pack_templates/package_init.py.tmpl</code>), and so is the built-in one (<code>rules/__init__.py</code>).</li>
 <li><strong>Trust is decided before the import</strong>, per distribution (<code>core/plugins.py:47-62</code>); a refused
 entry point is recorded as a <code>discovery</code> error, so a refused pack makes the run
-indeterminate rather than quietly smaller. The default mode is <code>all</code> for <code>scan</code>, <code>probe</code>
-and <code>plan</code> (<code>cli/_plugins.py</code>); the profile has no key for it.</li>
+indeterminate rather than quietly smaller. The default mode was <code>all</code> for <code>scan</code>, <code>probe</code>
+and <code>plan</code> when this was written; since 0.33.0 it is <code>builtins</code> for every command
+(<code>cli/_plugins.py</code>), and a profile's <code>plugins:</code> key sets it.</li>
 <li><strong>Declarative rules already run without third-party code</strong>: <code>--rules</code> and <code>rules.paths</code> read
 YAML from disk (<code>Registry.load_yaml_rule_dirs</code>), and <code>--plugins builtins</code> keeps the built-in
 evaluators. What is missing is packaging: such a directory has no version, no install path
