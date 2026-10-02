@@ -2,6 +2,8 @@ import os
 import sys
 import traceback
 from collections.abc import Sequence
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as distribution_version
 from typing import NoReturn
 
 import typer
@@ -31,12 +33,35 @@ from guardana.cli.scan import scan
 from guardana.cli.target import target_app
 from guardana.cli.taxonomy import taxonomy
 from guardana.cli.trace import trace_app
-from guardana.core import __version__
+
+_DISTRIBUTIONS = ("guardana-cli", "guardana-core", "guardana-rules", "guardana-report")
+"""What `--version` reports: the product first, then each distribution it runs on."""
+
+
+def _installed(distribution: str) -> str:
+    try:
+        return distribution_version(distribution)
+    except PackageNotFoundError:
+        return "not installed"
+
+
+def version_lines() -> list[str]:
+    """Name the product's version, then every distribution's own.
+
+    Each one separately, because they install separately: an environment that
+    resolved a different engine than the CLI it runs has to be visible here.
+    """
+    versions = {name: _installed(name) for name in _DISTRIBUTIONS}
+    width = max(len(name) for name in _DISTRIBUTIONS)
+    return [
+        f"guardana {versions['guardana-cli']}",
+        *(f"  {name:<{width}}  {versions[name]}" for name in _DISTRIBUTIONS),
+    ]
 
 
 def _version_callback(value: bool) -> None:
     if value:
-        typer.echo(f"guardana {__version__}")
+        typer.echo("\n".join(version_lines()))
         raise typer.Exit
 
 

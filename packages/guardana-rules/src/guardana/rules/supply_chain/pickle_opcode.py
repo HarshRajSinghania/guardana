@@ -111,9 +111,12 @@ _SAFE_GLOBALS: frozenset[tuple[str, str]] = frozenset(
         ("numpy._core.numeric", "_frombuffer"),
         ("numpy", "ndarray"),
         ("numpy", "dtype"),
+        # How protocol 2 rebuilds `bytes`; its codec lookup imports only the standard
+        # `encodings` package or a codec the loading process registered, so it runs no code.
+        ("_codecs", "encode"),
     }
 )
-"""Exactly the callables a tensor, array or plain container is rebuilt from.
+"""Exactly the callables a tensor, array, byte string or plain container is rebuilt from.
 
 Pairs, never modules: `numpy.testing._private.utils.runstring` and `torch.hub.load`
 live under the same top-level names as the tensors and run whatever they are given.
@@ -175,6 +178,12 @@ _XZ_MAGIC = b"\xfd7zXZ\x00"
 # `.pt` is not an archive, and a 4+ byte prefix makes an accidental collision with
 # tensor bytes negligible, so ordinary models produce no noise here.
 _NESTED_CONTAINER_MAGICS = (_ZIP_MAGIC, _7Z_MAGIC, _XZ_MAGIC)
+_TORCH_STORAGE = re.compile(r"(?P<prefix>.+)/data/\d+")
+"""A raw tensor storage `torch.save` writes beside its `<prefix>/data.pkl`.
+
+`torch.load` unpickles only `data.pkl` and copies these bytes into tensors as they
+are, so parsing them as a pickle reads float values as opcodes.
+"""
 _MEMBER_MAX_BYTES = 64 * 1024 * 1024
 _ARCHIVE_OPCODE_FLOOR = 1_000_000
 """Opcodes an archive may cost on top of one per byte it occupies on disk.
@@ -501,15 +510,23 @@ def _scan_one(
             return ParseEnd.UNRESOLVABLE, False
 
 
+def _is_raw_storage(name: str, names: frozenset[str]) -> bool:
+    """Whether `name` is a tensor storage beside the `data.pkl` that `torch.load` unpickles."""
+    match = _TORCH_STORAGE.fullmatch(name)
+    return match is not None and f"{match['prefix']}/data.pkl" in names
+
+
 class PickleOpcodeRule(ArtifactRule):
     """Flag a pickle that imports a non-allowlisted callable — code that runs on load.
 
     Reads opcodes statically with `pickletools`; never unpickles anything. Unzips
     ZIP-based model archives (modern `torch.save`) and scans every member
     regardless of extension, so a payload hidden under a non-`.pkl` name cannot
-    slip past. One archive is read up to a member count and an opcode budget shared
-    by its members. Anything it cannot fully parse, or stops reading at a bound,
-    becomes a visible unverified result, never a silent clean.
+    slip past; the one exception is a raw tensor storage beside a `data.pkl`,
+    which `torch.load` never unpickles. One archive is read up to a member count
+    and an opcode budget shared by its members. Anything it cannot fully parse, or
+    stops reading at a bound, becomes a visible unverified result, never a silent
+    clean.
     """
 
     meta = RuleMeta(
@@ -607,7 +624,10 @@ class PickleOpcodeRule(ArtifactRule):
                 # Every entry, not every name: two members may share a name, and
                 # opening by name reads only the last of them.
                 members = archive.infolist()
+                names = frozenset(info.filename for info in members)
                 for info in members[:_ARCHIVE_MAX_MEMBERS]:
+                    if _is_raw_storage(info.filename, names):
+                        continue
                     if (yield from self._scan_member(path, archive, info, budget)):
                         return
                 if len(members) > _ARCHIVE_MAX_MEMBERS:

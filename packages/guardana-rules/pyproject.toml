@@ -37,7 +37,7 @@ classifiers = [
     "Intended Audience :: Developers",
     "Typing :: Typed",
 ]
-dependencies = ["guardana-core>=0.36.0,<0.37", "defusedxml>=0.7.1"]
+dependencies = ["guardana-core==0.36.0", "defusedxml>=0.7.1"]
 
 [project.urls]
 Homepage = "https://guardana.dev"

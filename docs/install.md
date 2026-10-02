@@ -52,7 +52,7 @@ docker run --rm -v "$PWD:/work:ro" ghcr.io/guardana/guardana:0.36 scan /work
 docker run --rm ghcr.io/guardana/guardana-collector:0.36 --help
 ```
 
-Tags include the exact version, the moving minor used above, and `latest`. Pin the moving minor in CI to receive fixes without changing the rule set. Both images run as a non-root user, support `linux/amd64` and `linux/arm64`, and include an SBOM and signed provenance attestation. See [`deploy/docker/README.md`](../deploy/docker/README.md) for mounts, exit codes, reports, and image builds.
+Tags include the exact version, the moving minor used above, and `latest`. Pin the moving minor in CI to receive fixes without changing the rule set, or pin a digest (`ghcr.io/guardana/guardana:<version>@sha256:<digest>`) to run exactly the image you reviewed. Both images run as a non-root user, support `linux/amd64` and `linux/arm64`, and include an SBOM and signed provenance attestation. See [`deploy/docker/README.md`](../deploy/docker/README.md) for mounts, exit codes, reports, and image builds.
 
 ## The optional collector
 

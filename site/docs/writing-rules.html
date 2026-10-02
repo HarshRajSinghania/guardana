@@ -396,7 +396,7 @@ expect:
 <td><code>expect</code></td>
 <td>no (default <code>{}</code>)</td>
 <td>mapping</td>
-<td>Passed straight to the evaluator as an <code>Expectation</code>: <code>canary</code> (string, the marker the <code>canary</code> evaluator looks for) and <code>goal</code> (string, free-text used by <code>llm_judge</code>'s prompt template). Unknown keys are rejected.</td>
+<td>Passed straight to the evaluator as an <code>Expectation</code>: <code>canary</code> (string, the marker the <code>canary</code> evaluator looks for), <code>goal</code> (string, free-text used by <code>llm_judge</code>'s prompt template), and the fields the rule's evaluator declares, such as <code>refusal_markers</code> for <code>keyword</code> and <code>answered</code> (see <a href="#refusals-in-another-language">Refusals in another language</a>). Unknown keys are rejected.</td>
 </tr>
 <tr>
 <td><code>fixtures</code></td>
@@ -414,6 +414,22 @@ expect:
 </table></div>
 <p>A YAML file may contain a single rule mapping or a <strong>list</strong> of rule
 mappings — <code>load_yaml_rules</code> accepts both.</p>
+<h3 id="refusals-in-another-language">Refusals in another language</h3>
+<p><code>keyword</code> and <code>answered</code> recognise a refusal by phrase. The built-in phrases are
+English (<code>guardana.core.evaluator.REFUSAL_MARKERS</code>), so a product that refuses in
+Polish, Spanish or German reads as having complied. Declare its own refusal in
+<code>expect.refusal_markers</code>, a list of non-blank strings. They are matched together
+with the built-in phrases, ignoring case and apostrophe style:</p>
+<pre><code class="language-yaml">evaluator: keyword
+expect:
+  refusal_markers:
+    - &quot;nie mogę w tym pomóc&quot;
+    - &quot;no puedo ayudar con eso&quot;
+</code></pre>
+<p>A value that is not a list of non-blank strings is refused when the rule loads. A
+marker is a substring, so a short or common one reads ordinary answers as refusals:
+under <code>keyword</code> that is a pass the reply did not earn, so quote the product's whole
+configured opening.</p>
 <h3 id="how-a-yaml-rule-executes">How a YAML rule executes</h3>
 <p>For each prompt, <code>YamlRule.run</code> calls <code>target.chat([...])</code>, wraps the
 prompt + reply in an <code>Exchange</code>, and asks the rule's evaluator — resolved by
@@ -685,20 +701,21 @@ transport (<code>verify=False</code>/plaintext HTTP), known-malicious dependenci
 tool-poisoning, hidden-instruction rules-file backdoors, training-data
 integrity, hallucinated packages, provenance, hardcoded secrets — since they
 need real parsing logic, not a prompt corpus. (The hallucinated-package rule
-scans <code>import</code>/<code>from</code> statements in <code>.py</code> files only; it does not read
-<code>requirements.txt</code> or lockfiles.) The other 32 are dynamic endpoint rules: 12
-are YAML (10 single-turn — injection, jailbreak, system-prompt-leak,
-unbounded-consumption, cost-asymmetry, and five agent-scoped checks for
-credential exfiltration, memory poisoning, tool-argument scope, tool-result
-injection, and hidden context in a tool schema — plus 2 scenarios: gradual
-jailbreak and indirect/RAG injection). The remaining 20 need real logic and are
-Python plugins like this one but endpoint-kind: <code>output.secrets</code>, the
-tool-calling <code>agent.excessive_tool_use</code> (see the note below),
-<code>agent.mcp_server_manifest</code>, all 8 <code>mcp.*</code> checks (the MCP authorization
-surface — session binding, token audience, scope breadth, and others), and all
-9 <code>trace.*</code> checks (graded from a recorded <code>Trace</code> rather than a live chat —
-credential passthrough, identity disagreement, cross-tenant retrieval, and
-others).</p>
+reads <code>import</code>/<code>from</code> statements in <code>.py</code> files and checks each name against the
+dependencies the repository declares in <code>requirements*.txt</code> and <code>pyproject.toml</code>,
+so a declared package is not reported.) The rest are dynamic endpoint rules. The
+YAML ones are single-turn (injection, jailbreak, system-prompt-leak,
+unbounded-consumption, cost-asymmetry, and agent-scoped checks for credential
+exfiltration, memory poisoning, tool-argument scope, tool-result injection, and
+hidden context in a tool schema) or scenarios (gradual jailbreak and
+indirect/RAG injection). The others need real logic and are Python plugins like
+this one but endpoint-kind: <code>output.secrets</code>, the tool-calling
+<code>agent.excessive_tool_use</code> (see the note below), <code>agent.mcp_server_manifest</code>,
+the <code>mcp.*</code> checks (the MCP authorization surface — session binding, token
+audience, scope breadth, and others), and the <code>trace.*</code> checks (graded from a
+recorded <code>Trace</code> rather than a live chat — credential passthrough, identity
+disagreement, cross-tenant retrieval, and others). The
+<a href="generated/rule-summary.html">rule summary</a> counts them by surface and kind.</p>
 <p>Subclass <code>Rule</code>, set <code>meta</code> to a <code>RuleMeta</code>, implement <code>run</code>:</p>
 <pre><code class="language-python">from collections.abc import Iterable
 

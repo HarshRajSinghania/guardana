@@ -10,7 +10,7 @@ somebody has to vendor is a conformance kit nobody runs.
 
 from typing import TYPE_CHECKING
 
-from guardana.core.target import Target
+from guardana.core.target import Capability, EndpointTarget, Target, ToolCallingTransport
 from guardana.core.target.protocols import CAPABILITY_SURFACE, FileReader, unmet_surfaces
 
 if TYPE_CHECKING:
@@ -45,7 +45,9 @@ def assert_target_conforms(target: Target) -> None:
         f"implements {surface.__name__} but does not declare {capability} — "
         f"every rule needing it will be skipped and the run will look clean"
         for capability, surface in sorted(CAPABILITY_SURFACE.items())
-        if capability not in declared and isinstance(target, surface)
+        if capability not in declared
+        and isinstance(target, surface)
+        and not _fixed_at_construction(target, capability)
     )
     if not target.ref:
         problems.append("has an empty `ref`, so its findings cannot name what they are about")
@@ -56,6 +58,20 @@ def assert_target_conforms(target: Target) -> None:
             f"{type(target).__name__} does not satisfy the target contract:\n  "
             + "\n  ".join(problems)
         )
+
+
+def _fixed_at_construction(target: Target, capability: Capability) -> bool:
+    """Whether an endpoint's transport, not its class, decides that it cannot call tools.
+
+    `EndpointTarget` always has `offer_tools`, and declares `CALL_TOOLS` only when the
+    transport it was built with speaks the function-calling API, the way it declares
+    `PLANT_SYSTEM_PROMPT` only when built with a system prompt.
+    """
+    return (
+        capability is Capability.CALL_TOOLS
+        and isinstance(target, EndpointTarget)
+        and not isinstance(target.transport, ToolCallingTransport)
+    )
 
 
 def _suffix_case_problems(target: FileReader) -> list[str]:

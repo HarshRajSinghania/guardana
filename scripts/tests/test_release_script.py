@@ -84,7 +84,7 @@ def test_a_green_run_lets_the_release_continue(monkeypatch: pytest.MonkeyPatch) 
 
 
 _BUMP_PLAN = (
-    "0.1.0 -> 0.1.1  (dependents pin >=0.1.1,<0.2)\n"
+    "0.1.0 -> 0.1.1  (siblings pin ==0.1.1)\n"
     "  would update packages/guardana-core/pyproject.toml\n"
     "  would update docs/install.md\n"
     "dry run: uv.lock not re-locked; no files written.\n"

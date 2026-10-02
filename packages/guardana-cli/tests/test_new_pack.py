@@ -6,12 +6,15 @@ would agree by construction, and a catalogue file that never reached the tree
 would still be a test that passes.
 """
 
+import importlib
+import sys
 from pathlib import Path
 
 import pytest
 import yaml
 from guardana.cli.exit_codes import ExitCode
 from guardana.cli.main import app
+from guardana.core import taxonomy
 from guardana.core.pack import EXTENSION_API_VERSION, PACK_SCHEMA_VERSION, load_manifest
 from typer.testing import CliRunner
 
@@ -182,3 +185,29 @@ def test_the_usage_page_states_the_counts_a_real_run_produces(tmp_path: Path) ->
     assert f"Wrote {files} files" in page
     assert f"{len(catalog)} rule(s); {samples} fixture(s) passed" in page
     assert f"{generated_tests} passed" in page
+
+
+def test_a_rule_citing_the_packs_own_taxonomy_loads_outside_discovery(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The generated tests call `provide_rules()` directly, before any discovery ran."""
+    runner.invoke(app, ["new-pack", "zeta-rules", "--dir", str(tmp_path)])
+    package = tmp_path / "src" / "zeta_rules"
+    init = package / "__init__.py"
+    init.write_text(
+        init.read_text() + "\n\ndef provide_taxonomies() -> list[TaxonomyRef]:\n"
+        "    return [TaxonomyRef(scheme='ZETA-RMF', id='ZH-02', title='own hazard')]\n"
+    )
+    rule = package / "catalog" / "prompt_secret_disclosure.yaml"
+    rule.write_text(rule.read_text().replace("taxonomy: [", "taxonomy: [ZH-02, ", 1))
+    monkeypatch.syspath_prepend(str(tmp_path / "src"))
+    for name in [m for m in sys.modules if m == "zeta_rules" or m.startswith("zeta_rules.")]:
+        monkeypatch.delitem(sys.modules, name)
+
+    try:
+        rules = importlib.import_module("zeta_rules").provide_rules()
+        cited = {ref.reference for r in rules for ref in r.meta.taxonomy}
+    finally:
+        taxonomy.unregister("ZH-02")
+
+    assert "ZH-02" in cited

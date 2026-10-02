@@ -277,8 +277,9 @@
 </details>
 <main>
 <h1>Profiles — <code>guardana.yaml</code></h1><p class="lede">the <code>guardana.yaml</code> policy file: which rules run, what fails the build</p><p>A profile is a YAML file that picks which rules run and what makes the run
-fail. Every command that runs the engine (<code>scan</code>, <code>probe</code>, <code>monitor</code>) takes
-one via <code>--profile PATH</code>; without it, a built-in default profile applies
+fail. Every command that runs the engine (<code>scan</code>, <code>probe</code>, <code>grade</code>,
+<code>analyze-trace</code>, <code>monitor</code> and the others that select or grade rules) takes one
+via <code>--profile PATH</code>; without it, a built-in default profile applies
 (<code>include: [&quot;*&quot;]</code>, <code>fail_on.severity: high</code>, <code>fail_on.min_confidence: 0.0</code>).</p>
 <p>Generate a starter file:</p>
 <pre><code class="language-bash">guardana init                # writes ./guardana.yaml

@@ -38,8 +38,9 @@ Practical pre-1.0 rule of thumb: **patch = "safe to upgrade blindly"**, **minor
 = "read the changelog, something might break."** Because a security tool can
 *fail a build* by design, treat "a new HIGH/CRITICAL rule that will flag code
 that passed before" as a **breaking** change (minor bump) — users pin to a range
-precisely so that doesn't surprise their CI. This is what the inter-package pins
-(`>=0.1.0,<0.2`) encode, and what the bump script keeps correct.
+precisely so that doesn't surprise their CI. Between Guardana's own packages
+the pins are exact (`==0.1.0`): the five ship together and are tested only as
+one set, so nothing else may resolve beside them.
 
 > SemVer's own literal guidance for 0.x is looser — *"start at 0.1.0 and
 > increment the minor version for each subsequent release"* — because 0.x makes
@@ -60,29 +61,30 @@ column above. The criteria, the release plan and the target are the first goal i
 
 ## Why lockstep, and the one command that keeps it honest
 
-The five packages share a version and pin to each other (`guardana-cli` needs
-`guardana-core>=0.1.0,<0.2`, etc.). `uv version` bumps a single package's version
-field but **never touches those pins in the other packages**, so bumping by hand
-is the classic place a monorepo release drifts — `core` goes to `0.2.0` while
-`cli` still says `guardana-core>=0.1.0,<0.2` and silently resolves an old core.
+The five packages share a version, and each pins the siblings it needs exactly (`guardana-cli`
+needs `guardana-core==0.1.0`, etc.). A range would let a fresh install pair a
+CLI with a later engine nobody tested it with. `uv version` bumps a single
+package's version field but **never touches those pins in the other packages**,
+so bumping by hand is the classic place a monorepo release drifts — `core` goes
+to `0.2.0` while `cli` still says `guardana-core==0.1.0` and cannot install.
 
 `scripts/bump_version.py` does the whole thing atomically: sets all five
-versions, rewrites every inter-package pin to `>=<new>,<<next-breaking>`,
-updates `guardana.core.__version__` (what `guardana --version` prints), rewrites
+versions, rewrites every inter-package pin to `==<new>`,
+updates `guardana.core.__version__` (what embedding code reads), rewrites
 the documented `guardana/guardana@vMAJOR.MINOR` Action pins (README, integrations
 guide, landing page) to match the moving tag `release.py` will repoint, and
 re-locks `uv.lock`. A pre-release leaves those pins alone, because the stable tag
 does not move for one.
 
 ```bash
-python scripts/bump_version.py patch          # 0.1.0 -> 0.1.1  (pins stay <0.2)
-python scripts/bump_version.py minor          # 0.1.0 -> 0.2.0  (pins -> >=0.2.0,<0.3)
-python scripts/bump_version.py 1.0.0          # set an explicit version (pins -> >=1.0.0,<2)
+python scripts/bump_version.py patch          # 0.1.0 -> 0.1.1  (pins -> ==0.1.1)
+python scripts/bump_version.py minor          # 0.1.0 -> 0.2.0  (pins -> ==0.2.0)
+python scripts/bump_version.py 1.0.0          # set an explicit version (pins -> ==1.0.0)
 python scripts/bump_version.py patch --dry-run  # print the changes, write nothing
 ```
 
 Always `--dry-run` first and read the summary line — it tells you the exact pin
-range dependents will get.
+the siblings will get.
 
 ## The release runbook
 

@@ -80,6 +80,7 @@ _BUILTIN_FIELD_CHECKS: dict[str, Callable[[Expectation], str | None]] = {
         ContainsEvaluator,
         ExactMatchEvaluator,
         JsonValidEvaluator,
+        KeywordEvaluator,
         LengthEvaluator,
         ReferenceJudgeEvaluator,
         RegexEvaluator,

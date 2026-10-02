@@ -11,6 +11,17 @@ Three tags: the exact version, the moving minor (what the table above pins), and
 `latest`. Pin the **moving minor** in a pipeline — it picks up fixes without changing which rules
 run. A pre-release never moves `latest` or the minor tag.
 
+To run exactly the bytes you reviewed, pin the digest as well. A tag can move; a digest
+cannot, and Docker checks it on every pull:
+
+```bash
+docker buildx imagetools inspect ghcr.io/guardana/guardana:<version>   # prints the Digest
+docker run --rm ghcr.io/guardana/guardana:<version>@sha256:<digest> --version
+```
+
+Keep the tag beside the digest so a reader still sees the version. Updating then means
+changing both in one review.
+
 Both are built from `python:3.13-slim-bookworm` in two stages, so the shipped
 image carries no build tooling, and both run as **uid 10001**, not root. Each
 release pushes `linux/amd64` and `linux/arm64`, with an SBOM and a signed

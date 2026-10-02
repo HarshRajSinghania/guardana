@@ -1,4 +1,7 @@
+import io
 import re
+from collections.abc import Callable
+from email.message import Message
 from urllib.error import HTTPError, URLError
 
 import guardana.cli._endpoint as endpoint_module
@@ -105,3 +108,63 @@ def test_a_rate_limit_names_concurrency_only_where_it_exists(
     err = normalised(capsys.readouterr().err)
     assert "--concurrency" not in err
     assert "wait for the quota to reset" in err
+
+
+def _fails_with(status: int, body: bytes) -> Callable[[], None]:
+    def action() -> None:
+        raise HTTPError("http://x", status, "status", Message(), io.BytesIO(body))
+
+    return action
+
+
+def _message(capsys: pytest.CaptureFixture[str], status: int, body: bytes) -> str:
+    with pytest.raises(typer.Exit) as exc:
+        run_against_endpoint("http://x", _fails_with(status, body), accepts=tuple(EndpointFlag))
+    assert exc.value.exit_code == ExitCode.TARGET_UNAVAILABLE
+    return capsys.readouterr().err
+
+
+def test_a_4xx_that_is_not_about_credentials_quotes_the_body_instead_of_blaming_the_header(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    err = _message(capsys, 400, b'{"detail":{"code":"input_rejected"}}')
+
+    assert "rejected the request (HTTP 400); its body begins: " in err
+    assert '{"detail":{"code":"input_rejected"}}' in err
+    assert "auth" not in err
+
+
+@pytest.mark.parametrize("status", [401, 403, 407])
+def test_a_credentials_status_keeps_the_auth_advice(
+    capsys: pytest.CaptureFixture[str], status: int
+) -> None:
+    err = _message(capsys, status, b"denied")
+
+    assert f"rejected the request (HTTP {status})" in err
+    assert "check the auth header" in err
+
+
+def test_the_quoted_body_is_bounded_redacted_and_escaped(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    secret = b"sk-ant-api03-" + b"a" * 95 + b"AA"
+    err = _message(capsys, 422, b"bad\x1b[31m\n" + secret + b" " + b"x" * 1000)
+
+    assert secret.decode() not in err
+    assert "[redacted:" in err
+    assert "\x1b" not in err
+    assert "bad\\x1b[31m\\n" in err
+    quoted = err.split("its body begins: ", 1)[1].rstrip("\n")
+    assert len(quoted) == 201
+    assert quoted.endswith("…")
+
+
+def test_an_empty_body_is_named_rather_than_quoted(capsys: pytest.CaptureFixture[str]) -> None:
+    assert "its body was empty" in _message(capsys, 404, b"")
+
+
+def test_a_5xx_quotes_its_body_too(capsys: pytest.CaptureFixture[str]) -> None:
+    err = _message(capsys, 503, b'{"detail":{"code":"chat_disabled"}}')
+
+    assert "returned HTTP 503; its body begins:" in err
+    assert "chat_disabled" in err

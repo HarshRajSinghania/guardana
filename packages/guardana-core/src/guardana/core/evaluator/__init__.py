@@ -13,7 +13,7 @@ from guardana.core.evaluator.contains import ContainsEvaluator
 from guardana.core.evaluator.exact_match import ExactMatchEvaluator
 from guardana.core.evaluator.guard import GuardEvaluator
 from guardana.core.evaluator.json_valid import JsonValidEvaluator
-from guardana.core.evaluator.keyword import KeywordEvaluator
+from guardana.core.evaluator.keyword import REFUSAL_MARKERS, KeywordEvaluator
 from guardana.core.evaluator.length import LengthEvaluator
 from guardana.core.evaluator.llm_judge import LlmJudgeEvaluator
 from guardana.core.evaluator.reference_judge import ReferenceJudgeEvaluator
@@ -29,6 +29,7 @@ CONFIG_WIRED: tuple[type[Evaluator], ...] = (
 
 __all__ = [
     "CONFIG_WIRED",
+    "REFUSAL_MARKERS",
     "AmplificationEvaluator",
     "AnsweredEvaluator",
     "CanaryEvaluator",

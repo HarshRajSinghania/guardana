@@ -529,3 +529,78 @@ def test_the_callables_a_tensor_or_array_is_rebuilt_from_stay_allowed() -> None:
     for module, name in honest:
         stream = f"c{module}\n{name}\n.".encode()
         assert _scan_opcodes(stream).refs == [], f"{module}.{name}"
+
+
+def _checkpoint(tmp_path: Path, members: dict[str, bytes]) -> Path:
+    path = tmp_path / "optimizer.pt"
+    with zipfile.ZipFile(path, "w") as archive:
+        for name, payload in members.items():
+            archive.writestr(name, payload)
+    return path
+
+
+# bfloat16 values whose first byte happens to be the NEXT_BUFFER opcode.
+_RAW_STORAGE = bytes.fromhex("97938b9ba5a28ea1859685a8bc90afae") * 64
+
+
+def test_a_raw_tensor_storage_beside_its_data_pkl_is_not_read_as_a_pickle(
+    tmp_path: Path,
+) -> None:
+    _checkpoint(
+        tmp_path,
+        {
+            "optimizer/data.pkl": pickle.dumps({"state": {}}, protocol=2),
+            "optimizer/data/71": _RAW_STORAGE,
+        },
+    )
+
+    assert list(PickleOpcodeRule().run(ArtifactTarget(tmp_path), RuleContext())) == []
+
+
+def test_a_malicious_data_pkl_beside_raw_storages_is_still_critical(tmp_path: Path) -> None:
+    _checkpoint(
+        tmp_path,
+        {
+            "optimizer/data.pkl": pickle.dumps(_Evil()),
+            "optimizer/data/0": _RAW_STORAGE,
+            "optimizer/data/1": _RAW_STORAGE,
+        },
+    )
+
+    findings = list(PickleOpcodeRule().run(ArtifactTarget(tmp_path), RuleContext()))
+
+    assert [(f.severity, f.evidence.detail) for f in findings] == [
+        (Severity.CRITICAL, "file=optimizer.pt::optimizer/data.pkl")
+    ]
+
+
+def test_a_storage_shaped_member_with_no_data_pkl_beside_it_is_still_scanned(
+    tmp_path: Path,
+) -> None:
+    """Only `torch.load`'s own layout is exempt; elsewhere a name proves nothing."""
+    _checkpoint(
+        tmp_path,
+        {"other/data.pkl": pickle.dumps({}), "optimizer/data/0": pickle.dumps(_Evil())},
+    )
+
+    findings = list(PickleOpcodeRule().run(ArtifactTarget(tmp_path), RuleContext()))
+
+    assert [f.severity for f in findings] == [Severity.CRITICAL]
+
+
+def test_bytes_rebuilt_by_protocol_2_are_not_a_dangerous_import(tmp_path: Path) -> None:
+    (tmp_path / "rng_state.pth").write_bytes(pickle.dumps({"rng": b"\x00\xff" * 8}, protocol=2))
+
+    assert list(PickleOpcodeRule().run(ArtifactTarget(tmp_path), RuleContext())) == []
+
+
+def test_a_dangerous_global_beside_rebuilt_bytes_still_fires(tmp_path: Path) -> None:
+    (tmp_path / "rng_state.pth").write_bytes(
+        pickle.dumps({"rng": b"\x00\xff", "hook": _Evil()}, protocol=2)
+    )
+
+    findings = list(PickleOpcodeRule().run(ArtifactTarget(tmp_path), RuleContext()))
+
+    assert [f.evidence.summary for f in findings] == [
+        f"unpickling imports non-allowlisted callable: {os.system.__module__}.system"
+    ]

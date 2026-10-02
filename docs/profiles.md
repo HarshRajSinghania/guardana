@@ -8,8 +8,9 @@ status: stable
 # Profiles — `guardana.yaml`
 
 A profile is a YAML file that picks which rules run and what makes the run
-fail. Every command that runs the engine (`scan`, `probe`, `monitor`) takes
-one via `--profile PATH`; without it, a built-in default profile applies
+fail. Every command that runs the engine (`scan`, `probe`, `grade`,
+`analyze-trace`, `monitor` and the others that select or grade rules) takes one
+via `--profile PATH`; without it, a built-in default profile applies
 (`include: ["*"]`, `fail_on.severity: high`, `fail_on.min_confidence: 0.0`).
 
 Generate a starter file:

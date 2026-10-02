@@ -10,13 +10,19 @@ from guardana.core.evaluator import Evaluator
 from guardana.core.rule import Rule
 from guardana.core.rule.yaml_rule import load_yaml_rules
 from guardana.core.target import Target
-from guardana.core.taxonomy import TaxonomyRef
+from guardana.core.taxonomy import TaxonomyRef, register_all
 
 from __MODULE__.target import __CLASS__Target
 
 
 def provide_rules() -> list[Rule]:
-    """Entry point for `guardana.rules`: every rule in the catalogue."""
+    """Entry point for `guardana.rules`: every rule in the catalogue.
+
+    The pack's own taxonomies are registered first, so a rule citing one of them
+    loads outside discovery too, as in this pack's tests. Registering one twice is
+    a no-op.
+    """
+    register_all(provide_taxonomies())
     catalog = importlib.resources.files("__MODULE__.catalog")
     rules: list[Rule] = []
     for entry in sorted(catalog.iterdir(), key=lambda item: item.name):

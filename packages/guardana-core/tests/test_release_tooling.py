@@ -6,6 +6,7 @@ bump script reads."""
 import importlib.util
 import re
 import sys
+import tomllib
 import types
 from pathlib import Path
 
@@ -42,8 +43,8 @@ def test_release_notes_exclude_the_real_dependabot_login() -> None:
 
 
 def test_core_dunder_version_matches_the_package_version() -> None:
-    # `guardana --version` prints `guardana.core.__version__`; the bump script
-    # rewrites pyproject versions. If the two drift, the CLI lies about what is
+    # Embedding code reads `guardana.core.__version__`; the bump script
+    # rewrites pyproject versions. If the two drift, the attribute lies about what is
     # installed — this pins them together.
 
     pyproject = (_repo_root() / "packages" / "guardana-core" / "pyproject.toml").read_text(
@@ -63,6 +64,42 @@ def test_rewrite_dunder_refuses_a_file_with_no_version_line() -> None:
     # drift the function exists to prevent.
     with pytest.raises(SystemExit):
         _BUMP._rewrite_dunder("nothing to see\n", "0.2.0")
+
+
+_SIBLINGS = (
+    "guardana-core",
+    "guardana-rules",
+    "guardana-report",
+    "guardana-cli",
+    "guardana-server",
+)
+
+
+def test_rewrite_pins_every_sibling_to_the_exact_release() -> None:
+    """A range let a fresh install pair this CLI with a later engine nobody tested it with."""
+    text = (
+        'version = "0.1.0"\n'
+        'dependencies = ["guardana-core>=0.1.0,<0.2", "guardana-rules==0.1.0", "pyyaml>=6.0"]\n'
+    )
+
+    rewritten = _BUMP._rewrite(text, "0.2.0rc1")
+
+    assert rewritten == (
+        'version = "0.2.0rc1"\n'
+        'dependencies = ["guardana-core==0.2.0rc1", "guardana-rules==0.2.0rc1", "pyyaml>=6.0"]\n'
+    )
+
+
+def test_every_package_pins_its_siblings_to_its_own_version_exactly() -> None:
+    for package in _SIBLINGS:
+        project = tomllib.loads(
+            (_repo_root() / "packages" / package / "pyproject.toml").read_text(encoding="utf-8")
+        )["project"]
+        siblings = [dep for dep in project["dependencies"] if dep.startswith("guardana-")]
+        assert all(dep.split("==")[0] in _SIBLINGS for dep in siblings), (package, siblings)
+        assert siblings == [f"{dep.split('==')[0]}=={project['version']}" for dep in siblings], (
+            f"{package} pins its siblings as {siblings}; the release is tested only as one set"
+        )
 
 
 def test_main_dry_run_lists_the_core_dunder_file(

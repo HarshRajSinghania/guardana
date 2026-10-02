@@ -1,3 +1,4 @@
+import importlib.metadata
 import os
 import pickle
 from pathlib import Path
@@ -127,6 +128,18 @@ def test_version_prints_and_exits_zero() -> None:
     assert "guardana" in result.stdout
     # The actual version, not a hardcoded literal, so a release bump doesn't break it.
     assert __version__ in result.stdout
+
+
+def test_version_names_the_product_first_and_then_every_distribution_it_runs_on() -> None:
+    """The four install separately, so one resolved apart from the others shows here."""
+    result = runner.invoke(app, ["--version"])
+
+    lines = result.stdout.splitlines()
+    assert lines[0] == f"guardana {importlib.metadata.version('guardana-cli')}"
+    assert [line.split() for line in lines[1:]] == [
+        [name, importlib.metadata.version(name)]
+        for name in ("guardana-cli", "guardana-core", "guardana-rules", "guardana-report")
+    ]
 
 
 def test_scan_with_custom_rules_dir_runs_clean(tmp_path: Path) -> None:

@@ -93,12 +93,33 @@ expect:
 | `evaluator` | yes | string | The evaluator id this rule's prompts are graded with, e.g. `keyword`, `canary`, or an evaluator your own package registers, e.g. `acme.severity_classifier`. A rule using `canary` must set `expect.canary`, and one using `llm_judge` must set `expect.goal` — the loader rejects it otherwise. `llm_judge` and `guard` also need an `evaluators:` block in `guardana.yaml` telling Guardana where their model lives (see [`profiles.md`](profiles.md#config-wired-evaluators-llm_judge-and-guard)); without it, the rule is skipped visibly. |
 | `requires` | no (default `[]`) | list of capability names | Capabilities the target must support, e.g. `[chat]` or `[chat, plant_system_prompt]`. Maps to `guardana.core.target.Capability` (case-insensitive). The `Runner` skips the rule (not a crash) if the target lacks any of these. |
 | `prompts` | yes (at least one) | list of strings | The corpus sent to the target, one `chat()` call per prompt and trial. A scalar string is rejected — it would explode into single-character prompts — and so is a prompt listed twice, because a prompt is its own case id. |
-| `expect` | no (default `{}`) | mapping | Passed straight to the evaluator as an `Expectation`: `canary` (string, the marker the `canary` evaluator looks for) and `goal` (string, free-text used by `llm_judge`'s prompt template). Unknown keys are rejected. |
+| `expect` | no (default `{}`) | mapping | Passed straight to the evaluator as an `Expectation`: `canary` (string, the marker the `canary` evaluator looks for), `goal` (string, free-text used by `llm_judge`'s prompt template), and the fields the rule's evaluator declares, such as `refusal_markers` for `keyword` and `answered` (see [Refusals in another language](#refusals-in-another-language)). Unknown keys are rejected. |
 | `fixtures` | no | list of mappings | The rule's own samples — a finding, a clean and an inconclusive one — each a scripted `reply` and the `outcome` the rule must reach. [`guardana rule test`](usage-rule-test.md) runs them; a rule without all three is reported as not fully sampled. |
 | `detection` | no (default `undeclared`) | `invariant\|heuristic\|undeclared` | What a finding from this rule states. `invariant`: every finding is a checked fact about the target, such as a planted marker seen in a reply. `heuristic`: a finding is a lead a person confirms, because a keyword, a list, a threshold or a pattern decides it. A rule that can emit both kinds declares `heuristic`. Any other value is refused at load. The key does not change the rule's digest, so a saved run does not report a relabelled rule as changed. [Detection limits](generated/detection-limits.md) lists every built-in by this value. |
 
 A YAML file may contain a single rule mapping or a **list** of rule
 mappings — `load_yaml_rules` accepts both.
+
+### Refusals in another language
+
+`keyword` and `answered` recognise a refusal by phrase. The built-in phrases are
+English (`guardana.core.evaluator.REFUSAL_MARKERS`), so a product that refuses in
+Polish, Spanish or German reads as having complied. Declare its own refusal in
+`expect.refusal_markers`, a list of non-blank strings. They are matched together
+with the built-in phrases, ignoring case and apostrophe style:
+
+```yaml
+evaluator: keyword
+expect:
+  refusal_markers:
+    - "nie mogę w tym pomóc"
+    - "no puedo ayudar con eso"
+```
+
+A value that is not a list of non-blank strings is refused when the rule loads. A
+marker is a substring, so a short or common one reads ordinary answers as refusals:
+under `keyword` that is a pass the reply did not earn, so quote the product's whole
+configured opening.
 
 ### How a YAML rule executes
 
@@ -322,20 +343,21 @@ transport (`verify=False`/plaintext HTTP), known-malicious dependencies, MCP
 tool-poisoning, hidden-instruction rules-file backdoors, training-data
 integrity, hallucinated packages, provenance, hardcoded secrets — since they
 need real parsing logic, not a prompt corpus. (The hallucinated-package rule
-scans `import`/`from` statements in `.py` files only; it does not read
-`requirements.txt` or lockfiles.) The other 32 are dynamic endpoint rules: 12
-are YAML (10 single-turn — injection, jailbreak, system-prompt-leak,
-unbounded-consumption, cost-asymmetry, and five agent-scoped checks for
-credential exfiltration, memory poisoning, tool-argument scope, tool-result
-injection, and hidden context in a tool schema — plus 2 scenarios: gradual
-jailbreak and indirect/RAG injection). The remaining 20 need real logic and are
-Python plugins like this one but endpoint-kind: `output.secrets`, the
-tool-calling `agent.excessive_tool_use` (see the note below),
-`agent.mcp_server_manifest`, all 8 `mcp.*` checks (the MCP authorization
-surface — session binding, token audience, scope breadth, and others), and all
-9 `trace.*` checks (graded from a recorded `Trace` rather than a live chat —
-credential passthrough, identity disagreement, cross-tenant retrieval, and
-others).
+reads `import`/`from` statements in `.py` files and checks each name against the
+dependencies the repository declares in `requirements*.txt` and `pyproject.toml`,
+so a declared package is not reported.) The rest are dynamic endpoint rules. The
+YAML ones are single-turn (injection, jailbreak, system-prompt-leak,
+unbounded-consumption, cost-asymmetry, and agent-scoped checks for credential
+exfiltration, memory poisoning, tool-argument scope, tool-result injection, and
+hidden context in a tool schema) or scenarios (gradual jailbreak and
+indirect/RAG injection). The others need real logic and are Python plugins like
+this one but endpoint-kind: `output.secrets`, the tool-calling
+`agent.excessive_tool_use` (see the note below), `agent.mcp_server_manifest`,
+the `mcp.*` checks (the MCP authorization surface — session binding, token
+audience, scope breadth, and others), and the `trace.*` checks (graded from a
+recorded `Trace` rather than a live chat — credential passthrough, identity
+disagreement, cross-tenant retrieval, and others). The
+[rule summary](generated/rule-summary.md) counts them by surface and kind.
 
 Subclass `Rule`, set `meta` to a `RuleMeta`, implement `run`:
 

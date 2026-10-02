@@ -31,9 +31,16 @@ _PACKAGES = (
     "guardana-server",
 )
 _VERSION_RE = re.compile(r'^version = "(?P<v>[^"]+)"', re.MULTILINE)
-_PIN_RE = re.compile(r"(guardana-[a-z]+)>=\d+\.\d+\.\d+,<\d+(?:\.\d+)?")
-# `guardana --version` prints `guardana.core.__version__`; it must move with
-# the pyprojects or the CLI lies about what is installed.
+# A sibling pin, exact or in the older range form the rewrite replaces. The five
+# distributions are released together and tested only as one set, so a dependent
+# pins the exact version it shipped with; a range let a fresh install pair this CLI
+# with a later engine whose behaviour nobody tested against it.
+_PIN_RE = re.compile(
+    r"(guardana-[a-z]+)(?:>=\d+\.\d+\.\d+,<\d+(?:\.\d+)?"
+    r"|==\d+\.\d+\.\d+(?:(?:a|b|rc)\d+|\.post\d+|\.dev\d+)?)(?=\")"
+)
+# `guardana.core.__version__` is what embedding code reads; it must move with
+# the pyprojects or it lies about what is installed.
 _DUNDER_PATH = Path("packages/guardana-core/src/guardana/core/__init__.py")
 _DUNDER_RE = re.compile(r'^__version__ = "[^"]+"', re.MULTILINE)
 # The docs tell users to pin `guardana/guardana@vMAJOR.MINOR` — the moving tag
@@ -113,7 +120,7 @@ _ROADMAP_SHIPS_RE = re.compile(r"(## What ships today \()\d+\.\d+\.\d+(\))")
 # sentence that explains it is how README and integrations.md shipped 0.5.0
 # telling readers the tag points at "the latest 0.3.x".
 _PIN_PROSE_RE = re.compile(r"(latest )\d+\.\d+(\.x)")
-# The `major.minor.patch` core that drives bumps and the pin ceiling — the
+# The `major.minor.patch` core that drives bumps and the moving tags — the
 # leading numbers of any version, ignoring a PEP 440 pre/post/dev suffix.
 _CORE_RE = re.compile(r"^(\d+)\.(\d+)\.(\d+)")
 # An explicit target: a plain X.Y.Z, optionally with a PEP 440 pre/post/dev
@@ -154,21 +161,9 @@ def _next_version(current: str, bump: str) -> str:
     return bump
 
 
-def _breaking_ceiling(version: tuple[int, int, int]) -> str:
-    """Return the upper bound of the compatibility range a dependent pins below.
-
-    Pre-1.0, SemVer treats a MINOR bump as the breaking one, so the ceiling is
-    the next minor (`0.2` for `0.1.x`). From 1.0 on, the MAJOR is breaking.
-    """
-    major, minor, _ = version
-    return f"0.{minor + 1}" if major == 0 else f"{major + 1}"
-
-
-def _rewrite(text: str, new: str, ceiling: str) -> str:
+def _rewrite(text: str, new: str) -> str:
     text = _VERSION_RE.sub(f'version = "{new}"', text, count=1)
-    # Lockstep pins: a dependent must require at least this release and stay
-    # below the next breaking boundary, so both bounds move on every release.
-    return _PIN_RE.sub(rf"\g<1>>={new},<{ceiling}", text)
+    return _PIN_RE.sub(rf"\g<1>=={new}", text)
 
 
 def _rewrite_dunder(text: str, new: str) -> str:
@@ -274,7 +269,6 @@ def main() -> int:
     new = _next_version(current, args.bump)
     if Version(new) <= Version(current):
         sys.exit(f"error: {new} is not newer than the current {current}; refusing to downgrade")
-    ceiling = _breaking_ceiling(_core(new))
 
     # Everything is validated before anything is written. A bump that fails
     # halfway leaves five pyprojects and `__version__` at the new version, an
@@ -282,10 +276,10 @@ def main() -> int:
     # state someone has to unpick by hand mid-release.
     _check_documented_markers()
 
-    print(f"{current} -> {new}  (dependents pin >={new},<{ceiling})")
+    print(f"{current} -> {new}  (siblings pin =={new})")
     for package in _PACKAGES:
         path = _pyproject(package)
-        _apply(path, _rewrite(path.read_text(encoding="utf-8"), new, ceiling), dry_run=args.dry_run)
+        _apply(path, _rewrite(path.read_text(encoding="utf-8"), new), dry_run=args.dry_run)
 
     dunder_path = _REPO / _DUNDER_PATH
     _apply(

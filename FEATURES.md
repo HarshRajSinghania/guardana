@@ -122,12 +122,12 @@ Every built-in rule id, severity, target, maturity, and framework mapping is in 
 
 Built-in evaluators are:
 
-- `keyword` for low-confidence refusal matching; in an agent run a final refusal after a reply without one is `inconclusive`;
+- `keyword` for low-confidence refusal matching, with a rule's own `expect.refusal_markers` added to the built-in English phrases; in an agent run a final refusal after a reply without one is `inconclusive`;
 - `canary` for deterministic planted-marker evidence in any reply under grade: every reply of an agent run or a whole conversation, and the replies a scenario step's grader has not read yet;
 - `tool_call` for actions and decoded argument values over a trajectory, including an exact allowlist per tool and proof that a payload was delivered;
 - `length` and `amplification` for resource-consumption signals;
 - `llm_judge` for configurable semantic grading;
-- `answered` for judging whether a reply refuses a benign task;
+- `answered` for judging whether a reply refuses a benign task, reading the same markers as `keyword`;
 - `contains` for required or forbidden case-sensitive substrings; a forbidden one fails in any reply under grade;
 - `exact_match` for comparison with a reference answer, with optional normalization;
 - `json_valid` for valid JSON and optional required keys;
