@@ -161,8 +161,7 @@ Reproduced, deliberately not fixed in this pass, or found while fixing.
   `git --help push` now reads as a push (it asks). RELEASING.md's moving tag is annotated while
   `release.py` makes a lightweight one.
 - The safetensors reader does not check that `dtype` and `shape` match the offsets or that
-  tensor ranges do not overlap; garak `passed` larger than `total_evaluated` yields a negative
-  failure count; the trace ceilings count characters, not bytes.
+  tensor ranges do not overlap; the trace ceilings count characters, not bytes.
 - `ci-passed` in `release.yml` was tested against a fake `gh`, not the real API; the first
   release with it is the test.
 - An stdio MCP server's `stdin.write` has no deadline; the selector-based read is POSIX-only.

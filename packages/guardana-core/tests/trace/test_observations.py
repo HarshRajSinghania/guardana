@@ -162,6 +162,27 @@ def test_a_garak_verdict_field_of_the_wrong_type_is_unreadable_rather_than_dropp
     assert field in read.unreadable[0]
 
 
+@pytest.mark.parametrize(
+    "counts",
+    [
+        {"passed": 5, "nones": 0, "total_evaluated": 3},
+        {"passed": 2, "nones": 2, "total_evaluated": 3},
+        {"passed": 1, "fails": -2, "total_evaluated": 1},
+        {"fails": 1, "nones": -1, "total_evaluated": 1},
+    ],
+)
+def test_a_garak_record_whose_counts_cannot_all_be_true_is_unreadable_not_a_claim(
+    tmp_path: Path, counts: dict[str, int]
+) -> None:
+    """More passes than outputs would derive a negative failure count and claim it."""
+    record = {"entry_type": "eval", "probe": "p", "detector": "d", **counts}
+    read = read_observations(_jsonl(tmp_path, [record]), ObservationDialect.GARAK)
+    assert read.passed == 0
+    assert read.observations == ()
+    assert len(read.unreadable) == 1
+    assert "p/d" in read.unreadable[0]
+
+
 def test_a_garak_record_with_undecided_outputs_but_no_failure_count_keeps_both_facts(
     tmp_path: Path,
 ) -> None:

@@ -134,12 +134,24 @@ def _garak_eval(
             f"as something other than an integer"
         )
         return (), 0
+    negative = [k for k in _GARAK_COUNTS if (optional_int(record, k) or 0) < 0]
+    if negative:
+        unreadable.append(
+            f"record {number} ({probe}/{detector}) states a negative {', '.join(negative)}"
+        )
+        return (), 0
     fails = optional_int(record, "fails")
     nones = optional_int(record, "nones") or 0
     evaluated = optional_int(record, "total_evaluated")
     passes = optional_int(record, "passed")
     if fails is None and passes is not None and evaluated is not None:
         fails = evaluated - passes - nones
+        if fails < 0:
+            unreadable.append(
+                f"record {number} ({probe}/{detector}) states more passed and undecided "
+                f"outputs ({passes + nones}) than total_evaluated ({evaluated})"
+            )
+            return (), 0
     if fails is None:
         unreadable.append(
             f"record {number} ({probe}/{detector}) states no failure count, and no "
