@@ -319,11 +319,19 @@ or failed one is a check that will not run.</li>
 <code>doctor</code> reads a refused pack's metadata without importing it.</li>
 <li><strong>which settings weaken the gate.</strong> Each is a legitimate choice; making it
 silently is what must not happen.</li>
+<li><strong>whether the files the profile names load.</strong> Each contract, calibration and
+<code>rules.paths</code> entry goes through the loader a run uses; one a run would refuse is a
+failure here too.</li>
+<li><strong>whether each <code>plugins.allow</code> entry loads anything.</strong> A name that is not installed,
+or installs no Guardana entry point, is a warning: its checks would simply be absent.</li>
 </ul>
 <p>Exit <code>3</code> when something is broken — no rules discovered, a plugin that failed to
-load. Warnings alone exit <code>0</code>: they are things worth knowing, not faults.</p>
+load, a file the profile names that a run could not load. Warnings alone exit <code>0</code>:
+they are things worth knowing, not faults.</p>
 <h2 id="config-validate--fail-before-you-pay"><code>config validate</code> — fail before you pay</h2>
-<p>Parses the profile and stops. Useful as an early pipeline step: a typo in
+<p>Parses the profile, then reads every contract, calibration file and <code>rules.paths</code>
+entry it names with the loaders a run uses. Each problem is printed and the command
+exits <code>3</code>, as the run would. Useful as an early pipeline step: a typo in
 <code>guardana.yaml</code> should fail in a second rather than after a probe has spent its
 budget finding out.</p>
 <h2 id="config-explain--what-is-actually-in-force"><code>config explain</code> — what is actually in force</h2>
@@ -332,9 +340,11 @@ budget finding out.</p>
 <p>A profile file shows what somebody wrote. The question they actually have is what
 is <em>in force</em>, and most of a gate is defaults — including the ones nobody typed.
 <code>explain</code> prints the resolved settings: thresholds, budgets, privacy, safety, plugin
-trust (with whether the profile stated it), and
+trust (with whether the profile stated it), the contracts and calibrations the profile
+names with what each file loaded, and
 the privacy policy digest that a run manifest also records, so a saved run can be
-matched back to the configuration that produced it.</p>
+matched back to the configuration that produced it. A named file that does not load is
+printed as an error, listed under <code>problems</code> in the JSON form, and exits <code>3</code>.</p>
 <h2 id="see-also">See also</h2>
 <ul>
 <li><a href="profiles.html"><code>profiles.md</code></a> — what each setting means</li>

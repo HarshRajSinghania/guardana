@@ -62,13 +62,21 @@ It answers the questions that are otherwise guessed at:
   `doctor` reads a refused pack's metadata without importing it.
 - **which settings weaken the gate.** Each is a legitimate choice; making it
   silently is what must not happen.
+- **whether the files the profile names load.** Each contract, calibration and
+  `rules.paths` entry goes through the loader a run uses; one a run would refuse is a
+  failure here too.
+- **whether each `plugins.allow` entry loads anything.** A name that is not installed,
+  or installs no Guardana entry point, is a warning: its checks would simply be absent.
 
 Exit `3` when something is broken — no rules discovered, a plugin that failed to
-load. Warnings alone exit `0`: they are things worth knowing, not faults.
+load, a file the profile names that a run could not load. Warnings alone exit `0`:
+they are things worth knowing, not faults.
 
 ## `config validate` — fail before you pay
 
-Parses the profile and stops. Useful as an early pipeline step: a typo in
+Parses the profile, then reads every contract, calibration file and `rules.paths`
+entry it names with the loaders a run uses. Each problem is printed and the command
+exits `3`, as the run would. Useful as an early pipeline step: a typo in
 `guardana.yaml` should fail in a second rather than after a probe has spent its
 budget finding out.
 
@@ -81,9 +89,11 @@ guardana config explain --format json
 A profile file shows what somebody wrote. The question they actually have is what
 is *in force*, and most of a gate is defaults — including the ones nobody typed.
 `explain` prints the resolved settings: thresholds, budgets, privacy, safety, plugin
-trust (with whether the profile stated it), and
+trust (with whether the profile stated it), the contracts and calibrations the profile
+names with what each file loaded, and
 the privacy policy digest that a run manifest also records, so a saved run can be
-matched back to the configuration that produced it.
+matched back to the configuration that produced it. A named file that does not load is
+printed as an error, listed under `problems` in the JSON form, and exits `3`.
 
 ## See also
 

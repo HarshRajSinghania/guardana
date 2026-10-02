@@ -14,7 +14,7 @@ from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import StrEnum
-from importlib.metadata import PackageNotFoundError, version
+from importlib.metadata import PackageNotFoundError, distribution, version
 from pathlib import Path
 from typing import Annotated
 
@@ -29,6 +29,7 @@ from guardana.cli._plugins import (
     resolve_trust,
 )
 from guardana.cli._profile import PRESET_HELP, resolve_profile
+from guardana.cli._profile_files import read_profile_files
 from guardana.cli.exit_codes import ExitCode
 from guardana.core.entrypoints import InstalledEntryPoint, installed_entry_points
 from guardana.core.plugins import BUILTIN_DISTRIBUTIONS, PluginMode, normalize_distribution
@@ -289,6 +290,47 @@ def _profile_trust(profile: Profile) -> list[Check]:
     ]
 
 
+def _allowed_plugins(
+    resolved: ResolvedTrust, installed: Sequence[InstalledEntryPoint]
+) -> list[Check]:
+    """Warn about each allowlisted distribution that would load nothing.
+
+    An allowlist entry that is not installed, or installs no Guardana entry point,
+    leaves its pack's checks absent with nothing said; a team expecting them would
+    read the quieter report as a cleaner one.
+    """
+    trust = resolved.trust
+    if trust.mode is not PluginMode.ALLOWLIST:
+        return []
+    advertising = {_normalized(entry_point.distribution) for entry_point in installed}
+    checks: list[Check] = []
+    for name in sorted(trust.allowed):
+        if not _is_installed(name):
+            detail = "not installed, so nothing from it is loaded"
+        elif normalize_distribution(name) not in advertising:
+            detail = "installed, and registers no Guardana entry point, so nothing is loaded"
+        else:
+            continue
+        checks.append(Check(f"plugins.allow {name}", Level.WARN, detail))
+    return checks
+
+
+def _is_installed(name: str) -> bool:
+    try:
+        distribution(name)
+    except PackageNotFoundError:
+        return False
+    return True
+
+
+def _profile_files(profile: Profile) -> list[Check]:
+    """Fail on each contract, calibration or rule path the profile names and a run refuses."""
+    return [
+        Check("profile files", Level.FAIL, problem)
+        for problem in read_profile_files(profile).problems
+    ]
+
+
 def _policy(profile: Profile) -> list[Check]:
     """Flag settings that weaken the gate, whether or not that was intended.
 
@@ -354,7 +396,9 @@ def doctor(
         *_plugins(registry, leftover),
         *packs,
         *_policy(prof),
+        *_profile_files(prof),
         *_profile_trust(prof),
+        *_allowed_plugins(resolved, installed),
     ]
     for check in checks:
         typer.echo(f"{_MARK[check.level]} {check.name}: {check.detail}")

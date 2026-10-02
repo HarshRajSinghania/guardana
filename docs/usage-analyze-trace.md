@@ -111,9 +111,14 @@ records. Leave one out and its rules do not run — which is the safe direction.
 omit the field entirely, Guardana derives it from what is present, and derivation can only
 ever *reduce* what runs.
 
-**Unknown keys are refused.** A misspelled `aprovals:` would leave the approval dimension
-declared and empty, the rule would run, and it would report a system that approved
-everything properly. A load error is better than a false accusation.
+**Unknown keys are refused, at every level.** The header, its `producer`, each span and
+every object inside a span — message, part, tool, retrieval, credential, approval, effect
+and the rest — accept only the keys `schemas/trace-v3.schema.json` defines. Anything else
+stops the read with exit `3`. A misspelled `aprovals:` would leave the approval dimension
+declared and empty; a misspelled `aprover` or a part written `{"type": "text", "text": …}`
+would read as a missing value. Either way a rule grades nothing, or accuses a system that
+did nothing wrong. The `otel` dialect stays tolerant, because an OpenTelemetry span
+carries attributes from other domains.
 
 **Credentials are named, never carried.** Write a `digest` if you have one. If you write a
 `value`, Guardana hashes it on read and keeps only the hash — the model has no field to

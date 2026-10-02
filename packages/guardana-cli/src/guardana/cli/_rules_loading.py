@@ -2,7 +2,7 @@ from pathlib import Path
 
 import typer
 from guardana.core.profile import Profile
-from guardana.core.registry import Registry
+from guardana.core.registry import Registry, yaml_rule_files
 
 
 def load_custom_rules(
@@ -50,3 +50,24 @@ def _only_in_the_working_directory(profile: Profile) -> list[tuple[Path, Path]]:
         if not anchored.exists() and as_written.exists():
             pairs.append((anchored, as_written))
     return pairs
+
+
+def rule_path_problems(profile: Profile) -> list[str]:
+    """Say which `rules.paths` entries a run would fail to load anything from.
+
+    The run records these as load errors and fails its gate on them; a profile check
+    that did not look would call valid a configuration the run refuses.
+    """
+    problems: list[str] = []
+    for entry in profile.rule_paths:
+        path = Path(entry)
+        if not path.exists():
+            problems.append(
+                f"rules.paths entry {path} does not exist, so the rules it names cannot load"
+            )
+        elif not yaml_rule_files(path):
+            problems.append(
+                f"rules.paths entry {path} holds no .yaml or .yml rule file; files in its "
+                f"subdirectories are not read"
+            )
+    return problems

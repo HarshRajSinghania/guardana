@@ -218,12 +218,31 @@ def _notes(
             f"note: {', '.join(str(d) for d in gaps)} are not recorded at all, so the rules "
             f"needing them do not run — their silence is not evidence that nothing happened"
         )
+    silent, total = _messages_without_text(trace)
+    if silent:
+        lines.append(
+            f"note: {silent} of {total} message(s) carry no readable text and no tool call, "
+            f"so a rule reading message text grades them as empty — check the producer "
+            f"writes each part's text under 'content'"
+        )
     if trace.truncated is not None:
         lines.append(
             f"note: the trace is incomplete ({trace.truncated}), so a step this file does "
             f"not contain may still have happened"
         )
     return lines
+
+
+def _messages_without_text(trace: Trace) -> tuple[int, int]:
+    """Count the messages with neither readable text nor a tool call, and all messages.
+
+    `records` says a message was there, which is not that a rule can read it: a message
+    whose every part is empty or opaque grades as nothing said. A tool-call turn is
+    excluded because it is read as structure, and counting it would fire on every agent.
+    """
+    messages = [message for span in trace.spans for message in span.messages]
+    silent = sum(1 for m in messages if not m.text().strip() and not m.tool_calls())
+    return silent, len(messages)
 
 
 def _document(  # noqa: PLR0913, PLR0917 — one already-computed report fact per argument
@@ -249,6 +268,7 @@ def _document(  # noqa: PLR0913, PLR0917 — one already-computed report fact pe
         "spans": len(trace.spans),
         "truncated": None if trace.truncated is None else str(trace.truncated),
         "trace_rules_loaded": trace_rule_count,
+        "messages_without_text": _messages_without_text(trace)[0],
         "dimensions": [
             {
                 "dimension": str(row.dimension),

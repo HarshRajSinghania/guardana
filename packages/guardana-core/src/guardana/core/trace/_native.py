@@ -1,9 +1,11 @@
 """The dialect Guardana defines: OpenTelemetry's message shape plus the named extensions.
 
-Strict about keys, unlike the OpenTelemetry reader, and `reject_unknown_keys`
-carries the reason. This is also the only dialect that can *declare* what it
-records, which is why converting an OTel export into it is how an operator adds the
-authorization dimensions their framework does not emit.
+Strict about keys at every level, unlike the OpenTelemetry reader, and
+`reject_unknown_keys` carries the reason. Messages and parts reach the shared
+OpenTelemetry helpers only after their keys are checked here, so that dialect stays
+tolerant. This is also the only dialect that can *declare* what it records, which is
+why converting an OTel export into it is how an operator adds the authorization
+dimensions their framework does not emit.
 """
 
 from collections.abc import Callable, Mapping
@@ -47,6 +49,7 @@ from guardana.core.trace.identity import (
     SessionRef,
 )
 from guardana.core.trace.memory import MemoryAction, MemoryOperation
+from guardana.core.trace.message import Message
 from guardana.core.trace.model import TRACE_SCHEMA_VERSION, Dimension, TraceTruncation
 from guardana.core.trace.retrieval import Retrieval, RetrievedDocument
 from guardana.core.trace.span import ModelCall, Span, SpanKind
@@ -97,6 +100,66 @@ _SPAN_KEYS = frozenset(
         "effects",
     }
 )
+OBJECT_KEYS: Mapping[str, frozenset[str]] = {
+    "header": _HEADER_KEYS,
+    "header.producer": frozenset({"name", "version", "recorded_at"}),
+    "footer": _FOOTER_KEYS,
+    "span": _SPAN_KEYS,
+    "span.agent": frozenset({"name", "id"}),
+    "span.model": frozenset(
+        {
+            "provider",
+            "request_model",
+            "response_model",
+            "input_tokens",
+            "output_tokens",
+            "finish_reasons",
+        }
+    ),
+    "span.tool_offers[]": frozenset({"name", "description", "schema", "tool_type"}),
+    "span.tool": frozenset(
+        {"name", "call_id", "arguments", "result", "status", "mutates", "server"}
+    ),
+    "span.retrieval": frozenset({"query", "source", "tenant", "documents"}),
+    "span.retrieval.documents[]": frozenset(
+        {"id", "content", "source", "tenant", "score", "metadata"}
+    ),
+    "span.memory": frozenset({"action", "store", "key", "content", "origin_span_id"}),
+    "span.handoff": frozenset({"from_agent", "to_agent", "payload", "carried_scopes"}),
+    "span.identity": frozenset({"actor", "credential", "claimed_resource", "session"}),
+    "span.delegations[]": frozenset({"actor", "boundary", "on_behalf_of", "credential", "scopes"}),
+    "span.consents[]": frozenset({"client", "granted", "scopes", "subject", "recorded_at"}),
+    "span.policy_decisions[]": frozenset({"outcome", "action", "policy", "rationale"}),
+    "span.approvals[]": frozenset(
+        {"action", "outcome", "approver", "approver_kind", "requested_at", "decided_at"}
+    ),
+    "span.effects[]": frozenset({"sink", "action", "target", "status", "reversible", "detail"}),
+    "session": frozenset({"id", "protocol"}),
+    "credential": frozenset({"kind", "digest", "value", "audience", "issuer", "subject", "scopes"}),
+    "message": frozenset({"role", "parts", "finish_reason"}),
+    "part": frozenset(
+        {
+            "type",
+            "content",
+            "id",
+            "name",
+            "arguments",
+            "response",
+            "media_type",
+            "mime_type",
+            "uri",
+            "url",
+            "digest",
+            "size_bytes",
+            "data",
+        }
+    ),
+}
+"""The keys each object of this dialect allows, by its place in the published schema.
+
+One table rather than a set beside each parser, so a test can hold it equal to
+`schemas/trace-v3.schema.json` and the reader cannot accept what the schema refuses.
+"""
 
 
 class NativeHeader:
@@ -108,6 +171,7 @@ class NativeHeader:
         self.version = version_of(raw)
         self.trace_id = text_of(raw, "trace_id", "trace header")
         producer = mapping_of(raw.get("producer", {}), "trace header.producer")
+        _closed(producer, "header.producer", "trace header.producer")
         self.producer = optional_text(producer, "name") or "unknown"
         self.producer_version = optional_text(producer, "version")
         self.recorded_at = optional_time(producer, "recorded_at")
@@ -241,20 +305,28 @@ def _truncation(raw: Mapping[str, Any]) -> TraceTruncation | None:
 
 
 def span_from(raw: Mapping[str, Any]) -> Span:
-    """Read one native span record."""
+    """Read one native span record, refusing an unknown key at any level of it."""
     reject_unknown_keys(raw, _SPAN_KEYS, "span")
+    span_id = text_of(raw, "span_id", "span")
+    try:
+        return _span(raw, span_id)
+    except TraceLoadError as exc:
+        raise TraceLoadError(f"span {span_id!r}: {exc}") from exc
+
+
+def _span(raw: Mapping[str, Any], span_id: str) -> Span:
     return Span(
-        span_id=text_of(raw, "span_id", "span"),
+        span_id=span_id,
         kind=_enum(raw, "kind", SpanKind, SpanKind.OTHER),
-        name=optional_text(raw, "name") or text_of(raw, "span_id", "span"),
+        name=optional_text(raw, "name") or span_id,
         agent=_agent(raw.get("agent")),
         parent_span_id=optional_text(raw, "parent_span_id"),
         started_at=optional_time(raw, "started_at"),
         ended_at=optional_time(raw, "ended_at"),
         error=optional_text(raw, "error"),
         model=_model(raw.get("model")),
-        messages=tuple(message_from(m) for m in sequence_of(raw.get("messages"))),
-        system_instructions=parts_from(raw.get("system_instructions")),
+        messages=tuple(_message(m) for m in sequence_of(raw.get("messages"))),
+        system_instructions=_parts(raw.get("system_instructions"), "system_instructions"),
         tool_offers=tuple(_offer(o) for o in sequence_of(raw.get("tool_offers"))),
         tool=_tool(raw.get("tool")),
         retrieval=_retrieval(raw.get("retrieval")),
@@ -268,6 +340,36 @@ def span_from(raw: Mapping[str, Any]) -> Span:
         approvals=tuple(_approval(a) for a in sequence_of(raw.get("approvals"))),
         effects=tuple(_effect(e) for e in sequence_of(raw.get("effects"))),
     )
+
+
+def _closed(raw: Mapping[str, Any], location: str, what: str) -> None:
+    """Refuse a key the schema object at `location` does not define."""
+    reject_unknown_keys(raw, OBJECT_KEYS[location], what)
+
+
+def _parts(raw: object, what: str) -> tuple[ContentPart, ...]:
+    """Check every part's keys here, then read the parts with the shared OTel parser.
+
+    The shared parser reads only the keys it knows, which is right for OpenTelemetry
+    and the fail-open here: a part written `{"type": "text", "text": ...}` would carry
+    no text and grade as an empty message.
+    """
+    for part in sequence_of(raw):
+        if isinstance(part, dict):
+            _closed(part, "part", f"a part in {what}")
+    return parts_from(raw)
+
+
+def _message(raw: object) -> Message:
+    """Check a message's keys and its parts', then read it with the shared OTel parser.
+
+    Only `parts` is a native message's list: the shared parser's fallback to
+    `content` serves OpenTelemetry producers and would let a native typo through.
+    """
+    if isinstance(raw, dict):
+        _closed(raw, "message", "a message")
+        _parts(raw.get("parts"), "a message")
+    return message_from(raw)
 
 
 def _enum(raw: Mapping[str, Any], key: str, enum: type[_E], fallback: _E) -> _E:
@@ -290,6 +392,7 @@ def _enum(raw: Mapping[str, Any], key: str, enum: type[_E], fallback: _E) -> _E:
 def _model(raw: object) -> ModelCall | None:
     if not isinstance(raw, dict):
         return None
+    _closed(raw, "span.model", "model")
     return ModelCall(
         provider=optional_text(raw, "provider"),
         request_model=optional_text(raw, "request_model"),
@@ -303,6 +406,7 @@ def _model(raw: object) -> ModelCall | None:
 def _offer(raw: object) -> ToolDeclaration:
     if not isinstance(raw, dict):
         return ToolDeclaration(name="unknown")
+    _closed(raw, "span.tool_offers[]", "a tool offer")
     return ToolDeclaration(
         name=optional_text(raw, "name") or "unknown",
         description=optional_text(raw, "description"),
@@ -314,11 +418,12 @@ def _offer(raw: object) -> ToolDeclaration:
 def _tool(raw: object) -> ToolExecution | None:
     if not isinstance(raw, dict):
         return None
+    _closed(raw, "span.tool", "tool")
     return ToolExecution(
         name=optional_text(raw, "name") or "unknown",
         call_id=optional_text(raw, "call_id"),
         arguments=optional_text(raw, "arguments"),
-        result=parts_from(raw.get("result")),
+        result=_parts(raw.get("result"), "a tool result"),
         status=_enum(raw, "status", ToolStatus, ToolStatus.UNKNOWN),
         mutates=optional_bool(raw, "mutates"),
         server=optional_text(raw, "server"),
@@ -328,6 +433,7 @@ def _tool(raw: object) -> ToolExecution | None:
 def _retrieval(raw: object) -> Retrieval | None:
     if not isinstance(raw, dict):
         return None
+    _closed(raw, "span.retrieval", "retrieval")
     return Retrieval(
         query=optional_text(raw, "query"),
         source=optional_text(raw, "source"),
@@ -339,9 +445,10 @@ def _retrieval(raw: object) -> Retrieval | None:
 def _document(raw: object) -> RetrievedDocument:
     if not isinstance(raw, dict):
         return RetrievedDocument(id="unknown")
+    _closed(raw, "span.retrieval.documents[]", "a retrieved document")
     return RetrievedDocument(
         id=optional_text(raw, "id") or "unknown",
-        content=parts_from(raw.get("content")),
+        content=_parts(raw.get("content"), "a retrieved document"),
         source=optional_text(raw, "source"),
         tenant=optional_text(raw, "tenant"),
         score=optional_float(raw, "score"),
@@ -352,11 +459,12 @@ def _document(raw: object) -> RetrievedDocument:
 def _memory(raw: object) -> MemoryOperation | None:
     if not isinstance(raw, dict):
         return None
+    _closed(raw, "span.memory", "memory")
     return MemoryOperation(
         action=_enum(raw, "action", MemoryAction, MemoryAction.READ),
         store=optional_text(raw, "store"),
         key=optional_text(raw, "key"),
-        content=parts_from(raw.get("content")),
+        content=_parts(raw.get("content"), "a memory operation"),
         origin_span_id=optional_text(raw, "origin_span_id"),
     )
 
@@ -370,6 +478,7 @@ def _agent(raw: object) -> AgentRef | None:
     """
     if not isinstance(raw, dict):
         return None
+    _closed(raw, "span.agent", "agent")
     name = optional_text(raw, "name")
     if name is None:
         return None
@@ -379,10 +488,11 @@ def _agent(raw: object) -> AgentRef | None:
 def _handoff(raw: object) -> Handoff | None:
     if not isinstance(raw, dict):
         return None
+    _closed(raw, "span.handoff", "handoff")
     return Handoff(
         from_agent=optional_text(raw, "from_agent") or "unknown",
         to_agent=optional_text(raw, "to_agent") or "unknown",
-        payload=parts_from(raw.get("payload")),
+        payload=_parts(raw.get("payload"), "a handoff payload"),
         carried_scopes=optional_text_tuple(raw, "carried_scopes"),
     )
 
@@ -396,6 +506,7 @@ def credential_from(raw: object) -> CredentialRef | None:
     """
     if not isinstance(raw, dict):
         return None
+    _closed(raw, "credential", "credential")
     digest = optional_text(raw, "digest")
     value = optional_text(raw, "value")
     kind = _enum(raw, "kind", CredentialKind, CredentialKind.OTHER)
@@ -414,6 +525,7 @@ def credential_from(raw: object) -> CredentialRef | None:
 def _identity(raw: object) -> Identity | None:
     if not isinstance(raw, dict):
         return None
+    _closed(raw, "span.identity", "identity")
     session = raw.get("session")
     return Identity(
         actor=optional_text(raw, "actor"),
@@ -428,6 +540,7 @@ def _session(raw: object) -> SessionRef | None:
         return SessionRef(id=raw)
     if not isinstance(raw, dict):
         return None
+    _closed(raw, "session", "identity.session")
     identifier = optional_text(raw, "id")
     return (
         SessionRef(id=identifier, protocol=optional_text(raw, "protocol"))
@@ -439,6 +552,7 @@ def _session(raw: object) -> SessionRef | None:
 def _delegation(raw: object) -> Delegation:
     if not isinstance(raw, dict):
         return Delegation(actor="unknown", boundary="unknown")
+    _closed(raw, "span.delegations[]", "a delegation")
     return Delegation(
         actor=optional_text(raw, "actor") or "unknown",
         boundary=optional_text(raw, "boundary") or "unknown",
@@ -451,6 +565,7 @@ def _delegation(raw: object) -> Delegation:
 def _consent(raw: object) -> Consent:
     if not isinstance(raw, dict):
         return Consent(client="unknown", granted=False)
+    _closed(raw, "span.consents[]", "a consent")
     granted = optional_bool(raw, "granted")
     return Consent(
         client=optional_text(raw, "client") or "unknown",
@@ -464,6 +579,7 @@ def _consent(raw: object) -> Consent:
 def _policy(raw: object) -> PolicyDecision:
     if not isinstance(raw, dict):
         return PolicyDecision(outcome=PolicyOutcome.ERROR, action="unknown")
+    _closed(raw, "span.policy_decisions[]", "a policy decision")
     return PolicyDecision(
         outcome=_enum(raw, "outcome", PolicyOutcome, PolicyOutcome.ERROR),
         action=optional_text(raw, "action") or "unknown",
@@ -513,6 +629,7 @@ def _approver(raw: Mapping[str, Any]) -> tuple[str | None, ApproverKind | None]:
 def _approval(raw: object) -> Approval:
     if not isinstance(raw, dict):
         return Approval(action="unknown", outcome=ApprovalOutcome.UNKNOWN)
+    _closed(raw, "span.approvals[]", "an approval")
     approver, approver_kind = _approver(raw)
     return Approval(
         action=optional_text(raw, "action") or "unknown",
@@ -527,6 +644,7 @@ def _approval(raw: object) -> Approval:
 def _effect(raw: object) -> SideEffect:
     if not isinstance(raw, dict):
         return SideEffect(sink=SinkKind.OTHER, action="unknown")
+    _closed(raw, "span.effects[]", "an effect")
     return SideEffect(
         sink=_enum(raw, "sink", SinkKind, SinkKind.OTHER),
         action=optional_text(raw, "action") or "unknown",

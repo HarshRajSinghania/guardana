@@ -56,6 +56,10 @@ happened
 A report that collapsed the two would make those indistinguishable, which is the
 single inference [the trace design](design/trace-domain-model.md) exists to refuse.
 
+**`records` counts messages, not readable text.** When some messages carry neither text
+nor a tool call, a note says how many, because a rule reading message text grades them as
+empty. The JSON form carries the same count as `messages_without_text`.
+
 **There is no coverage percentage, and there never will be.** One number is
 compatible with having no identity evidence whatsoever, and a team that gates on a
 number rather than on a name ships the day the missing part is the part that
@@ -117,6 +121,8 @@ guardana trace inspect run.jsonl --format json
   "producer": "checkout-agent",
   "spans": 3,
   "truncated": null,
+  "trace_rules_loaded": 11,
+  "messages_without_text": 0,
   "dimensions": [
     {
       "dimension": "approval",

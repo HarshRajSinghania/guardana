@@ -8,13 +8,14 @@ import typer
 from guardana.cli._formats import OutputFormat
 from guardana.cli._plugins import DEFAULT_MODE
 from guardana.cli._profile import PRESET_HELP, resolve_profile
+from guardana.cli._profile_files import ProfileFiles, read_profile_files
 from guardana.cli.exit_codes import ExitCode
 from guardana.core.profile import Profile
 
 config_app = typer.Typer(help="Check and explain a Guardana profile.", no_args_is_help=True)
 
 
-def _resolved(profile: Profile) -> dict[str, object]:
+def _resolved(profile: Profile, files: ProfileFiles) -> dict[str, object]:
     """Return the effective settings, including every default the file never mentioned.
 
     The point of `explain`: a profile file shows what somebody wrote, and the
@@ -64,6 +65,15 @@ def _resolved(profile: Profile) -> dict[str, object]:
             "allow_destructive": profile.allow_destructive,
         },
         "plugins": _plugins(profile),
+        "contracts": {
+            "paths": list(profile.contract_paths),
+            "loaded": files.loaded_contracts(),
+        },
+        "calibrations": {
+            "paths": list(profile.calibration_paths),
+            "evaluators": files.calibrated_evaluators(),
+        },
+        "problems": list(files.problems),
     }
 
 
@@ -83,14 +93,23 @@ def validate(
     profile: Annotated[Path | None, typer.Option(help="guardana.yaml path")] = None,
     preset: Annotated[str | None, typer.Option(help=PRESET_HELP)] = None,
 ) -> None:
-    """Parse a profile and report the first thing wrong with it.
+    """Parse a profile, read every file it names, and report each thing wrong with it.
 
-    Loading already refuses anything it cannot honour, so this command is a way to
-    ask that question without running a scan — useful in a pipeline step that
-    should fail early rather than after paying for a probe.
+    The contracts, calibrations and rule paths go through the loaders the runs use,
+    so this answers the question a run would without running a scan — useful in a
+    pipeline step that should fail early rather than after paying for a probe.
     """
     prof = resolve_profile(profile, preset)
+    _refuse_problems(read_profile_files(prof))
     typer.echo(f"✓ {prof.name} is valid.")
+
+
+def _refuse_problems(files: ProfileFiles) -> None:
+    """Print each problem and exit `3`, as the run would on the first of them."""
+    for problem in files.problems:
+        typer.echo(f"error: {problem}", err=True)
+    if files.problems:
+        raise typer.Exit(code=ExitCode.INVALID_USAGE)
 
 
 def explain(
@@ -98,18 +117,36 @@ def explain(
     preset: Annotated[str | None, typer.Option(help=PRESET_HELP)] = None,
     format: Annotated[OutputFormat, typer.Option(help="human|json")] = OutputFormat.human,
 ) -> None:
-    """Print the settings actually in force, defaults included."""
-    resolved = _resolved(resolve_profile(profile, preset))
+    """Print the settings actually in force, defaults included, and exit `3` on a problem.
+
+    A contract, calibration or rule path the profile names and a run could not load
+    is printed as a problem and fails the command, as it would fail the run.
+    """
+    prof = resolve_profile(profile, preset)
+    files = read_profile_files(prof)
+    resolved = _resolved(prof, files)
     if format is OutputFormat.json:
         typer.echo(json.dumps(resolved, indent=2))
-        return
+    else:
+        _print_human(resolved)
+    _refuse_problems(files)
+
+
+def _print_human(resolved: dict[str, object]) -> None:
     for section, values in resolved.items():
+        if section == "problems":
+            continue
         if not isinstance(values, dict):
             typer.echo(f"{section}: {values}")
             continue
         typer.echo(f"{section}:")
         for key, value in values.items():
-            typer.echo(f"  {key}: {value}")
+            if isinstance(value, list) and value and all(isinstance(v, dict) for v in value):
+                typer.echo(f"  {key}:")
+                for item in value:
+                    typer.echo(f"    - {', '.join(f'{k}: {v}' for k, v in item.items())}")
+            else:
+                typer.echo(f"  {key}: {value}")
 
 
 config_app.command(name="validate")(validate)

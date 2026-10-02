@@ -164,6 +164,58 @@ def _stated_judge(evaluator: Evaluator | None) -> str | None:
     return identity if isinstance(identity, str) and identity.strip() else None
 
 
+@dataclass(frozen=True, slots=True)
+class ProfileCalibrations:
+    """Every calibration a profile names, the file each came from, and what failed to load."""
+
+    measured: dict[str, RecordedCalibration]
+    sources: dict[str, Path]
+    problems: tuple[str, ...]
+
+
+def read_profile_calibrations(profile: Profile) -> ProfileCalibrations:
+    """Read every calibration file this profile points at, collecting each problem.
+
+    The run and the profile checks share this, so a check cannot call valid what a
+    run refuses. Every file is read even after one fails, so a check reports all of
+    them at once rather than one per attempt.
+
+    Two files measuring one evaluator are a problem too: whichever came last would
+    decide which measurement corrects the run, and nothing would say so. One file
+    listed twice is still one measurement.
+    """
+    measured: dict[str, RecordedCalibration] = {}
+    source: dict[str, Path] = {}
+    problems: list[str] = []
+    read: set[Path] = set()
+    for raw_path in profile.calibration_paths:
+        path = Path(raw_path)
+        if not path.exists():
+            problems.append(
+                f"{path} does not exist, so the calibrations it names cannot be recorded"
+            )
+            continue
+        resolved = path.resolve()
+        if resolved in read:
+            continue
+        read.add(resolved)
+        try:
+            loaded = load_calibrations(path)
+        except CalibrationStoreError as exc:
+            problems.append(str(exc))
+            continue
+        for evaluator_id, calibration in loaded.items():
+            if evaluator_id in source:
+                problems.append(
+                    f"{evaluator_id} is calibrated in both {source[evaluator_id]} and {path}; "
+                    f"keep one measurement per evaluator, so the run says which it used"
+                )
+                continue
+            source[evaluator_id] = path
+            measured[evaluator_id] = calibration
+    return ProfileCalibrations(measured, source, tuple(problems))
+
+
 def load_profile_calibrations(profile: Profile) -> dict[str, RecordedCalibration]:
     """Read every calibration file this profile points at, refusing one it cannot parse.
 
@@ -171,33 +223,11 @@ def load_profile_calibrations(profile: Profile) -> dict[str, RecordedCalibration
     would leave every evaluator recorded as unmeasured, which reads as "nobody
     checked this judge" — the opposite of what the operator configured and asked to
     have in their evidence.
-
-    Two files measuring one evaluator are refused too: whichever came last would
-    decide which measurement corrects the run, and nothing would say so. One file
-    listed twice is still one measurement.
     """
-    measured: dict[str, RecordedCalibration] = {}
-    source: dict[str, Path] = {}
-    read: set[Path] = set()
-    for raw_path in profile.calibration_paths:
-        path = Path(raw_path)
-        if not path.exists():
-            raise CalibrationStoreError(
-                f"{path} does not exist, so the calibrations it names cannot be recorded"
-            )
-        resolved = path.resolve()
-        if resolved in read:
-            continue
-        read.add(resolved)
-        for evaluator_id, calibration in load_calibrations(path).items():
-            if evaluator_id in source:
-                raise CalibrationStoreError(
-                    f"{evaluator_id} is calibrated in both {source[evaluator_id]} and {path}; "
-                    f"keep one measurement per evaluator, so the run says which it used"
-                )
-            source[evaluator_id] = path
-            measured[evaluator_id] = calibration
-    return measured
+    calibrations = read_profile_calibrations(profile)
+    if calibrations.problems:
+        raise CalibrationStoreError(calibrations.problems[0])
+    return calibrations.measured
 
 
 def _coverage(

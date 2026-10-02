@@ -304,7 +304,7 @@ class Registry:
         loaded: list[str] = []
         errors: list[CheckError] = []
         for path in paths:
-            files = _yaml_files(path)
+            files = yaml_rule_files(path)
             if not files:
                 # A directory someone configured that holds no rule file loads nothing,
                 # and a run without the checks it was told to add must not look complete.
@@ -506,7 +506,12 @@ def _resolved(path: Path) -> Path:
         return path
 
 
-def _yaml_files(path: Path) -> list[Path]:
+def yaml_rule_files(path: Path) -> list[Path]:
+    """Return the files `load_yaml_rule_dirs` reads for one configured path.
+
+    A file is read as itself, a directory for the rule files directly inside it.
+    Public so a profile check finds an empty directory exactly as a run does.
+    """
     if not path.is_dir():
         return [path]
     return sorted(

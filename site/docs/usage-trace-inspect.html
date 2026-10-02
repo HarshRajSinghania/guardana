@@ -340,6 +340,9 @@ that this framework simply does not describe.</li>
 </ul>
 <p>A report that collapsed the two would make those indistinguishable, which is the
 single inference <a href="design/trace-domain-model.html">the trace design</a> exists to refuse.</p>
+<p><strong><code>records</code> counts messages, not readable text.</strong> When some messages carry neither text
+nor a tool call, a note says how many, because a rule reading message text grades them as
+empty. The JSON form carries the same count as <code>messages_without_text</code>.</p>
 <p><strong>There is no coverage percentage, and there never will be.</strong> One number is
 compatible with having no identity evidence whatsoever, and a team that gates on a
 number rather than on a name ships the day the missing part is the part that
@@ -384,6 +387,8 @@ can never pass.</p>
   &quot;producer&quot;: &quot;checkout-agent&quot;,
   &quot;spans&quot;: 3,
   &quot;truncated&quot;: null,
+  &quot;trace_rules_loaded&quot;: 11,
+  &quot;messages_without_text&quot;: 0,
   &quot;dimensions&quot;: [
     {
       &quot;dimension&quot;: &quot;approval&quot;,

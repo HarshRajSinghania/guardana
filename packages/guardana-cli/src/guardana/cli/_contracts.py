@@ -56,43 +56,60 @@ def contract_paths(profile: Profile, extra: list[Path]) -> list[Path]:
     return [*(Path(p) for p in profile.contract_paths), *extra]
 
 
-def load_contracts_or_exit(paths: list[Path]) -> list[SecurityContract]:
-    """Read every contract, expanding directories, or exit `3` naming the bad file."""
+@dataclass(frozen=True, slots=True)
+class ReadContracts:
+    """Every contract that loaded, and a sentence for each file or path that did not."""
+
+    contracts: tuple[SecurityContract, ...]
+    problems: tuple[str, ...]
+
+
+def read_contracts(paths: list[Path]) -> ReadContracts:
+    """Read every contract, expanding directories, and collect what could not be read.
+
+    The runs and the profile checks share this, so `config validate` cannot call a
+    profile valid whose contracts a run then refuses.
+    """
     contracts: list[SecurityContract] = []
+    problems: list[str] = []
     for path in paths:
-        for file in _files(path):
+        files, problem = _files(path)
+        if problem is not None:
+            problems.append(problem)
+        for file in files:
             try:
                 contracts.append(load_contract(file))
             except ContractError as exc:
-                typer.echo(f"error: {exc}", err=True)
-                raise typer.Exit(code=ExitCode.INVALID_USAGE) from exc
-    return contracts
+                problems.append(str(exc))
+    return ReadContracts(tuple(contracts), tuple(problems))
 
 
-def _files(path: Path) -> list[Path]:
+def load_contracts_or_exit(paths: list[Path]) -> list[SecurityContract]:
+    """Read every contract, or exit `3` naming each bad file."""
+    read = read_contracts(paths)
+    for problem in read.problems:
+        typer.echo(f"error: {problem}", err=True)
+    if read.problems:
+        raise typer.Exit(code=ExitCode.INVALID_USAGE)
+    return list(read.contracts)
+
+
+def _files(path: Path) -> tuple[list[Path], str | None]:
     """Expand a directory of contracts, and refuse a path that is not there at all.
 
-    A missing path raises rather than contributing nothing. `--contract
+    A missing path is a problem rather than contributing nothing. `--contract
     ./contracts/checkout.yaml` with a typo would otherwise run every built-in rule,
     grade none of the team's invariants, and exit `0` — the exact shape of gate the
     whole feature exists to make impossible.
     """
     if not path.exists():
-        typer.echo(
-            f"error: {path} does not exist, so the contract it names cannot be checked",
-            err=True,
-        )
-        raise typer.Exit(code=ExitCode.INVALID_USAGE)
+        return [], f"{path} does not exist, so the contract it names cannot be checked"
     if path.is_dir():
         found = sorted(f for f in path.rglob("*") if f.suffix.lower() in _SUFFIXES and f.is_file())
         if not found:
-            typer.echo(
-                f"error: {path} contains no .yaml or .yml contract, so nothing was loaded from it",
-                err=True,
-            )
-            raise typer.Exit(code=ExitCode.INVALID_USAGE)
-        return found
-    return [path]
+            return [], f"{path} contains no .yaml or .yml contract, so nothing was loaded from it"
+        return found, None
+    return [path], None
 
 
 def wire_contracts(
