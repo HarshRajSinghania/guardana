@@ -1,6 +1,7 @@
 """Run the reference application until interrupted."""
 
 import argparse
+import contextlib
 import os
 import signal
 import sys
@@ -35,9 +36,8 @@ def main(argv: list[str] | None = None) -> None:
     signal.signal(signal.SIGTERM, _exit)
     sys.stderr.write(f"serving on http://{args.host}:{server.server_address[1]}\n")
     try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        pass
+        with contextlib.suppress(KeyboardInterrupt):
+            server.serve_forever()
     finally:
         server.server_close()
         application.close()
