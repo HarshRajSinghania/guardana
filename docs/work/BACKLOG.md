@@ -246,7 +246,7 @@ the 0.26 measurement audit.)
   provenance field is the first fix; mapping the agent-facing techniques the newest releases add
   is rule work for the parallel contributor lane.
 
-## Found while fixing the field report
+## ONNX metadata grading
 
 - **`onnx_graph` grades ONNX `metadata_props` HIGH on the bare presence of an invisible
   character.** Grading it by the payload shape `hidden_instructions` uses was tried for 0.31.0

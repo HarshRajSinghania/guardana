@@ -370,7 +370,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   behind repeated trials and judge-error correction. No code or behavior changed. See
   [`docs/design/audit-0.26-measurement.md`](https://github.com/guardana/guardana/blob/257b6bb98be678fc387d11ea92b180882c7c6a93/docs/design/audit-0.26-measurement.md).
 
-## [0.26.1] - 2026-09-21 — a field report, and the audit of its own fix
+## [0.26.1] - 2026-09-21 — a sitemap, beta metadata and the fixes of an audit
 
 ### Added
 
