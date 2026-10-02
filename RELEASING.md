@@ -126,7 +126,7 @@ gh run watch --exit-status "$(gh run list --workflow=CI --commit="$(git rev-pars
 # 8. Only then create the tag (annotated — see below) and push it.
 git tag -a vX.Y.Z -m "Guardana vX.Y.Z"
 git push origin refs/tags/vX.Y.Z   # this is what triggers the publish
-git tag -a vX.Y -m "Guardana vX.Y (moving tag -> vX.Y.Z)" && git push -f origin vX.Y
+git tag -f vX.Y "vX.Y.Z^{commit}" && git push -f origin vX.Y   # lightweight — see below
 
 # 9. Publish the GitHub Release (see below), pasting the changelog section.
 ```
@@ -219,13 +219,18 @@ build that does not start.
 
 ## Tags
 
-- **`v`-prefixed, `vX.Y.Z`** — matches `release.yml`'s `tags: ["v*"]` trigger and
+- **`v`-prefixed, `vX.Y.Z`** — matches `release.yml`'s `tags: ["v*.*.*"]` trigger and
   is the near-universal convention (`v0.1.0`, `v1.2.3`).
-- **Annotated (`git tag -a`), not lightweight.** An annotated tag carries a
+- **`vX.Y.Z` is annotated (`git tag -a`), not lightweight.** An annotated tag carries a
   tagger, date, and message and is what `git describe` and release tooling
   expect; lightweight tags are really just branch-less bookmarks. Sign it
   (`git tag -s`) if you publish a signing key — optional, but nice for a security
   project.
+- **The moving `vX.Y` is lightweight.** It names no release of its own: it is a pointer
+  the Marketplace Action pins follow, repointed at each release commit
+  (`vX.Y.Z^{commit}`, so it points at the commit rather than at a tag object).
+  `release.py` creates it that way, and the release trigger `v*.*.*` never matches
+  it, so moving it publishes nothing.
 - **One tag for the whole release.** Because the packages move in lockstep, a
   single `vX.Y.Z` covers all five — no per-package tags. (Independently-versioned
   monorepos use `pkg-name-vX.Y.Z`; that's not us, and adopting it would mean

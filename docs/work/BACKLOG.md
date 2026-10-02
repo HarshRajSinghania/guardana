@@ -158,8 +158,7 @@ Reproduced, deliberately not fixed in this pass, or found while fixing.
   something else (numpy's random state, a scikit-learn estimator) is a finding; widen it only
   with a callable that cannot run code.
 - `_pushes_main` in the guard hook reads only the first push in a compound command, and
-  `git --help push` now reads as a push (it asks). RELEASING.md's moving tag is annotated while
-  `release.py` makes a lightweight one.
+  `git --help push` now reads as a push (it asks).
 - The safetensors reader does not check that `dtype` and `shape` match the offsets or that
   tensor ranges do not overlap; the trace ceilings count characters, not bytes.
 - `ci-passed` in `release.yml` was tested against a fake `gh`, not the real API; the first

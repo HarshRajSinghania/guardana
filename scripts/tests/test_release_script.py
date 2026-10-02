@@ -208,3 +208,23 @@ def test_a_bump_plan_names_the_files_the_bump_writes() -> None:
     assert release._bump_writes(_BUMP_PLAN) == frozenset(
         {"packages/guardana-core/pyproject.toml", "docs/install.md"}
     )
+
+
+def test_the_runbook_moves_the_minor_tag_the_way_the_script_does(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The moving tag is a lightweight pointer at the release commit, by hand or by script."""
+    calls: list[list[str]] = []
+
+    def _record(cmd: list[str], **_: bool) -> str:
+        calls.append(cmd)
+        return ""
+
+    monkeypatch.setattr(release, "_run", _record)
+    release._move_marketplace_tag("0.1.1", "v0.1.1")
+    runbook = (release._ROOT / "RELEASING.md").read_text(encoding="utf-8").splitlines()
+    by_hand = [line for line in runbook if line.startswith("git tag") and " vX.Y " in line]
+
+    assert calls[0] == ["git", "tag", "-f", "v0.1", "v0.1.1^{commit}"]
+    assert by_hand
+    assert all(" -a " not in line and "^{commit}" in line for line in by_hand), by_hand
