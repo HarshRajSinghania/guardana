@@ -1,10 +1,11 @@
 """Wire the judges `guardana.yaml` configures, through the CLI's endpoint seam.
 
 The wiring lives in `guardana.core.evaluator.config`; a command routes each judge's
-endpoint through `build_endpoint`, so the transport its tests substitute reaches the
-judges too, whatever provider or adapter a judge block names.
+endpoint through the CLI's transport seam, so the transport its tests substitute reaches
+the judges too, whatever provider or adapter a judge block names.
 """
 
+from guardana.cli._connection import endpoint_for
 from guardana.cli._endpoint import build_endpoint
 from guardana.core.budget import Budgets
 from guardana.core.evaluator.config import JudgeMeter, JudgeMeters
@@ -12,7 +13,7 @@ from guardana.core.evaluator.config import wire_config_evaluators as _wire
 from guardana.core.profile import Profile
 from guardana.core.registry import Registry
 from guardana.core.target import EndpointTarget
-from guardana.core.target.connection import DEFAULT_PROVIDER, ResolvedConnection
+from guardana.core.target.connection import ResolvedConnection
 
 
 class _JudgeEndpoints:
@@ -24,13 +25,7 @@ class _JudgeEndpoints:
 
     def connect(self, connection: ResolvedConnection) -> EndpointTarget:
         """Build the judge endpoint a judge block resolved to, on its provider or adapter."""
-        return build_endpoint(
-            connection.url,
-            connection.model,
-            api_key=connection.api_key,
-            provider=connection.provider or DEFAULT_PROVIDER,
-            transport=connection.transport,
-        )
+        return endpoint_for(connection)
 
 
 judge_endpoint = _JudgeEndpoints()

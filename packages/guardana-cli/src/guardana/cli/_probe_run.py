@@ -1,29 +1,23 @@
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
 
-from guardana.cli._endpoint import build_endpoint
+from guardana.cli._connection import endpoint_for
 from guardana.core.manifest.records import CalibrationRecord
 from guardana.core.probe import ProbeOutcome, run_target_probe
 from guardana.core.profile import Profile
 from guardana.core.registry import Registry
 from guardana.core.runner import DEFAULT_ENDPOINT_CONCURRENCY
-from guardana.core.target import (
-    ChatTransport,
-    EndpointTarget,
-)
+from guardana.core.target import EndpointTarget
+from guardana.core.target.connection import ResolvedConnection
 from guardana.core.usage import UsageMeter
 
 
 @dataclass(frozen=True, slots=True)
 class Connection:
-    """Where and how to reach the model under test."""
+    """The model under test: the connection resolved to reach it and the system prompt it gets."""
 
-    url: str
-    model: str
-    api_key: str | None = None
+    reached: ResolvedConnection
     system_prompt: str | None = None
-    provider: str = "openai"
-    transport: ChatTransport | None = None
 
 
 def run_probe(
@@ -63,15 +57,7 @@ def run_probe(
 
 
 def _target(connection: Connection, system_prompt: str | None, meter: UsageMeter) -> EndpointTarget:
-    return build_endpoint(
-        connection.url,
-        connection.model,
-        api_key=connection.api_key,
-        system_prompt=system_prompt,
-        provider=connection.provider,
-        transport=connection.transport,
-        meter=meter,
-    )
+    return endpoint_for(connection.reached, system_prompt=system_prompt, meter=meter)
 
 
 __all__ = ["Connection", "ProbeOutcome", "run_probe", "run_target_probe"]

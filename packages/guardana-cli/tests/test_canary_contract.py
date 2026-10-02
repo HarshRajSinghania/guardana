@@ -22,6 +22,7 @@ from guardana.core.rule import Rule, RuleContext, RuleMeta
 from guardana.core.rule.errors import RuleLoadError
 from guardana.core.severity import Severity
 from guardana.core.target import Capability, ChatMessage, EndpointTarget, Target, TargetKind
+from guardana.core.target.connection import ResolvedConnection
 from guardana.core.taxonomy import OWASP_LLM07_2025
 from guardana.core.testing import EchoingTransport
 
@@ -111,7 +112,16 @@ def test_a_third_party_rule_shape_gets_its_canary_planted() -> None:
     result = run_probe(
         registry,
         Profile(name="t", policy=Policy()),
-        Connection(url="http://x", model="m", transport=EchoingTransport()),
+        Connection(
+            ResolvedConnection(
+                url="http://x",
+                model="m",
+                provider=None,
+                api_key=None,
+                transport=EchoingTransport(),
+                adapter_digest=None,
+            )
+        ),
     )
     # EchoingTransport discloses whatever system prompt was planted. If nothing was
     # planted, the canary evaluator finds nothing and reports a confident pass —

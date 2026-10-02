@@ -19,7 +19,8 @@ import yaml
 from guardana.core.fingerprint import DigestKind, DocumentDigest
 from guardana.core.target._url import display_url, private_url_parts
 from guardana.core.target.adapter import AdapterConfig, HttpAdapterTransport
-from guardana.core.target.endpoint import ChatTransport, EndpointError
+from guardana.core.target.endpoint import ChatTransport, EndpointError, EndpointTarget
+from guardana.core.usage import UsageMeter
 
 DEFAULT_PROVIDER = "openai"
 """The wire protocol of a connection that names none and has no adapter."""
@@ -93,6 +94,28 @@ class ResolvedConnection:
     api_key: str | None
     transport: ChatTransport | None
     adapter_digest: str | None
+
+    def endpoint(
+        self,
+        *,
+        system_prompt: str | None = None,
+        meter: UsageMeter | None = None,
+        transport: ChatTransport | None = None,
+    ) -> EndpointTarget:
+        """Build the endpoint this connection reaches; the one place its fields become one.
+
+        `transport` stands in for a built-in provider's network transport, as a test seam
+        does; an adapter's own transport is never replaced by it.
+        """
+        return EndpointTarget(
+            self.url,
+            self.model,
+            api_key=self.api_key,
+            system_prompt=system_prompt,
+            provider=self.provider or DEFAULT_PROVIDER,
+            transport=transport if self.transport is None else self.transport,
+            meter=meter,
+        )
 
 
 def resolve_connection(

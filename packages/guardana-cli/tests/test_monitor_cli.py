@@ -13,6 +13,8 @@ from guardana.cli.monitor import run_monitor
 from guardana.core.plugins import PluginMode, PluginTrust
 from guardana.core.profile import default_profile
 from guardana.core.registry import Registry
+from guardana.core.target.connection import Connection as Written
+from guardana.core.target.connection import resolve_connection
 from guardana.core.testing import EchoingTransport, FailingTransport, RefusingTransport
 from typer import Exit
 from typer.testing import CliRunner
@@ -23,7 +25,7 @@ if TYPE_CHECKING:
 runner = CliRunner()
 
 _ENDPOINT_UNREACHABLE = 4
-_CONNECTION = Connection(url="http://fake", model="m")
+_CONNECTION = Connection(resolve_connection(Written("http://fake", "m"), sending=False))
 
 
 def _no_sleep(_seconds: float) -> None:

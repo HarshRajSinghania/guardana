@@ -119,6 +119,8 @@ def test_a_monitor_run_that_names_no_handler_still_redacts(
     from guardana.cli.monitor import run_monitor  # noqa: PLC0415
     from guardana.core.profile import default_profile  # noqa: PLC0415
     from guardana.core.registry import Registry  # noqa: PLC0415
+    from guardana.core.target.connection import Connection as Written  # noqa: PLC0415
+    from guardana.core.target.connection import resolve_connection  # noqa: PLC0415
 
     profile = replace(default_profile(), privacy=RedactionPolicy(mode=EvidenceMode.METADATA_ONLY))
     alert = _leaky_alert()
@@ -126,7 +128,7 @@ def test_a_monitor_run_that_names_no_handler_still_redacts(
     run_monitor(
         Registry(),
         profile,
-        Connection(url="http://fake", model="m"),
+        Connection(resolve_connection(Written("http://fake", "m"), sending=False)),
         max_cycles=1,
         sleep=lambda _s: None,
     )

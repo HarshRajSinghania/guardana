@@ -31,7 +31,6 @@ from guardana.core.profile.loader import check_evaluator_blocks
 from guardana.core.registry import Registry
 from guardana.core.target import ChatMessage, EndpointError, EndpointTarget, private_url_parts
 from guardana.core.target.connection import (
-    DEFAULT_PROVIDER,
     Connection,
     ConnectionConfigError,
     ResolvedConnection,
@@ -77,13 +76,7 @@ class _NetworkEndpoints:
 
     def connect(self, connection: ResolvedConnection) -> EndpointTarget:
         """Build a judge endpoint on the transport `connection` resolved to."""
-        return EndpointTarget(
-            connection.url,
-            connection.model,
-            api_key=connection.api_key,
-            provider=connection.provider or DEFAULT_PROVIDER,
-            transport=connection.transport,
-        )
+        return connection.endpoint()
 
 
 default_endpoint_builder: ConnectionBuilder = _NetworkEndpoints()

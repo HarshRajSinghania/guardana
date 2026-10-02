@@ -9,10 +9,9 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
-from guardana.cli._endpoint import build_endpoint
+from guardana.cli._endpoint import seam_transport
 from guardana.core.target import EndpointTarget
 from guardana.core.target.connection import (
-    DEFAULT_PROVIDER,
     Connection,
     ConnectionConfigError,
     ResolvedConnection,
@@ -88,16 +87,12 @@ def endpoint_for(
     system_prompt: str | None = None,
     meter: UsageMeter | None = None,
 ) -> EndpointTarget:
-    """Build the endpoint a resolved connection describes, through the CLI's transport seam."""
-    return build_endpoint(
-        connection.url,
-        connection.model,
-        api_key=connection.api_key,
-        system_prompt=system_prompt,
-        provider=connection.provider or DEFAULT_PROVIDER,
-        transport=connection.transport,
-        meter=meter,
-    )
+    """Build the endpoint a resolved connection describes, through the CLI's transport seam.
+
+    An adapter keeps its own transport, and its URL was already checked when it was loaded.
+    """
+    substitute = None if connection.transport is not None else seam_transport(connection.url)
+    return connection.endpoint(system_prompt=system_prompt, meter=meter, transport=substitute)
 
 
 __all__ = [

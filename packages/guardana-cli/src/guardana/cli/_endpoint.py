@@ -23,26 +23,14 @@ def build_endpoint(  # noqa: PLR0913 — each is a distinct endpoint config knob
     transport: ChatTransport | None = None,
     meter: UsageMeter | None = None,
 ) -> EndpointTarget:
-    """Construct the `EndpointTarget` a probe or monitor run talks to.
+    """Construct an `EndpointTarget` from loose fields, through the CLI's transport seam.
 
-    An explicit `transport` (e.g. a custom-endpoint adapter) wins; otherwise the
-    test seam `transport_factory` is used if set; otherwise `EndpointTarget` builds
-    its real network transport for the named provider.
-
-    Without an explicit `transport`, a URL the built-in transports cannot use is
-    refused as `--url` invalid usage, decided before the test seam substitutes one
-    so a test sees the refusal a user would.
-
-    `meter` is how a caller that builds several targets for one run keeps one bill
-    across them — `probe` needs a target per planted canary, and a ceiling that
-    reset on each would not be a ceiling on the run.
+    An endpoint a resolved connection names is built by `endpoint_for` instead. An
+    explicit `transport` wins; otherwise `seam_transport` refuses an unusable URL and
+    supplies the test seam's transport, if one is set.
     """
     if transport is None:
-        problem = unusable_url(url)
-        if problem is not None:
-            raise typer.BadParameter(f"the endpoint URL {problem}", param_hint="'--url'")
-        if transport_factory is not None:
-            transport = transport_factory()
+        transport = seam_transport(url)
     return EndpointTarget(
         url,
         model,
@@ -54,4 +42,16 @@ def build_endpoint(  # noqa: PLR0913 — each is a distinct endpoint config knob
     )
 
 
-__all__ = ["build_endpoint", "transport_factory", "unusable_url"]
+def seam_transport(url: str) -> ChatTransport | None:
+    """Refuse a URL the built-in transports cannot use, then return the test seam's transport.
+
+    None means no seam is set, so the endpoint builds its provider's network transport.
+    The refusal comes first so a test sees the one a user would.
+    """
+    problem = unusable_url(url)
+    if problem is not None:
+        raise typer.BadParameter(f"the endpoint URL {problem}", param_hint="'--url'")
+    return None if transport_factory is None else transport_factory()
+
+
+__all__ = ["build_endpoint", "seam_transport", "transport_factory", "unusable_url"]
