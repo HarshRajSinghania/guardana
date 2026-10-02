@@ -144,7 +144,7 @@ def _fake_torch(monkeypatch: pytest.MonkeyPatch) -> tuple[object, type]:
     utils = types.ModuleType("torch._utils")
 
     def _rebuild_tensor_v2(*args: object) -> None:
-        del args
+        """Never called: the rule reads a pickle's opcodes, never its objects."""
 
     _rebuild_tensor_v2.__module__ = "torch._utils"
     _rebuild_tensor_v2.__qualname__ = "_rebuild_tensor_v2"
