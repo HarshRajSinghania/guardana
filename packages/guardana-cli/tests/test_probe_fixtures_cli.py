@@ -141,6 +141,24 @@ def test_a_filter_that_holds_passes_and_the_saved_run_records_the_fixtures(
     assert {tenant for tenant, _question in application.asked} == {"acme", "globex"}
 
 
+def test_the_saved_run_records_what_the_seeded_checks_were_priced_at(
+    team: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _serve(monkeypatch, team)
+    fixtures = _fixtures(team)
+
+    result, document = _probe(team)
+
+    assert result.exit_code == ExitCode.OK, result.output
+    declared = {
+        rule["id"]: rule["declared_requests"]
+        for rule in document["run"]["rules"]
+        if rule["id"] in {TENANCY_CHECK, POISONING_CHECK}
+    }
+    items, tenants, poisoned = len(fixtures.items), len(fixtures.tenant_names), 1
+    assert declared == {TENANCY_CHECK: items * tenants, POISONING_CHECK: poisoned}
+
+
 def test_an_unseeded_item_leaves_the_probe_indeterminate_under_the_default_profile(
     team: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

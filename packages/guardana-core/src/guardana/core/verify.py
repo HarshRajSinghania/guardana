@@ -600,6 +600,7 @@ class Verifier:
             result,
             target_kind=target.kind,
             target_ref=reference,
+            target=target,
             gate=gate,
             started_at=started_at,
             identity=identity,
