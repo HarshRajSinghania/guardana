@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import BinaryIO
 
-from guardana.core.formats.errors import FormatError
+from guardana.core.formats.errors import UnreadableFileError
 
 
 def open_regular(path: Path) -> BinaryIO:
@@ -15,10 +15,10 @@ def open_regular(path: Path) -> BinaryIO:
     try:
         regular = path.is_file()
     except OSError as exc:
-        raise FormatError(f"cannot read {path.name}: {exc}") from exc
+        raise UnreadableFileError(f"cannot read {path.name}: {exc}") from exc
     if not regular:
-        raise FormatError(f"cannot read {path.name}: not a regular file")
+        raise UnreadableFileError(f"cannot read {path.name}: not a regular file")
     try:
         return path.open("rb")
     except OSError as exc:
-        raise FormatError(f"cannot read {path.name}: {exc}") from exc
+        raise UnreadableFileError(f"cannot read {path.name}: {exc}") from exc

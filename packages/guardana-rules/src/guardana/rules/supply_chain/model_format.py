@@ -6,6 +6,7 @@ from xml.etree.ElementTree import ParseError
 import defusedxml.ElementTree as _defused_et  # noqa: N813 — the library's own module name
 from defusedxml.common import DTDForbidden, EntitiesForbidden, ExternalReferenceForbidden
 from guardana.core.formats import FormatError, read_safetensors_header
+from guardana.core.formats.errors import UnreadableFileError
 from guardana.core.report import Evidence, Finding
 from guardana.core.rule import RuleContext, RuleMeta
 from guardana.core.safety import Detection
@@ -92,6 +93,18 @@ def _scan_safetensors(path: Path) -> Iterator[Finding]:
     # have, `__metadata__`.)
     try:
         read_safetensors_header(path)
+    except UnreadableFileError as exc:
+        yield Finding(
+            rule_id=_RULE_ID,
+            severity=Severity.LOW,
+            title="safetensors file not scanned",
+            taxonomy=(NIST_SUPPLY_CHAIN,),
+            target_ref=str(path),
+            evidence=Evidence(
+                summary=f"safetensors file not scanned: {exc}", detail=f"file={path.name}"
+            ),
+            verdict=unscanned_verdict("the file could not be read, so nothing was cleared"),
+        )
     except FormatError as exc:
         yield Finding(
             rule_id=_RULE_ID,

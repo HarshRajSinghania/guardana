@@ -6,7 +6,7 @@ from pathlib import Path
 from types import MappingProxyType
 
 from guardana.core.formats._stream import open_regular
-from guardana.core.formats.errors import FormatError
+from guardana.core.formats.errors import FormatError, UnreadableFileError
 from guardana.core.formats.limits import DEFAULT_LIMITS, Limits
 
 _LENGTH_PREFIX_BYTES = 8
@@ -60,7 +60,7 @@ def _read_header_bytes(path: Path, limits: Limits) -> tuple[int, bytes, int]:
             prefix = handle.read(_LENGTH_PREFIX_BYTES)
             header_size = int.from_bytes(prefix, "little")
         except OSError as exc:
-            raise FormatError(f"cannot read {path.name}: {exc}") from exc
+            raise UnreadableFileError(f"cannot read {path.name}: {exc}") from exc
         _check_header_size(len(prefix), header_size, file_size, limits)
         payload_size = file_size - _LENGTH_PREFIX_BYTES - header_size
         return header_size, handle.read(header_size), payload_size
