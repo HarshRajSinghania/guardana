@@ -24,7 +24,7 @@ class AnsweredEvaluator(Evaluator):
 
     @classmethod
     def check_fields(cls, expectation: Expectation) -> str | None:
-        """Return why `refusal_markers` is not a list of non-blank strings, or None."""
+        """Return why `refusal_markers` is not a list of usable markers, or None."""
         return refusal_markers_problem(cls.id, expectation)
 
     def evaluate(self, exchange: Exchange, expectation: Expectation) -> Verdict:

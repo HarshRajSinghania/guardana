@@ -182,7 +182,8 @@ _TORCH_STORAGE = re.compile(r"(?P<prefix>.+)/data/\d+")
 """A raw tensor storage `torch.save` writes beside its `<prefix>/data.pkl`.
 
 `torch.load` unpickles only `data.pkl` and copies these bytes into tensors as they
-are, so parsing them as a pickle reads float values as opcodes.
+are, so parsing them as a pickle reads float values as opcodes; `_holds_a_pickle`
+tells the two apart.
 """
 _MEMBER_MAX_BYTES = 64 * 1024 * 1024
 _ARCHIVE_OPCODE_FLOOR = 1_000_000
@@ -516,14 +517,29 @@ def _is_raw_storage(name: str, names: frozenset[str]) -> bool:
     return match is not None and f"{match['prefix']}/data.pkl" in names
 
 
+def _holds_a_pickle(head: bytes, scan: _OpcodeScan, *, cut: bool) -> bool:
+    """Whether a tensor storage's bytes are a pickle rather than values that parse as opcodes.
+
+    A pickle imports a callable with a real dotted name, or hides the operands of an
+    import, or says it is one in its header and was still parsing where the read was cut.
+    Tensor values end on a short stack, a malformed opcode or the end of their bytes.
+    """
+    if any(_IDENTIFIER.fullmatch(ref) for ref in scan.refs):
+        return True
+    if scan.end is ParseEnd.UNRESOLVABLE and not scan.short_stack:
+        return True
+    return cut and scan.end is ParseEnd.RAN_OUT and head.startswith(_PICKLE_HEADERS)
+
+
 class PickleOpcodeRule(ArtifactRule):
     """Flag a pickle that imports a non-allowlisted callable — code that runs on load.
 
     Reads opcodes statically with `pickletools`; never unpickles anything. Unzips
     ZIP-based model archives (modern `torch.save`) and scans every member
     regardless of extension, so a payload hidden under a non-`.pkl` name cannot
-    slip past; the one exception is a raw tensor storage beside a `data.pkl`,
-    which `torch.load` never unpickles. One archive is read up to a member count
+    slip past. A raw tensor storage beside a `data.pkl`, which `torch.load` never
+    unpickles, is reported only when it holds a pickle or a nested archive, so tensor
+    values that parse as opcodes are not noise. One archive is read up to a member count
     and an opcode budget shared by its members. Anything it cannot fully parse, or
     stops reading at a bound, becomes a visible unverified result, never a silent
     clean.
@@ -626,9 +642,8 @@ class PickleOpcodeRule(ArtifactRule):
                 members = archive.infolist()
                 names = frozenset(info.filename for info in members)
                 for info in members[:_ARCHIVE_MAX_MEMBERS]:
-                    if _is_raw_storage(info.filename, names):
-                        continue
-                    if (yield from self._scan_member(path, archive, info, budget)):
+                    storage = _is_raw_storage(info.filename, names)
+                    if (yield from self._scan_member(path, archive, info, budget, storage)):
                         return
                 if len(members) > _ARCHIVE_MAX_MEMBERS:
                     yield self._unscanned(
@@ -640,9 +655,17 @@ class PickleOpcodeRule(ArtifactRule):
             yield self._unscanned(path, "malformed zip container; not scanned")
 
     def _scan_member(
-        self, path: Path, archive: zipfile.ZipFile, info: zipfile.ZipInfo, budget: _OpcodeBudget
+        self,
+        path: Path,
+        archive: zipfile.ZipFile,
+        info: zipfile.ZipInfo,
+        budget: _OpcodeBudget,
+        storage: bool,
     ) -> Generator[Finding, None, bool]:
-        """Scan one member and return whether the archive's opcode budget ran out in it."""
+        """Scan one member and return whether the archive's opcode budget ran out in it.
+
+        A `storage` member is reported only when its bytes hold a pickle.
+        """
         limit = _MEMBER_MAX_BYTES
         name = info.filename
         try:
@@ -659,6 +682,12 @@ class PickleOpcodeRule(ArtifactRule):
             yield self._unscanned(path, f"zip member is a nested archive ({name}); not scanned")
             return False
         scan = _scan_opcodes(member_data, budget)
+        if (
+            storage
+            and scan.end is not ParseEnd.OVER_BUDGET
+            and not _holds_a_pickle(member_data, scan, cut=cut)
+        ):
+            return False
         for ref in scan.refs:
             yield self._critical(path, ref, member=name)
         if scan.end is ParseEnd.OVER_BUDGET:

@@ -36,6 +36,7 @@ from guardana.core.inspect import (
 )
 from guardana.core.registry import Registry
 from guardana.core.target import SystemPromptPlanter, Target, TargetKind
+from guardana.core.target.connection import ResolvedConnection
 
 _MARK = {Support.SUPPORTED: "✓", Support.UNSUPPORTED: "✖", Support.UNKNOWN: "?"}
 
@@ -133,7 +134,8 @@ def inspect_target(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag;
     proxy can drop the system message — either of which turns a rule into a check
     that runs and proves nothing.
     """
-    resolved = resolve_trust(plugins, allow_plugin, resolve_profile(profile, None))
+    prof = resolve_profile(profile, None)
+    resolved = resolve_trust(plugins, allow_plugin, prof)
     registry = Registry.discover(resolved.trust)
     warn_about_load_errors(registry, resolved, what="rule")
     hint_refused_plugins(registry, resolved)
@@ -154,17 +156,25 @@ def inspect_target(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag;
                 f"--target cannot be combined with {', '.join(used)}; pass target-specific "
                 "configuration through --target-option"
             )
+    built_in: list[ResolvedConnection] = []
+
+    def legacy() -> Target:
+        built_in.append(_connection(url, model, api_key_env, provider, adapter))
+        return endpoint_for(built_in[0])
+
     plain = resolve_target(
         registry,
         locator=target,
         options=target_option,
         kind=TargetKind.ENDPOINT,
-        fallback=lambda: _endpoint(url, model, api_key_env, provider, adapter),
+        fallback=legacy,
     )
     planted = plain.planting(SYSTEM_PROBE) if isinstance(plain, SystemPromptPlanter) else None
     report = run_against_endpoint(
         plain.ref,
         lambda: inspect_endpoint(plain, planted),
+        privacy=prof.privacy,
+        secrets=[value for connection in built_in for value in connection.secret_values],
         accepts=(EndpointFlag.ADAPTER, EndpointFlag.API_KEY_ENV),
     )
     unrunnable = unrunnable_rules(report, registry)
@@ -175,20 +185,18 @@ def inspect_target(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag;
     _enforce_requirements(report, require)
 
 
-def _endpoint(
+def _connection(
     url: str | None,
     model: str | None,
     api_key_env: str | None,
     provider: str | None,
     adapter: Path | None,
-) -> Target:
-    """Build the legacy endpoint selected by --url and --model."""
+) -> ResolvedConnection:
+    """Resolve the legacy endpoint selected by --url and --model."""
     if url is None or model is None:
         raise typer.BadParameter("pass --url and --model, or --target scheme://locator")
-    return endpoint_for(
-        resolve_flags(
-            url, model, provider=provider, api_key_env=api_key_env, adapter=adapter, sending=True
-        )
+    return resolve_flags(
+        url, model, provider=provider, api_key_env=api_key_env, adapter=adapter, sending=True
     )
 
 

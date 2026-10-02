@@ -1,7 +1,7 @@
 """Read the files a profile names, through the loaders the runs use.
 
 `config validate`, `config explain` and `doctor --profile` share this, so none of them
-can call a profile valid whose contracts, calibrations or rule paths a run then refuses.
+can call a profile valid whose contracts, calibrations or rules a run then refuses.
 """
 
 from dataclasses import dataclass
@@ -10,6 +10,7 @@ from guardana.cli._contracts import ReadContracts, contract_paths, read_contract
 from guardana.cli._rules_loading import rule_path_problems
 from guardana.core.manifest.build import ProfileCalibrations, read_profile_calibrations
 from guardana.core.profile import Profile
+from guardana.core.registry import Registry
 
 
 @dataclass(frozen=True, slots=True)
@@ -19,7 +20,8 @@ class ProfileFiles:
     contracts: ReadContracts
     calibrations: ProfileCalibrations
     rule_paths: tuple[str, ...]
-    """One sentence per `rules.paths` entry a run would load nothing from."""
+    """One sentence per `rules.paths` entry a run would load nothing from, and per rule file
+    or rule in them that would fail to load."""
 
     @property
     def problems(self) -> tuple[str, ...]:
@@ -45,10 +47,13 @@ class ProfileFiles:
         }
 
 
-def read_profile_files(profile: Profile) -> ProfileFiles:
-    """Load every contract, calibration and rule path the profile names, collecting problems."""
+def read_profile_files(profile: Profile, registry: Registry) -> ProfileFiles:
+    """Load every contract, calibration and rule the profile names, collecting problems.
+
+    The rules are loaded into `registry`, which discovery built under the run's trust.
+    """
     return ProfileFiles(
         contracts=read_contracts(contract_paths(profile, [])),
         calibrations=read_profile_calibrations(profile),
-        rule_paths=tuple(rule_path_problems(profile)),
+        rule_paths=tuple(rule_path_problems(profile, registry)),
     )

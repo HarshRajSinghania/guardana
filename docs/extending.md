@@ -370,7 +370,9 @@ A target that declares a capability it has no surface for is refused by the runn
 with one clear error. A target that implements a surface and *forgets to declare
 it* is worse and used to be silent: every rule needing that capability is skipped,
 the scan comes back green, and nothing in the report separates that from a target
-with no problems. The conformance kit fails on it.
+with no problems. The conformance kit fails on it. One exception: an `EndpointTarget`
+subclass that keeps the inherited `offer_tools` declares `CALL_TOOLS` only when its
+transport can offer tools; one that replaces `offer_tools` must declare it.
 
 For a `FileReader` it also asks `iter_files` for the suffixes of up to five of the
 target's own files, in lowercase and in capitals, and fails when a file is left out:

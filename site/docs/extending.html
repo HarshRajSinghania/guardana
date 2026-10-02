@@ -652,7 +652,9 @@ def test_my_target_satisfies_the_contract(tmp_path: Path) -&gt; None:
 with one clear error. A target that implements a surface and <em>forgets to declare
 it</em> is worse and used to be silent: every rule needing that capability is skipped,
 the scan comes back green, and nothing in the report separates that from a target
-with no problems. The conformance kit fails on it.</p>
+with no problems. The conformance kit fails on it. One exception: an <code>EndpointTarget</code>
+subclass that keeps the inherited <code>offer_tools</code> declares <code>CALL_TOOLS</code> only when its
+transport can offer tools; one that replaces <code>offer_tools</code> must declare it.</p>
 <p>For a <code>FileReader</code> it also asks <code>iter_files</code> for the suffixes of up to five of the
 target's own files, in lowercase and in capitals, and fails when a file is left out:
 a target that filters <code>.pkl</code> by exact case hands <code>model.PKL</code> to no rule.

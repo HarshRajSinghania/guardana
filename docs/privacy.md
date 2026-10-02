@@ -85,6 +85,11 @@ without anyone naming it. Two kinds of string are treated differently:
 An error message about a `--target` locator prints it without userinfo, without a
 fragment and with its query replaced by a placeholder, whatever the scheme.
 
+When an endpoint answers with an error status, the message quotes the start of its
+body under the run's own policy, with the API key and every adapter header value the
+run sends shown as `[redacted:credential]`. Under `metadata_only` it gives the status
+and the body's size only.
+
 ## Redaction is never silent
 
 A finding whose evidence was changed says so, in the text a reader sees:

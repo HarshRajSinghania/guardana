@@ -64,6 +64,22 @@ def test_an_endpoint_whose_transport_calls_tools_must_still_declare_it() -> None
         assert_target_conforms(_ForgetsTools("http://x", "m", provider="openai"))
 
 
+class _OwnToolPath(EndpointTarget):
+    """Offers tools through its own code, whatever transport it was built with."""
+
+    def offer_tools(
+        self, messages: Sequence[ChatMessage], tools: Sequence[ToolSpec]
+    ) -> ToolCallReply:
+        return ToolCallReply(text="hello", tool_calls=())
+
+
+def test_an_endpoint_subclass_offering_tools_its_own_way_must_declare_it() -> None:
+    target = _OwnToolPath("http://x", "m", transport=ScriptedTransport("hi"))
+
+    with pytest.raises(TargetContractError, match="does not declare call_tools"):
+        assert_target_conforms(target)
+
+
 class _OffersToolsQuietly(Target):
     """Offers tools by its class alone and never says so."""
 

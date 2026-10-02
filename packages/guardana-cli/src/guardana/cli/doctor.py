@@ -323,11 +323,11 @@ def _is_installed(name: str) -> bool:
     return True
 
 
-def _profile_files(profile: Profile) -> list[Check]:
-    """Fail on each contract, calibration or rule path the profile names and a run refuses."""
+def _profile_files(profile: Profile, registry: Registry) -> list[Check]:
+    """Fail on each contract, calibration or rule the profile names and a run refuses."""
     return [
         Check("profile files", Level.FAIL, problem)
-        for problem in read_profile_files(profile).problems
+        for problem in read_profile_files(profile, registry).problems
     ]
 
 
@@ -396,7 +396,7 @@ def doctor(
         *_plugins(registry, leftover),
         *packs,
         *_policy(prof),
-        *_profile_files(prof),
+        *_profile_files(prof, registry),
         *_profile_trust(prof),
         *_allowed_plugins(resolved, installed),
     ]

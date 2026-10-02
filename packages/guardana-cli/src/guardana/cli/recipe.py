@@ -183,7 +183,7 @@ def run(
         raise typer.Exit(code=ExitCode.INVALID_USAGE) from exc
     try:
         prepared, lock_text = _checked(read)
-        subject = _subject(prepared)
+        subject, secrets = _subject(prepared)
         kind = _run_kind(loaded, subject)
     except _Refusal as refused:
         _refuse(loaded, f"the run did not start: {refused.reason}")
@@ -195,7 +195,7 @@ def run(
     if prepared.lock.unpinned:
         typer.echo(f"warning: {_unpinned(prepared.lock)}", err=True)
     try:
-        verification = _verify(prepared, subject, concurrency, kind)
+        verification = _verify(prepared, subject, concurrency, kind, secrets)
     except typer.Exit as exc:
         if exc.exit_code == ExitCode.INVALID_USAGE:
             _refuse(loaded, "the run was refused before it sent anything; see the error output")
@@ -429,11 +429,14 @@ def _check_judges(profile: Profile) -> None:
         raise refuse_invalid_profile(exc) from exc
 
 
-def _subject(prepared: _Prepared) -> Target:
-    """Build what the run sends to, holding a re-read adapter to the digest the lock pinned."""
+def _subject(prepared: _Prepared) -> tuple[Target, tuple[str, ...]]:
+    """Build what the run sends to, holding a re-read adapter to the digest the lock pinned.
+
+    The second item holds every secret the subject sends, which no message may quote.
+    """
     recipe = prepared.recipe
     if recipe.recording is not None:
-        return recorded_target_or_exit(recipe.recording)
+        return recorded_target_or_exit(recipe.recording), ()
     try:
         resolved = resolve_connection(_connection(recipe), sending=True, spelling=_SPELLING)
     except ConnectionConfigError as exc:
@@ -448,10 +451,15 @@ def _subject(prepared: _Prepared) -> Target:
         resolved, system_prompt=prepared.system_prompt, meter=UsageMeter(prepared.profile.budgets)
     )
     if prepared.fixtures is None or tenants is None:
-        return endpoint
-    return seeded_endpoint(
+        return endpoint, resolved.secret_values
+    secrets = (
+        *resolved.secret_values,
+        *(value for tenant in tenants for value in tenant.connection.secret_values),
+    )
+    seeded = seeded_endpoint(
         endpoint, prepared.fixtures, tenants, system_prompt=prepared.system_prompt
     )
+    return seeded, secrets
 
 
 def _tenants(recipe: Recipe, fixtures: Fixtures, *, sending: bool) -> tuple[ResolvedTenant, ...]:
@@ -531,7 +539,11 @@ def _refuse(recipe: Recipe, reason: str) -> None:
 
 
 def _verify(
-    prepared: _Prepared, subject: Target, concurrency: int, kind: SubjectKind
+    prepared: _Prepared,
+    subject: Target,
+    concurrency: int,
+    kind: SubjectKind,
+    secrets: tuple[str, ...],
 ) -> Verification:
     """Run the recipe's subject through the verifier `probe` and `grade` use."""
     recipe = prepared.recipe
@@ -559,7 +571,9 @@ def _verify(
 
     if isinstance(subject, RecordedTarget):
         return run_judged(verified)
-    return run_against_endpoint(subject.ref, verified)
+    return run_against_endpoint(
+        subject.ref, verified, privacy=prepared.profile.privacy, secrets=secrets
+    )
 
 
 def _carried_out(action: Callable[[], Verification]) -> Verification:

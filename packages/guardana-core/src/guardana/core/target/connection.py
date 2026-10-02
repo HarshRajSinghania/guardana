@@ -13,7 +13,7 @@ import json
 import os
 import re
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import yaml
@@ -95,6 +95,9 @@ class LoadedAdapter:
     credentials: tuple[Credential, ...] = ()
     """What the expanded headers authenticate with; empty when the headers were not expanded."""
 
+    secret_values: tuple[str, ...] = field(default=(), repr=False)
+    """The values `credentials` digests: each header that reads a `${VAR}`, and each value read."""
+
 
 @dataclass(frozen=True, slots=True)
 class ResolvedConnection:
@@ -118,6 +121,9 @@ class ResolvedConnection:
     Set only for a connection resolved to send, so two connections can be told apart by
     what they send without holding the secret twice.
     """
+
+    secret_values: tuple[str, ...] = field(default=(), repr=False)
+    """The values `credentials` digests, so text shown to a reader can withhold each one."""
 
     def endpoint(
         self,
@@ -174,6 +180,7 @@ def resolve_connection(
         credentials=()
         if api_key is None
         else (Credential(_secret(api_key), f"the key in {connection.api_key_env}"),),
+        secret_values=() if api_key is None else (api_key,),
     )
 
 
@@ -221,25 +228,29 @@ def load_adapter(
     if not isinstance(raw_headers, dict):
         raise ConnectionConfigError(f"invalid adapter {path}: 'headers' must be a mapping")
     target = _adapter_url(raw.get("url"), url, path, names)
-    headers, credentials = (
-        ({}, ()) if environ is None else _expanded_headers(raw_headers, path, environ)
+    headers, credentials, secrets = (
+        ({}, (), ()) if environ is None else _expanded_headers(raw_headers, path, environ)
     )
     config = AdapterConfig(
         url=target, body=raw["body"], response_path=response_path, headers=headers
     )
-    return LoadedAdapter(config=config, digest=digest, credentials=credentials)
+    return LoadedAdapter(
+        config=config, digest=digest, credentials=credentials, secret_values=secrets
+    )
 
 
 def _expanded_headers(
     raw: Mapping[object, object], path: Path, environ: Mapping[str, str]
-) -> tuple[dict[str, str], tuple[Credential, ...]]:
+) -> tuple[dict[str, str], tuple[Credential, ...], tuple[str, ...]]:
     """Expand every header, naming as a credential each one that reads a `${VAR}` and each value.
 
     The headers as a whole are one more, so two adapters whose literal headers are the
-    same send the same thing even when no header reads a variable.
+    same send the same thing even when no header reads a variable. The third item holds
+    the values the per-header credentials digest.
     """
     headers: dict[str, str] = {}
     credentials: list[Credential] = []
+    secrets: list[str] = []
     for key, value in raw.items():
         name = str(key)
         expanded, used = _expand(str(value), path, environ)
@@ -250,8 +261,9 @@ def _expanded_headers(
                 Credential(_secret(found), f"${{{variable}}} in header {name}")
                 for variable, found in used
             )
+            secrets.extend([expanded, *(found for _, found in used)])
     credentials.append(Credential(_headers_digest(headers), "its headers as a whole"))
-    return headers, tuple(credentials)
+    return headers, tuple(credentials), tuple(secrets)
 
 
 def _through_adapter(
@@ -280,6 +292,7 @@ def _through_adapter(
         transport=transport,
         adapter_digest=loaded.digest,
         credentials=loaded.credentials,
+        secret_values=loaded.secret_values,
     )
 
 

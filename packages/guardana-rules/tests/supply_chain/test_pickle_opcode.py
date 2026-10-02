@@ -574,6 +574,56 @@ def test_a_malicious_data_pkl_beside_raw_storages_is_still_critical(tmp_path: Pa
     ]
 
 
+def test_a_pickle_stored_as_a_tensor_storage_beside_a_benign_data_pkl_is_critical(
+    tmp_path: Path,
+) -> None:
+    _checkpoint(
+        tmp_path,
+        {
+            "archive/data.pkl": pickle.dumps({"w": 1}, protocol=2),
+            "archive/data/0": _RAW_STORAGE,
+            "archive/data/1": pickle.dumps(_Evil(), protocol=4),
+        },
+    )
+
+    findings = list(PickleOpcodeRule().run(ArtifactTarget(tmp_path), RuleContext()))
+
+    assert [(f.severity, f.evidence.detail) for f in findings] == [
+        (Severity.CRITICAL, "file=optimizer.pt::archive/data/1")
+    ]
+
+
+def test_a_pickle_hiding_its_import_in_a_tensor_storage_is_not_cleared(tmp_path: Path) -> None:
+    _checkpoint(
+        tmp_path,
+        {
+            "archive/data.pkl": pickle.dumps({"w": 1}, protocol=2),
+            "archive/data/0": b"\x80\x04h\x05h\x06\x93.",
+        },
+    )
+
+    findings = list(PickleOpcodeRule().run(ArtifactTarget(tmp_path), RuleContext()))
+
+    assert [f.title for f in findings] == ["Unscanned model file"]
+    assert "archive/data/0" in findings[0].evidence.summary
+
+
+def test_a_nested_archive_stored_as_a_tensor_storage_is_reported(tmp_path: Path) -> None:
+    _checkpoint(
+        tmp_path,
+        {
+            "archive/data.pkl": pickle.dumps({"w": 1}, protocol=2),
+            "archive/data/0": _zip_with("archive/data.pkl", pickle.dumps(_Evil())),
+        },
+    )
+
+    findings = list(PickleOpcodeRule().run(ArtifactTarget(tmp_path), RuleContext()))
+
+    assert [f.evidence.summary for f in findings] == [
+        "zip member is a nested archive (archive/data/0); not scanned"
+    ]
+
+
 def test_a_storage_shaped_member_with_no_data_pkl_beside_it_is_still_scanned(
     tmp_path: Path,
 ) -> None:

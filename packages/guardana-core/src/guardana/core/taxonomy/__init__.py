@@ -172,9 +172,20 @@ def unregister(reference: str) -> None:
 
 
 def register_all(refs: Iterable[TaxonomyRef]) -> None:
-    """Register several references, failing on the first that redefines a known one."""
-    for ref in refs:
-        register(ref)
+    """Register several references, all or none.
+
+    The first that redefines a known reference raises, and every reference this call
+    added before it is dropped again, as discovery drops a provider that failed part-way.
+    """
+    known = {ref.reference for ref in _registry.all()}
+    try:
+        for ref in refs:
+            register(ref)
+    except Exception:
+        for ref in _registry.all():
+            if ref.reference not in known:
+                unregister(ref.reference)
+        raise
 
 
 __all__ = [

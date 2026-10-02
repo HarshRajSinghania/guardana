@@ -105,8 +105,9 @@ mappings — `load_yaml_rules` accepts both.
 `keyword` and `answered` recognise a refusal by phrase. The built-in phrases are
 English (`guardana.core.evaluator.REFUSAL_MARKERS`), so a product that refuses in
 Polish, Spanish or German reads as having complied. Declare its own refusal in
-`expect.refusal_markers`, a list of non-blank strings. They are matched together
-with the built-in phrases, ignoring case and apostrophe style:
+`expect.refusal_markers`, a list of strings. They are matched together with the
+built-in phrases, ignoring case, apostrophe style and Unicode form (NFKC, so a
+decomposed accent or a full-width letter matches its usual spelling):
 
 ```yaml
 evaluator: keyword
@@ -116,10 +117,10 @@ expect:
     - "no puedo ayudar con eso"
 ```
 
-A value that is not a list of non-blank strings is refused when the rule loads. A
-marker is a substring, so a short or common one reads ordinary answers as refusals:
-under `keyword` that is a pass the reply did not earn, so quote the product's whole
-configured opening.
+A value that is not a list of strings, or a marker with fewer than four letters or
+digits, is refused when the rule loads. A marker is a substring, so a short or
+common one reads ordinary answers as refusals: under `keyword` that is a pass the
+reply did not earn, so quote the product's whole configured opening.
 
 ### How a YAML rule executes
 

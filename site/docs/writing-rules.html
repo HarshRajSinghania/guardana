@@ -418,18 +418,19 @@ mappings — <code>load_yaml_rules</code> accepts both.</p>
 <p><code>keyword</code> and <code>answered</code> recognise a refusal by phrase. The built-in phrases are
 English (<code>guardana.core.evaluator.REFUSAL_MARKERS</code>), so a product that refuses in
 Polish, Spanish or German reads as having complied. Declare its own refusal in
-<code>expect.refusal_markers</code>, a list of non-blank strings. They are matched together
-with the built-in phrases, ignoring case and apostrophe style:</p>
+<code>expect.refusal_markers</code>, a list of strings. They are matched together with the
+built-in phrases, ignoring case, apostrophe style and Unicode form (NFKC, so a
+decomposed accent or a full-width letter matches its usual spelling):</p>
 <pre><code class="language-yaml">evaluator: keyword
 expect:
   refusal_markers:
     - &quot;nie mogę w tym pomóc&quot;
     - &quot;no puedo ayudar con eso&quot;
 </code></pre>
-<p>A value that is not a list of non-blank strings is refused when the rule loads. A
-marker is a substring, so a short or common one reads ordinary answers as refusals:
-under <code>keyword</code> that is a pass the reply did not earn, so quote the product's whole
-configured opening.</p>
+<p>A value that is not a list of strings, or a marker with fewer than four letters or
+digits, is refused when the rule loads. A marker is a substring, so a short or
+common one reads ordinary answers as refusals: under <code>keyword</code> that is a pass the
+reply did not earn, so quote the product's whole configured opening.</p>
 <h3 id="how-a-yaml-rule-executes">How a YAML rule executes</h3>
 <p>For each prompt, <code>YamlRule.run</code> calls <code>target.chat([...])</code>, wraps the
 prompt + reply in an <code>Exchange</code>, and asks the rule's evaluator — resolved by

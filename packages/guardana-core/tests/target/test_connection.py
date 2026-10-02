@@ -176,3 +176,36 @@ def test_a_judge_block_refusal_names_the_block_keys() -> None:
             spelling=Spelling.judge("guard"),
             environ={},
         )
+
+
+def test_a_connection_that_sends_holds_its_key_value() -> None:
+    resolved = resolve_connection(
+        Connection(_URL, "m", api_key_env="KEY"), sending=True, environ={"KEY": "k-value"}
+    )
+
+    assert resolved.secret_values == ("k-value",)
+    assert "secret_values" not in repr(resolved)
+
+
+def test_an_adapter_connection_holds_each_expanded_header_and_each_value_it_read(
+    tmp_path: Path,
+) -> None:
+    path = _adapter(
+        tmp_path, f"headers:\n  Authorization: Bearer ${{APP_KEY}}\n  X-Fixed: plain\n{_BODY}"
+    )
+
+    resolved = resolve_connection(
+        Connection(_URL, "m", adapter=path), sending=True, environ={"APP_KEY": "sekret-1"}
+    )
+
+    assert resolved.secret_values == ("Bearer sekret-1", "sekret-1")
+
+
+def test_a_connection_that_will_not_send_holds_no_secret_value(tmp_path: Path) -> None:
+    path = _adapter(tmp_path, f"headers:\n  X-Key: ${{APP_KEY}}\n{_BODY}")
+
+    resolved = resolve_connection(
+        Connection(_URL, "m", adapter=path), sending=False, environ={"APP_KEY": "sekret-1"}
+    )
+
+    assert resolved.secret_values == ()

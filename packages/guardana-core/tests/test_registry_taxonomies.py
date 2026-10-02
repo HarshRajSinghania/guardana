@@ -23,6 +23,7 @@ from guardana.core.taxonomy import (
     catalogs,
     extensions,
     register,
+    register_all,
     resolve,
 )
 from guardana.core.taxonomy._builtin import index as _taxonomy_registry
@@ -73,6 +74,28 @@ def test_a_conflicting_redefinition_is_refused(forget_acme: None) -> None:
     register(_ACME)
     with pytest.raises(TaxonomyError, match="ACME-14"):
         register(TaxonomyRef("ACME-CONTROLS-1", "ACME-14", "Something else entirely"))
+
+
+def test_registering_a_set_that_fails_part_way_leaves_none_of_it_behind(
+    forget_acme: None,
+) -> None:
+    clash = TaxonomyRef("ACME-CONTROLS-1", "LLM01", "Not prompt injection at all")
+
+    with pytest.raises(TaxonomyError, match="LLM01"):
+        register_all([_ACME, clash])
+
+    assert resolve("ACME-14") is None
+    assert resolve("LLM01:2025") is not None
+
+
+def test_registering_a_set_keeps_what_was_known_before_it(forget_acme: None) -> None:
+    register(_ACME)
+    clash = TaxonomyRef("ACME-CONTROLS-1", "LLM01", "Not prompt injection at all")
+
+    with pytest.raises(TaxonomyError):
+        register_all([_ACME, clash])
+
+    assert resolve("ACME-14") == _ACME
 
 
 def test_discovery_registers_a_providers_refs(

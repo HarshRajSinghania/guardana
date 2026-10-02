@@ -313,6 +313,7 @@ def monitor(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; this i
                 on_alert=on_alert,
                 calibrations=records,
             ),
+            privacy=prof.privacy,
             accepts=_ACCEPTED_FLAGS,
         )
         _exit_with_worst(summary)
@@ -345,6 +346,8 @@ def monitor(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; this i
             on_alert=on_alert,
             calibrations=records,
         ),
+        privacy=prof.privacy,
+        secrets=reached.secret_values,
         accepts=_ACCEPTED_FLAGS,
     )
     _exit_with_worst(summary)

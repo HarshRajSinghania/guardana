@@ -94,7 +94,7 @@ def calibrate_command(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI fl
     # its own block and URL when it fails; this label is only for a plugin's own network.
     try:
         report = run_against_endpoint(
-            f"of evaluator {evaluator!r}", lambda: calibrate(grader, samples)
+            f"of evaluator {evaluator!r}", lambda: calibrate(grader, samples), privacy=prof.privacy
         )
     except BudgetExhausted as exc:
         typer.echo(

@@ -65,11 +65,13 @@ def _fixed_at_construction(target: Target, capability: Capability) -> bool:
 
     `EndpointTarget` always has `offer_tools`, and declares `CALL_TOOLS` only when the
     transport it was built with speaks the function-calling API, the way it declares
-    `PLANT_SYSTEM_PROMPT` only when built with a system prompt.
+    `PLANT_SYSTEM_PROMPT` only when built with a system prompt. A subclass that replaces
+    `offer_tools` offers tools its own way, so it must declare the capability.
     """
     return (
         capability is Capability.CALL_TOOLS
         and isinstance(target, EndpointTarget)
+        and type(target).offer_tools is EndpointTarget.offer_tools
         and not isinstance(target.transport, ToolCallingTransport)
     )
 

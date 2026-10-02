@@ -93,6 +93,7 @@ def test_monitor_unreachable_endpoint_exits_two(monkeypatch: pytest.MonkeyPatch)
                 on_alert=lambda _alert: None,
                 sleep=_no_sleep,
             ),
+            privacy=default_profile().privacy,
         )
 
     assert exc_info.value.exit_code == _ENDPOINT_UNREACHABLE

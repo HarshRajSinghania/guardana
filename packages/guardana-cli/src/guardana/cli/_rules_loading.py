@@ -52,13 +52,16 @@ def _only_in_the_working_directory(profile: Profile) -> list[tuple[Path, Path]]:
     return pairs
 
 
-def rule_path_problems(profile: Profile) -> list[str]:
-    """Say which `rules.paths` entries a run would fail to load anything from.
+def rule_path_problems(profile: Profile, registry: Registry) -> list[str]:
+    """Say which `rules.paths` entries a run would fail to load, loading each into `registry`.
 
     The run records these as load errors and fails its gate on them; a profile check
-    that did not look would call valid a configuration the run refuses.
+    that did not load the rules would call valid a configuration the run refuses.
+    `registry` is the one discovery built under the run's trust, so a rule citing a
+    pack's framework or claiming an id already held is judged as the run judges it.
     """
     problems: list[str] = []
+    loadable: list[Path] = []
     for entry in profile.rule_paths:
         path = Path(entry)
         if not path.exists():
@@ -70,4 +73,10 @@ def rule_path_problems(profile: Profile) -> list[str]:
                 f"rules.paths entry {path} holds no .yaml or .yml rule file; files in its "
                 f"subdirectories are not read"
             )
+        else:
+            loadable.append(path)
+    problems.extend(
+        f"could not load rule {error.source}: {error.reason}"
+        for error in registry.load_yaml_rule_dirs(loadable).errors
+    )
     return problems

@@ -288,7 +288,10 @@ def probe(  # noqa: C901, PLR0913, PLR0917 — Typer surface, target modes
             fallback=_missing_target,
         )
         custom = run_against_endpoint(
-            selected.ref, lambda: verified(selected), accepts=_ACCEPTED_FLAGS
+            selected.ref,
+            lambda: verified(selected),
+            privacy=prof.privacy,
+            accepts=_ACCEPTED_FLAGS,
         )
         _finish_probe(
             custom, selected.ref, deployment, format=format, output=output, reporter=reporter
@@ -354,7 +357,7 @@ def probe(  # noqa: C901, PLR0913, PLR0917 — Typer surface, target modes
     selected_endpoint = endpoint_for(
         connection, system_prompt=prompt, meter=UsageMeter(prof.budgets)
     )
-    subject = _seeded(
+    subject, tenant_secrets = _seeded(
         selected_endpoint,
         seeded,
         Connection(
@@ -362,7 +365,13 @@ def probe(  # noqa: C901, PLR0913, PLR0917 — Typer surface, target modes
         ),
         prompt,
     )
-    probed = run_against_endpoint(endpoint_url, lambda: verified(subject), accepts=_ACCEPTED_FLAGS)
+    probed = run_against_endpoint(
+        endpoint_url,
+        lambda: verified(subject),
+        privacy=prof.privacy,
+        secrets=(*connection.secret_values, *tenant_secrets),
+        accepts=_ACCEPTED_FLAGS,
+    )
     _finish_probe(
         probed,
         selected_endpoint.ref,
@@ -386,12 +395,16 @@ def _fixtures(path: Path | None, *, elsewhere: bool) -> Fixtures | None:
 
 def _seeded(
     endpoint: EndpointTarget, fixtures: Fixtures | None, written: Connection, prompt: str | None
-) -> Target:
-    """Return the endpoint, or with `--fixtures` the seeded target over it and every tenant."""
+) -> tuple[Target, tuple[str, ...]]:
+    """Return the endpoint, or with `--fixtures` the seeded target over it and every tenant.
+
+    The second item holds the secrets the tenants send, which no message may quote.
+    """
     if fixtures is None:
-        return endpoint
+        return endpoint, ()
     tenants = resolve_tenants(fixtures, written, sending=True)
-    return seeded_endpoint(endpoint, fixtures, tenants, system_prompt=prompt)
+    secrets = tuple(value for tenant in tenants for value in tenant.connection.secret_values)
+    return seeded_endpoint(endpoint, fixtures, tenants, system_prompt=prompt), secrets
 
 
 def _carried_out(run: Callable[[], _Run]) -> _Run:

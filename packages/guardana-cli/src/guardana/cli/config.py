@@ -6,11 +6,12 @@ from typing import Annotated
 
 import typer
 from guardana.cli._formats import OutputFormat
-from guardana.cli._plugins import DEFAULT_MODE
+from guardana.cli._plugins import DEFAULT_MODE, resolve_trust
 from guardana.cli._profile import PRESET_HELP, resolve_profile
 from guardana.cli._profile_files import ProfileFiles, read_profile_files
 from guardana.cli.exit_codes import ExitCode
 from guardana.core.profile import Profile
+from guardana.core.registry import Registry
 
 config_app = typer.Typer(help="Check and explain a Guardana profile.", no_args_is_help=True)
 
@@ -95,13 +96,20 @@ def validate(
 ) -> None:
     """Parse a profile, read every file it names, and report each thing wrong with it.
 
-    The contracts, calibrations and rule paths go through the loaders the runs use,
-    so this answers the question a run would without running a scan — useful in a
-    pipeline step that should fail early rather than after paying for a probe.
+    The contracts, calibrations and rules go through the loaders the runs use, the rules
+    after discovery under the profile's plugin trust, so this answers the question a run
+    would without running a scan — useful in a pipeline step that should fail early
+    rather than after paying for a probe.
     """
     prof = resolve_profile(profile, preset)
-    _refuse_problems(read_profile_files(prof))
+    _refuse_problems(_read_files(prof))
     typer.echo(f"✓ {prof.name} is valid.")
+
+
+def _read_files(profile: Profile) -> ProfileFiles:
+    """Read the files `profile` names, its rules into the registry a run under it discovers."""
+    registry = Registry.discover(resolve_trust(None, None, profile).trust)
+    return read_profile_files(profile, registry)
 
 
 def _refuse_problems(files: ProfileFiles) -> None:
@@ -119,11 +127,11 @@ def explain(
 ) -> None:
     """Print the settings actually in force, defaults included, and exit `3` on a problem.
 
-    A contract, calibration or rule path the profile names and a run could not load
-    is printed as a problem and fails the command, as it would fail the run.
+    A contract, calibration or rule the profile names and a run could not load is
+    printed as a problem and fails the command, as it would fail the run.
     """
     prof = resolve_profile(profile, preset)
-    files = read_profile_files(prof)
+    files = _read_files(prof)
     resolved = _resolved(prof, files)
     if format is OutputFormat.json:
         typer.echo(json.dumps(resolved, indent=2))

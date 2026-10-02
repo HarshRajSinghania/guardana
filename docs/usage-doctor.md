@@ -63,8 +63,8 @@ It answers the questions that are otherwise guessed at:
 - **which settings weaken the gate.** Each is a legitimate choice; making it
   silently is what must not happen.
 - **whether the files the profile names load.** Each contract, calibration and
-  `rules.paths` entry goes through the loader a run uses; one a run would refuse is a
-  failure here too.
+  rule under `rules.paths` goes through the loader a run uses, the rules after the same
+  plugin discovery; one a run would refuse is a failure here too.
 - **whether each `plugins.allow` entry loads anything.** A name that is not installed,
   or installs no Guardana entry point, is a warning: its checks would simply be absent.
 
@@ -74,8 +74,9 @@ they are things worth knowing, not faults.
 
 ## `config validate` — fail before you pay
 
-Parses the profile, then reads every contract, calibration file and `rules.paths`
-entry it names with the loaders a run uses. Each problem is printed and the command
+Parses the profile, then loads every contract, calibration file and rule under
+`rules.paths` it names with the loaders a run uses, the rules after discovering the
+plugins the profile trusts. Each problem is printed and the command
 exits `3`, as the run would. Useful as an early pipeline step: a typo in
 `guardana.yaml` should fail in a second rather than after a probe has spent its
 budget finding out.
