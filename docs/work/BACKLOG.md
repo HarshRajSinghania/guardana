@@ -21,11 +21,11 @@ No remote issues were created; the GitHub open-issue query returned zero.
 | B12 | Non-executing declarative packs | parallel lane, decided before F2 | Keep local ID validation. Decide whether a pack can ship checks that execute no Python. The public extension-ID service is dropped (direction audit). |
 | B13 | Public contributor tasks and adoption checks | F2/F6 | Prepare small issue descriptions from B04/B06/B08; record five developer sessions and two team integrations with consent. Publishing issues is separate maintainer work. |
 | B19 | MCP and A2A conformance fixtures | F7 | Both MCP revisions against independent server fixtures (authorization, task identity, cache scope, registry metadata, version change) and one A2A v1 fixture; unsupported capability recorded as missing coverage. |
-| B20 | Live retrieval pilot | F6 | One retrieval target catches a poisoned document and a tenant-filter failure without an uncontrolled side effect. |
+| B20 | Live retrieval pilot | F6 | One retrieval target catches a poisoned document and a tenant-filter failure without an uncontrolled side effect. The checks and a reference application shipped in 0.37.0; open until a team's own retrieval target has run them. |
 | B21 | Three-outcome fixtures for every built-in | 1.0 | The ratchet in `test_builtin_fixture_coverage.py` (12 of 51 at 0.31.0) reaches every rule that can decline. |
 | B22 | A time bound for `regex` | Later | A crafted reply can make an author's backtracking pattern run for a very long time; the 65,536-character bound limits input, not time. Any fix that adds a dependency needs principle 6's justification. |
 
-B08 shipped in 0.36.0 (ROADMAP F6, first half). B07 shipped in 0.35.0 (ROADMAP F5). B15, B16, B17 and B18 shipped in 0.32.0 (ROADMAP Q1). B01, B02, B03, B09 and B14 shipped in 0.30.0 (ROADMAP F1). The lockfile/gitleaks and
+B08 shipped in 0.36.0 (ROADMAP F6, first half); the F6 second half shipped in 0.37.0. B07 shipped in 0.35.0 (ROADMAP F5). B15, B16, B17 and B18 shipped in 0.32.0 (ROADMAP Q1). B01, B02, B03, B09 and B14 shipped in 0.30.0 (ROADMAP F1). The lockfile/gitleaks and
 script-parser items shipped in 0.31.0; ONNX metadata grading, ATLAS provenance and the other
 items remain open below. Before closing any item, rerun its reproduction.
 
@@ -110,6 +110,44 @@ left for the owner, or are design gaps already documented elsewhere.
   set is closed (`target/base.py`), and `Verifier` does not run trace analysis
   (`docs/python-api.md`).
 
+## Left by F6, second half (0.37.0)
+
+- **An HTTP 400 from the endpoint ends a probe with exit `4` and saves nothing.** A guard that
+  rejects one prompt reads as an unreachable endpoint, and the requests already graded are
+  lost. Recording it as an error of the rule that sent it (exit `2`, the run saved) changes the
+  cause an exit code reports, so it is the owner's call; adapter `declines:` is the follow-up
+  (ROADMAP v0.38).
+- **A guarded application** (ROADMAP v0.38): adapter `declines:` the rule reads as a refusal or
+  as ungraded, `retry_statuses:`, `metadata_paths:` into `Exchange.meta`, a floor on the share
+  of graded cases in the gate, a target that fails part-way (a persistent `429` included)
+  keeping the partial run with `stopped_by`, client-side pacing
+  (`budgets.max_requests_per_minute`), a recipe naming an installed `target:`, and a
+  directory-installed pack pinned by the digest of its files rather than listed as unpinned.
+- **`pickle_opcode` reports one finding per callable**, so one Trainer artefact yields nine;
+  one finding per file listing the callables moves every fingerprint and baseline.
+- **The secret and MCP-manifest scans read 16 MiB of a file**; a larger `tokenizer.json` is
+  unverified. Streaming the secret scan and sniffing a manifest by structure would cover it;
+  a name-based exemption would not.
+- **Third-party evaluators cannot be configured from the profile** (`evaluator_config:`), and a
+  dataset case cannot set request fields (a language per case) a target or adapter sends.
+- **Traces:** a standalone `trace validate` for producers that cannot import Guardana; a
+  `decision_required` contract kind; a per-assertion `when_available` for contracts a producer
+  cannot yet serve; the reason of a coverage shortfall is withheld under `metadata_only`
+  although it holds no evidence.
+- **Regression cases:** a dataset shared by two suites can make the other one fail to load after
+  `case add`; a judge-graded case cannot be proven (`rule test` sends nothing); a case is not
+  reproduced against the subject before it is written.
+- **Fixtures and doubles:** the doubles' trace is graded by a second command, not inside
+  `recipe run`; `monitor` takes no `--fixtures`; `fixtures render` writes no records file for a
+  port of the doubles outside Python; which `${VAR}` header authenticates is not declared, so
+  every one counts as distinguishing two tenants.
+- **Per-minor upgrade notes**: what to regenerate (locks, baselines, calibrations) and which
+  keys moved, beside the changelog.
+- **A native trace still defaults a few absent fields**: a memory operation without `action`
+  reads as a read, a consent without `granted` as not granted, a delegation without `actor` or
+  `boundary` as unknown; `minLength` is not enforced and an unparseable timestamp reads as
+  absent.
+
 ## Left by F6, first half (0.36.0)
 
 - **A read timeout is a rule error, not an unreachable endpoint.** urllib raises a bare
@@ -121,14 +159,13 @@ left for the owner, or are design gaps already documented elsewhere.
   `--reporter`, and no SARIF in the artifact (SARIF carries no subject label yet).
 - **A Python rule's or evaluator's code is pinned by its distribution version only**; an
   editable or direct-URL install is listed as unpinned rather than digested.
-- Stateful tool doubles and a declared data boundary for the application's own fixtures stay
-  open for the second half of F6 (with the team regression loop and the live retrieval pilot).
 
 ## Left by F5 (0.35.0)
 
-- **Only the built-in endpoint keeps exchanges, and only its plain pass.** A pack's endpoint
-  target would need a protocol to keep them; canary passes and tool offers are not kept, so
-  canary and agent rules cannot be graded again.
+- **Only an endpoint built on `EndpointTarget` keeps exchanges, and only its plain pass.** Another
+  pack target would need a protocol to keep them, a subclass whose `chat` does not call the base
+  keeps none, and canary passes and tool offers are not kept, so canary and agent rules cannot
+  be graded again.
 - **`grade` has no `--reporter`**: the collector envelope carries no recording identity.
 - **Two graders of one execution are not compared**: `diff` excludes a rule graded
   differently; assessor-agreement statistics are M1.

@@ -2,12 +2,12 @@
 title: "Regression cases, a declared fixture boundary and the retrieval pilot"
 nav_order: 88
 summary: "a reviewed failure becomes a labelled, versioned regression case proven on both sides and regraded whenever its recipe is locked; the synthetic data an application runs with in CI is declared once, seeded into its own index and served by stateful doubles; and a tenant boundary and a poisoned document are checked from what Guardana sent, with controls whose failure is never a pass"
-status: accepted
+status: implemented
 ---
 
 # Regression cases, a declared fixture boundary and the retrieval pilot
 
-**Status:** accepted, not yet implemented · **Written:** 2026-10-02 · **Serves:** ROADMAP F6
+**Status:** implemented in 0.37.0 · **Written:** 2026-10-02 · **Serves:** ROADMAP F6
 (second half), backlog B20 · **Amends:** [`team-recipes.md`](team-recipes.md) decision 4 (a
 recording carries the subject kind since recording format 2)
 

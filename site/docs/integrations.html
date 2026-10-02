@@ -133,7 +133,7 @@
 <li><a href="design/anytime-valid-monitoring.html">Anytime-valid monitoring<span class="tag">proposed</span></a></li>
 <li><a href="design/recorded-answers.html">Recorded answers and regrading<span class="tag">accepted</span></a></li>
 <li><a href="design/team-recipes.html">Repository recipes, one connection and provider conformance<span class="tag">accepted</span></a></li>
-<li><a href="design/application-fixtures-and-regressions.html">Regression cases, a declared fixture boundary and the retrieval pilot<span class="tag">accepted</span></a></li>
+<li><a href="design/application-fixtures-and-regressions.html">Regression cases, a declared fixture boundary and the retrieval pilot<span class="tag">implemented</span></a></li>
 <li><a href="design/run-manifest-v2.html">Run manifest v2<span class="tag">implemented</span></a></li>
 <li><a href="design/privacy-and-redaction.html">Privacy and redaction<span class="tag">implemented</span></a></li>
 <li><a href="design/exit-codes.html">Exit codes and gate semantics<span class="tag">implemented</span></a></li>
@@ -261,7 +261,7 @@
 <li><a href="design/anytime-valid-monitoring.html">Anytime-valid monitoring<span class="tag">proposed</span></a></li>
 <li><a href="design/recorded-answers.html">Recorded answers and regrading<span class="tag">accepted</span></a></li>
 <li><a href="design/team-recipes.html">Repository recipes, one connection and provider conformance<span class="tag">accepted</span></a></li>
-<li><a href="design/application-fixtures-and-regressions.html">Regression cases, a declared fixture boundary and the retrieval pilot<span class="tag">accepted</span></a></li>
+<li><a href="design/application-fixtures-and-regressions.html">Regression cases, a declared fixture boundary and the retrieval pilot<span class="tag">implemented</span></a></li>
 <li><a href="design/run-manifest-v2.html">Run manifest v2<span class="tag">implemented</span></a></li>
 <li><a href="design/privacy-and-redaction.html">Privacy and redaction<span class="tag">implemented</span></a></li>
 <li><a href="design/exit-codes.html">Exit codes and gate semantics<span class="tag">implemented</span></a></li>
@@ -335,7 +335,7 @@ jobs:
       security-events: write   # required to upload SARIF
     steps:
       - uses: actions/checkout@v4
-      - uses: guardana/guardana@v0.36   # moving tag; pins to the latest 0.36.x
+      - uses: guardana/guardana@v0.37   # moving tag; pins to the latest 0.37.x
         with:
           path: .
           # args: --preset ci --baseline guardana-baseline.yaml
@@ -407,7 +407,7 @@ these&quot; is not &quot;nothing got worse&quot;. See <a href="usage-diff.html">
 <p>The templates live in <a href="https://github.com/guardana/guardana/blob/main/deploy/ci/README.md"><code>deploy/ci/</code></a> and are meant to be
 copied. The shortest form, which is also what the Jenkins and Azure templates
 run:</p>
-<pre><code class="language-bash">docker run --rm -v &quot;$PWD:/work:ro&quot; ghcr.io/guardana/guardana:0.36 \
+<pre><code class="language-bash">docker run --rm -v &quot;$PWD:/work:ro&quot; ghcr.io/guardana/guardana:0.37 \
   scan /work --format junit &gt; guardana-junit.xml
 </code></pre>
 <p>The redirect is deliberate: the file is written by your shell, with your user's
@@ -417,7 +417,7 @@ the job's test report — GitLab, Jenkins and Azure all read JUnit natively — 
 let the exit code fail the build.</p>
 <p>GitLab can include the job rather than copy it:</p>
 <pre><code class="language-yaml">include:
-  - remote: &quot;https://raw.githubusercontent.com/guardana/guardana/v0.36/deploy/ci/gitlab-ci.yml&quot;
+  - remote: &quot;https://raw.githubusercontent.com/guardana/guardana/v0.37/deploy/ci/gitlab-ci.yml&quot;
 
 guardana:
   variables:
@@ -447,7 +447,7 @@ to turn the gate on for an existing repo without fixing the whole backlog first.
 </main>
 </div>
 <footer class="foot"><div class="bar">
-<span class="who">Guardana 0.36.0 · Apache-2.0 ·
+<span class="who">Guardana 0.37.0 · Apache-2.0 ·
 maintained by Konrad Karauda</span>
 <a href="https://github.com/guardana/guardana/blob/main/docs/integrations.md">Edit this page on GitHub</a>
 <a href="https://github.com/guardana/guardana">github.com/guardana</a>
