@@ -104,6 +104,7 @@ def _lines(manifest: RunManifest) -> list[str]:
         f"  guardana:  {manifest.guardana.version}",
         f"  target:    {target.kind} {target.ref}",
         *_recipe_lines(manifest),
+        *([] if manifest.fixtures is None else [f"  fixtures:  {manifest.fixtures.describe()}"]),
         f"  profile:   {manifest.configuration.profile_name}",
         f"  gate:      {_value(summary.gate)}",
     ]

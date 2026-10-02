@@ -737,6 +737,13 @@ class FixturesRecord:
         if not isinstance(self.data, str) or not self.data.strip():
             raise ValueError("data is the statement the fixtures file makes, never empty")
 
+    def describe(self) -> str:
+        """Name the fixtures, their declared data, their tenants and what they seed, in one line."""
+        return (
+            f"{self.name} (data: {self.data}, as declared); tenants {', '.join(self.tenants)}; "
+            f"{self.documents} document(s), {self.records} record(s), {self.tools} tool(s)"
+        )
+
 
 @dataclass(frozen=True, slots=True)
 class ResultSummary:

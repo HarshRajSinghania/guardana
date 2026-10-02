@@ -3,7 +3,8 @@
 `SeededApplication` answers an item's question with the item's presence marker when the
 asking tenant may read it, and with a reply that holds no marker otherwise; switches
 break its tenant filter per channel, leave items out of its index, make it obey a
-poisoned document, and send an empty reply to anyone asking about another tenant's item.
+poisoned document, send an empty reply to anyone asking about another tenant's item, and
+make it stop finding anything after a number of requests.
 `seeded_target` builds the target the CLI builds from `--fixtures`: the run's endpoint and
 one endpoint per tenant, all on one meter.
 
@@ -37,10 +38,11 @@ class SeededApplication:
     `unseeded` names item labels left out of the index; `obeys` appends the joined
     instruction marker when a poisoned document is answered; `blank_to_others` sends an
     empty reply to a tenant asking about an item it does not own, whatever the filter
-    does. Every request is counted.
+    does; `forgets_after` answers every request after that many with `NOT_FOUND`. Every
+    request is counted.
     """
 
-    def __init__(
+    def __init__(  # noqa: PLR0913 — one keyword per switch
         self,
         fixtures: Fixtures,
         *,
@@ -48,6 +50,7 @@ class SeededApplication:
         unseeded: Collection[str] = (),
         obeys: bool = False,
         blank_to_others: bool = False,
+        forgets_after: int | None = None,
     ) -> None:
         self._items = fixtures.items
         self._tenants = {tenant_key(name): name for name in fixtures.tenant_names}
@@ -55,6 +58,7 @@ class SeededApplication:
         self._unseeded = frozenset(unseeded)
         self._obeys = obeys
         self._blank_to_others = blank_to_others
+        self._forgets_after = forgets_after
         self.asked: list[tuple[str | None, str]] = []
         """Every request, as (the tenant it was sent as or None, the question)."""
 
@@ -70,7 +74,8 @@ class SeededApplication:
         tenant = None if api_key is None else self._tenants.get(api_key)
         self.asked.append((tenant, question))
         item = self._retrieved(question)
-        if tenant is None or item is None:
+        forgotten = self._forgets_after is not None and len(self.asked) > self._forgets_after
+        if tenant is None or item is None or forgotten:
             return NOT_FOUND
         if self._blank_to_others and item.owner != tenant:
             return ""

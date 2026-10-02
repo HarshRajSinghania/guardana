@@ -13,7 +13,7 @@ from guardana.core.report import Finding, ScanResult
 from guardana.core.suite import describe
 from guardana.core.trials import CONFIDENCE, wilson_interval
 from guardana.report._refusal import recorded_gate, refusal_clause, unnamed_refusal
-from guardana.report._subject import subject_line
+from guardana.report._subject import fixtures_line, subject_line
 from guardana.report._text import printable
 
 _ICON = {"CRITICAL": "✖", "HIGH": "✖", "MEDIUM": "▲", "LOW": "•", "INFO": "·"}
@@ -32,8 +32,8 @@ class HumanRenderer:
         """Render one scan result to text."""
         questions = open_questions(result)
         refusal = unnamed_refusal(result, self._gate, questions)
-        subject = subject_line(self._run)
-        lines = [] if subject is None else [subject, ""]
+        heading = [line for line in (subject_line(self._run), fixtures_line(self._run)) if line]
+        lines = [*heading, ""] if heading else []
         for f in result.findings:
             icon = _ICON.get(f.severity.name, "•")
             lines.append(f"{icon} [{f.severity.name}] {f.rule_id} — {f.title}")

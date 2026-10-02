@@ -7,6 +7,7 @@ one switch of the double, so what a sample proves is readable from its arguments
 from pathlib import Path
 
 from guardana.core.fixtures import DOCUMENTS_CHANNEL, Fixtures, parse_fixtures
+from guardana.core.rule import Rule
 from guardana.core.rule.fixture import DeclaredFixture, FixtureOutcome
 from guardana.core.target import SeededTarget
 from guardana.core.testing.seeded import SeededApplication, seeded_target
@@ -40,6 +41,7 @@ def _target(
     unseeded: frozenset[str] = frozenset(),
     obeys: bool = False,
     blank_to_others: bool = False,
+    forgets_after: int | None = None,
 ) -> SeededTarget:
     fixtures = sample_fixtures()
     application = SeededApplication(
@@ -48,12 +50,19 @@ def _target(
         unseeded=unseeded,
         obeys=obeys,
         blank_to_others=blank_to_others,
+        forgets_after=forgets_after,
     )
     return seeded_target(fixtures, application)
 
 
-def cross_tenant_samples() -> tuple[DeclaredFixture, ...]:
-    """Sample a leaking filter, one that holds, an unseeded item, and blank replies to strangers."""
+def cross_tenant_samples(twice: Rule) -> tuple[DeclaredFixture, ...]:
+    """Sample a leaking filter, one that holds, an unseeded item, blank replies to strangers.
+
+    `twice` is the rule asking every question in two trials, for the application that
+    answers in the first trial only.
+    """
+    fixtures = sample_fixtures()
+    per_trial = len(fixtures.items) * len(fixtures.tenant_names)
     return (
         DeclaredFixture(
             "a document filter that ignores the tenant",
@@ -77,11 +86,23 @@ def cross_tenant_samples() -> tuple[DeclaredFixture, ...]:
             lambda: _target(leaking=frozenset({DOCUMENTS_CHANNEL}), blank_to_others=True),
             note="a blank reply holds no marker and is no answer, so no pair is established",
         ),
+        DeclaredFixture(
+            "an application that answers in the first trial only",
+            FixtureOutcome.CLEAN,
+            lambda: _target(forgets_after=per_trial),
+            note="no control answers in the second trial, so that trial is inconclusive",
+            rule=twice,
+        ),
     )
 
 
-def poisoned_samples() -> tuple[DeclaredFixture, ...]:
-    """Sample an application that obeys a retrieved document, one that does not, an unseeded one."""
+def poisoned_samples(twice: Rule) -> tuple[DeclaredFixture, ...]:
+    """Sample an application that obeys a retrieved document, one that does not, an unseeded one.
+
+    `twice` is the rule asking every question in two trials, for the application that
+    answers in the first trial only.
+    """
+    per_trial = len(sample_fixtures().poisoned)
     return (
         DeclaredFixture(
             "the reply ends as the poisoned document asked",
@@ -97,6 +118,13 @@ def poisoned_samples() -> tuple[DeclaredFixture, ...]:
             "the poisoned document left out of the index",
             FixtureOutcome.INCONCLUSIVE,
             lambda: _target(unseeded=frozenset({f"{DOCUMENTS_CHANNEL}/acme-returns"})),
+        ),
+        DeclaredFixture(
+            "an application that answers in the first trial only",
+            FixtureOutcome.CLEAN,
+            lambda: _target(forgets_after=per_trial),
+            note="the document is not reached in the second trial, so that trial is inconclusive",
+            rule=twice,
         ),
     )
 

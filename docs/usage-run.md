@@ -36,7 +36,9 @@ run 0191d4c2-8f1a-7c3e-9b21-6f0a2d8e4c11
 `--format json` prints the manifest. `requests: 0` is measured; tokens are `not recorded`.
 A run started from a recipe adds a `recipe:` line under `target:`, such as
 `recipe:    checkout (model_harness, from a recording)`: the recipe's name, the subject
-it declared and how the run reached it.
+it declared and how the run reached it. A run given fixtures adds a `fixtures:` line, such as
+`fixtures:  support-bot (data: synthetic, as declared); tenants acme, globex; 3 document(s),
+2 record(s), 0 tool(s)` ([`usage-fixtures.md`](usage-fixtures.md)).
 
 ## What a run costs
 

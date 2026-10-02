@@ -27,7 +27,6 @@ import yaml
 from guardana.core.fingerprint import DigestKind, DocumentDigest, digest_of
 from guardana.core.manifest.records import FixturesRecord
 from guardana.core.target.connection import (
-    HEADERS_AS_A_WHOLE,
     Connection,
     ConnectionConfigError,
     ResolvedConnection,
@@ -286,13 +285,15 @@ class Fixtures:
 
         With an adapter on the run, every tenant names an adapter for the same URL. Two
         tenants the application could not tell apart are refused, and so is a tenant that
-        authenticates as the run's own connection: by variable name or adapter digest when
-        nothing is sent, so a plan and a lock read no key, and when sending by secret value,
-        whether one sends it as a key and the other through an adapter header or both
-        through adapters.
+        authenticates as the run's own connection. Each is compared by the secrets it sends,
+        the key and each `${VAR}` an adapter header reads, whichever way it sends them: by
+        their values when sending, and by the variables that hold them when nothing is sent,
+        so a plan and a lock read no key and refuse what the run would.
         """
         names = spelling or Spelling()
+        values = environ if sending else _VARIABLE_NAMES
         resolved: list[ResolvedTenant] = []
+        compared: list[ResolvedTenant] = []
         for tenant in self.tenants:
             where = f"{self.path}: tenants.{tenant.name}"
             if run.adapter is not None and tenant.adapter is None:
@@ -313,30 +314,14 @@ class Fixtures:
                 api_key_env=f"{where}.api_key_env",
                 adapter=f"{where}.adapter",
             )
-            try:
-                connected = resolve_connection(
-                    connection, sending=sending, spelling=tenant_spelling, environ=environ
-                )
-            except ConnectionConfigError as exc:
-                raise FixturesError(str(exc)) from exc
+            connected = _resolve(connection, sending, tenant_spelling, environ)
             resolved.append(ResolvedTenant(tenant.name, connected))
-        declared = [
-            (tenant.name, _declared_credential(tenant.api_key_env, connected.connection))
-            for tenant, connected in zip(self.tenants, resolved, strict=True)
-        ]
-        if sending:
-            _refuse_shared_secrets(resolved, self.path)
-        else:
-            _refuse_shared(declared, self.path, "authenticate with")
+            sent = connected if sending else _resolve(connection, True, tenant_spelling, values)
+            compared.append(ResolvedTenant(tenant.name, sent))
+        _refuse_shared_secrets(compared, self.path)
         if run.api_key_env is not None or run.adapter is not None:
-            try:
-                own = resolve_connection(run, sending=sending, spelling=names, environ=environ)
-            except ConnectionConfigError as exc:
-                raise FixturesError(str(exc)) from exc
-            if sending:
-                _refuse_the_runs_secrets(own, resolved, self.path)
-            else:
-                _refuse_the_runs(_declared_credential(run.api_key_env, own), declared, self.path)
+            own = _resolve(run, True, names, values)
+            _refuse_the_runs_secrets(own, compared, self.path)
         return tuple(resolved)
 
     def subject_files(self, resolved: Sequence[ResolvedTenant]) -> dict[str, str]:
@@ -348,20 +333,47 @@ class Fixtures:
         return files
 
 
-def _declared_credential(api_key_env: str | None, connection: ResolvedConnection) -> str:
-    """Name what a connection authenticates with as declared, for a caller that reads no secret."""
-    if connection.adapter_digest is not None:
-        return f"adapter {connection.adapter_digest}"
-    return f"api_key_env {api_key_env}"
+class _VariableNames(Mapping[str, str]):
+    """An environment in which each variable reads as its own name, for a caller sending nothing.
+
+    Connections resolved against it are compared by the variables their secrets come
+    from, the way connections resolved to send are compared by the values.
+    """
+
+    def __getitem__(self, name: str) -> str:
+        return f"${{{name}}}"
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(())
+
+    def __len__(self) -> int:
+        return 0
+
+
+_VARIABLE_NAMES = _VariableNames()
+
+_RAW_SOURCES = ("the key in ", "${")
+"""How a connection names a credential that is one secret value as read: the key, or a
+`${VAR}` a header reads. A header as expanded and the headers as a whole are left out."""
+
+
+def _resolve(
+    connection: Connection, sending: bool, spelling: Spelling, environ: Mapping[str, str] | None
+) -> ResolvedConnection:
+    try:
+        return resolve_connection(connection, sending=sending, spelling=spelling, environ=environ)
+    except ConnectionConfigError as exc:
+        raise FixturesError(str(exc)) from exc
 
 
 def _secrets(connection: ResolvedConnection) -> dict[str, str]:
-    """Map each secret a connection sends, by digest, to where it comes from.
+    """Map each secret value a connection sends, by digest, to where it comes from.
 
-    The headers as a whole are left out: a literal header is no secret, so two adapters
-    that differ only in one are told apart by nothing the application can trust.
+    Only the values as read count: a literal header or the text around a `${VAR}` is no
+    secret, so two adapters that differ only there are told apart by nothing the
+    application can trust.
     """
-    return {c.digest: c.source for c in connection.credentials if c.source != HEADERS_AS_A_WHOLE}
+    return {c.digest: c.source for c in connection.credentials if c.source.startswith(_RAW_SOURCES)}
 
 
 def _refuse_shared_secrets(resolved: Sequence[ResolvedTenant], path: Path) -> None:
@@ -394,13 +406,6 @@ def _shared(fewer: tuple[str, dict[str, str]], more: tuple[str, dict[str, str]])
         return f"{name}: no credential; {other}: {', '.join(also.values()) or 'no credential'}"
     digest = next(iter(held))
     return f"{name}: {held[digest]}; {other}: {also[digest]}"
-
-
-def _refuse_the_runs(own: str, declared: Sequence[tuple[str, str]], path: Path) -> None:
-    """Refuse a tenant that authenticates as the run's own connection does, as declared."""
-    for tenant, credential in declared:
-        if credential == own:
-            raise _the_runs_own(path, tenant, credential)
 
 
 def _refuse_the_runs_secrets(

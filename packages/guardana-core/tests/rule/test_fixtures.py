@@ -173,16 +173,15 @@ def test_a_rule_that_raises_errors_rather_than_failing() -> None:
     assert "RuntimeError: boom" in verification.errored[0].detail
 
 
-def test_an_inconclusive_verdict_outranks_a_finding_in_the_same_run() -> None:
-    """Otherwise a rule passes a positive sample while quietly declining on the same input."""
+def test_a_finding_outranks_an_inconclusive_verdict_in_the_same_run_as_a_run_reads_it() -> None:
     rule = _Rule(
-        [_finding(), _finding("inconclusive")],
-        [RuleFixture("fires", _endpoint("a"), FixtureOutcome.FINDING)],
+        [_finding("fail"), _finding("inconclusive")],
+        [RuleFixture("fires", _endpoint("a"), FixtureOutcome.INCONCLUSIVE)],
     )
 
     verification = verify_rule(rule)
 
-    assert verification.failed[0].observed is FixtureOutcome.INCONCLUSIVE
+    assert verification.failed[0].observed is FixtureOutcome.FINDING
 
 
 class _Gapping(_Rule):
@@ -196,20 +195,35 @@ class _Gapping(_Rule):
         return super().run(target, ctx)
 
 
-def test_a_sample_whose_run_reported_a_shortfall_is_inconclusive_whatever_it_yielded() -> None:
+def test_a_sample_whose_run_reported_a_shortfall_and_no_finding_is_inconclusive() -> None:
     rule = _Gapping(
-        [_finding()],
+        [],
         [
-            RuleFixture("fires but fell short", _endpoint("gap"), FixtureOutcome.FINDING),
             RuleFixture("falls short", _endpoint("gap"), FixtureOutcome.INCONCLUSIVE),
+            RuleFixture("claimed clean", _endpoint("gap"), FixtureOutcome.CLEAN),
         ],
     )
 
     verification = verify_rule(rule)
 
     assert [r.observed for r in verification.results] == [FixtureOutcome.INCONCLUSIVE] * 2
-    assert [r.fixture for r in verification.failed] == ["fires but fell short"]
+    assert [r.fixture for r in verification.failed] == ["claimed clean"]
     assert "item asked as b" in verification.failed[0].detail
+
+
+def test_a_sample_that_yielded_a_finding_beside_a_shortfall_is_a_finding() -> None:
+    rule = _Gapping(
+        [_finding("fail")],
+        [
+            RuleFixture("fires and falls short", _endpoint("gap"), FixtureOutcome.FINDING),
+            RuleFixture("declared as declining", _endpoint("gap"), FixtureOutcome.INCONCLUSIVE),
+        ],
+    )
+
+    verification = verify_rule(rule)
+
+    assert [r.observed for r in verification.results] == [FixtureOutcome.FINDING] * 2
+    assert [r.fixture for r in verification.failed] == ["declared as declining"]
 
 
 def test_each_sample_runs_in_a_context_of_its_own() -> None:

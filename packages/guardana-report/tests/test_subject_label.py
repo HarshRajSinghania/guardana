@@ -4,7 +4,13 @@ from dataclasses import replace
 from xml.etree.ElementTree import fromstring
 
 import pytest
-from guardana.core.manifest import RecipeRecord, RunManifest, SubjectKind, SubjectSource
+from guardana.core.manifest import (
+    FixturesRecord,
+    RecipeRecord,
+    RunManifest,
+    SubjectKind,
+    SubjectSource,
+)
 from guardana.core.report import ScanResult
 from guardana.core.testing import manifest_for
 from guardana.report import get_renderer
@@ -56,3 +62,26 @@ def test_a_run_no_recipe_started_prints_no_subject_line() -> None:
     rendered = get_renderer("human", run=_run(None)).render(_result())
 
     assert not rendered.startswith("subject:")
+
+
+def test_a_run_given_fixtures_names_them_and_what_they_declare() -> None:
+    fixtures = FixturesRecord(
+        name="support-bot",
+        digest=_DIGEST,
+        data="synthetic",
+        tenants=("acme", "globex"),
+        documents=3,
+        records=2,
+        tools=0,
+        markers=1,
+    )
+    run = replace(_run(SubjectKind.APPLICATION), fixtures=fixtures)
+
+    rendered = get_renderer("human", run=run).render(_result()).splitlines()
+    plain = get_renderer("human", run=_run(None)).render(_result())
+
+    assert rendered[1] == (
+        "fixtures: support-bot (data: synthetic, as declared); tenants acme, globex; "
+        "3 document(s), 2 record(s), 0 tool(s)"
+    )
+    assert "fixtures:" not in plain

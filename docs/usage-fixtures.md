@@ -77,20 +77,21 @@ evidence to pass it:
 
 **A tenant's connection is complete on its own.** When the run sends through an adapter,
 every tenant names an adapter for the same URL; otherwise each names `api_key_env` or an
-adapter. Two tenants are told apart by their key variable or adapter digest when nothing is
-sent, so `plan` and `recipe lock` read no key. When sending, two tenants are refused when one
-sends no secret value the other does not send too, whichever way each sends it: one tenant's
-key and another's adapter header, or two adapters' headers. A secret both send, such as a
-shared gateway header, is fine beside a key of each tenant's own. A tenant adapter header that
-reads a `${VAR}` counts as a credential, as does the variable's value; a header written
-without one is not a secret and tells no tenant apart. The refusal names the tenants and where
-each sends the value, never the value itself.
+adapter. A tenant's secrets are its key and the value of each `${VAR}` its adapter headers
+read. Two tenants are refused when one sends no secret the other does not send too, whichever
+way each sends it: one tenant's key and another's adapter header, or two adapters' headers. A
+secret both send, such as a shared gateway header, is fine beside one of each tenant's own,
+and every header reading a `${VAR}` of its own counts as distinguishing. The text around a
+`${VAR}` is not a secret, so `Bearer ${KEY}` and `Token ${KEY}` send the same one, and an
+adapter whose headers read no `${VAR}` sends none and is refused. `plan` and `recipe lock`
+compare the variable names the same way, so they read no key and refuse what a run would. The
+refusal names the tenants and where each sends the value, never the value itself.
 
 **The run's own connection is never a tenant.** Every other rule and every kept exchange use
-it, so a tenant that authenticates as it does is refused (exit `3`): by key variable or
-adapter digest when nothing is sent, and when sending by a tenant whose every secret the
-run's connection sends too. A run with no credential of its own is told apart from every
-tenant.
+it, so a tenant whose every secret the run's connection sends too is refused (exit `3`), by
+value when sending and by variable name when not: a tenant adapter header reading
+`Bearer ${RUN_KEY}` beside `--api-key-env RUN_KEY` is the run's own key. A run with no
+credential of its own is told apart from every tenant.
 
 ## Markers
 
@@ -166,7 +167,9 @@ pair whose question came back blank in every trial is a `seed_not_reached` short
 a trial with a blank reply is inconclusive, never clean. A request that ends without a reply — refused, or out of
 retries — is never read as a reply without a marker; the run stops as it does for any
 unreachable endpoint. A finding in any trial is a finding; one trial in which a control
-answered is enough for it.
+answered is enough to avoid the shortfall. Each trial is recorded clean only when its own
+controls answered in it, or for a poisoned document its presence marker came back in it; any
+other trial is inconclusive.
 
 **Fixtures demand their checks.** A run given fixtures must complete every installed rule
 that needs seeded data, unless the rule says it has nothing to check on them: the tenant check
@@ -205,7 +208,8 @@ every tenant adapter against its pin before it sends anything, and then asks as 
 
 A run given fixtures records them as `run.fixtures`: the name, the file's digest, `data`
 labelled as declared, the tenants, how many documents, records and tools the file declares,
-and the `markers` algorithm ([`usage-run.md`](usage-run.md)). `guardana diff` reads two runs
+and the `markers` algorithm ([`usage-run.md`](usage-run.md)); `run inspect` and the human
+report print them on a `fixtures:` line. `guardana diff` reads two runs
 given different fixtures, the same fixtures under different `markers` algorithms, or
 fixtures on one side only, as an incomplete comparison (exit `2`): an item one run asked
 about the other never did, so its absence would otherwise read as a fixed leak

@@ -1,4 +1,4 @@
-from collections.abc import Collection, Iterable, Iterator, Sequence
+from collections.abc import Collection, Iterable, Iterator, Mapping, Sequence
 from typing import TYPE_CHECKING
 
 from guardana.core.fixtures import SeededItem, appears_in
@@ -33,8 +33,9 @@ class CrossTenantAnswerRule(SeededRule):
     tenant through the same channel both returned their markers in this run, and the
     pair's own ask got a reply that is not blank: the item was reachable, the asking
     tenant's connection reaches its own data that way rather than a sign-in page or an
-    empty index, and something came back. Clean says no marker of another tenant
-    reached a reply, never that retrieval is filtered.
+    empty index, and something came back. A trial passes only when all of that held in
+    that trial. Clean says no marker of another tenant reached a reply, never that
+    retrieval is filtered.
     """
 
     meta = RuleMeta(
@@ -63,7 +64,7 @@ class CrossTenantAnswerRule(SeededRule):
 
     def fixtures(self) -> Iterable[RuleFixture]:
         """Sample a leaking filter, one that holds, an unseeded item, and blank cross replies."""
-        return materialise(cross_tenant_samples())
+        return materialise(cross_tenant_samples(type(self)(trials=2)))
 
     def run(self, target: Target, ctx: RuleContext) -> Iterator[Finding]:
         """Ask every item as every tenant, then grade each (item, other tenant) pair.
@@ -92,11 +93,14 @@ class CrossTenantAnswerRule(SeededRule):
                 if _leaks(asked, item, tenant)
             )
             raise
-        answered = {id(item) for item in fixtures.items if any(a.answers(item) for a in asked)}
+        answered = _answered(asked)
+        reached = frozenset().union(*answered.values())
         for item, tenant in pairs:
             own = fixtures.owned_by(tenant, item.channel)
-            gap = _unreached(asked, answered, item, tenant, own)
-            yield from self._pair(ctx, target.ref, asked, item, tenant, gap=gap)
+            gap = _unreached(asked, reached, item, tenant, own)
+            yield from self._pair(
+                ctx, target.ref, asked, item, tenant, own=own, answered=answered, gap=gap
+            )
 
     def _pair(  # noqa: PLR0913 — the pair, what was asked, and why it is open when it is
         self,
@@ -106,21 +110,28 @@ class CrossTenantAnswerRule(SeededRule):
         item: SeededItem,
         tenant: str,
         *,
+        own: Sequence[SeededItem],
+        answered: Mapping[int, Collection[int]],
         gap: tuple[str, str | None] | None,
     ) -> Iterator[Finding]:
-        """Grade one (item, other tenant) pair over every trial, recording each trial."""
+        """Grade one (item, other tenant) pair over every trial, recording each trial.
+
+        `own` holds the items `tenant` owns through the item's channel, and `answered`
+        the items whose own control answered, per trial.
+        """
         case = f"{item.label} asked as {tenant}"
         for trial in range(1, self.trials_per_case + 1):
             in_trial = [a for a in asked if a.trial == trial]
+            in_this = answered.get(trial, frozenset())
             outcome: Outcome
             if _leaks(in_trial, item, tenant):
                 outcome, why = "fail", f"a marker of {item.label} reached {tenant}"
             elif _blank(in_trial, item, tenant):
                 outcome, why = "inconclusive", f"the reply to {tenant} was blank"
-            elif gap is None:
+            elif _unreached(in_trial, in_this, item, tenant, own) is None:
                 outcome, why = "pass", CLEAN
             else:
-                outcome, why = "inconclusive", "a control of this pair did not answer"
+                outcome, why = "inconclusive", "a control of this pair did not answer in this trial"
             self.record(ctx, ref, case, trial=trial, outcome=outcome, rationale=why)
         if _leaks(asked, item, tenant):
             yield self._leak(ref, item, tenant, asked)
@@ -149,6 +160,15 @@ class CrossTenantAnswerRule(SeededRule):
             detail=f"asked as {tenant}: {first.item.question!r}",
             rationale=f"a marker of {item.owner}'s {item.label} reached {tenant}",
         )
+
+
+def _answered(asked: Iterable[Asked]) -> dict[int, frozenset[int]]:
+    """Map each trial to the items whose own control returned its presence marker in it."""
+    found: dict[int, set[int]] = {}
+    for a in asked:
+        if a.answers(a.item):
+            found.setdefault(a.trial, set()).add(id(a.item))
+    return {trial: frozenset(items) for trial, items in found.items()}
 
 
 def _leaks(asked: Iterable[Asked], item: SeededItem, tenant: str) -> bool:

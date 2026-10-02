@@ -308,6 +308,7 @@ def build_run_manifest(  # noqa: PLR0913 — a manifest is assembled from indepe
     recording: RecordingRecord | None = None,
     run_id: str | None = None,
     connection: ConnectionFacts | None = None,
+    target: Target | None = None,
 ) -> RunManifest:
     """Describe the run that produced `result`, digesting the rules that actually ran.
 
@@ -331,7 +332,9 @@ def build_run_manifest(  # noqa: PLR0913 — a manifest is assembled from indepe
     `exchanges` are what a probe kept in its sidecar and `recording` the recording a graded
     run answered from; both are the caller's to state, and None when there is neither.
     `run_id` is given by a caller that wrote it into the sidecar before the manifest
-    existed; left out, a fresh one is drawn.
+    existed; left out, a fresh one is drawn. `target` is what the rules ran against: each
+    rule's declared requests are then priced for it, as the plan prices them, and left
+    out they are the rule's target-free declaration.
     """
     now = datetime.now(UTC)
     ran = tuple(rule for rule in registry.rules() if rule.meta.id in result.rules_run)
@@ -354,11 +357,12 @@ def build_run_manifest(  # noqa: PLR0913 — a manifest is assembled from indepe
             registry.origin_of(rule.meta.id),
             _trial_summary(rule, recorded.get(rule.meta.id, []), result, reported, grading),
             result.suites.get(rule.meta.id),
+            declared=_declared(rule, target),
         )
         for rule in ran
     )
     evaluators = _evaluator_records(ran, calibrations, grading.evaluators)
-    target = (
+    identified = (
         identity
         if identity is not None
         else TargetIdentity(kind=target_kind, ref=target_ref, fingerprint_inputs=())
@@ -371,7 +375,7 @@ def build_run_manifest(  # noqa: PLR0913 — a manifest is assembled from indepe
         source=source if source is not None else RunSource(),
         deployment=deployment if deployment is not None else DeploymentRef(),
         guardana=ToolInfo(version=__version__),
-        target=target,
+        target=identified,
         configuration=ConfigurationRef(
             profile_name=profile.name,
             profile_digest=profile_digest(profile),
@@ -396,10 +400,10 @@ def build_run_manifest(  # noqa: PLR0913 — a manifest is assembled from indepe
             trials=profile.trials if target_kind is TargetKind.ENDPOINT else 1,
         ),
         usage=_run_usage(result.usage, started_at, now, judge_usage),
-        rules=rules + _unfinished_suites(registry, result),
+        rules=rules + _unfinished_suites(registry, result, target),
         evaluators=evaluators,
         coverage=_coverage(
-            rules, evaluators, target.capabilities, result.protocols, result.coverage_shortfall
+            rules, evaluators, identified.capabilities, result.protocols, result.coverage_shortfall
         ),
         result_summary=summarize(result, gate),
         # Recorded, so a reader knows what was applied to the evidence they are
@@ -413,14 +417,27 @@ def build_run_manifest(  # noqa: PLR0913 — a manifest is assembled from indepe
     )
 
 
-def _unfinished_suites(registry: Registry, result: ScanResult) -> tuple[RuleRecord, ...]:
+def _declared(rule: Rule, target: Target | None) -> int | None:
+    """Return the requests `rule` declares, priced for `target` when the run names it."""
+    return rule.estimated_requests if target is None else rule.estimated_requests_for(target)
+
+
+def _unfinished_suites(
+    registry: Registry, result: ScanResult, target: Target | None
+) -> tuple[RuleRecord, ...]:
     """Record each suite that concluded without finishing, so its unsent cases stay counted.
 
     `run.rules` is the only place a saved run keeps a suite summary; leaving a cut-off
     suite out would lose the cases it planned and never sent.
     """
     return tuple(
-        _rule_record(rule, registry.origin_of(rule.meta.id), None, result.suites[rule.meta.id])
+        _rule_record(
+            rule,
+            registry.origin_of(rule.meta.id),
+            None,
+            result.suites[rule.meta.id],
+            declared=_declared(rule, target),
+        )
         for rule in registry.rules()
         if rule.meta.id in result.suites and rule.meta.id not in result.rules_run
     )
@@ -431,6 +448,8 @@ def _rule_record(
     origin: Origin,
     trial_summary: TrialSummary | None,
     suite: SuiteSummary | None = None,
+    *,
+    declared: int | None,
 ) -> RuleRecord:
     """Describe one rule that ran, including which distribution supplied it.
 
@@ -444,7 +463,7 @@ def _rule_record(
         version=origin.version,
         origin=origin.distribution or origin.source,
         maturity=str(rule.meta.maturity),
-        declared_requests=rule.estimated_requests,
+        declared_requests=declared,
         trial_summary=trial_summary,
         suite=suite,
     )

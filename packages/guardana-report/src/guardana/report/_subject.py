@@ -1,4 +1,4 @@
-"""What answered a recipe's run, in the words every output uses for it."""
+"""What answered a recipe's run and what it was seeded with, in the words every output uses."""
 
 from guardana.core.manifest import RunManifest, SubjectKind
 
@@ -14,6 +14,13 @@ def subject_line(run: RunManifest | None) -> str | None:
     if recipe.kind is SubjectKind.MODEL_HARNESS:
         line += " (a model reached without the application's prompt, tools and data)"
     return line
+
+
+def fixtures_line(run: RunManifest | None) -> str | None:
+    """Return the line naming the fixtures a run was given, or None for a run given none."""
+    if run is None or run.fixtures is None:
+        return None
+    return f"fixtures: {run.fixtures.describe()}"
 
 
 def suite_name(run: RunManifest | None) -> str:

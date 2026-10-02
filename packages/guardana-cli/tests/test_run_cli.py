@@ -106,6 +106,31 @@ def test_inspect_names_the_recipe_and_what_it_declared_answered(tmp_path: Path) 
     assert "recipe:" not in plain.output
 
 
+def test_inspect_names_the_fixtures_a_run_was_given_and_what_they_declare(tmp_path: Path) -> None:
+    path = _scan_run(tmp_path)
+    plain = runner.invoke(app, ["run", "inspect", str(path)])
+    document = json.loads(path.read_text(encoding="utf-8"))
+    document["run"]["fixtures"] = {
+        "name": "support-bot",
+        "digest": "sha256:" + "ab" * 32,
+        "data": {"declared": "synthetic"},
+        "tenants": ["acme", "globex"],
+        "counts": {"documents": 3, "records": 2, "tools": 0},
+        "markers": 1,
+    }
+    path.write_text(json.dumps(document), encoding="utf-8")
+
+    result = runner.invoke(app, ["run", "inspect", str(path)])
+
+    assert result.exit_code == 0, result.output
+    lines = [" ".join(line.split()) for line in result.output.splitlines()]
+    assert (
+        "fixtures: support-bot (data: synthetic, as declared); tenants acme, globex; "
+        "3 document(s), 2 record(s), 0 tool(s)"
+    ) in lines
+    assert "fixtures:" not in plain.output
+
+
 def test_inspect_refuses_a_file_that_is_not_a_run(tmp_path: Path) -> None:
     junk = tmp_path / "junk.json"
     junk.write_text("{}", encoding="utf-8")

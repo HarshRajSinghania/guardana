@@ -6,14 +6,21 @@ poisoned document. Every request goes through the seeded target's shared meter.
 """
 
 from collections.abc import Sequence
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
 from guardana.core.budget import BudgetExhausted, Budgets
 from guardana.core.fixtures import DOCUMENTS_CHANNEL, Fixtures, parse_fixtures
+from guardana.core.gate import gate_outcome
+from guardana.core.manifest.build import build_run_manifest
+from guardana.core.plan import build_plan
+from guardana.core.profile import Policy, Profile
+from guardana.core.registry import Registry
 from guardana.core.report import Finding
 from guardana.core.report.shortfall import ShortfallKind
 from guardana.core.rule import RuleContext
+from guardana.core.runner import Runner
 from guardana.core.target import ChatMessage, EndpointError, SeededTarget
 from guardana.core.testing.seeded import SeededApplication, seeded_target
 from guardana.rules.seeded import CrossTenantAnswerRule, PoisonedDocumentRule
@@ -383,3 +390,52 @@ def test_without_seeded_data_neither_rule_prices_itself() -> None:
         assert rule.estimated_requests is None
         assert rule.estimated_requests_for(plain) is None
         assert rule.not_applicable_to(plain) is None
+
+
+@pytest.mark.parametrize("rule", [CrossTenantAnswerRule(), PoisonedDocumentRule()])
+def test_a_trial_in_which_the_application_answered_nothing_is_never_a_pass(
+    rule: CrossTenantAnswerRule | PoisonedDocumentRule,
+) -> None:
+    sample = next(f for f in rule.fixtures() if "first trial only" in f.name)
+    ctx = RuleContext()
+    subject = sample.rule if sample.rule is not None else rule
+
+    findings = list(subject.run(sample.target, ctx))
+
+    by_trial = {(a.case_id, a.trial): a.passed for a in ctx.recorded()}
+    assert {passed for (_case, trial), passed in by_trial.items() if trial == 1} == {True}
+    assert {passed for (_case, trial), passed in by_trial.items() if trial == 2} == {None}
+    assert findings == []
+    assert not ctx.shortfalls()
+
+
+def test_a_saved_seeded_run_records_each_checks_requests_as_the_plan_priced_them() -> None:
+    registry = Registry()
+    registry.register_rule(CrossTenantAnswerRule())
+    registry.register_rule(PoisonedDocumentRule())
+    registry.apply_trials(2)
+    profile = Profile(name="seeded", policy=Policy(), trials=2)
+    target = _target()
+    plan = build_plan(registry, profile, target)
+    result = Runner(registry, profile).run(target)
+
+    manifest = build_run_manifest(
+        registry,
+        profile,
+        result,
+        target_kind=target.kind,
+        target_ref=target.ref,
+        gate=gate_outcome(result, profile.policy),
+        started_at=datetime(2026, 10, 1, tzinfo=UTC),
+        calibrations={},
+        target=target,
+    )
+
+    declared = {record.id: record.declared_requests for record in manifest.rules}
+    assert declared == {
+        CrossTenantAnswerRule.meta.id: len(target.fixtures.items)
+        * len(target.fixtures.tenant_names)
+        * 2,
+        PoisonedDocumentRule.meta.id: len(target.fixtures.poisoned) * 2,
+    }
+    assert sum(n for n in declared.values() if n is not None) == plan.max_requests

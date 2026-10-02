@@ -517,7 +517,7 @@ def test_two_identical_adapter_files_are_refused_without_reading_a_key(tmp_path:
     _adapters(tmp_path, written, same=True)
     fixtures = _load(tmp_path, written)
 
-    with pytest.raises(FixturesError, match="adapter sha256:"):
+    with pytest.raises(FixturesError, match="the same credential"):
         fixtures.resolve_tenants(Connection(url=_URL, model="m"), sending=False, environ={})
 
 
@@ -645,6 +645,69 @@ def test_a_tenant_sending_nothing_another_does_not_send_too_is_refused(tmp_path:
     assert "gateway-0451" not in str(refused.value)
 
 
+_HEADERS = 'body:\n  message: "{{prompt}}"\nresponse_path: reply\nheaders:\n'
+
+
+def _tenant_adapters(tmp_path: Path, acme: str, globex: str) -> Fixtures:
+    """Load fixtures whose two tenants send through adapters with the headers given."""
+    written = document()
+    for name, headers in (("acme", acme), ("globex", globex)):
+        (tmp_path / f"{name}.yaml").write_text(_HEADERS + headers, encoding="utf-8")
+        written["tenants"][name] = {"adapter": f"{name}.yaml"}
+    return _load(tmp_path, written)
+
+
+@pytest.mark.parametrize("sending", [False, True], ids=["planned", "sent"])
+def test_two_adapters_wrapping_one_secret_differently_are_one_tenant(
+    tmp_path: Path, sending: bool
+) -> None:
+    fixtures = _tenant_adapters(
+        tmp_path, '  Authorization: "Bearer ${SHARED}"\n', '  Authorization: "Token ${SHARED}"\n'
+    )
+
+    with pytest.raises(FixturesError, match="the same credential") as refused:
+        fixtures.resolve_tenants(
+            Connection(url=_URL, model="m"), sending=sending, environ={"SHARED": "shared-0451"}
+        )
+
+    assert "shared-0451" not in str(refused.value)
+
+
+_KEYED = '  X-Key: "${SHARED}"\n  X-Trace: "${%s}"\n'
+
+
+@pytest.mark.parametrize("sending", [False, True], ids=["planned", "sent"])
+def test_a_variable_header_of_its_own_tells_two_tenants_sharing_a_key_apart(
+    tmp_path: Path, sending: bool
+) -> None:
+    fixtures = _tenant_adapters(tmp_path, _KEYED % "ACME_TRACE", _KEYED % "GLOBEX_TRACE")
+    environ = {"SHARED": "shared-0451", "ACME_TRACE": "t-acme", "GLOBEX_TRACE": "t-globex"}
+
+    resolved = fixtures.resolve_tenants(
+        Connection(url=_URL, model="m"), sending=sending, environ=environ
+    )
+
+    assert [tenant.name for tenant in resolved] == ["acme", "globex"]
+
+
+def test_two_variable_headers_holding_the_same_values_are_one_tenant(tmp_path: Path) -> None:
+    fixtures = _tenant_adapters(tmp_path, _KEYED % "ACME_TRACE", _KEYED % "GLOBEX_TRACE")
+    environ = {"SHARED": "shared-0451", "ACME_TRACE": "t-same", "GLOBEX_TRACE": "t-same"}
+
+    with pytest.raises(FixturesError, match="the same credential"):
+        fixtures.resolve_tenants(Connection(url=_URL, model="m"), sending=True, environ=environ)
+
+
+@pytest.mark.parametrize("sending", [False, True], ids=["planned", "sent"])
+def test_adapters_sending_only_literal_headers_are_refused_whether_or_not_they_send(
+    tmp_path: Path, sending: bool
+) -> None:
+    fixtures = _tenant_adapters(tmp_path, '  X-Tenant: "acme"\n', '  X-Tenant: "globex"\n')
+
+    with pytest.raises(FixturesError, match="sends none of its own"):
+        fixtures.resolve_tenants(Connection(url=_URL, model="m"), sending=sending, environ={})
+
+
 # The run's own connection is never a tenant
 
 
@@ -676,6 +739,21 @@ def test_a_tenant_whose_key_holds_the_runs_key_value_is_refused_when_sending(
     )
 
     assert len(planned) == len(distinct) == 2
+
+
+@pytest.mark.parametrize("sending", [False, True], ids=["planned", "sent"])
+def test_a_tenant_adapter_sending_the_runs_key_in_a_header_is_the_runs_own_connection(
+    tmp_path: Path, sending: bool
+) -> None:
+    fixtures = _mixed(tmp_path, _BEARER % ("RUN_KEY", "globex"))
+    run = Connection(url=_URL, model="m", api_key_env="RUN_KEY")
+    environ = {"RUN_KEY": "run-0451", "ACME_KEY": "acme-0451"}
+
+    with pytest.raises(FixturesError, match="the run's own connection") as refused:
+        fixtures.resolve_tenants(run, sending=sending, environ=environ)
+
+    assert "globex" in str(refused.value)
+    assert "run-0451" not in str(refused.value)
 
 
 def test_a_tenant_naming_the_runs_own_adapter_is_refused_without_reading_a_key(
@@ -730,10 +808,10 @@ def test_every_field_of_the_runs_connection_reaches_each_tenant_but_its_credenti
 
     fixtures.resolve_tenants(run, sending=False)
 
-    assert built == [
+    assert set(built) == {
         replace(run, api_key_env="ACME_KEY"),
         replace(run, api_key_env="GLOBEX_KEY"),
-    ]
+    }
 
 
 def test_with_an_adapter_on_the_run_every_tenant_names_one(tmp_path: Path) -> None:

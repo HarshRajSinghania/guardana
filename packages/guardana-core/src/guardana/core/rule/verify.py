@@ -113,8 +113,9 @@ def verify_rule(rule: Rule, ctx: RuleContext | None = None) -> RuleVerification:
     cannot decline will one day report clean about something it never examined.
 
     Each fixture runs in a fresh copy of the context, so what one sample recorded or
-    reported never counts in another. A fixture whose run reported a coverage
-    shortfall came out `inconclusive`, whatever it yielded.
+    reported never counts in another. A fixture is classified as a run reads it: a
+    finding is `finding`, and a coverage shortfall or an inconclusive verdict without
+    one is `inconclusive`.
 
     A suite's regression pairs are regraded with the context's evaluators, sending
     nothing; a suite whose evaluator cannot do that says so in `unprovable`.
@@ -169,7 +170,7 @@ def _run_fixture(rule: Rule, fixture: RuleFixture, ctx: RuleContext) -> FixtureR
             f"{type(exc).__name__}: {exc}",
         )
     gaps = ctx.shortfalls()
-    observed = FixtureOutcome.INCONCLUSIVE if gaps else _observed(findings)
+    observed = _observed(findings, declined=bool(gaps))
     if observed is fixture.outcome:
         return FixtureResult(
             rule.meta.id, fixture.name, fixture.outcome, observed, FixtureVerdict.PASSED
@@ -185,21 +186,19 @@ def _run_fixture(rule: Rule, fixture: RuleFixture, ctx: RuleContext) -> FixtureR
     )
 
 
-def _observed(findings: Sequence[object]) -> FixtureOutcome:
+def _observed(findings: Sequence[object], *, declined: bool) -> FixtureOutcome:
     """Classify what a rule produced into the same three outcomes a fixture declares.
 
-    An inconclusive verdict outranks a finding when a rule yields both: the rule
-    said it could not establish something, and a sample declaring `finding` has not
-    been satisfied by a run that also gave up. Reading it the other way would let a
-    rule pass a positive fixture while quietly declining on the same input.
+    A finding outranks an inconclusive verdict and a shortfall, as it does in a run's
+    gate: what a rule found stays found when it also declined elsewhere. `declined`
+    says the run reported a coverage shortfall.
     """
-    conclusive = False
     for finding in findings:
         verdict = getattr(finding, "verdict", None)
-        if verdict is not None and getattr(verdict, "outcome", None) == "inconclusive":
-            return FixtureOutcome.INCONCLUSIVE
-        conclusive = True
-    return FixtureOutcome.FINDING if conclusive else FixtureOutcome.CLEAN
+        if verdict is None or getattr(verdict, "outcome", None) != "inconclusive":
+            return FixtureOutcome.FINDING
+        declined = True
+    return FixtureOutcome.INCONCLUSIVE if declined else FixtureOutcome.CLEAN
 
 
 __all__ = [
