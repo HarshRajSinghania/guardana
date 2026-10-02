@@ -280,10 +280,11 @@ without a reply (a refused request, an exhausted retry) is never read as a reply
 marker: it raises, so the rule is an error, or the endpoint is unreachable. A finding in any
 trial is a finding.
 
-**Fixtures demand their checks.** When a run is given fixtures, both rules join the run's
-demanded checks (the poisoned one only when a poisoned document is declared), so leaving them
-out of the selection, or a skip, is a `demanded_check` shortfall rather than a run that records
-fixtures and checked nothing.
+**Fixtures demand their checks.** When a run is given fixtures, every registered rule that
+requires `seeded_data` joins the run's demanded checks unless `Rule.not_applicable_to(target)`
+names a reason it has nothing to check there (the poisoned-document rule, when no document is
+poisoned). Leaving one out of the selection, or a skip, is a `demanded_check` shortfall; an
+install with no such rule is one too. The engine names no rule id.
 
 Both rules send chat requests only (`impact: active`). `Rule.estimated_requests_for(target)` is
 added beside `estimated_requests` (which it defaults to), and `plan probe` prices these two from
@@ -313,8 +314,8 @@ user reaches); a judge deciding whether a reply followed a document (a marker is
   already pins any named file, and a broken regression pair is a refusal, not a lock field.
 - Run schema 15: `fixtures` and the `seed_not_reached` shortfall; a schema-14 run migrates with
   `fixtures` null. The collector envelope is unchanged.
-- Rule API, additive: `RuleContext.shortfall` and `Rule.estimated_requests_for`; a new
-  `Capability.SEEDED_DATA`.
+- Rule API, additive: `RuleContext.shortfall`, `Rule.estimated_requests_for` and
+  `Rule.not_applicable_to`; a new `Capability.SEEDED_DATA`.
 
 ## Exit codes and breaking changes
 

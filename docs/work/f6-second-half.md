@@ -53,13 +53,13 @@ See the design. Lane-level:
 |---|---|---|---|---|---|---|
 | A | regression cases | `core/dataset.py`, `core/suite.py`, new `core/regression.py`, new `cli/case.py`, `cli/main.py`, `cli/rule.py`, `core/recipe.py`, `cli/recipe.py`, `schemas/dataset-v1/v2`, `docs/usage-case.md` | coder | — | core+cli pytest, ruff, mypy, lint-imports, generators `--check` | [x] `0535d78b` |
 | B | fixtures file | new `core/fixtures.py`, new `cli/fixtures.py`, `core/recipe.py` (schema 2, `subject.fixtures`), `cli/recipe.py` (lock pins), `core/manifest/*` (run schema 15 `fixtures`), `core/diff/*`, `schemas/fixtures-v1`, `schemas/recipe-v2`, `schemas/run-v15`, `docs/usage-fixtures.md` | coder | — | same | [x] `ef6b00e6` |
-| C | tenancy target and rules | `core/target/base.py` (`SEEDED_DATA`), new `core/target/seeded.py`, `cli/probe.py`, `cli/plan.py`, `cli/recipe.py`, `core/plan.py` (target-aware estimate), `core/manifest/*` (`seed_not_reached`), new rules in `guardana-rules`, taxonomy refs, docs | coder | B | same + `guardana rule test` on the two rules + `generate_docs.py` | [ ] |
-| D | stateful doubles | new `core/doubles.py`, docs page | coder | B | same | [ ] |
-| F1a | strict trace reader, profile file checks, doctor allowlist | `core/trace/_native.py`, `cli/trace.py`, `cli/config.py`, `cli/doctor.py`, docs | coder | — | core+cli pytest, examples | [ ] |
-| F1b | exact sibling pins, `--version`, refusal markers, conformance kit, new-pack taxonomy, torch storages, `_codecs.encode`, 4xx message, docs | `scripts/bump_version.py`, `packages/*/pyproject.toml`, `cli/main.py`, `core/evaluator/{keyword,answered}.py`, `core/testing/conformance.py`, `cli/pack_templates/`, `rules/supply_chain/pickle_opcode.py`, `cli/_errors.py`, docs | coder | — | pytest, `new_pack_check.py` | [ ] |
-| F2 | after C: plan plants canaries for `--target`, retry note; `--keep-exchanges` for an `EndpointTarget`-based `--target`; `deterministic` on evaluator records (run schema 15) | `core/plan.py`, `cli/plan.py`, `cli/probe.py`, `core/manifest/records.py`, `cli/run.py` | coder | C | pytest | [ ] |
-| AB-fix | review findings 2–11 on lanes A and B | `core/dataset.py`, `core/rule/_suite_schema.py`, `cli/case.py`, `core/promotion.py`, `core/fixtures.py`, `core/diff/*`, round-trip inventory test, docs | coder | — | pytest | [ ] |
-| E | reference application | new `examples/retrieval_pilot/`, `scripts/ci_local.sh`, `.github/workflows/ci.yml` | coder | C, D | the isolated example suite | [ ] |
+| C | tenancy target and rules | `core/target/base.py` (`SEEDED_DATA`), new `core/target/seeded.py`, `cli/probe.py`, `cli/plan.py`, `cli/recipe.py`, `core/plan.py` (target-aware estimate), `core/manifest/*` (`seed_not_reached`), new rules in `guardana-rules`, taxonomy refs, docs | coder | B | same + `guardana rule test` on the two rules + `generate_docs.py` | [x] `16baa8e9` |
+| D | stateful doubles | new `core/doubles.py`, docs page | coder | B | same | [x] `773563fb` |
+| F1a | strict trace reader, profile file checks, doctor allowlist | `core/trace/_native.py`, `cli/trace.py`, `cli/config.py`, `cli/doctor.py`, docs | coder | — | core+cli pytest, examples | [x] `b1de7fdc` |
+| F1b | exact sibling pins, `--version`, refusal markers, conformance kit, new-pack taxonomy, torch storages, `_codecs.encode`, 4xx message, docs | `scripts/bump_version.py`, `packages/*/pyproject.toml`, `cli/main.py`, `core/evaluator/{keyword,answered}.py`, `core/testing/conformance.py`, `cli/pack_templates/`, `rules/supply_chain/pickle_opcode.py`, `cli/_errors.py`, docs | coder | — | pytest, `new_pack_check.py` | [x] `39ec162f` |
+| F2 | after C: plan plants canaries for `--target`, retry note; `--keep-exchanges` for an `EndpointTarget`-based `--target`; `deterministic` on evaluator records (run schema 15); native trace items must be objects and parts carry `type`; fixtures `sink` must be a `SinkKind`; seeded checks demanded by capability, not by built-in ids in core | `core/plan.py`, `cli/plan.py`, `cli/probe.py`, `core/manifest/records.py`, `cli/run.py` | coder | C | pytest | [x] `d9d0e237` |
+| AB-fix | review findings 2–11 on lanes A and B | `core/dataset.py`, `core/rule/_suite_schema.py`, `cli/case.py`, `core/promotion.py`, `core/fixtures.py`, `core/diff/*`, round-trip inventory test, docs | coder | — | pytest | [x] `c279da0c` |
+| E | reference application | new `examples/retrieval_pilot/`, `scripts/ci_local.sh`, `.github/workflows/ci.yml` | coder | C, D | the isolated example suite | [x] `f1f276da` |
 
 Parallel: A with B; then C with D; then E.
 
@@ -76,7 +76,12 @@ Parallel: A with B; then C with D; then E.
 - Done: step 0 (`8943e148` one connection builder, `63740137` recording subject kind); design
   reviewed twice as an adversary (`884a7a76`); lane A (`0535d78b`) and lane B (`ef6b00e6`,
   cherry-picked onto A; `usage-fixtures.md` moved to nav_order 87, site regenerated).
-- Next: lanes C and D in parallel, then E.
+- Next: review round 2 on the fixes, false-green hunt over `main..f6b`, one fix batch, full gate,
+  release. Review round 1 fixes: `c279da0c` (A/B), `0f939834` (F1a/F1b), `1adace88` (C/D).
+  Queued small fixes: `ResolvedConnection` repr shows the api key; under `metadata_only` an
+  unreachable-endpoint message still quotes a redacted payload; a judge's failure text skips the
+  run's privacy policy; a poisoned-document trial without the presence marker is recorded as a
+  pass when another trial reached the document; the design's sentence on demanded checks.
 - API for C and D: `guardana.core.fixtures` — `load_fixtures`, `Fixtures` (`items`,
   `owned_by(tenant, channel)`, `resolve_tenants(run, sending=…)` → `ResolvedTenant(name,
   connection)`, `record()` for `Verifier(fixtures=…)`), `SeededItem` (`markers`, `question`,
@@ -90,7 +95,9 @@ Parallel: A with B; then C with D; then E.
   so not built without a decision.
 - To ROADMAP (proposed v0.38, a guarded application): adapter `declines:`, `retry_statuses:`,
   `metadata_paths:`, a graded-share floor in the gate, recipe `target:`, a directory-installed
-  pack pinned by content.
+  pack pinned by content, a target that fails part-way (a persistent `429` included) keeping
+  the partial run with `stopped_by` instead of exiting `4` with nothing saved, and client-side
+  pacing (`budgets.max_requests_per_minute`).
 - To BACKLOG: one pickle finding per file (fingerprints move), streaming the secret scan past
   16 MiB, `evaluator_config:`, case-level request fields, `trace validate`, `decision_required`
   contracts, contract `when_available`, the shortfall reason under `metadata_only`, per-minor

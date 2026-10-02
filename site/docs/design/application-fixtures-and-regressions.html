@@ -519,10 +519,11 @@ verdict instead would sit behind <code>fail_on_inconclusive</code>, which defaul
 without a reply (a refused request, an exhausted retry) is never read as a reply without a
 marker: it raises, so the rule is an error, or the endpoint is unreachable. A finding in any
 trial is a finding.</p>
-<p><strong>Fixtures demand their checks.</strong> When a run is given fixtures, both rules join the run's
-demanded checks (the poisoned one only when a poisoned document is declared), so leaving them
-out of the selection, or a skip, is a <code>demanded_check</code> shortfall rather than a run that records
-fixtures and checked nothing.</p>
+<p><strong>Fixtures demand their checks.</strong> When a run is given fixtures, every registered rule that
+requires <code>seeded_data</code> joins the run's demanded checks unless <code>Rule.not_applicable_to(target)</code>
+names a reason it has nothing to check there (the poisoned-document rule, when no document is
+poisoned). Leaving one out of the selection, or a skip, is a <code>demanded_check</code> shortfall; an
+install with no such rule is one too. The engine names no rule id.</p>
 <p>Both rules send chat requests only (<code>impact: active</code>). <code>Rule.estimated_requests_for(target)</code> is
 added beside <code>estimated_requests</code> (which it defaults to), and <code>plan probe</code> prices these two from
 the fixtures: one request per item and tenant per trial. The cost gates gain a third run shape: a
@@ -548,8 +549,8 @@ user reaches); a judge deciding whether a reply followed a document (a marker is
 already pins any named file, and a broken regression pair is a refusal, not a lock field.</li>
 <li>Run schema 15: <code>fixtures</code> and the <code>seed_not_reached</code> shortfall; a schema-14 run migrates with
 <code>fixtures</code> null. The collector envelope is unchanged.</li>
-<li>Rule API, additive: <code>RuleContext.shortfall</code> and <code>Rule.estimated_requests_for</code>; a new
-<code>Capability.SEEDED_DATA</code>.</li>
+<li>Rule API, additive: <code>RuleContext.shortfall</code>, <code>Rule.estimated_requests_for</code> and
+<code>Rule.not_applicable_to</code>; a new <code>Capability.SEEDED_DATA</code>.</li>
 </ul>
 <h2 id="exit-codes-and-breaking-changes">Exit codes and breaking changes</h2>
 <p>No new code. <code>case add</code>: <code>0</code> written or shown, <code>1</code> a side of the proof grades the wrong way,
