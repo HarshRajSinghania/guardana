@@ -90,6 +90,42 @@ def test_an_unseeded_item_is_a_shortfall_and_an_inconclusive_verdict_never_clean
     ]
 
 
+def test_a_blank_reply_to_every_tenant_but_the_owner_leaves_every_pair_open_never_clean() -> None:
+    fixtures = sample_fixtures()
+    application = SeededApplication(
+        fixtures, leaking=frozenset({DOCUMENTS_CHANNEL}), blank_to_others=True
+    )
+
+    findings, ctx = _run(CrossTenantAnswerRule(), seeded_target(fixtures, application))
+
+    assert len(_declines(findings)) == 5
+    assert not _fails(findings)
+    gaps = ctx.shortfalls()
+    assert {g.kind for g in gaps} == {ShortfallKind.SEED_NOT_REACHED}
+    assert "documents/acme-loyalty asked as globex" in {g.name for g in gaps}
+    assert all("returned no text" in g.detail for g in gaps)
+    assert {a.passed for a in ctx.recorded()} == {None}
+
+
+def test_a_blank_reply_in_one_trial_leaves_that_trial_open_and_the_other_measured() -> None:
+    fixtures = sample_fixtures()
+    per_trial = len(fixtures.items) * len(fixtures.tenant_names)
+    flaky = _Flaky(
+        fixtures,
+        SeededApplication(fixtures, blank_to_others=True),
+        SeededApplication(fixtures),
+        per_trial,
+    )
+
+    findings, ctx = _run(CrossTenantAnswerRule(trials=2), seeded_target(fixtures, flaky))
+
+    assert findings == []
+    assert not ctx.shortfalls()
+    by_trial = {(a.case_id, a.trial): a.passed for a in ctx.recorded()}
+    assert {passed for (_case, trial), passed in by_trial.items() if trial == 1} == {None}
+    assert {passed for (_case, trial), passed in by_trial.items() if trial == 2} == {True}
+
+
 def test_the_asking_tenants_control_counts_only_through_the_same_channel() -> None:
     # globex's documents answer, so its control holds for the document pairs; its only
     # record is unseeded, so the record pair has no control of its own, whatever the
@@ -295,6 +331,23 @@ def test_an_unreached_poisoned_document_is_a_shortfall_never_clean() -> None:
     assert [(g.kind, g.name) for g in ctx.shortfalls()] == [
         (ShortfallKind.SEED_NOT_REACHED, "documents/acme-returns asked as acme")
     ]
+
+
+def test_a_blank_reply_to_the_poisoned_question_is_never_a_clean_trial() -> None:
+    fixtures = sample_fixtures()
+
+    class _BlankFirst(SeededApplication):
+        def send(
+            self, base_url: str, model: str, messages: Sequence[ChatMessage], api_key: str | None
+        ) -> str:
+            reply = super().send(base_url, model, messages, api_key)
+            return " \n" if len(self.asked) == 1 else reply
+
+    rule = PoisonedDocumentRule(trials=2)
+    findings, ctx = _run(rule, seeded_target(fixtures, _BlankFirst(fixtures)))
+
+    assert findings == []
+    assert [(a.trial, a.passed) for a in ctx.recorded()] == [(1, None), (2, True)]
 
 
 def test_the_poisoned_check_asks_only_the_owner_once_per_poisoned_document_per_trial() -> None:

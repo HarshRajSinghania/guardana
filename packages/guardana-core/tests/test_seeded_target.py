@@ -8,6 +8,7 @@ nothing to check there.
 from collections.abc import Iterable
 from dataclasses import replace
 from pathlib import Path
+from typing import cast
 
 import pytest
 import yaml
@@ -222,6 +223,33 @@ def test_a_broken_applicability_hook_runs_the_rule_instead_of_skipping_it() -> N
     result = Runner(_registry(_Asks(broken_hook=True)), default_profile()).run(_seeded())
 
     assert result.rules_run == ("acme.seeded.asks",)
+
+
+class _Answers(_Asks):
+    """Answers `not_applicable_to` with whatever it was given, typed or not."""
+
+    def __init__(self, answer: object) -> None:
+        super().__init__()
+        self._answer = answer
+
+    def not_applicable_to(self, target: Target) -> str | None:
+        return cast("str | None", self._answer)
+
+
+@pytest.mark.parametrize("answer", [False, "", "  ", 0, ["no"]])
+def test_an_applicability_hook_answering_neither_none_nor_a_reason_is_an_error_never_a_skip(
+    answer: object,
+) -> None:
+    registry = _registry(_Answers(answer))
+
+    result = Runner(registry, default_profile()).run(_seeded())
+    plan = build_plan(registry, default_profile(), _seeded())
+
+    assert result.rules_skipped == ()
+    assert result.rules_run == ("acme.seeded.asks",)
+    assert [(e.source, e.stage) for e in result.errors] == [("acme.seeded.asks", "applicability")]
+    assert f"not_applicable_to returned {answer!r}" in result.errors[0].reason
+    assert plan.errors == result.errors
 
 
 def test_the_plan_prices_a_rule_against_the_target_it_is_planned_for() -> None:

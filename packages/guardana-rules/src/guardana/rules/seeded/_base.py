@@ -3,7 +3,8 @@
 Both rules know which tenant Guardana sent as and which markers each item carries, so a
 verdict comes from what was sent and what came back, never from the application's own
 account of itself. A control that never returned its marker is a `seed_not_reached`
-shortfall and an inconclusive verdict, never a clean one.
+shortfall and an inconclusive verdict, never a clean one. A reply with no letter or digit
+in it is no reply: a case asked only into blank replies is unreached the same way.
 """
 
 from collections.abc import Mapping, Sequence
@@ -12,7 +13,7 @@ from typing import ClassVar
 
 from guardana.core.assessment import case_id_for, from_verdict
 from guardana.core.evaluator.base import Outcome, Verdict
-from guardana.core.fixtures import SeededItem, appears_in
+from guardana.core.fixtures import SeededItem, appears_in, normalise
 from guardana.core.report import Evidence, Finding
 from guardana.core.report.shortfall import CoverageShortfall, ShortfallKind
 from guardana.core.rule import Rule, RuleContext
@@ -32,6 +33,11 @@ class Asked:
     tenant: str
     item: SeededItem
     reply: str
+
+    @property
+    def blank(self) -> bool:
+        """Whether the reply holds no letter or digit, which is no reply whatever its status."""
+        return not normalise(self.reply)
 
     def answers(self, item: SeededItem) -> bool:
         """Whether this was `item`'s own control and the reply carries its presence marker."""
@@ -152,29 +158,34 @@ class SeededRule(Rule):
             verdict=Verdict("fail", CONFIDENCE, rationale, self.meta.id),
         )
 
-    def unreached(
+    def unreached(  # noqa: PLR0913 — the case, why it is open, and what to do about it
         self,
         ctx: RuleContext,
         ref: str,
         item: SeededItem,
         tenant: str,
         why: str,
+        *,
+        advice: str | None = None,
     ) -> Finding:
-        """Report a case whose control never answered: a shortfall, and an inconclusive verdict.
+        """Report a case nothing answered: a shortfall, and an inconclusive verdict.
 
         The shortfall makes the run `indeterminate` with no switch; the verdict is what
-        `rule test` and a reader of the findings see.
+        `rule test` and a reader of the findings see. `advice` replaces the default
+        advice, which is to seed the item and check the tenant's connection.
         """
         name = f"{item.label} asked as {tenant}"
+        todo = advice or (
+            f"seed the item as `guardana fixtures render` wrote it and check that {tenant}'s "
+            f"connection reaches its own data"
+        )
         ctx.shortfall(
             CoverageShortfall(
                 kind=ShortfallKind.SEED_NOT_REACHED,
                 name=name,
                 detail=(
                     f"{self.meta.id}: {why} in any of {self._trials} trial(s), so a reply "
-                    f"without a marker proves nothing about {name}; seed the item as "
-                    f"`guardana fixtures render` wrote it and check that {tenant}'s "
-                    f"connection reaches its own data"
+                    f"without a marker proves nothing about {name}; {todo}"
                 ),
             )
         )

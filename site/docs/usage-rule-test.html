@@ -332,6 +332,9 @@ fixtures:
 </tr>
 </tbody>
 </table></div>
+<p>Each sample runs on its own. A sample comes out <code>inconclusive</code> when the rule yields an
+inconclusive verdict or reports a coverage shortfall, whatever else it yielded; otherwise
+<code>finding</code> when it yields anything, and <code>clean</code> when it yields nothing.</p>
 <p><code>reply</code> builds an endpoint over a scripted transport. That is enough because a YAML
 rule's <code>target_kind</code> is <code>endpoint</code> by construction — its double is always a model.</p>
 <h3 id="a-scenario-one-reply-per-step">A scenario: one reply per step</h3>

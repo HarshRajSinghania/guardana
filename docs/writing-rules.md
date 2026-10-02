@@ -434,9 +434,12 @@ Yield an inconclusive verdict for it too, so `rule test` sees the decline.
 
 **Price and skip against the target.** A rule whose request count depends on what the
 target holds overrides `estimated_requests_for(target)`, which `plan` reads; it defaults to
-`estimated_requests`. A rule with nothing to check on a target returns the reason from
-`not_applicable_to(target)`, and is recorded as skipped `not_applicable` in the run and
-its plan alike. `guardana.retrieval.poisoned_document` does both.
+`estimated_requests`. A rule with nothing to check on a target returns the reason, a
+non-empty string, from `not_applicable_to(target)`, and is recorded as skipped
+`not_applicable` in the run and its plan alike; it returns `None` when it applies. Anything
+else, such as `False` from `cond and "reason"`, is recorded as an error and the rule runs,
+so `fail_on_error` keeps the run from passing. `guardana.retrieval.poisoned_document` does
+both.
 
 **Ask the target for parsed source — never parse it yourself.** A scan runs
 every rule over the same tree, so a rule that reads and parses a file for itself

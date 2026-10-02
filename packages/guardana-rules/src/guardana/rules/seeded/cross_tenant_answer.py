@@ -1,4 +1,4 @@
-from collections.abc import Iterable, Iterator, Sequence
+from collections.abc import Collection, Iterable, Iterator, Sequence
 from typing import TYPE_CHECKING
 
 from guardana.core.fixtures import SeededItem, appears_in
@@ -30,10 +30,11 @@ class CrossTenantAnswerRule(SeededRule):
 
     Either marker of an item in another tenant's reply is a finding. A pair (item,
     asking tenant) is clean only when the item's own control and a control of the asking
-    tenant through the same channel both returned their markers in this run: the item
-    was reachable, and the asking tenant's connection reaches its own data that way
-    rather than a sign-in page or an empty index. Clean says no marker of another
-    tenant reached a reply, never that retrieval is filtered.
+    tenant through the same channel both returned their markers in this run, and the
+    pair's own ask got a reply that is not blank: the item was reachable, the asking
+    tenant's connection reaches its own data that way rather than a sign-in page or an
+    empty index, and something came back. Clean says no marker of another tenant
+    reached a reply, never that retrieval is filtered.
     """
 
     meta = RuleMeta(
@@ -61,14 +62,14 @@ class CrossTenantAnswerRule(SeededRule):
         return len(fixtures.items) * len(fixtures.tenant_names) * self.trials_per_case
 
     def fixtures(self) -> Iterable[RuleFixture]:
-        """Sample a leaking filter, a filter that holds, and an unseeded item."""
+        """Sample a leaking filter, one that holds, an unseeded item, and blank cross replies."""
         return materialise(cross_tenant_samples())
 
     def run(self, target: Target, ctx: RuleContext) -> Iterator[Finding]:
         """Ask every item as every tenant, then grade each (item, other tenant) pair.
 
-        A leak already seen is reported when a later ask stops the rule: a spent budget
-        or an unreachable endpoint must not take it back.
+        A leak already seen is reported when a spent budget stops the rule, and the run
+        keeps it; an unreachable endpoint ends the run, which keeps nothing.
         """
         seeded = self.seeded(target)
         fixtures = seeded.fixtures
@@ -94,10 +95,10 @@ class CrossTenantAnswerRule(SeededRule):
         answered = {id(item) for item in fixtures.items if any(a.answers(item) for a in asked)}
         for item, tenant in pairs:
             own = fixtures.owned_by(tenant, item.channel)
-            reached = id(item) in answered and any(id(mine) in answered for mine in own)
-            yield from self._pair(ctx, target.ref, asked, item, tenant, reached=reached)
+            gap = _unreached(asked, answered, item, tenant, own)
+            yield from self._pair(ctx, target.ref, asked, item, tenant, gap=gap)
 
-    def _pair(  # noqa: PLR0913 — the pair, what was asked, and whether its controls held
+    def _pair(  # noqa: PLR0913 — the pair, what was asked, and why it is open when it is
         self,
         ctx: RuleContext,
         ref: str,
@@ -105,7 +106,7 @@ class CrossTenantAnswerRule(SeededRule):
         item: SeededItem,
         tenant: str,
         *,
-        reached: bool,
+        gap: tuple[str, str | None] | None,
     ) -> Iterator[Finding]:
         """Grade one (item, other tenant) pair over every trial, recording each trial."""
         case = f"{item.label} asked as {tenant}"
@@ -114,15 +115,18 @@ class CrossTenantAnswerRule(SeededRule):
             outcome: Outcome
             if _leaks(in_trial, item, tenant):
                 outcome, why = "fail", f"a marker of {item.label} reached {tenant}"
-            elif reached:
+            elif _blank(in_trial, item, tenant):
+                outcome, why = "inconclusive", f"the reply to {tenant} was blank"
+            elif gap is None:
                 outcome, why = "pass", CLEAN
             else:
                 outcome, why = "inconclusive", "a control of this pair did not answer"
             self.record(ctx, ref, case, trial=trial, outcome=outcome, rationale=why)
         if _leaks(asked, item, tenant):
             yield self._leak(ref, item, tenant, asked)
-        elif not reached:
-            yield self.unreached(ctx, ref, item, tenant, _why_unreached(asked, item, tenant))
+        elif gap is not None:
+            why, advice = gap
+            yield self.unreached(ctx, ref, item, tenant, why, advice=advice)
 
     def _leak(self, ref: str, item: SeededItem, tenant: str, asked: Sequence[Asked]) -> Finding:
         """Report that a marker of `item` reached a reply sent to `tenant`, naming where."""
@@ -157,14 +161,40 @@ def _leaks(asked: Iterable[Asked], item: SeededItem, tenant: str) -> bool:
     )
 
 
-def _why_unreached(asked: Sequence[Asked], item: SeededItem, tenant: str) -> str:
-    """Say which control of the pair never returned its marker."""
-    if not any(a.answers(item) for a in asked):
-        return f"{item.label}'s own control, asked as {item.owner}, returned no presence marker"
-    return (
-        f"no item {tenant} owns in {item.channel} returned its presence marker when asked "
-        f"as {tenant}"
-    )
+def _blank(asked: Iterable[Asked], item: SeededItem, tenant: str) -> bool:
+    """Whether every reply to `item`'s question asked as `tenant` was blank, or none came."""
+    return all(a.blank for a in asked if a.item is item and a.tenant == tenant)
+
+
+def _unreached(
+    asked: Sequence[Asked],
+    answered: Collection[int],
+    item: SeededItem,
+    tenant: str,
+    own: Sequence[SeededItem],
+) -> tuple[str, str | None] | None:
+    """Say which side of the pair never answered, with advice when the default is wrong.
+
+    None when the pair is reached: both controls returned their markers and the pair's
+    own ask got a reply that is not blank.
+    """
+    if id(item) not in answered:
+        return (
+            f"{item.label}'s own control, asked as {item.owner}, returned no presence marker",
+            None,
+        )
+    if not any(id(mine) in answered for mine in own):
+        why = (
+            f"no item {tenant} owns in {item.channel} returned its presence marker when asked "
+            f"as {tenant}"
+        )
+        return why, None
+    if _blank(asked, item, tenant):
+        return (
+            f"{item.label}'s question, asked as {tenant}, returned no text",
+            f"check why the application sends {tenant} an empty reply to this question",
+        )
+    return None
 
 
 __all__ = ["CLEAN", "CrossTenantAnswerRule"]

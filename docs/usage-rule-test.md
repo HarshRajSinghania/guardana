@@ -53,6 +53,10 @@ fixtures:
 | `outcome` | `finding` · `clean` · `inconclusive` |
 | `note` | optional: why this sample is the shape it is |
 
+Each sample runs on its own. A sample comes out `inconclusive` when the rule yields an
+inconclusive verdict or reports a coverage shortfall, whatever else it yielded; otherwise
+`finding` when it yields anything, and `clean` when it yields nothing.
+
 `reply` builds an endpoint over a scripted transport. That is enough because a YAML
 rule's `target_kind` is `endpoint` by construction — its double is always a model.
 

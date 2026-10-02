@@ -1,3 +1,4 @@
+import reprlib
 import threading
 from collections.abc import Collection, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field, replace
@@ -105,8 +106,9 @@ def pre_run_errors(registry: Registry, target: Target) -> tuple[CheckError, ...]
     """Return every error a run of `registry` against `target` records before its first rule.
 
     A capability `target` declares without implementing it, an entry point or rule file
-    that did not load, and a rule whose `expect:` block does not satisfy its evaluator's
-    contract: each is a check that will not grade what it claims to. `Runner.run` and
+    that did not load, a rule whose `expect:` block does not satisfy its evaluator's
+    contract, and a rule whose `not_applicable_to` answers neither None nor a reason: each
+    is a check that will not grade what it claims to. `Runner.run` and
     `build_plan` both read this, so a plan never lists a different set than the run records.
     """
     # One error naming the missing protocol beats every rule that needs it declining.
@@ -126,6 +128,7 @@ def pre_run_errors(registry: Registry, target: Target) -> tuple[CheckError, ...]
         *registry.load_errors,
         *registry.expectation_errors(),
         *_unknown_recorded_rules(registry, target),
+        *_unreadable_applicability(registry, target),
     )
 
 
@@ -532,15 +535,15 @@ def capability_refusal(
 def applicability_refusal(rule: Rule, target: Target) -> SkippedRule | None:
     """Skip a rule that says it has nothing to check on `target`, and record why.
 
-    Not a coverage gap: nothing the rule needs is missing. A rule whose
-    `not_applicable_to` raises is run instead, so its own failure is recorded as an error
-    rather than read as having nothing to check.
+    Not a coverage gap: nothing the rule needs is missing. Only a non-empty string is a
+    reason. A rule whose `not_applicable_to` raises, or returns anything else, is run
+    instead of read as having nothing to check; `pre_run_errors` records the second.
     """
     try:
         reason = rule.not_applicable_to(target)
     except Exception:
         return None
-    if reason is None:
+    if not _is_reason(reason):
         return None
     return SkippedRule(
         rule_id=rule.meta.id,
@@ -548,6 +551,42 @@ def applicability_refusal(rule: Rule, target: Target) -> SkippedRule | None:
         missing=(),
         detail=f"{rule.meta.id} has nothing to check on {target.ref}: {reason}",
     )
+
+
+def _is_reason(value: object) -> bool:
+    """Whether `value` is what `not_applicable_to` returns to skip a rule: a non-blank string."""
+    return isinstance(value, str) and bool(value.strip())
+
+
+def _unreadable_applicability(registry: Registry, target: Target) -> tuple[CheckError, ...]:
+    """Return an error for every rule whose `not_applicable_to` answered neither None nor a reason.
+
+    Asked of the rules the hook is consulted for: those of `target`'s kind whose
+    capabilities it declares. Such a rule is run rather than skipped, and the error keeps
+    a run under `fail_on_error` from passing on a hook that cannot say what it meant.
+    """
+    capabilities = set(target.capabilities())
+    errors: list[CheckError] = []
+    for rule in registry.rules():
+        if rule.meta.target_kind != target.kind or rule.meta.required_capabilities - capabilities:
+            continue
+        try:
+            answer: object = rule.not_applicable_to(target)
+        except Exception:  # noqa: S112 — the rule runs, and records its own failure
+            continue
+        if answer is None or _is_reason(answer):
+            continue
+        errors.append(
+            CheckError(
+                source=rule.meta.id,
+                stage="applicability",
+                reason=(
+                    f"not_applicable_to returned {reprlib.repr(answer)}; it returns a non-empty "
+                    f"reason to skip the rule, or None when the rule applies"
+                ),
+            )
+        )
+    return tuple(errors)
 
 
 def refused_by_this_run(profile: Profile, rule: Rule) -> bool:

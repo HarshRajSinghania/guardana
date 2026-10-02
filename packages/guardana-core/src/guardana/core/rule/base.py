@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import MISSING, dataclass, field, fields, replace
 from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar
 
@@ -97,6 +97,15 @@ class RuleContext:
     _conclusions: list["SuiteSummary"] = field(default_factory=list, repr=False)
     _examined: set[str] = field(default_factory=set, repr=False)
     _shortfalls: list[CoverageShortfall] = field(default_factory=list, repr=False)
+
+    def fresh(self) -> "RuleContext":
+        """Return the same configuration with every sink empty, so one run's records stand alone."""
+        empty = {
+            f.name: f.default_factory()
+            for f in fields(self)
+            if f.name.startswith("_") and f.default_factory is not MISSING
+        }
+        return replace(self, **empty)
 
     def get(self, key: str, default: object) -> object:
         """Read one config value, falling back to `default`."""

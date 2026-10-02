@@ -16,6 +16,7 @@ import pytest
 from guardana.core.evaluator.base import Expectation, Verdict
 from guardana.core.evaluator.canary import CanaryEvaluator
 from guardana.core.report import Evidence, Finding
+from guardana.core.report.shortfall import CoverageShortfall, ShortfallKind
 from guardana.core.rule import (
     FixtureOutcome,
     Rule,
@@ -182,6 +183,61 @@ def test_an_inconclusive_verdict_outranks_a_finding_in_the_same_run() -> None:
     verification = verify_rule(rule)
 
     assert verification.failed[0].observed is FixtureOutcome.INCONCLUSIVE
+
+
+class _Gapping(_Rule):
+    """Reports a coverage shortfall on the reply `gap` and yields what `_Rule` would."""
+
+    def run(self, target: Target, ctx: RuleContext) -> Iterable[Finding]:
+        if getattr(getattr(target, "transport", None), "scripted", ("",))[0] == "gap":
+            ctx.shortfall(
+                CoverageShortfall(ShortfallKind.SEED_NOT_REACHED, "item asked as b", "unreached")
+            )
+        return super().run(target, ctx)
+
+
+def test_a_sample_whose_run_reported_a_shortfall_is_inconclusive_whatever_it_yielded() -> None:
+    rule = _Gapping(
+        [_finding()],
+        [
+            RuleFixture("fires but fell short", _endpoint("gap"), FixtureOutcome.FINDING),
+            RuleFixture("falls short", _endpoint("gap"), FixtureOutcome.INCONCLUSIVE),
+        ],
+    )
+
+    verification = verify_rule(rule)
+
+    assert [r.observed for r in verification.results] == [FixtureOutcome.INCONCLUSIVE] * 2
+    assert [r.fixture for r in verification.failed] == ["fires but fell short"]
+    assert "item asked as b" in verification.failed[0].detail
+
+
+def test_each_sample_runs_in_a_context_of_its_own() -> None:
+    rule = _Gapping(
+        [],
+        [
+            RuleFixture("falls short", _endpoint("gap"), FixtureOutcome.INCONCLUSIVE),
+            RuleFixture("clean", _endpoint("b"), FixtureOutcome.CLEAN),
+        ],
+    )
+    ctx = RuleContext(config={"k": "v"})
+
+    verification = verify_rule(rule, ctx)
+
+    assert not verification.failed
+    assert ctx.shortfalls() == ()
+
+
+def test_a_fresh_context_keeps_the_configuration_and_empties_every_sink() -> None:
+    ctx = RuleContext(config={"k": "v"}, evaluators={"canary": CanaryEvaluator()})
+    ctx.shortfall(CoverageShortfall(ShortfallKind.SEED_NOT_REACHED, "x", "unreached"))
+    ctx.examined("model.pkl")
+
+    fresh = ctx.fresh()
+
+    assert (fresh.config, fresh.evaluators) == (ctx.config, ctx.evaluators)
+    assert (fresh.shortfalls(), fresh.examined_paths()) == ((), frozenset())
+    assert len(ctx.shortfalls()) == 1
 
 
 def test_a_yaml_rule_declares_fixtures_as_data(tmp_path: Path) -> None:

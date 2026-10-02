@@ -402,6 +402,30 @@ def test_a_forked_process_refuses_to_write(tmp_path: Path, monkeypatch: pytest.M
         assert doubles.call("lookup_order", id="A-100")["status"] == "open"
 
 
+def test_a_call_that_cannot_be_traced_raises_changes_nothing_and_leaves_the_trace_unterminated(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    doubles, trace = _open(tmp_path)
+    with doubles.acting_as("acme"):
+        doubles.call("lookup_order", id="A-100")
+
+    def _disk_full(text: str) -> int:
+        raise OSError("disk full")
+
+    monkeypatch.setattr(doubles._writer._handle, "write", _disk_full)
+    with doubles.acting_as("acme"), pytest.raises(DoublesError, match="could not be traced"):
+        doubles.call("refund_order", id="A-100", status="refunded")
+    monkeypatch.undo()
+
+    assert doubles._rows["orders"]["A-100"].fields["status"] == "open"
+    with doubles.acting_as("acme"), pytest.raises(DoublesError, match="no further call"):
+        doubles.call("lookup_order", id="A-100")
+    doubles.close()
+    assert len(_records(trace)) == 2
+    assert "guardana_trace_end" not in _records(trace)[-1]
+    assert read_trace(trace).trace.truncated is TraceTruncation.UNTERMINATED
+
+
 # --- refused before the file exists or before a write --------------------------------------
 
 

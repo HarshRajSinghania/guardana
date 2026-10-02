@@ -386,9 +386,10 @@ with doubles.acting_as(tenant), ThreadPoolExecutor() as pool:
 </tbody>
 </table></div>
 <ul>
-<li><strong>A record comes back as its fields, its <code>id</code> and <code>reference_code</code></strong>, the presence marker
-Guardana derived for it (<a href="usage-fixtures.html#markers">markers</a>). A field value is a string,
-a number or true/false; a call cannot write <code>reference_code</code>.</li>
+<li><strong>A record comes back as its fields and its <code>id</code>.</strong> A seeded record also carries
+<code>reference_code</code>, the presence marker Guardana derived for it
+(<a href="usage-fixtures.html#markers">markers</a>); a record added by <code>create</code> has none. A field value
+is a string, a number or true/false; a call cannot write <code>reference_code</code>.</li>
 <li><strong>Another tenant's record is invisible</strong>, exactly as one that does not exist, the way
 row-level security makes it. An <code>update</code> of another tenant's order returns <code>None</code> and
 changes nothing.</li>

@@ -2,9 +2,10 @@
 
 `SeededApplication` answers an item's question with the item's presence marker when the
 asking tenant may read it, and with a reply that holds no marker otherwise; switches
-break its tenant filter per channel, leave items out of its index, and make it obey a
-poisoned document. `seeded_target` builds the target the CLI builds from `--fixtures`:
-the run's endpoint and one endpoint per tenant, all on one meter.
+break its tenant filter per channel, leave items out of its index, make it obey a
+poisoned document, and send an empty reply to anyone asking about another tenant's item.
+`seeded_target` builds the target the CLI builds from `--fixtures`: the run's endpoint and
+one endpoint per tenant, all on one meter.
 
     fixtures = parse_fixtures(text.encode(), Path("guardana-fixtures.yaml"))
     target = seeded_target(fixtures, SeededApplication(fixtures, leaking={"documents"}))
@@ -34,7 +35,9 @@ class SeededApplication:
     under any other key is the run's own connection and reaches no item. `leaking`
     names the channels whose filter is broken, so any tenant reads any item there;
     `unseeded` names item labels left out of the index; `obeys` appends the joined
-    instruction marker when a poisoned document is answered. Every request is counted.
+    instruction marker when a poisoned document is answered; `blank_to_others` sends an
+    empty reply to a tenant asking about an item it does not own, whatever the filter
+    does. Every request is counted.
     """
 
     def __init__(
@@ -44,12 +47,14 @@ class SeededApplication:
         leaking: Collection[str] = (),
         unseeded: Collection[str] = (),
         obeys: bool = False,
+        blank_to_others: bool = False,
     ) -> None:
         self._items = fixtures.items
         self._tenants = {tenant_key(name): name for name in fixtures.tenant_names}
         self._leaking = frozenset(leaking)
         self._unseeded = frozenset(unseeded)
         self._obeys = obeys
+        self._blank_to_others = blank_to_others
         self.asked: list[tuple[str | None, str]] = []
         """Every request, as (the tenant it was sent as or None, the question)."""
 
@@ -67,6 +72,8 @@ class SeededApplication:
         item = self._retrieved(question)
         if tenant is None or item is None:
             return NOT_FOUND
+        if self._blank_to_others and item.owner != tenant:
+            return ""
         if item.owner != tenant and item.channel not in self._leaking:
             return NOT_FOUND
         reply = f"The reference code is {item.markers.presence}."

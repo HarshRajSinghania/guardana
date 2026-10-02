@@ -781,9 +781,12 @@ inconclusive verdict alone would sit behind <code>fail_on_inconclusive</code>, w
 Yield an inconclusive verdict for it too, so <code>rule test</code> sees the decline.</p>
 <p><strong>Price and skip against the target.</strong> A rule whose request count depends on what the
 target holds overrides <code>estimated_requests_for(target)</code>, which <code>plan</code> reads; it defaults to
-<code>estimated_requests</code>. A rule with nothing to check on a target returns the reason from
-<code>not_applicable_to(target)</code>, and is recorded as skipped <code>not_applicable</code> in the run and
-its plan alike. <code>guardana.retrieval.poisoned_document</code> does both.</p>
+<code>estimated_requests</code>. A rule with nothing to check on a target returns the reason, a
+non-empty string, from <code>not_applicable_to(target)</code>, and is recorded as skipped
+<code>not_applicable</code> in the run and its plan alike; it returns <code>None</code> when it applies. Anything
+else, such as <code>False</code> from <code>cond and &quot;reason&quot;</code>, is recorded as an error and the rule runs,
+so <code>fail_on_error</code> keeps the run from passing. <code>guardana.retrieval.poisoned_document</code> does
+both.</p>
 <p><strong>Ask the target for parsed source — never parse it yourself.</strong> A scan runs
 every rule over the same tree, so a rule that reads and parses a file for itself
 multiplies the cost of the whole scan by the number of rules:</p>

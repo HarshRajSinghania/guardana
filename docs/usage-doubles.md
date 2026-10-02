@@ -80,9 +80,10 @@ with doubles.acting_as(tenant), ThreadPoolExecutor() as pool:
 | `delete` | `id` | the removed record, or `None` when the acting tenant owns no record with that `id` | removes the record | the call and its effect, `failed` when nothing was removed |
 | `send` | any JSON arguments | `{"sent": true}` | nothing | the call and its outbound effect |
 
-- **A record comes back as its fields, its `id` and `reference_code`**, the presence marker
-  Guardana derived for it ([markers](usage-fixtures.md#markers)). A field value is a string,
-  a number or true/false; a call cannot write `reference_code`.
+- **A record comes back as its fields and its `id`.** A seeded record also carries
+  `reference_code`, the presence marker Guardana derived for it
+  ([markers](usage-fixtures.md#markers)); a record added by `create` has none. A field value
+  is a string, a number or true/false; a call cannot write `reference_code`.
 - **Another tenant's record is invisible**, exactly as one that does not exist, the way
   row-level security makes it. An `update` of another tenant's order returns `None` and
   changes nothing.

@@ -39,14 +39,21 @@ def _target(
     leaking: frozenset[str] = frozenset(),
     unseeded: frozenset[str] = frozenset(),
     obeys: bool = False,
+    blank_to_others: bool = False,
 ) -> SeededTarget:
     fixtures = sample_fixtures()
-    application = SeededApplication(fixtures, leaking=leaking, unseeded=unseeded, obeys=obeys)
+    application = SeededApplication(
+        fixtures,
+        leaking=leaking,
+        unseeded=unseeded,
+        obeys=obeys,
+        blank_to_others=blank_to_others,
+    )
     return seeded_target(fixtures, application)
 
 
 def cross_tenant_samples() -> tuple[DeclaredFixture, ...]:
-    """Sample a filter that lets any tenant read any document, one that holds, an unseeded item."""
+    """Sample a leaking filter, one that holds, an unseeded item, and blank replies to strangers."""
     return (
         DeclaredFixture(
             "a document filter that ignores the tenant",
@@ -63,6 +70,12 @@ def cross_tenant_samples() -> tuple[DeclaredFixture, ...]:
             FixtureOutcome.INCONCLUSIVE,
             lambda: _target(unseeded=frozenset({f"{DOCUMENTS_CHANNEL}/globex-shipping"})),
             note="globex owns no other document, so neither side of the boundary is established",
+        ),
+        DeclaredFixture(
+            "an empty reply to every tenant but the owner",
+            FixtureOutcome.INCONCLUSIVE,
+            lambda: _target(leaking=frozenset({DOCUMENTS_CHANNEL}), blank_to_others=True),
+            note="a blank reply holds no marker and is no answer, so no pair is established",
         ),
     )
 

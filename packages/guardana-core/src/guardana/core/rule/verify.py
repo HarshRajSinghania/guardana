@@ -112,12 +112,16 @@ def verify_rule(rule: Rule, ctx: RuleContext | None = None) -> RuleVerification:
     quiet; neither says anything about whether it can decline, and a rule that
     cannot decline will one day report clean about something it never examined.
 
+    Each fixture runs in a fresh copy of the context, so what one sample recorded or
+    reported never counts in another. A fixture whose run reported a coverage
+    shortfall came out `inconclusive`, whatever it yielded.
+
     A suite's regression pairs are regraded with the context's evaluators, sending
     nothing; a suite whose evaluator cannot do that says so in `unprovable`.
     """
     context = ctx if ctx is not None else RuleContext()
     fixtures = tuple(rule.fixtures())
-    results = tuple(_run_fixture(rule, fixture, context) for fixture in fixtures)
+    results = tuple(_run_fixture(rule, fixture, context.fresh()) for fixture in fixtures)
     verification = RuleVerification(rule.meta.id, results, _gaps(rule.meta.id, fixtures))
     if not isinstance(rule, SuiteRule):
         return verification
@@ -164,7 +168,8 @@ def _run_fixture(rule: Rule, fixture: RuleFixture, ctx: RuleContext) -> FixtureR
             FixtureVerdict.ERRORED,
             f"{type(exc).__name__}: {exc}",
         )
-    observed = _observed(findings)
+    gaps = ctx.shortfalls()
+    observed = FixtureOutcome.INCONCLUSIVE if gaps else _observed(findings)
     if observed is fixture.outcome:
         return FixtureResult(
             rule.meta.id, fixture.name, fixture.outcome, observed, FixtureVerdict.PASSED
@@ -175,7 +180,8 @@ def _run_fixture(rule: Rule, fixture: RuleFixture, ctx: RuleContext) -> FixtureR
         fixture.outcome,
         observed,
         FixtureVerdict.FAILED,
-        f"expected {fixture.outcome}, got {observed}",
+        f"expected {fixture.outcome}, got {observed}"
+        + (f" (shortfall: {'; '.join(g.name for g in gaps)})" if gaps else ""),
     )
 
 

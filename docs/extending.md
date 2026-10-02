@@ -91,7 +91,7 @@ These are additive extension points for a rule:
 | `RuleContext.conclude(summary)` | Record the rule's conclusion. |
 | `RuleContext.shortfall(CoverageShortfall)` | Report coverage the rule could not get. It joins the run's `coverage_shortfall`, which has no switch, so the run is `indeterminate` unless a finding fails it. |
 | `Rule.estimated_requests_for(target)` | Price the rule against the target it is planned for; defaults to `estimated_requests`. `plan` reads this one. |
-| `Rule.not_applicable_to(target)` | Return why the rule has nothing to check on `target`, or `None`. The run and the plan record it as skipped `not_applicable`, never as a check that ran. |
+| `Rule.not_applicable_to(target)` | Return why the rule has nothing to check on `target` as a non-empty string, or `None`. The run and the plan record the rule as skipped `not_applicable`, never as a check that ran. Any other return (`False`, `""`) is an error naming the hook and what it returned, and the rule runs. |
 | `RuleFixture.rule` | Use the variant of the declaring rule that a sample runs. |
 | `Runner(calibrations=...)` | Pass calibrations to the runner. |
 | `ScanResult.suites` | Read suite results from the scan result. |
