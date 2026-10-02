@@ -14,7 +14,7 @@ one somebody forgot.
 
 import re
 from bisect import bisect_right
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field, fields, is_dataclass, replace
 from enum import Enum, StrEnum
 from functools import cache
@@ -452,6 +452,45 @@ A custom pattern broad enough to match `LLM03` or `supply_chain` would otherwise
 the framework mapping and the rule a finding belongs to, and with them its identity in
 every comparison.
 """
+
+
+_SENT_VALUE_PLACEHOLDER = "[redacted:credential]"
+_SHORTEST_SECRET = 4
+"""A shorter value is not withheld from a quote, which it would blank wherever it occurs."""
+
+
+@dataclass(frozen=True, slots=True)
+class MessageQuoting:
+    """How a message quotes what an endpoint said: under the run's policy, without its secrets."""
+
+    redactor: EvidenceRedactor
+    secrets: tuple[str, ...]
+
+    @classmethod
+    def of(cls, privacy: RedactionPolicy, secrets: Iterable[str] = ()) -> "MessageQuoting":
+        """Withhold every secret long enough to tell apart, the longest first."""
+        kept = {value for value in secrets if len(value) >= _SHORTEST_SECRET}
+        return cls(EvidenceRedactor(privacy), tuple(sorted(kept, key=len, reverse=True)))
+
+    @property
+    def withholds_text(self) -> bool:
+        """Whether the policy forbids quoting what the endpoint said."""
+        return self.redactor.policy.mode is EvidenceMode.METADATA_ONLY
+
+    def spans(self, text: str) -> str:
+        """Replace each secret the run sends, then each span the policy removes."""
+        for value in self.secrets:
+            text = text.replace(value, _SENT_VALUE_PLACEHOLDER)
+        return self.redactor.redact_spans(text)
+
+    def detail(self, text: str) -> str:
+        """Quote `text` as `spans` does, or under `metadata_only` give only its size."""
+        if self.withholds_text:
+            return (
+                f"its detail ({len(text.encode('utf-8'))} bytes) is not shown under "
+                f"evidence mode metadata_only"
+            )
+        return self.spans(text)
 
 
 @cache

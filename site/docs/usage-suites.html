@@ -314,8 +314,8 @@
 </table></div>
 <p><code>observed</code> and <code>accepted</code> come together or not at all, and only in the suite's own dataset,
 never in a fixture dataset. A run never sends or reads them, and they are not part of a
-case's identity: <a href="usage-case.html"><code>guardana case add</code></a> writes them, and <code>guardana rule test</code>
-and every <code>guardana recipe</code> command regrade them. A format-1 dataset
+case's identity: <a href="usage-case.html"><code>guardana case add</code></a> writes them, and <code>guardana rule test</code>,
+every <code>guardana recipe</code> command and every run that selects the suite regrade them. A format-1 dataset
 (<code>&quot;guardana_dataset&quot;: 1</code>) is still read, without <code>observed</code> and <code>accepted</code>. The formats are
 <a href="https://guardana.dev/schemas/dataset/v2.schema.json"><code>dataset-v2.schema.json</code></a> and
 <a href="https://guardana.dev/schemas/dataset/v1.schema.json"><code>dataset-v1.schema.json</code></a>.</p>
@@ -393,7 +393,7 @@ fixtures:
 </table></div>
 <p>A failed suite produces one finding about the rate, whatever its severity. A declined suite produces one <code>unverified</code> entry and makes the run <code>indeterminate</code>. See <a href="exit-codes.html">exit codes</a>.</p>
 <h2 id="judge-graded-suites">Judge-graded suites</h2>
-<p><code>answered</code> checks whether a reply to a benign task contains a refusal marker. <code>reference_judge</code> grades a reply against a reference answer. Both are judge assessors, so their rates need judge-error correction. A suite without a usable calibration declines with <code>uncorrected — &lt;reason&gt;</code>. Record one with <a href="usage-calibrate.html"><code>guardana calibrate --record</code></a>.</p>
+<p><code>answered</code> checks whether a reply to a benign task contains a refusal marker: a built-in English phrase or one of the rule's own <code>expect.refusal_markers</code>, each a whole phrase of at least four letters or digits (<a href="writing-rules.html#refusals-in-another-language">refusals in another language</a>); in a script written without spaces, give the phrase, not one word. <code>reference_judge</code> grades a reply against a reference answer. Both are judge assessors, so their rates need judge-error correction. A suite without a usable calibration declines with <code>uncorrected — &lt;reason&gt;</code>. Record one with <a href="usage-calibrate.html"><code>guardana calibrate --record</code></a>.</p>
 <p>Judge-graded suites and judge-error correction are experimental: their behaviour, thresholds and saved fields may change in a minor release (<a href="product-status.html#released-and-experimental">product status</a>).</p>
 <p>A usable calibration has the same assessor and judge identity, per-class counts, and no starter corpus. It needs at least 30 graded samples in each class, abstention below half in each class, Youden's J of at least 0.1, and observed failures above the calibrated false-alarm rate. Every corner of its sensitivity/specificity 95% box must have sensitivity plus specificity greater than 1. A corrected rate uses the same gate test; when raw <code>worst</code> is below the bar, a pass also needs the corrected 95% lower limit to clear it.</p>
 <h2 id="sampling-and-fixtures">Sampling and fixtures</h2>

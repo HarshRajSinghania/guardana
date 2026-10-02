@@ -409,7 +409,8 @@ without sending — where <code>rule test</code> tells those apart as <code>1</c
 what it would pin cannot be
 pinned — nothing selected, plugin trust refused an installed extension, a selected check
 that would not grade — and also <code>2</code>, having written the lock, when a selected check is
-unpinned; <code>3</code> for a recipe it cannot read. <code>recipe lock --check</code> uses the same codes and
+unpinned; <code>3</code> for a recipe it cannot read, and, writing nothing, for a configuration whose
+run could never pass, as <code>plan</code> refuses it. <code>recipe lock --check</code> uses the same codes and
 <code>1</code> when a pin moved: the lock is the policy it checks, as <code>pack lock --check</code> does. A
 pin that moved, or a regression case that no longer holds, is <code>3</code> on <code>recipe run</code>, which
 sends nothing, because the run was refused

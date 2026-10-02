@@ -44,7 +44,9 @@ class AdapterConfig:
     url: str
     body: object
     response_path: str
-    headers: Mapping[str, str] = field(default_factory=dict)
+    headers: Mapping[str, str] = field(default_factory=dict, repr=False)
+    """Sent as written once `${VAR}` is expanded, so it may hold a credential."""
+
     prompt_token: str = "{{prompt}}"  # noqa: S105 — a template placeholder, not a secret
     system_token: str = "{{system}}"  # noqa: S105 — a template placeholder, not a secret
     messages_token: str = "{{messages}}"  # noqa: S105 — a template placeholder, not a secret

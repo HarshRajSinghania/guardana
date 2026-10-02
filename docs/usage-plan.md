@@ -80,9 +80,9 @@ exactly like `guardana scan` does.
 Target construction is configuration-only: `plan` calls the same
 `from_locator` classmethod as the real command, but a conforming target does not
 contact the system until a run or inspection starts. An installed endpoint target that
-can plant a system prompt (`SystemPromptPlanter`) is planned as `probe` runs it: its
-canary rules are priced against a planted view, so the plan lists the rules the probe
-then runs.
+can plant a system prompt (`SystemPromptPlanter`) is planned as `probe` runs it: each
+canary rule is priced against a view with its canary planted and every other rule
+against the target itself, so the plan lists the rules the probe then runs.
 
 ## Where the numbers come from
 

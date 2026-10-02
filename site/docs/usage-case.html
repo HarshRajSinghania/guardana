@@ -448,6 +448,10 @@ evaluator cannot regrade without sending (<a href="usage-rule-test.html">testing
 selected suite before they compare anything. Any of those four states is a refusal there,
 with one code: <code>lock</code> writes nothing and exits <code>1</code>, <code>lock --check</code> exits <code>1</code>, and <code>run</code>
 sends nothing and exits <code>3</code> (<a href="usage-recipe.html">recipes</a>).</li>
+<li><code>guardana probe</code>, <code>grade</code>, <code>monitor</code> and <code>plan</code>, and a <code>Verifier</code> run from Python, regrade
+the pairs of every suite they select before the first rule, sending nothing. A pair that no
+longer holds, or cannot be regraded without sending, is an error for that suite (stage
+<code>regression</code>), so the run cannot pass while <code>fail_on_error</code> is on (exit <code>2</code>).</li>
 </ul>
 <p>The suite's digest covers its dataset, so after <code>case add --write</code> the recipe's lock no
 longer holds: <code>recipe run</code> sends nothing until you run <code>guardana recipe lock</code> and commit the

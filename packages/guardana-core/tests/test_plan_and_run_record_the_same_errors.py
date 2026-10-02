@@ -101,7 +101,7 @@ def test_the_shared_errors_come_in_the_order_the_run_records_them(tmp_path: Path
     registry = _registry(tmp_path)
     target = _ClaimsChatWithoutIt()
 
-    stages = [error.stage for error in pre_run_errors(registry, target)]
+    stages = [error.stage for error in pre_run_errors(registry, target, ())]
 
     assert stages == ["capability", "discovery", "load"]
 

@@ -209,3 +209,19 @@ def test_a_connection_that_will_not_send_holds_no_secret_value(tmp_path: Path) -
     )
 
     assert resolved.secret_values == ()
+
+
+def test_no_secret_a_connection_sends_appears_in_its_repr(tmp_path: Path) -> None:
+    keyed = resolve_connection(
+        Connection(_URL, "m", api_key_env="KEY"), sending=True, environ={"KEY": "k-value-1"}
+    )
+    path = _adapter(tmp_path, f"headers:\n  X-Key: ${{APP_KEY}}\n{_BODY}")
+    adapted = resolve_connection(
+        Connection(_URL, "m", adapter=path), sending=True, environ={"APP_KEY": "sekret-1"}
+    )
+    loaded = load_adapter(path, url=_URL, environ={"APP_KEY": "sekret-1"})
+
+    assert "k-value-1" not in repr(keyed)
+    assert "sekret-1" not in repr(adapted)
+    assert "sekret-1" not in repr(loaded)
+    assert "sekret-1" not in repr(loaded.config)

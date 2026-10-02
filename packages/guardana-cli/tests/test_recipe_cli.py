@@ -622,6 +622,10 @@ def _with_fixtures(tmp_path: Path, url: str, *, adapters: bool) -> Path:
     recipe = _team(tmp_path, url)
     text = recipe.read_text(encoding="utf-8").replace("schema_version: 1", "schema_version: 2")
     recipe.write_text(text + "  fixtures: guardana-fixtures.yaml\n", encoding="utf-8")
+    (tmp_path / "guardana.yaml").write_text(
+        "rules:\n  paths: [rules]\n  include: ['acme.*', 'guardana.tenancy.*']\n",
+        encoding="utf-8",
+    )
     tenants: dict[str, dict[str, str]] = {}
     for name in ("acme", "globex"):
         variable = f"{name.upper()}_KEY"
@@ -764,3 +768,26 @@ def test_a_recipe_naming_a_missing_fixtures_file_is_refused(tmp_path: Path, wire
     assert result.exit_code == ExitCode.INVALID_USAGE
     assert "no fixtures file at" in normalised(result.output)
     assert not (tmp_path / "guardana-recipe.lock.yaml").exists()
+
+
+def test_a_lock_whose_run_could_never_pass_is_refused_and_writes_nothing(
+    tmp_path: Path, wire: _Wire
+) -> None:
+    recipe = _with_fixtures(tmp_path, wire.url, adapters=False)
+    (tmp_path / "guardana.yaml").write_text(
+        "rules:\n  paths: [rules]\n  include: ['acme.*']\n", encoding="utf-8"
+    )
+
+    locked = _invoke("lock", str(recipe))
+    checked = _invoke("lock", "--check", str(recipe))
+
+    for result in (locked, checked):
+        assert result.exit_code == ExitCode.INVALID_USAGE, result.output
+        text = normalised(result.output)
+        assert "cannot pass, so nothing was pinned" in text
+        assert (
+            "guardana.tenancy.cross_tenant_answer is required by this run and is not selected "
+            "by the profile" in text
+        )
+    assert not (tmp_path / "guardana-recipe.lock.yaml").exists()
+    assert wire.requests == []

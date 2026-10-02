@@ -13,6 +13,7 @@ from guardana.cli.exit_codes import ExitCode
 from guardana.cli.main import app
 from guardana.core.profile import default_profile
 from guardana.core.redaction import EvidenceMode, RedactionPolicy
+from guardana.core.target import EndpointError
 from guardana.core.testing import FailingTransport
 from typer.testing import CliRunner
 
@@ -240,6 +241,37 @@ def test_metadata_only_gives_the_status_and_the_size_and_quotes_nothing(
     assert f"its body ({len(_ECHO)} bytes) is not shown under evidence mode metadata_only" in err
     assert "bad key" not in err
     assert _EMAIL not in err
+
+
+def _unusable_reply(capsys: pytest.CaptureFixture[str], privacy: RedactionPolicy) -> str:
+    def action() -> None:
+        raise EndpointError(f"unexpected response from http://x: {_ECHO!r}")
+
+    with pytest.raises(typer.Exit) as exc:
+        run_against_endpoint("http://x", action, privacy=privacy, secrets=(_KEY,))
+    assert exc.value.exit_code == ExitCode.TARGET_UNAVAILABLE
+    return normalised(capsys.readouterr().err)
+
+
+def test_an_unusable_reply_is_quoted_under_the_run_policy_without_a_sent_secret(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    err = _unusable_reply(capsys, _POLICY)
+
+    assert "could not reach endpoint http://x: unexpected response" in err
+    assert _KEY not in err
+    assert _EMAIL not in err
+
+
+def test_an_unusable_reply_under_metadata_only_gives_its_kind_and_size_and_quotes_nothing(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    err = _unusable_reply(capsys, RedactionPolicy(mode=EvidenceMode.METADATA_ONLY))
+
+    assert "could not reach endpoint http://x: EndpointError, its detail (" in err
+    assert "bytes) is not shown under evidence mode metadata_only" in err
+    assert "unexpected response" not in err
+    assert "bad key" not in err
 
 
 def test_a_value_too_short_to_tell_apart_is_not_withheld_from_the_quote(

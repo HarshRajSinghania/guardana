@@ -24,7 +24,7 @@ def _result() -> ScanResult:
 
 def test_each_demanded_rule_that_did_not_complete_is_named_with_its_cause() -> None:
     gaps = unfinished_demands(
-        {"acme.ran", "acme.skipped", "acme.errored", "acme.absent"}, _result()
+        {"acme.ran", "acme.skipped", "acme.errored", "acme.absent"}, _result(), _LENIENT
     )
 
     assert [(g.kind, g.name) for g in gaps] == [
@@ -38,11 +38,26 @@ def test_each_demanded_rule_that_did_not_complete_is_named_with_its_cause() -> N
 
 def test_no_switch_lets_a_run_missing_a_demanded_rule_pass() -> None:
     plain = _result()
-    demanded = replace(plain, coverage_shortfall=unfinished_demands({"acme.skipped"}, plain))
+    demanded = replace(
+        plain, coverage_shortfall=unfinished_demands({"acme.skipped"}, plain, _LENIENT)
+    )
 
     assert gate_outcome(plain, _LENIENT) is GateOutcome.PASS
     assert gate_outcome(demanded, _LENIENT) is GateOutcome.INDETERMINATE
 
 
 def test_a_run_that_completed_everything_it_was_asked_for_owes_nothing() -> None:
-    assert unfinished_demands({"acme.ran"}, _result()) == ()
+    assert unfinished_demands({"acme.ran"}, _result(), _LENIENT) == ()
+
+
+def test_a_demanded_rule_the_profile_never_selected_is_named_as_not_selected() -> None:
+    narrowed = Policy(include=("acme.ran",))
+
+    (unselected,) = unfinished_demands({"acme.absent"}, _result(), narrowed)
+    (unfinished,) = unfinished_demands({"acme.absent"}, _result(), _LENIENT)
+
+    assert (
+        unselected.detail
+        == "acme.absent is required by this run and is not selected by the profile"
+    )
+    assert unfinished.detail == "acme.absent is required by this run and never ran to completion"

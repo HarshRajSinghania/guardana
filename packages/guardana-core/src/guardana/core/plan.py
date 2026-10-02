@@ -154,18 +154,25 @@ class RunPlan:
         return not self.requests_complete or self.max_requests > limit or over_judge
 
 
-def build_plan(
+def build_plan(  # noqa: PLR0913 — what is run, against what, and how the run splits it
     registry: Registry,
     profile: Profile,
     target: Target,
     *,
     judge_meters: Sequence[Collection[str]] | None = None,
+    passes: Sequence[tuple[Registry, Target]] | None = None,
+    skips: Sequence[SkippedRule] = (),
 ) -> RunPlan:
     """Work out what running `profile`'s rules against `target` would cost.
 
     `judge_meters` prices judge calls: each entry is the evaluator ids that share one
     budgeted judge meter, empty when no judge is configured. None leaves judge calls
     unpriced, for a run that wires no judge.
+
+    `passes` are the runs a command splits `registry` into, each part against the target
+    or view it runs on, and `skips` what it skips outside them; None is one pass of
+    `registry` against `target`. What the run owes as a whole is read off `registry`
+    and `target`.
 
     Selects with the runner's own `select_rules` and reads the runner's own
     `pre_run_errors`, so the plan describes the run that would actually happen rather
@@ -178,6 +185,7 @@ def build_plan(
     from guardana.core.runner import (  # noqa: PLC0415 — runner is downstream
         incomplete_recording,
         pre_run_errors,
+        reported_once,
         select_rules,
     )
     from guardana.core.verify import (  # noqa: PLC0415 — verify is downstream
@@ -199,25 +207,33 @@ def build_plan(
     graded: list[Rule] = []
     ceiling = 0
     floor = 0
-    chosen, refused = select_rules(registry, profile, target)
-    skipped.extend(refused)
-    for rule in chosen:
-        meta = rule.meta
-        selected.append(meta.id)
-        graded.append(rule)
-        if repeats and rule.trials_per_case < profile.trials:
-            single_attempt.append(meta.id)
-        if replayed:
-            continue
-        declared = rule.estimated_requests_for(target)
-        if declared is None:
-            # A rule that sends and did not say how much sends at least once.
-            unknown.append(meta.id)
-            floor += 1
-        else:
-            ceiling += declared
-            floor += 1 if declared > 0 else 0
-    errors = (*pre_run_errors(registry, target), *_unknown_evaluators(graded, registry))
+    foreseen_errors: list[CheckError] = []
+    for index, (part, view) in enumerate(((registry, target),) if passes is None else passes):
+        chosen, refused = select_rules(part, profile, view)
+        skipped.extend(refused)
+        if index == 0:
+            skipped.extend(skips)
+        foreseen_errors.extend(pre_run_errors(part, view, chosen))
+        for rule in chosen:
+            meta = rule.meta
+            selected.append(meta.id)
+            graded.append(rule)
+            if repeats and rule.trials_per_case < profile.trials:
+                single_attempt.append(meta.id)
+            if replayed:
+                continue
+            declared = rule.estimated_requests_for(view)
+            if declared is None:
+                # A rule that sends and did not say how much sends at least once.
+                unknown.append(meta.id)
+                floor += 1
+            else:
+                ceiling += declared
+                floor += 1 if declared > 0 else 0
+    errors = (
+        *reported_once(tuple(foreseen_errors), registry),
+        *_unknown_evaluators(graded, registry),
+    )
     demanded = demanded_by_fixtures(registry, target, None)
     foreseen = ScanResult(
         findings=(), rules_run=tuple(selected), rules_skipped=tuple(skipped), errors=errors
@@ -239,7 +255,7 @@ def build_plan(
         errors=errors,
         shortfall=(
             *incomplete_recording(target),
-            *unfinished_demands(demanded, foreseen),
+            *unfinished_demands(demanded, foreseen, profile.policy),
             *unchecked_fixtures(registry, target, None),
         ),
     )

@@ -118,9 +118,11 @@ expect:
 ```
 
 A value that is not a list of strings, or a marker with fewer than four letters or
-digits, is refused when the rule loads. A marker is a substring, so a short or
-common one reads ordinary answers as refusals: under `keyword` that is a pass the
-reply did not earn, so quote the product's whole configured opening.
+digits, is refused when the rule loads. A marker is the whole phrase, matched as a
+substring, never word by word, so a short or common one reads ordinary answers as
+refusals: under `keyword` that is a pass the reply did not earn, so quote the
+product's whole configured opening. In a script written without spaces (Chinese,
+Japanese, Thai) give the phrase, not one word.
 
 ### How a YAML rule executes
 

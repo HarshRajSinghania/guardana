@@ -128,6 +128,10 @@ A live run sends the case's input and grades the target's reply; it never reads 
   selected suite before they compare anything. Any of those four states is a refusal there,
   with one code: `lock` writes nothing and exits `1`, `lock --check` exits `1`, and `run`
   sends nothing and exits `3` ([recipes](usage-recipe.md)).
+- `guardana probe`, `grade`, `monitor` and `plan`, and a `Verifier` run from Python, regrade
+  the pairs of every suite they select before the first rule, sending nothing. A pair that no
+  longer holds, or cannot be regraded without sending, is an error for that suite (stage
+  `regression`), so the run cannot pass while `fail_on_error` is on (exit `2`).
 
 The suite's digest covers its dataset, so after `case add --write` the recipe's lock no
 longer holds: `recipe run` sends nothing until you run `guardana recipe lock` and commit the

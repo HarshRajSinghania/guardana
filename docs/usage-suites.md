@@ -29,8 +29,8 @@ Each later nonblank line is a case. The case fields are:
 
 `observed` and `accepted` come together or not at all, and only in the suite's own dataset,
 never in a fixture dataset. A run never sends or reads them, and they are not part of a
-case's identity: [`guardana case add`](usage-case.md) writes them, and `guardana rule test`
-and every `guardana recipe` command regrade them. A format-1 dataset
+case's identity: [`guardana case add`](usage-case.md) writes them, and `guardana rule test`,
+every `guardana recipe` command and every run that selects the suite regrade them. A format-1 dataset
 (`"guardana_dataset": 1`) is still read, without `observed` and `accepted`. The formats are
 [`dataset-v2.schema.json`](https://guardana.dev/schemas/dataset/v2.schema.json) and
 [`dataset-v1.schema.json`](https://guardana.dev/schemas/dataset/v1.schema.json).
@@ -98,7 +98,7 @@ A failed suite produces one finding about the rate, whatever its severity. A dec
 
 ## Judge-graded suites
 
-`answered` checks whether a reply to a benign task contains a refusal marker. `reference_judge` grades a reply against a reference answer. Both are judge assessors, so their rates need judge-error correction. A suite without a usable calibration declines with `uncorrected — <reason>`. Record one with [`guardana calibrate --record`](usage-calibrate.md).
+`answered` checks whether a reply to a benign task contains a refusal marker: a built-in English phrase or one of the rule's own `expect.refusal_markers`, each a whole phrase of at least four letters or digits ([refusals in another language](writing-rules.md#refusals-in-another-language)); in a script written without spaces, give the phrase, not one word. `reference_judge` grades a reply against a reference answer. Both are judge assessors, so their rates need judge-error correction. A suite without a usable calibration declines with `uncorrected — <reason>`. Record one with [`guardana calibrate --record`](usage-calibrate.md).
 
 Judge-graded suites and judge-error correction are experimental: their behaviour, thresholds and saved fields may change in a minor release ([product status](product-status.md#released-and-experimental)).
 

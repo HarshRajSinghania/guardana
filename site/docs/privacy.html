@@ -362,7 +362,9 @@ fragment and with its query replaced by a placeholder, whatever the scheme.</p>
 <p>When an endpoint answers with an error status, the message quotes the start of its
 body under the run's own policy, with the API key and every adapter header value the
 run sends shown as <code>[redacted:credential]</code>. Under <code>metadata_only</code> it gives the status
-and the body's size only.</p>
+and the body's size only. A reply Guardana cannot use, an unreachable endpoint and a
+judge's failure are quoted the same way; under <code>metadata_only</code> the message names the
+failure and gives its size only.</p>
 <h2 id="redaction-is-never-silent">Redaction is never silent</h2>
 <p>A finding whose evidence was changed says so, in the text a reader sees:</p>
 <pre><code class="language-text">▲ [HIGH] guardana.supply_chain.hardcoded_secret

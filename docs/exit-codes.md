@@ -123,7 +123,8 @@ without sending — where `rule test` tells those apart as `1`, `2`, `2` and `3`
 what it would pin cannot be
 pinned — nothing selected, plugin trust refused an installed extension, a selected check
 that would not grade — and also `2`, having written the lock, when a selected check is
-unpinned; `3` for a recipe it cannot read. `recipe lock --check` uses the same codes and
+unpinned; `3` for a recipe it cannot read, and, writing nothing, for a configuration whose
+run could never pass, as `plan` refuses it. `recipe lock --check` uses the same codes and
 `1` when a pin moved: the lock is the policy it checks, as `pack lock --check` does. A
 pin that moved, or a regression case that no longer holds, is `3` on `recipe run`, which
 sends nothing, because the run was refused

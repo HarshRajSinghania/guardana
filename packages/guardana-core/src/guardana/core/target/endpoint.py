@@ -1,3 +1,4 @@
+import copy
 import json
 import math
 from collections.abc import Callable, Sequence
@@ -5,7 +6,7 @@ from contextvars import ContextVar
 from dataclasses import dataclass, replace
 from http.client import HTTPMessage, HTTPResponse
 from time import sleep as _sleep
-from typing import IO, TYPE_CHECKING, Literal, Protocol, TypeVar, runtime_checkable
+from typing import IO, TYPE_CHECKING, Literal, Protocol, Self, TypeVar, runtime_checkable
 from urllib.error import HTTPError
 from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
@@ -632,7 +633,7 @@ class EndpointTarget(Target):
         """The endpoint and model under test, as it appears in findings."""
         return endpoint_ref(self._base_url, self._model)
 
-    def planting(self, system_prompt: str) -> "EndpointTarget":
+    def planting(self, system_prompt: str) -> Self:
         """Return this endpoint with an additional prompt and the same run meter.
 
         A probe builds one view per random canary. Sharing the transport is
@@ -659,7 +660,7 @@ class EndpointTarget(Target):
         """Detach the keeper, so a run refused before sending leaves the target as it was."""
         self._keeper = None
 
-    def for_rule(self, rule_id: str) -> "EndpointTarget":
+    def for_rule(self, rule_id: str) -> Self:
         """Return the view `rule_id` sends through: this endpoint, keeping what the rule asks.
 
         Without a keeper this is the endpoint itself. With one, the view shares the meter,
@@ -673,16 +674,17 @@ class EndpointTarget(Target):
         view._kept_rule = rule_id  # noqa: SLF001
         return view
 
-    def _sibling(self, system_prompt: str | None) -> "EndpointTarget":
-        """Build another view of this endpoint, on the same meter and transport, keeping nothing."""
-        return EndpointTarget(
-            self._base_url,
-            self._model,
-            api_key=self._api_key,
-            system_prompt=system_prompt,
-            transport=self._transport,
-            meter=self._meter,
-        )
+    def _sibling(self, system_prompt: str | None) -> Self:
+        """Build another view of this endpoint, on the same meter and transport, keeping nothing.
+
+        Copied rather than constructed, so a subclass's view keeps the subclass, its
+        overrides and its own state; only what makes it a view is reset.
+        """
+        view = copy.copy(self)
+        view._system_prompt = system_prompt  # noqa: SLF001 — a view of the same class
+        view._keeper = None  # noqa: SLF001
+        view._kept_rule = None  # noqa: SLF001
+        return view
 
     def apply_budgets(self, budgets: Budgets) -> None:
         """Adopt these ceilings, refusing a token ceiling this transport cannot enforce.

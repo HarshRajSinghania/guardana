@@ -54,7 +54,7 @@ from guardana.core.manifest.records import (
 from guardana.core.manifest.usage import JudgeUsage
 from guardana.core.plugins import PluginTrust
 from guardana.core.probe import run_target_probe
-from guardana.core.profile import Profile, default_profile
+from guardana.core.profile import Policy, Profile, default_profile
 from guardana.core.recording import (
     Recording,
     RecordingError,
@@ -576,7 +576,7 @@ class Verifier:
             result,
             coverage_shortfall=(
                 *result.coverage_shortfall,
-                *unfinished_demands(demanded, result),
+                *unfinished_demands(demanded, result, self.profile.policy),
                 *unchecked,
             ),
         )
@@ -699,9 +699,13 @@ def refuse_other_trials(recording: Recording, registry: Registry) -> None:
 
 
 def unfinished_demands(
-    demanded: Collection[str], result: ScanResult
+    demanded: Collection[str], result: ScanResult, policy: Policy
 ) -> tuple[CoverageShortfall, ...]:
-    """Return one shortfall for each demanded rule the run did not complete, saying why."""
+    """Return one shortfall for each demanded rule the run did not complete, saying why.
+
+    `policy` is the run's own, so a rule it never selected is named as such rather than
+    as one that started and did not finish.
+    """
     skipped = {skip.rule_id: skip for skip in result.rules_skipped}
     errored = {error.source: error for error in result.errors}
     completed = set(result.rules_run)
@@ -711,6 +715,8 @@ def unfinished_demands(
             why = f"was skipped ({skipped[rule_id].reason}): {skipped[rule_id].detail}"
         elif rule_id in errored:
             why = f"did not finish: {errored[rule_id].reason}"
+        elif not policy.matches(rule_id):
+            why = "is not selected by the profile"
         else:
             why = "never ran to completion"
         gaps.append(

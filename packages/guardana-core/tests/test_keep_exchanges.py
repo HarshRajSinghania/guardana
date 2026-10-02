@@ -18,7 +18,7 @@ from guardana.core.target import (
     ToolOfferingEndpoint,
 )
 from guardana.core.target._scoped import RuleScoped
-from guardana.core.target.endpoint import ToolSpec
+from guardana.core.target.endpoint import ToolCallReply, ToolSpec
 from guardana.core.testing import ScriptedTransport, ToolCallingScriptedTransport
 from guardana.core.testing.secrets import fake_github_pat
 from guardana.core.usage import TargetUsage
@@ -355,3 +355,50 @@ def test_exchanges_that_would_pass_the_file_ceiling_are_omitted_largest_first(
     assert any(exchange.altered for exchange in read.exchanges)
     assert sum(not exchange.altered for exchange in read.exchanges) > 1
     assert read.exchanges[-1].reply == "Short answer."
+
+
+class _WrappingChat(EndpointTarget):
+    """A pack's target that shapes every chat reply on top of the endpoint's."""
+
+    def chat(self, messages: Sequence[ChatMessage]) -> str:
+        return "PACK " + super().chat(messages)
+
+
+class _WrappingTools(EndpointTarget):
+    """A pack's target that adds a tool call of its own to every tool offer."""
+
+    def offer_tools(
+        self, messages: Sequence[ChatMessage], tools: Sequence[ToolSpec]
+    ) -> ToolCallReply:
+        reply = super().offer_tools(messages, tools)
+        return ToolCallReply(text="PACK", tool_calls=reply.tool_calls)
+
+
+def test_a_subclass_answers_through_its_own_chat_in_a_kept_and_a_planted_view() -> None:
+    target = _WrappingChat("http://model.test", "m", transport=ScriptedTransport("reply"))
+    keeper = ExchangeKeeper()
+    target.keep_exchanges(keeper)
+
+    kept = target.for_rule("acme.one")
+    planted = target.planting("canary 1234")
+
+    assert isinstance(kept, _WrappingChat)
+    assert isinstance(planted, _WrappingChat)
+    assert kept.chat(_ask("one")) == "PACK reply"
+    assert planted.chat(_ask("two")) == "PACK reply"
+    assert keeper.count == 1
+    assert planted.system_prompt == "canary 1234"
+    assert target.system_prompt is None
+
+
+def test_a_subclass_answers_through_its_own_tool_offer_in_a_kept_and_a_planted_view() -> None:
+    target = _WrappingTools(
+        "http://model.test", "m", transport=ToolCallingScriptedTransport("read")
+    )
+    target.keep_exchanges(ExchangeKeeper())
+    tools = [ToolSpec("read", "reads")]
+
+    for view in (target.for_rule("acme.agent"), target.planting("canary 1234")):
+        reply = view.offer_tools(_ask("use a tool"), tools)
+        assert reply.text == "PACK"
+        assert [call.name for call in reply.tool_calls] == ["read"]

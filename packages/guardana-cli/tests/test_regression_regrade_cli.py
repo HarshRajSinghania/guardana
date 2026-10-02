@@ -27,6 +27,8 @@ _ANSI = re.compile(r"\x1b\[[0-9;]*m")
 _QUESTION = "How do I reset my password?"
 _GOOD = "Open Settings and request a reset link."
 _BAD = "I cannot help with passwords, sorry."
+_LIVE = "Billing has a reset link."
+"""What the application answers live: every case of the suite passes on it."""
 _CASES = (
     {"input": "Where is my invoice?", "expect": {"contains_any": ["Billing"]}},
     {
@@ -157,7 +159,7 @@ def wire() -> Iterator[_Wire]:
         def do_POST(self) -> None:
             length = int(self.headers.get("Content-Length", "0"))
             seen.requests.append(self.rfile.read(length).decode("utf-8"))
-            data = json.dumps({"choices": [{"message": {"content": _GOOD}}]}).encode("utf-8")
+            data = json.dumps({"choices": [{"message": {"content": _LIVE}}]}).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(data)))
@@ -288,3 +290,97 @@ def test_recipe_lock_refuses_every_state_of_a_pair_that_rule_test_tells_apart_wi
     assert result.exit_code == ExitCode.POLICY_FAILED, result.output
     assert says in normalised(result.output)
     assert not (tmp_path / "guardana-recipe.lock.yaml").exists()
+
+
+def _profile(tmp_path: Path) -> Path:
+    _suite(tmp_path)
+    profile = tmp_path / "guardana.yaml"
+    profile.write_text("rules:\n  paths: [rules]\n  include: ['acme.*']\n", encoding="utf-8")
+    return profile
+
+
+def _errors(result: Result) -> list[dict[str, str]]:
+    document = json.loads(result.stdout)
+    errors: list[dict[str, str]] = document["errors"]
+    return errors
+
+
+def _probe(profile: Path, url: str) -> Result:
+    return runner.invoke(
+        app, ["probe", "--url", url, "--model", "m", "--profile", str(profile), "--format", "json"]
+    )
+
+
+def test_probe_over_holding_pairs_passes(tmp_path: Path, wire: _Wire) -> None:
+    result = _probe(_profile(tmp_path), wire.url)
+
+    assert result.exit_code == ExitCode.OK, result.output
+    assert _errors(result) == []
+
+
+def test_probe_records_a_broken_pair_as_an_error_and_cannot_pass(
+    tmp_path: Path, wire: _Wire, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    profile = _profile(tmp_path)
+    _evaluating(monkeypatch, _passes_the_failure)
+
+    result = _probe(profile, wire.url)
+
+    assert result.exit_code == ExitCode.INDETERMINATE, result.output
+    (error,) = [e for e in _errors(result) if e["stage"] == "regression"]
+    assert error["source"] == "acme.quality.support"
+    assert "observed graded pass, accepted graded pass" in error["reason"]
+
+
+def _kept(tmp_path: Path, url: str) -> Path:
+    """Probe with holding pairs, keeping the exchanges, and return the recording kept."""
+    run = tmp_path / "run.json"
+    probed = runner.invoke(
+        app,
+        [
+            "probe",
+            "--url",
+            url,
+            "--model",
+            "m",
+            "--profile",
+            str(_profile(tmp_path)),
+            "--keep-exchanges",
+            "--format",
+            "json",
+            "--output",
+            str(run),
+        ],
+    )
+    assert probed.exit_code == ExitCode.OK, probed.output
+    return tmp_path / "run.exchanges.jsonl"
+
+
+def _grade(recording: Path, profile: Path) -> Result:
+    return runner.invoke(
+        app, ["grade", str(recording), "--profile", str(profile), "--format", "json"]
+    )
+
+
+def test_grade_over_holding_pairs_passes(tmp_path: Path, wire: _Wire) -> None:
+    recording = _kept(tmp_path, wire.url)
+
+    result = _grade(recording, tmp_path / "guardana.yaml")
+
+    assert result.exit_code == ExitCode.OK, result.output
+    assert _errors(result) == []
+
+
+def test_grade_records_a_broken_pair_as_an_error_and_cannot_pass(
+    tmp_path: Path, wire: _Wire, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    recording = _kept(tmp_path, wire.url)
+    sent = len(wire.requests)
+    _evaluating(monkeypatch, _passes_the_failure)
+
+    result = _grade(recording, tmp_path / "guardana.yaml")
+
+    assert result.exit_code == ExitCode.INDETERMINATE, result.output
+    (error,) = [e for e in _errors(result) if e["stage"] == "regression"]
+    assert error["source"] == "acme.quality.support"
+    assert len(wire.requests) == sent

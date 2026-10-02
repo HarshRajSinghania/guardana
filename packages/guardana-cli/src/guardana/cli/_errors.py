@@ -1,5 +1,4 @@
 from collections.abc import Callable, Collection, Iterable
-from dataclasses import dataclass
 from enum import StrEnum
 from http.client import HTTPException
 from typing import TypeVar
@@ -8,7 +7,7 @@ from urllib.error import HTTPError, URLError
 import typer
 from guardana.cli.exit_codes import ExitCode
 from guardana.core.evaluator.config import JudgeUnavailableError, http_status_problem, safe_url
-from guardana.core.redaction import EvidenceMode, EvidenceRedactor, RedactionPolicy
+from guardana.core.redaction import MessageQuoting, RedactionPolicy
 from guardana.core.target import EndpointError, display_url
 
 T = TypeVar("T")
@@ -18,9 +17,6 @@ _RATE_LIMITED = 429
 _CLIENT_ERROR = range(400, 500)
 _BODY_READ_BYTES = 4096
 _BODY_SHOWN_CHARS = 200
-_SENT_VALUE_PLACEHOLDER = "[redacted:credential]"
-_SHORTEST_SECRET = 4
-"""A shorter value is not withheld from a quote, which it would blank wherever it occurs."""
 
 
 class EndpointFlag(StrEnum):
@@ -50,33 +46,8 @@ def _rate_limit_advice(accepts: Collection[EndpointFlag]) -> str:
     return "wait for the quota to reset"
 
 
-@dataclass(frozen=True, slots=True)
-class _Quoting:
-    """How an endpoint's words are quoted: under the run's policy, without the run's secrets."""
-
-    redactor: EvidenceRedactor
-    secrets: tuple[str, ...]
-
-    @classmethod
-    def of(cls, privacy: RedactionPolicy, secrets: Iterable[str]) -> "_Quoting":
-        """Withhold every secret long enough to tell apart, the longest first."""
-        kept = {value for value in secrets if len(value) >= _SHORTEST_SECRET}
-        return cls(EvidenceRedactor(privacy), tuple(sorted(kept, key=len, reverse=True)))
-
-    @property
-    def withholds_text(self) -> bool:
-        """Whether the policy forbids quoting what the endpoint said."""
-        return self.redactor.policy.mode is EvidenceMode.METADATA_ONLY
-
-    def spans(self, text: str) -> str:
-        """Replace each secret the run sends, then each span the policy removes."""
-        for value in self.secrets:
-            text = text.replace(value, _SENT_VALUE_PLACEHOLDER)
-        return self.redactor.redact_spans(text)
-
-
 def _status_message(
-    exc: HTTPError, shown: str, accepts: Collection[EndpointFlag], quoting: _Quoting
+    exc: HTTPError, shown: str, accepts: Collection[EndpointFlag], quoting: MessageQuoting
 ) -> str:
     """Say what an endpoint's error status means, quoting its body when the status is not auth.
 
@@ -99,7 +70,7 @@ def _status_message(
     return f"endpoint {shown} returned HTTP {exc.code}; {_body_snippet(exc, quoting)}"
 
 
-def _body_snippet(exc: HTTPError, quoting: _Quoting) -> str:
+def _body_snippet(exc: HTTPError, quoting: MessageQuoting) -> str:
     """Quote the start of an error response within the run's policy, control characters escaped.
 
     Under `metadata_only` only its size is given.
@@ -163,14 +134,19 @@ def run_against_endpoint(
     reader a second failed run. `url` is shown without its userinfo, query or fragment.
     """
     shown = display_url(url)
-    quoting = _Quoting.of(privacy, secrets)
+    quoting = MessageQuoting.of(privacy, secrets)
     try:
         return run_judged(action)
     except HTTPError as exc:
         typer.echo(f"error: {_status_message(exc, shown, accepts, quoting)}", err=True)
         raise typer.Exit(code=ExitCode.TARGET_UNAVAILABLE) from exc
     except (URLError, OSError, EndpointError) as exc:
-        typer.echo(f"error: could not reach endpoint {shown}: {quoting.spans(str(exc))}", err=True)
+        said = (
+            f"{type(exc).__name__}, {quoting.detail(str(exc))}"
+            if quoting.withholds_text
+            else quoting.spans(str(exc))
+        )
+        typer.echo(f"error: could not reach endpoint {shown}: {said}", err=True)
         raise typer.Exit(code=ExitCode.TARGET_UNAVAILABLE) from exc
 
 

@@ -155,7 +155,7 @@ The gate passes, fails, or declines when it cannot conclude. Judge-graded suites
 
 Saved runs retain the suite summary. Human reports show a Measured block, and JUnit emits one testcase per suite. See [Quality suites](docs/usage-suites.md) for the how-to.
 
-A regression case carries the reply it was promoted from and a correct reply written by a reviewer. `guardana case add` writes one only when the suite's deterministic evaluator grades the first `fail` and the second `pass`. `guardana rule test` and every `guardana recipe` command regrade each pair without sending. A dataset holding a regression case refuses a suite that samples or sets a bar below 1. See [Regression cases](docs/usage-case.md).
+A regression case carries the reply it was promoted from and a correct reply written by a reviewer. `guardana case add` writes one only when the suite's deterministic evaluator grades the first `fail` and the second `pass`. `guardana rule test`, every `guardana recipe` command and every run that selects the suite regrade each pair without sending; in a run, a pair that no longer holds is an error for its suite. A dataset holding a regression case refuses a suite that samples or sets a bar below 1. See [Regression cases](docs/usage-case.md).
 
 ## Policy and repeatability
 

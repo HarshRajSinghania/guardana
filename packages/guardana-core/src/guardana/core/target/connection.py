@@ -114,7 +114,7 @@ class ResolvedConnection:
     url: str
     model: str
     provider: str | None
-    api_key: str | None
+    api_key: str | None = field(repr=False)
     transport: ChatTransport | None
     adapter_digest: str | None
     credentials: tuple[Credential, ...] = ()

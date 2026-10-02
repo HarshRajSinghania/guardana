@@ -28,6 +28,7 @@ from guardana.core.manifest.usage import JudgeUsage
 from guardana.core.profile import Profile
 from guardana.core.profile.errors import ProfileError
 from guardana.core.profile.loader import check_evaluator_blocks
+from guardana.core.redaction import MessageQuoting, RedactionPolicy
 from guardana.core.registry import Registry
 from guardana.core.target import ChatMessage, EndpointError, EndpointTarget, private_url_parts
 from guardana.core.target.connection import (
@@ -183,10 +184,20 @@ class JudgeMeter:
 
     Safe to share across threads: the tally is the endpoint's thread-safe meter, and the
     stop is written once, with the message a reader is shown.
+
+    What the judge's endpoint said is quoted through `quoting`, the run's own privacy
+    policy and the secrets the judge sends; without one, it is quoted under the default
+    policy.
     """
 
     def __init__(
-        self, block: str, target: EndpointTarget, endpoint: str, serves: tuple[str, ...]
+        self,
+        block: str,
+        target: EndpointTarget,
+        endpoint: str,
+        serves: tuple[str, ...],
+        *,
+        quoting: MessageQuoting | None = None,
     ) -> None:
         self.block = block
         self.name = f"evaluators.{block}"
@@ -195,6 +206,7 @@ class JudgeMeter:
         self.endpoint = safe_url(endpoint)
         self._raw = (endpoint, endpoint.rstrip("/").removesuffix("/v1"))
         self._target = target
+        self._quoting = quoting if quoting is not None else MessageQuoting.of(RedactionPolicy())
         self.stopped: str | None = None
         """Why this judge's ceiling stopped the run, or None when it never did."""
 
@@ -219,12 +231,12 @@ class JudgeMeter:
             # read arrives as a bare `OSError`.
             reason = exc.reason if isinstance(exc, URLError) else exc
             raise self._unavailable(
-                f"could not reach endpoint {self.endpoint} ({self.name}): {self._scrubbed(reason)}"
+                f"could not reach endpoint {self.endpoint} ({self.name}): {self._quoted(reason)}"
             ) from exc
         except EndpointError as exc:
             raise self._unavailable(
                 f"endpoint {self.endpoint} ({self.name}) sent a reply guardana cannot use: "
-                f"{self._scrubbed(exc)}"
+                f"{self._quoted(exc)}"
             ) from exc
 
     def usage(self) -> JudgeUsage:
@@ -240,6 +252,10 @@ class JudgeMeter:
 
     def _unavailable(self, problem: str) -> JudgeUnavailableError:
         return JudgeUnavailableError(self.block, self.endpoint, problem)
+
+    def _quoted(self, problem: object) -> str:
+        """Quote what the judge's endpoint said under the run's policy, without its secrets."""
+        return self._quoting.detail(self._scrubbed(problem))
 
     def _scrubbed(self, problem: object) -> str:
         text = str(problem)
@@ -313,6 +329,7 @@ def wire_config_evaluators(
         build,
         sending=sending,
         beside=profile.source.parent if profile.source is not None else None,
+        privacy=profile.privacy,
     )
     meters: list[JudgeMeter] = []
     judge_cfg = profile.evaluator_config.get("llm_judge")
@@ -345,6 +362,9 @@ class _Wiring:
     sending: bool
     beside: Path | None
     """The profile's directory, which a relative adapter path is read beside."""
+
+    privacy: RedactionPolicy
+    """The run's policy, which every message quoting a judge's endpoint follows."""
 
 
 def _build_judges(
@@ -463,7 +483,13 @@ def _endpoint_call(
         raise ProfileError(
             f"evaluators.{what}.endpoint must be an http or https URL with a host"
         ) from None
-    meter = JudgeMeter(what, target, endpoint, serves)
+    meter = JudgeMeter(
+        what,
+        target,
+        endpoint,
+        serves,
+        quoting=MessageQuoting.of(wiring.privacy, resolved.secret_values),
+    )
     if budgets is not None:
         meter.apply(budgets)
     return meter.ask, meter, _identity(cfg, what, resolved)

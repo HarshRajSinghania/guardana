@@ -90,6 +90,7 @@ direct URL can change its code under one version, so it is listed under `unpinne
 | written, or every pin holds | `0` | `0` | the run's own code |
 | a pin moved | — | `1` | `3`, nothing sent |
 | a regression pair of a selected suite no longer holds: a side graded the wrong way or declined, the evaluator raised, or it cannot regrade without sending | `1`, nothing written | `1` | `3`, nothing sent |
+| the run could never pass: a check the fixtures demand that the profile does not select, or a recording whose run stopped | `3`, nothing written | `3` | runs, and is `2` |
 | something selected is `unpinned` | `2`, written | `2` | runs, and the run records what is unpinned |
 | nothing selected, plugin trust refused an installed extension, or a selected check would not grade (a rule file that did not load, an evaluator nobody registered) | `2`, nothing written | `2` | `3` (the lock cannot match) |
 | recipe or lock missing, unreadable, or from a newer Guardana | `3` | `3` | `3` |

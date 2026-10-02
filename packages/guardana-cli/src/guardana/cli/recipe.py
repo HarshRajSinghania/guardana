@@ -47,6 +47,7 @@ from guardana.core.recording import Recording, render_recording
 from guardana.core.registry import Registry
 from guardana.core.regression import broken_pairs
 from guardana.core.report import CheckError
+from guardana.core.report.shortfall import CoverageShortfall
 from guardana.core.rule.suite_rule import SuiteRule
 from guardana.core.target import RecordedTarget, Target
 from guardana.core.target.connection import (
@@ -110,6 +111,8 @@ class _Prepared:
     """What the run would record before its first rule: a check that would not grade."""
 
     fixtures: Fixtures | None = None
+    shortfall: tuple[CoverageShortfall, ...] = ()
+    """The coverage the run would owe whatever its rules find, so it could never pass."""
 
 
 class _Refusal(Exception):  # noqa: N818 — named for the outcome a command reports
@@ -132,6 +135,7 @@ def lock(
     try:
         prepared = _prepare(_load(recipe))
         _refuse_unloadable(prepared)
+        _refuse_unpassable(prepared)
     except _Refusal as refused:
         typer.echo(f"error: {refused.reason}", err=True)
         raise typer.Exit(code=refused.code) from None
@@ -338,6 +342,7 @@ def _prepare(read: _Read) -> _Prepared:
         prompt,
         plan.errors,
         read.fixtures,
+        plan.shortfall,
     )
 
 
@@ -367,6 +372,19 @@ def _refuse_unloadable(prepared: _Prepared) -> None:
             f"{len(prepared.errors)} configured check(s) would not grade what they claim, so "
             f"the selection cannot be pinned; fix them first: {named}",
             ExitCode.INDETERMINATE,
+        )
+
+
+def _refuse_unpassable(prepared: _Prepared) -> None:
+    """Refuse to pin a configuration whose run owes coverage it cannot get, as `plan` refuses it.
+
+    A coverage shortfall has no switch, so the run it pins could never pass.
+    """
+    if prepared.shortfall:
+        causes = "; ".join(gap.detail for gap in prepared.shortfall)
+        raise _Refusal(
+            f"the run this recipe describes cannot pass, so nothing was pinned; "
+            f"coverage shortfall — {causes}"
         )
 
 

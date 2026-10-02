@@ -13,10 +13,12 @@ from guardana.core.manifest.records import CalibrationRecord, SuiteSummary
 from guardana.core.observation import Observation, ObservationKind
 from guardana.core.profile.model import Profile
 from guardana.core.registry import Registry
+from guardana.core.regression import broken_pairs
 from guardana.core.report import CheckError, Finding, ScanResult, StopReason, split_ref
 from guardana.core.report.shortfall import CoverageShortfall, ShortfallKind
 from guardana.core.report.skipped import SkippedRule, SkipReason
 from guardana.core.rule.base import Rule, RuleContext
+from guardana.core.rule.suite_rule import SuiteRule
 from guardana.core.safety import permits
 from guardana.core.source import UnreadSource
 from guardana.core.target import (
@@ -102,14 +104,18 @@ class _RuleOutcome:
         return self.error is None and self.stopped_by is None
 
 
-def pre_run_errors(registry: Registry, target: Target) -> tuple[CheckError, ...]:
+def pre_run_errors(
+    registry: Registry, target: Target, selected: Sequence[Rule]
+) -> tuple[CheckError, ...]:
     """Return every error a run of `registry` against `target` records before its first rule.
 
     A capability `target` declares without implementing it, an entry point or rule file
     that did not load, a rule whose `expect:` block does not satisfy its evaluator's
-    contract, and a rule whose `not_applicable_to` answers neither None nor a reason: each
-    is a check that will not grade what it claims to. `Runner.run` and
-    `build_plan` both read this, so a plan never lists a different set than the run records.
+    contract, a rule whose `not_applicable_to` answers neither None nor a reason, and a
+    `selected` suite holding a regression pair that no longer holds or cannot be regraded
+    without sending: each is a check that will not grade what it claims to. `Runner.run`
+    and `build_plan` both read this, so a plan never lists a different set than the run
+    records.
     """
     # One error naming the missing protocol beats every rule that needs it declining.
     contract_errors = tuple(
@@ -129,7 +135,58 @@ def pre_run_errors(registry: Registry, target: Target) -> tuple[CheckError, ...]
         *registry.expectation_errors(),
         *_unknown_recorded_rules(registry, target),
         *_unreadable_applicability(registry, target),
+        *_broken_regressions(selected, registry),
     )
+
+
+def reported_once(errors: tuple[CheckError, ...], registry: Registry) -> tuple[CheckError, ...]:
+    """Drop the copies every pass of a split run seeds: load errors and the target's contracts.
+
+    A load error is the same object in every pass, so it is matched by identity: two
+    entry points that failed alike are two errors. A contract error is rebuilt by each
+    pass for the same target, so it is matched by value.
+    """
+    loaded = {id(error) for error in registry.load_errors}
+    seen: set[int] = set()
+    contracts: set[CheckError] = set()
+    kept: list[CheckError] = []
+    for error in errors:
+        if id(error) in loaded:
+            if id(error) in seen:
+                continue
+            seen.add(id(error))
+        elif error.stage == "capability":
+            if error in contracts:
+                continue
+            contracts.add(error)
+        kept.append(error)
+    return tuple(kept)
+
+
+def _broken_regressions(selected: Sequence[Rule], registry: Registry) -> tuple[CheckError, ...]:
+    """Regrade every pair of each selected suite offline; one error per suite that fails it.
+
+    A suite whose own regression case no longer tells the failure from a correct reply
+    gates nothing, so its run cannot pass while `fail_on_error` is on.
+    """
+    evaluators = registry.evaluators()
+    errors: list[CheckError] = []
+    for rule in selected:
+        if not isinstance(rule, SuiteRule) or not rule.regression_cases:
+            continue
+        broken = broken_pairs((rule,), evaluators)
+        if broken:
+            errors.append(
+                CheckError(
+                    source=rule.meta.id,
+                    stage="regression",
+                    reason=(
+                        f"{len(broken)} regression case(s) no longer hold, so the suite gates "
+                        f"nothing; fix the rule or the case: {'; '.join(broken)}"
+                    ),
+                )
+            )
+    return tuple(errors)
 
 
 @dataclass(frozen=True, slots=True)
@@ -179,7 +236,7 @@ class Runner:
 
         findings: list[Finding] = []
         unverified: list[Finding] = []
-        errors: list[CheckError] = list(pre_run_errors(self.registry, target))
+        errors: list[CheckError] = list(pre_run_errors(self.registry, target, plan))
         # Names, not a count: the outcome carries its own rule id rather than being
         # paired back up with the plan by position, because a run aborted by an
         # unreachable endpoint yields fewer outcomes than it planned rules — and

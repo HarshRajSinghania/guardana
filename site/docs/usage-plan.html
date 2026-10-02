@@ -422,9 +422,9 @@ exactly like <code>guardana scan</code> does.</p>
 <p>Target construction is configuration-only: <code>plan</code> calls the same
 <code>from_locator</code> classmethod as the real command, but a conforming target does not
 contact the system until a run or inspection starts. An installed endpoint target that
-can plant a system prompt (<code>SystemPromptPlanter</code>) is planned as <code>probe</code> runs it: its
-canary rules are priced against a planted view, so the plan lists the rules the probe
-then runs.</p>
+can plant a system prompt (<code>SystemPromptPlanter</code>) is planned as <code>probe</code> runs it: each
+canary rule is priced against a view with its canary planted and every other rule
+against the target itself, so the plan lists the rules the probe then runs.</p>
 <h2 id="where-the-numbers-come-from">Where the numbers come from</h2>
 <p>Each built-in rule shape declares an upper bound on the requests it will send
 (<code>Rule.estimated_requests</code>): a YAML rule knows how many prompts it has, a

@@ -53,11 +53,18 @@ from guardana.core.entrypoints import InstalledEntryPoint
 from guardana.core.fixtures import Fixtures
 from guardana.core.gate import OpenQuestion
 from guardana.core.plan import JudgePlan, RunPlan, build_plan
-from guardana.core.probe import planned_view
+from guardana.core.probe import plan_target_probe
 from guardana.core.profile import Profile, ProfileError
 from guardana.core.recording import RecordingError, read_recording
 from guardana.core.registry import Registry
-from guardana.core.target import ArtifactTarget, EndpointTarget, SeededTarget, Target, TargetKind
+from guardana.core.target import (
+    ArtifactTarget,
+    EndpointTarget,
+    McpServerTarget,
+    SeededTarget,
+    Target,
+    TargetKind,
+)
 from guardana.core.target.connection import Connection
 from guardana.core.target.endpoint import RETRIES_PER_REQUEST
 from guardana.core.target.recorded import RecordedTarget
@@ -535,8 +542,14 @@ def plan_probe(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; thi
         selected.apply_budgets(prof.budgets)
     except BudgetExhausted as exc:
         raise refuse_unenforceable_budget(exc) from exc
+    # An MCP server is probed in one pass; every other target in the passes a probe splits.
+    planned = (
+        build_plan(registry, prof, selected, judge_meters=judge_meters)
+        if isinstance(selected, McpServerTarget)
+        else plan_target_probe(registry, prof, selected, judge_meters=judge_meters)
+    )
     _emit(
-        build_plan(registry, prof, planned_view(selected), judge_meters=judge_meters),
+        planned,
         format,
         selected.kind,
         profile=prof,
