@@ -7,7 +7,7 @@ status: accepted
 
 # Recorded answers and regrading
 
-**Status:** accepted, implemented — ships in the next release · **Written:** 2026-10-01 ·
+**Status:** implemented in 0.35.0 · **Written:** 2026-10-01 ·
 **Serves:** ROADMAP F5, backlog B07 · **Supersedes:**
 [`regrading-stored-exchanges.md`](regrading-stored-exchanges.md)
 
