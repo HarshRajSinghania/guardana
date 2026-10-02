@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **`guardana.supply_chain.hallucinated_package` honours the scan's file scope.** It walked the tree itself, so a package installed into an in-tree `.venv`, or a file under an excluded directory, counted as local and hid the lead for an import nobody declared. It now reads the target's own listing, which also removes two tree walks per scan, and nothing under a `site-packages` directory counts as the project's own module or declaration, whatever the virtualenv is called.
+- **`guardana.supply_chain.pickle_opcode` reads every entry of a ZIP and bounds its work.** Two members with the same name were read as one, so a payload in the earlier entry was never scanned. Pickle opcodes across an archive's members are bounded by its size and members past 100,000 are not opened; reaching either bound is reported as not scanned. A crafted archive of a few hundred kilobytes kept a scan busy for minutes.
 
 ## [0.36.0] - 2026-10-02 — recipe locks, shared endpoint connections, token counts, and coverage shortfalls
 

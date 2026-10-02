@@ -64,8 +64,7 @@ reproduced; the rest are the sweep's reading with its anchors, not yet reproduce
   guard the MCP discovery client applies (`core/target/endpoint.py:231`).
 - `analyze-trace --write-trace` writes the trace unredacted (`cli/analyze_trace.py:208`).
 - A stdio MCP server's `readline()` has no size cap or timeout
-  (`core/target/_mcp_client.py:251`), and a zip's member count is uncapped
-  (`rules/supply_chain/pickle_opcode.py:294`).
+  (`core/target/_mcp_client.py:251`).
 - A symlinked file inside a scanned directory is read even when it points outside the root
   (bounded by the reader caps).
 - The dashboard cookie is `Secure` only when the app itself sees `https`

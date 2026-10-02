@@ -141,8 +141,11 @@ def test_unreadable_zip_member_is_flagged_and_scan_continues(
     (tmp_path / "model.pt").write_bytes(_zip_with("archive/data.pkl", pickle.dumps({"w": 1})))
     real_open = zipfile.ZipFile.open
 
-    def boom(self: zipfile.ZipFile, name: str, *args: object, **kwargs: object) -> object:
-        if str(name).endswith("data.pkl"):
+    def boom(
+        self: zipfile.ZipFile, name: str | zipfile.ZipInfo, *args: object, **kwargs: object
+    ) -> object:
+        member = name.filename if isinstance(name, zipfile.ZipInfo) else name
+        if member.endswith("data.pkl"):
             raise RuntimeError("File is encrypted, password required for extraction")
         return real_open(self, name, *args, **kwargs)  # type: ignore[arg-type]
 

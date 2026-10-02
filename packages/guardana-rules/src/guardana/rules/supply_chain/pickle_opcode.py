@@ -176,6 +176,14 @@ _XZ_MAGIC = b"\xfd7zXZ\x00"
 # tensor bytes negligible, so ordinary models produce no noise here.
 _NESTED_CONTAINER_MAGICS = (_ZIP_MAGIC, _7Z_MAGIC, _XZ_MAGIC)
 _MEMBER_MAX_BYTES = 64 * 1024 * 1024
+_ARCHIVE_OPCODE_FLOOR = 1_000_000
+"""Opcodes an archive may cost on top of one per byte it occupies on disk.
+
+`torch.save` stores its members uncompressed and an opcode is at least one byte, so a
+checkpoint never reaches the bound; a deflated member of repeated opcodes reaches it.
+"""
+_ARCHIVE_MAX_MEMBERS = 100_000
+"""Members read from one archive; `torch.save` writes one per tensor storage, far fewer."""
 # A raw pickle stream is read whole because `pickletools` needs it, so the read
 # is capped: a model checkpoint is a zip container (streamed from disk below),
 # and a half-gigabyte *raw* pickle is anomalous rather than routine. Reading
@@ -346,20 +354,30 @@ class _PickleMachine:
 class ParseEnd(StrEnum):
     """How reading a byte stream as pickle opcodes ended.
 
-    The distinctions exist because "I could not read this" has three meanings, and
-    only two of them are evidence of something unexamined. A member of a real
+    The distinctions exist because "I could not read this" has four meanings, and
+    three of them are evidence of something unexamined. A member of a real
     checkpoint is raw tensor data and is `NOT_PICKLE` within its first few bytes —
     reporting that would put a finding on every tensor in every honest model, and so
     is a stream an unpickler would refuse part-way, since nothing after that runs. A
     stream that was still parsing when the buffer ended (`RAN_OUT`), or one the
     pickle machine could not model an operand for (`UNRESOLVABLE`), is a pickle this
-    rule did not finish proving clean.
+    rule did not finish proving clean, and so is one cut off by the archive's opcode
+    budget (`OVER_BUDGET`).
     """
 
     COMPLETE = "complete"
     NOT_PICKLE = "not_pickle"
     RAN_OUT = "ran_out"
     UNRESOLVABLE = "unresolvable"
+    OVER_BUDGET = "over_budget"
+
+
+@dataclass(slots=True)
+class _OpcodeBudget:
+    """Opcodes allowed across every stream of one archive, and how many were read."""
+
+    limit: int
+    spent: int = 0
 
 
 _PICKLE_HEADERS = (b"\x80\x02", b"\x80\x03", b"\x80\x04", b"\x80\x05")
@@ -416,7 +434,7 @@ class _OpcodeScan:
         return self.end is not ParseEnd.COMPLETE
 
 
-def _scan_opcodes(data: bytes) -> _OpcodeScan:
+def _scan_opcodes(data: bytes, budget: _OpcodeBudget | None = None) -> _OpcodeScan:
     """Read `data` as one or more pickle opcode streams, keeping whatever they prove.
 
     Parses opcodes lazily and keeps what it found even if the stream breaks
@@ -428,13 +446,16 @@ def _scan_opcodes(data: bytes) -> _OpcodeScan:
     before its raw tensor bytes, and the one that builds the model is the fourth.
     Bytes after a complete pickle that are not a pickle are data, not a parse failure,
     and so is a byte of that data that parses as STACK_GLOBAL with nothing to pop.
+
+    With a `budget`, every opcode read spends one, and the read ends `OVER_BUDGET`
+    before the opcode that would overspend it.
     """
     refs: list[str] = []
     stream = io.BytesIO(data)
     complete = 0
     while True:
         start = stream.tell()
-        end, short_stack = _scan_one(stream, len(data), refs)
+        end, short_stack = _scan_one(stream, len(data), refs, budget)
         if end is not ParseEnd.COMPLETE:
             trailing_data = end is ParseEnd.NOT_PICKLE or (
                 end is ParseEnd.UNRESOLVABLE and short_stack
@@ -447,7 +468,9 @@ def _scan_opcodes(data: bytes) -> _OpcodeScan:
             return _OpcodeScan(refs, ParseEnd.COMPLETE)
 
 
-def _scan_one(stream: io.BytesIO, size: int, refs: list[str]) -> tuple[ParseEnd, bool]:
+def _scan_one(
+    stream: io.BytesIO, size: int, refs: list[str], budget: _OpcodeBudget | None
+) -> tuple[ParseEnd, bool]:
     """Read one pickle from `stream`'s position to its STOP, with its own stack and memo.
 
     Returns how it ended, and whether an `UNRESOLVABLE` end was for lack of operands.
@@ -455,6 +478,10 @@ def _scan_one(stream: io.BytesIO, size: int, refs: list[str]) -> tuple[ParseEnd,
     machine = _PickleMachine(refs)
     ops = pickletools.genops(stream)
     while True:
+        if budget is not None:
+            if budget.spent >= budget.limit:
+                return ParseEnd.OVER_BUDGET, False
+            budget.spent += 1
         try:
             op, arg, _pos = next(ops)
         except StopIteration:
@@ -480,8 +507,9 @@ class PickleOpcodeRule(ArtifactRule):
     Reads opcodes statically with `pickletools`; never unpickles anything. Unzips
     ZIP-based model archives (modern `torch.save`) and scans every member
     regardless of extension, so a payload hidden under a non-`.pkl` name cannot
-    slip past. Anything it cannot fully parse becomes a visible finding, never a
-    silent clean.
+    slip past. One archive is read up to a member count and an opcode budget shared
+    by its members. Anything it cannot fully parse, or stops reading at a bound,
+    becomes a visible unverified result, never a silent clean.
     """
 
     meta = RuleMeta(
@@ -574,30 +602,52 @@ class PickleOpcodeRule(ArtifactRule):
         # model is a multi-GB zip, and holding it whole just to list its members
         # would make scanning a real model cost more RAM than serving it.
         try:
+            budget = _OpcodeBudget(_ARCHIVE_OPCODE_FLOOR + path.stat().st_size)
             with zipfile.ZipFile(path) as archive:
-                for name in archive.namelist():
-                    yield from self._scan_member(path, archive, name)
+                # Every entry, not every name: two members may share a name, and
+                # opening by name reads only the last of them.
+                members = archive.infolist()
+                for info in members[:_ARCHIVE_MAX_MEMBERS]:
+                    if (yield from self._scan_member(path, archive, info, budget)):
+                        return
+                if len(members) > _ARCHIVE_MAX_MEMBERS:
+                    yield self._unscanned(
+                        path,
+                        f"zip holds {len(members)} members; members past the first "
+                        f"{_ARCHIVE_MAX_MEMBERS} not scanned",
+                    )
         except (zipfile.BadZipFile, OSError):
             yield self._unscanned(path, "malformed zip container; not scanned")
 
-    def _scan_member(self, path: Path, archive: zipfile.ZipFile, name: str) -> Iterator[Finding]:
+    def _scan_member(
+        self, path: Path, archive: zipfile.ZipFile, info: zipfile.ZipInfo, budget: _OpcodeBudget
+    ) -> Generator[Finding, None, bool]:
+        """Scan one member and return whether the archive's opcode budget ran out in it."""
         limit = _MEMBER_MAX_BYTES
+        name = info.filename
         try:
-            with archive.open(name) as member:
+            with archive.open(info) as member:
                 raw = member.read(limit + 1)  # +1 byte reveals a member we had to cut
         except (OSError, zipfile.BadZipFile, RuntimeError):
             # RuntimeError is what zipfile raises for an encrypted member. Either
             # way, one crafted member must never abort the whole scan (a DoS) nor
             # pass as clean — the bytes we couldn't read become a visible finding.
             yield self._unscanned(path, f"zip member could not be read ({name}); not scanned")
-            return
+            return False
         member_data, cut = raw[:limit], len(raw) > limit
         if member_data.startswith(_NESTED_CONTAINER_MAGICS):
             yield self._unscanned(path, f"zip member is a nested archive ({name}); not scanned")
-            return
-        scan = _scan_opcodes(member_data)
+            return False
+        scan = _scan_opcodes(member_data, budget)
         for ref in scan.refs:
             yield self._critical(path, ref, member=name)
+        if scan.end is ParseEnd.OVER_BUDGET:
+            yield self._unscanned(
+                path,
+                f"zip members hold more than {budget.limit} pickle opcodes, the bound for "
+                f"an archive of this size; {name} and the members after it not scanned",
+            )
+            return True
         if not scan.refs and _left_a_pickle_unproven(scan.end, cut=cut):
             # A member that was still a pickle where this rule stopped. Silence here
             # was a bypass twice over: `torch.save` writes a ZIP, so an unresolvable
@@ -607,6 +657,7 @@ class PickleOpcodeRule(ArtifactRule):
             # *reading as a pickle* qualifies: a real checkpoint's tensor storages are
             # bigger than the cap and are not pickles, so they stay quiet.
             yield self._unscanned(path, self._unfinished(scan.end, name, limit))
+        return False
 
     def _unfinished(self, end: ParseEnd, name: str, limit: int) -> str:
         if end is ParseEnd.RAN_OUT:
