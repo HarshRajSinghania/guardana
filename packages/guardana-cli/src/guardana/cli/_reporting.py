@@ -62,10 +62,16 @@ def check_reporter_url(url: str | None) -> None:
         raise typer.BadParameter(str(exc), param_hint="--reporter") from exc
 
 
+_MAX_DETAIL_BYTES = 64 * 1024
+"""The most of a collector's error body read for its explanation; a longer one gives none."""
+
+
 def _why(exc: HTTPError) -> str:
     """Return the collector's own explanation, or a fallback that does not invent one."""
     try:
-        detail = json.loads(exc.read()).get("detail")
+        body = exc.read(_MAX_DETAIL_BYTES + 1)
+        parsed = json.loads(body) if len(body) <= _MAX_DETAIL_BYTES else None
+        detail = parsed.get("detail") if isinstance(parsed, dict) else None
     except (ValueError, OSError):
         detail = None
     if isinstance(detail, str) and detail:
