@@ -6,6 +6,7 @@ from guardana.core.manifest.identity import DeploymentRef, RunSource, TargetIden
 from guardana.core.manifest.records import (
     EvaluatorRecord,
     ExchangesRecord,
+    RecipeRecord,
     RecordingRecord,
     ResultSummary,
     RuleRecord,
@@ -13,7 +14,7 @@ from guardana.core.manifest.records import (
 from guardana.core.manifest.settings import ConfigurationRef, ExecutionSettings, PrivacyRecord
 from guardana.core.manifest.usage import RunUsage
 
-MANIFEST_SCHEMA_VERSION = 13
+MANIFEST_SCHEMA_VERSION = 14
 """Version of the run document, moved independently of the CLI.
 
 A run written by 0.7.3 and one written by 0.9.0 are the same document if the
@@ -57,6 +58,10 @@ Version 13 records which execution a run graded apart from how it graded it: the
 exchanges a probe kept (`exchanges`), the recording a graded run answered from
 (`recording`), the judge identity each evaluator stated (`evaluators[].judge`), why a
 trial went unmeasured (`assessments[].reason`) and the `not_recorded` skip reason.
+
+Version 14 records the recipe a run was started from and what it declared answered
+(`recipe`), the provider wire the run spoke (`configuration.provider`) and the
+`incomplete_recording` shortfall kind.
 """
 
 
@@ -101,6 +106,9 @@ class RunManifest:
 
     recording: RecordingRecord | None = None
     """The recording this run graded instead of calling a target; None for a live run."""
+
+    recipe: RecipeRecord | None = None
+    """The recipe this run was started from; None for a run started without one."""
 
     schema_version: int = MANIFEST_SCHEMA_VERSION
     migrated_from: int | None = None

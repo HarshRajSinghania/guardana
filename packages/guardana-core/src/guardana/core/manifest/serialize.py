@@ -11,6 +11,7 @@ from guardana.core.manifest.records import (
     EvaluatorRecord,
     ExchangesRecord,
     JudgeCorrection,
+    RecipeRecord,
     RecordingRecord,
     ResultSummary,
     RuleRecord,
@@ -104,6 +105,7 @@ def _configuration(configuration: ConfigurationRef) -> dict[str, object]:
         "retriever_digest": configuration.retriever_digest,
         "dataset_digest": configuration.dataset_digest,
         "adapter_digest": configuration.adapter_digest,
+        "provider": configuration.provider,
         "plugins": None
         if configuration.plugins is None
         else {
@@ -289,6 +291,19 @@ def _recording(recording: RecordingRecord | None) -> dict[str, object] | None:
     }
 
 
+def _recipe(recipe: RecipeRecord | None) -> dict[str, object] | None:
+    if recipe is None:
+        return None
+    return {
+        "name": recipe.name,
+        "digest": recipe.digest,
+        "lock_digest": recipe.lock_digest,
+        "kind": str(recipe.kind),
+        "source": str(recipe.source),
+        "unpinned": list(recipe.unpinned),
+    }
+
+
 def _calibration(calibration: CalibrationRecord) -> dict[str, object]:
     return {
         "dataset_digest": calibration.dataset_digest,
@@ -371,4 +386,5 @@ def manifest_to_dict(manifest: RunManifest) -> dict[str, object]:
         "privacy": _privacy(manifest.privacy),
         "exchanges": _exchanges(manifest.exchanges),
         "recording": _recording(manifest.recording),
+        "recipe": _recipe(manifest.recipe),
     }

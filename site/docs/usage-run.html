@@ -283,7 +283,10 @@ guardana run inspect run.json
   wall time: 0.42
   evidence:  full
 </code></pre>
-<p><code>--format json</code> prints the manifest. <code>requests: 0</code> is measured; tokens are <code>not recorded</code>.</p>
+<p><code>--format json</code> prints the manifest. <code>requests: 0</code> is measured; tokens are <code>not recorded</code>.
+A run started from a recipe adds a <code>recipe:</code> line under <code>target:</code>, such as
+<code>recipe:    checkout (model_harness, from a recording)</code>: the recipe's name, the subject
+it declared and how the run reached it.</p>
 <h2 id="what-a-run-costs">What a run costs</h2>
 <p><code>usage</code> carries what the run actually spent: requests sent, tokens in and out,
 and wall time.</p>
@@ -359,6 +362,9 @@ from a fixed one, and reads a finding that disappeared the way it did before.</p
 on every evaluator and <code>reason: null</code> on every assessment: no earlier schema kept exchanges,
 graded a recording, recorded a judge's identity or said why a trial went unmeasured. A null
 judge is unknown, so <code>diff</code> does not read it as a change of judge.</p>
+<p>A schema-13 run migrates to schema 14 with <code>recipe: null</code> and <code>configuration.provider: null</code>:
+no earlier schema recorded a recipe or the provider wire, so both are unknown, never &quot;no
+recipe&quot; or &quot;the OpenAI wire&quot;. <code>inspect</code> prints no <code>recipe:</code> line for it.</p>
 <p>One thing <em>is</em> recovered: the <strong>title</strong> of a framework reference, which version 3
 onward records beside its framework and id. It is looked up from the installed
 catalogue for the exact <code>(framework, id)</code> pair the document already carries, so
@@ -383,8 +389,8 @@ published was the file. There is now a test that validates the <em>artifact</em>
 parametrised over every field a version-1 run could be missing.</p>
 <h2 id="the-document">The document</h2>
 <p>The saved-run schema lives at
-<a href="https://github.com/guardana/guardana/blob/main/schemas/run-v13.schema.json"><code>schemas/run-v13.schema.json</code></a>, identified by
-<code>https://guardana.dev/schemas/run/v13.schema.json</code>, and the site serves every schema
+<a href="https://github.com/guardana/guardana/blob/main/schemas/run-v14.schema.json"><code>schemas/run-v14.schema.json</code></a>, identified by
+<code>https://guardana.dev/schemas/run/v14.schema.json</code>, and the site serves every schema
 at the URL its identifier names. The version is in the identifier,
 so a consumer can tell which contract it is holding before parsing anything; it
 changes whenever the change is not backwards-compatible. A test validates what
@@ -408,7 +414,9 @@ excludes it applied, <code>run.configuration.plugins</code>, the plugin trust in
 <code>unexamined_component</code> coverage shortfall. Version 13 records <code>run.exchanges</code>, what a probe
 kept beside the run, <code>run.recording</code>, the recording a graded run answered from,
 <code>run.evaluators[].judge</code>, each judge's identity, <code>assessments[].reason</code>, why a trial was not
-measured, and the <code>not_recorded</code> skip reason.</p>
+measured, and the <code>not_recorded</code> skip reason. Version 14 records <code>run.recipe</code>, the recipe a
+run was started from and the subject it declared, <code>run.configuration.provider</code>, the provider
+wire the run spoke, and the <code>incomplete_recording</code> coverage shortfall.</p>
 <p>Top level:</p>
 <div class="table-wrap"><table>
 <thead>
@@ -420,7 +428,7 @@ measured, and the <code>not_recorded</code> skip reason.</p>
 <tbody>
 <tr>
 <td><code>schema_version</code></td>
-<td><code>13</code>. Stated once, for the whole document.</td>
+<td><code>14</code>. Stated once, for the whole document.</td>
 </tr>
 <tr>
 <td><code>run</code></td>
@@ -475,7 +483,7 @@ measured, and the <code>not_recorded</code> skip reason.</p>
 </tr>
 <tr>
 <td><code>configuration</code></td>
-<td>which settings produced it, <strong>by digest</strong>: <code>profile_digest</code> covers every setting of the resolved profile except its name, where it was read from and its <code>plugins:</code>; <code>plugins</code> is the trust in force, <code>{mode, allowed}</code></td>
+<td>which settings produced it, <strong>by digest</strong>: <code>profile_digest</code> covers every setting of the resolved profile except its name, where it was read from and its <code>plugins:</code>; <code>plugins</code> is the trust in force, <code>{mode, allowed}</code>; <code>provider</code> is the provider wire the run spoke to its target, <code>null</code> when it reached none or did not record it</td>
 </tr>
 <tr>
 <td><code>execution</code></td>
@@ -508,6 +516,10 @@ measured, and the <code>not_recorded</code> skip reason.</p>
 <tr>
 <td><code>recording</code></td>
 <td>for a run <a href="usage-grade.html"><code>guardana grade</code></a> wrote, what the recording says of itself: <code>{name, version, subject, verbatim, origin}</code>, with <code>origin</code> <code>{run_id, target, started_at, stopped_by, gate}</code> when a probe kept it; declared, not verified. <code>null</code> otherwise</td>
+</tr>
+<tr>
+<td><code>recipe</code></td>
+<td>for a run started from a recipe, <code>{name, digest, lock_digest, kind, source, unpinned}</code>: the recipe's name, the SHA-256 of the recipe file and of the lock the run was held to (<code>null</code> when none was read), what the team declared answered (<code>kind</code>: <code>application</code> or <code>model_harness</code>), how the run reached it (<code>source</code>: <code>connection</code> or <code>recording</code>) and the rule ids it ran that the lock does not pin. <code>kind</code> is declared, not verified. <code>null</code> otherwise</td>
 </tr>
 </tbody>
 </table></div>

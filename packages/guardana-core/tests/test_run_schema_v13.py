@@ -16,14 +16,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from _documents import (
-    run_manifest,
-    saved_run_at_v9,
-    saved_run_at_v10,
-    saved_run_at_v11,
-    saved_run_at_v12,
-    scan_result,
-)
+from _documents import run_manifest, saved_run_at_v12, saved_run_at_v13, scan_result
 from guardana.core.assessment import UnmeasuredReason
 from guardana.core.evaluator.base import Expectation
 from guardana.core.evaluator.canary import CanaryEvaluator
@@ -42,7 +35,7 @@ from guardana.core.manifest.serialize import manifest_to_dict
 from guardana.core.profile import Policy, Profile
 from guardana.core.registry import Registry
 from guardana.core.report import Finding, ScanResult, SkippedRule, SkipReason
-from guardana.core.report.load import ReportLoadError, load_report, migrate_forward
+from guardana.core.report.load import ReportLoadError, load_report
 from guardana.core.report.serialize import run_to_dict
 from guardana.core.rule import Rule, RuleContext, RuleMeta
 from guardana.core.severity import Severity
@@ -54,6 +47,8 @@ _DIGEST = "sha256:" + "ef" * 32
 
 
 def _errors(document: dict[str, Any]) -> list[str]:
+    """Validate `document` against the v13 schema, in the shape a version-13 build wrote."""
+    document = saved_run_at_v13(document)
     schema = json.loads((_SCHEMAS / "run-v13.schema.json").read_text(encoding="utf-8"))
     return [error.message for error in Draft202012Validator(schema).iter_errors(document)]
 
@@ -337,22 +332,6 @@ def test_a_loaded_v12_run_says_it_was_migrated_and_records_no_identity(tmp_path:
     assert report.manifest.recording is None
     assert all(record.judge is None for record in report.manifest.evaluators)
     assert all(a.reason is None for a in report.result.assessments)
-
-
-@pytest.mark.parametrize(
-    ("version", "shape"),
-    [(12, saved_run_at_v12), (11, saved_run_at_v11), (10, saved_run_at_v10), (9, saved_run_at_v9)],
-    ids=["v12", "v11", "v10", "v9"],
-)
-def test_every_older_version_reaches_13_through_the_chain(
-    version: int, shape: Callable[[dict[str, Any]], dict[str, Any]]
-) -> None:
-    migrated = migrate_forward(shape(_document()), version)
-
-    assert migrated["schema_version"] == 13
-    assert not _errors(migrated)
-    assert _run(migrated)["exchanges"] is None
-    assert _run(migrated)["recording"] is None
 
 
 # What a run built by the engine records

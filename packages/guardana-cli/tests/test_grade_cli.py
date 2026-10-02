@@ -450,3 +450,77 @@ def test_a_later_run_at_the_same_path_removes_the_exchanges_an_earlier_one_kept(
     assert later.exit_code == ExitCode.OK, later.output
     assert not sidecar.exists()
     assert "an earlier run at this path kept" in later.stderr
+
+
+def _kept_by(tmp_path: Path, *, stopped_by: str | None) -> Path:
+    """A recording whose header names the probe that kept it and whether that probe stopped."""
+    tmp_path.mkdir(exist_ok=True)
+    recording = tmp_path / "kept.jsonl"
+    origin = {
+        "run_id": "run-7",
+        "target": _TARGET,
+        "started_at": None,
+        "stopped_by": stopped_by,
+        "gate": None,
+        "trials": {_SUITE: 1},
+        "rules": [_SUITE],
+    }
+    lines: list[dict[str, object]] = [
+        {"guardana_recording": 1, "name": "bot", "version": "1", "verbatim": True, "origin": origin}
+    ]
+    lines += [{"rule": _SUITE, "input": q, "reply": a} for q, a in _ANSWERS.items()]
+    recording.write_text("".join(json.dumps(line) + "\n" for line in lines), encoding="utf-8")
+    return recording
+
+
+@pytest.mark.parametrize(
+    ("stopped_by", "expected", "code"),
+    [
+        ("budget_exhausted", "Settings", ExitCode.INDETERMINATE),
+        ("budget_exhausted", "Billing", ExitCode.POLICY_FAILED),
+        (None, "Settings", ExitCode.OK),
+        (None, "Billing", ExitCode.POLICY_FAILED),
+    ],
+    ids=["stopped, suite passes", "stopped, suite fails", "finished, passes", "finished, fails"],
+)
+def test_a_recording_kept_from_a_stopped_run_never_grades_to_a_pass(
+    tmp_path: Path, stopped_by: str | None, expected: str, code: ExitCode
+) -> None:
+    rules = tmp_path / "suite"
+    rules.mkdir()
+    graded = tmp_path / "graded.json"
+
+    result = runner.invoke(
+        app,
+        [
+            "grade",
+            str(_kept_by(tmp_path, stopped_by=stopped_by)),
+            "--rules",
+            str(_rules(rules, expected=expected)),
+            "--profile",
+            str(_profile(tmp_path)),
+            "--format",
+            "json",
+            "--output",
+            str(graded),
+        ],
+    )
+
+    assert result.exit_code == code, result.output
+    shortfall = json.loads(graded.read_text("utf-8"))["run"]["coverage"]["shortfall"]
+    kinds = [gap["kind"] for gap in shortfall]
+    assert kinds == (["incomplete_recording"] if stopped_by else [])
+
+
+def test_plan_grade_refuses_a_recording_kept_from_a_stopped_run(tmp_path: Path) -> None:
+    selection = ["--rules", str(_rules(tmp_path)), "--profile", str(_profile(tmp_path))]
+    stopped = _kept_by(tmp_path / "stopped", stopped_by="budget_exhausted")
+    finished = _kept_by(tmp_path / "finished", stopped_by=None)
+
+    refused = runner.invoke(app, ["plan", "grade", str(stopped), *selection])
+    planned = runner.invoke(app, ["plan", "grade", str(finished), *selection])
+
+    assert refused.exit_code == ExitCode.INVALID_USAGE, refused.output
+    assert "run-7" in _plain(refused.stderr)
+    assert "budget_exhausted" in _plain(refused.stderr)
+    assert planned.exit_code == ExitCode.OK, planned.output

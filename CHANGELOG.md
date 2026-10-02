@@ -11,10 +11,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`guardana.core.testing.fake_github_pat` builds a fine-grained GitHub token shape for redaction tests.** `fake_secrets()` now includes it beside the AWS, OpenAI and JWT shapes.
 
+### Changed
+
+- **Saved runs use schema 14.** A coverage shortfall can be `incomplete_recording`; `run.recipe` and `run.configuration.provider` are recorded as null until a run fills them. A schema-13 run migrates with both null.
+
 ### Fixed
 
 - **The terminal report escapes bidirectional controls and Unicode line separators.** Previously, U+202E and the other explicit direction controls (U+061C, U+200E, U+200F, U+202A to U+202E, U+2066 to U+2069) and U+2028 and U+2029 in a target's text reached the terminal, where an override can make a finding read in an order the target did not write. They now print escaped, as `\u202e`.
 - **A garak `eval` record whose counts cannot all be true is unreadable.** Previously, a record stating more `passed` and `nones` outputs than `total_evaluated` derived a negative failure count and imported it as a failed claim. Such a record, and one stating a negative count, is now unreadable and lands in the errors channel.
+- **A graded recording from a probe its budget stopped no longer passes.** A suite counted every unrecorded trial as failed and could still clear its bar, while the stop survived only in `run.recording.origin`. Such a run now carries an `incomplete_recording` coverage shortfall naming the origin run: it is indeterminate (exit `2`) unless a finding fails it (exit `1`), and `plan grade` refuses it.
 
 ## [0.35.0] - 2026-10-02 — grading prior answers, kept probe exchanges, paired diffs, and secret redaction
 

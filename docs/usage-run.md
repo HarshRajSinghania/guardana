@@ -34,6 +34,9 @@ run 0191d4c2-8f1a-7c3e-9b21-6f0a2d8e4c11
 ```
 
 `--format json` prints the manifest. `requests: 0` is measured; tokens are `not recorded`.
+A run started from a recipe adds a `recipe:` line under `target:`, such as
+`recipe:    checkout (model_harness, from a recording)`: the recipe's name, the subject
+it declared and how the run reached it.
 
 ## What a run costs
 
@@ -131,6 +134,10 @@ on every evaluator and `reason: null` on every assessment: no earlier schema kep
 graded a recording, recorded a judge's identity or said why a trial went unmeasured. A null
 judge is unknown, so `diff` does not read it as a change of judge.
 
+A schema-13 run migrates to schema 14 with `recipe: null` and `configuration.provider: null`:
+no earlier schema recorded a recipe or the provider wire, so both are unknown, never "no
+recipe" or "the OpenAI wire". `inspect` prints no `recipe:` line for it.
+
 One thing *is* recovered: the **title** of a framework reference, which version 3
 onward records beside its framework and id. It is looked up from the installed
 catalogue for the exact `(framework, id)` pair the document already carries, so
@@ -163,8 +170,8 @@ parametrised over every field a version-1 run could be missing.
 ## The document
 
 The saved-run schema lives at
-[`schemas/run-v13.schema.json`](../schemas/run-v13.schema.json), identified by
-`https://guardana.dev/schemas/run/v13.schema.json`, and the site serves every schema
+[`schemas/run-v14.schema.json`](../schemas/run-v14.schema.json), identified by
+`https://guardana.dev/schemas/run/v14.schema.json`, and the site serves every schema
 at the URL its identifier names. The version is in the identifier,
 so a consumer can tell which contract it is holding before parsing anything; it
 changes whenever the change is not backwards-compatible. A test validates what
@@ -189,13 +196,15 @@ excludes it applied, `run.configuration.plugins`, the plugin trust in force, and
 `unexamined_component` coverage shortfall. Version 13 records `run.exchanges`, what a probe
 kept beside the run, `run.recording`, the recording a graded run answered from,
 `run.evaluators[].judge`, each judge's identity, `assessments[].reason`, why a trial was not
-measured, and the `not_recorded` skip reason.
+measured, and the `not_recorded` skip reason. Version 14 records `run.recipe`, the recipe a
+run was started from and the subject it declared, `run.configuration.provider`, the provider
+wire the run spoke, and the `incomplete_recording` coverage shortfall.
 
 Top level:
 
 | Key | What it is |
 |---|---|
-| `schema_version` | `13`. Stated once, for the whole document. |
+| `schema_version` | `14`. Stated once, for the whole document. |
 | `run` | the manifest — everything below |
 | `findings` / `unverified` / `waived` / `errors` / `observations` | the problem, evidence and inventory channels |
 | `assessments` | what the run *measured*, pass included — see [assessments](#assessments) |
@@ -211,7 +220,7 @@ Inside `run`:
 | `guardana` | which software produced it |
 | `target` | what was examined, with a fingerprint, the fields that fingerprint covers, and the digest of the document the run read |
 | `deployment` | which deployment of which AI system this verifies |
-| `configuration` | which settings produced it, **by digest**: `profile_digest` covers every setting of the resolved profile except its name, where it was read from and its `plugins:`; `plugins` is the trust in force, `{mode, allowed}` |
+| `configuration` | which settings produced it, **by digest**: `profile_digest` covers every setting of the resolved profile except its name, where it was read from and its `plugins:`; `plugins` is the trust in force, `{mode, allowed}`; `provider` is the provider wire the run spoke to its target, `null` when it reached none or did not record it |
 | `execution` | what limits it ran under, and `trials`: the attempts per case the run asked for |
 | `usage` | what it actually consumed, the configured judges on their own meters |
 | `rules` / `evaluators` | what did the checking, with digests, declared request counts, a `trial_summary` for each rule that repeated, a `suite` summary for each quality suite, calibration, and `judge`: the identity a judge states (its model, endpoint and samples per verdict), `null` for a deterministic evaluator or when unstated. A suite the budget stopped or that raised is listed with its declined summary, though not in `result_summary.rules_run` |
@@ -220,6 +229,7 @@ Inside `run`:
 | `privacy` | which evidence policy was in force |
 | `exchanges` | for a probe that kept its exchanges ([`probe --keep-exchanges`](usage-probe.md#keeping-the-exchanges)), `{digest, count, altered}`: the SHA-256 of the sidecar file, how many exchanges it holds and how many replies redaction changed; `null` otherwise |
 | `recording` | for a run [`guardana grade`](usage-grade.md) wrote, what the recording says of itself: `{name, version, subject, verbatim, origin}`, with `origin` `{run_id, target, started_at, stopped_by, gate}` when a probe kept it; declared, not verified. `null` otherwise |
+| `recipe` | for a run started from a recipe, `{name, digest, lock_digest, kind, source, unpinned}`: the recipe's name, the SHA-256 of the recipe file and of the lock the run was held to (`null` when none was read), what the team declared answered (`kind`: `application` or `model_harness`), how the run reached it (`source`: `connection` or `recording`) and the rule ids it ran that the lock does not pin. `kind` is declared, not verified. `null` otherwise |
 
 Three conventions hold everywhere in it:
 

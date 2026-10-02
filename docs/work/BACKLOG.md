@@ -77,10 +77,6 @@ reproduced; the rest are the sweep's reading with its anchors, not yet reproduce
 
 ## Left by F5 (0.35.0)
 
-- **Grading a budget-stopped probe's sidecar can pass where the probe exited `6`.** A suite
-  counts every unrecorded trial as failed and passes when its bar still holds, as it does for
-  any ungraded trial; the stop survives only in `run.recording.origin.stopped_by` and a stderr
-  note. Whether a stopped origin should make the graded run decline is the owner's call.
 - **Only the built-in endpoint keeps exchanges, and only its plain pass.** A pack's endpoint
   target would need a protocol to keep them; canary passes and tool offers are not kept, so
   canary and agent rules cannot be graded again.

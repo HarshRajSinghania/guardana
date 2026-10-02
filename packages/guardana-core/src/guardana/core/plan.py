@@ -14,6 +14,7 @@ from guardana.core.gate import OpenQuestion, open_questions, refused_by
 from guardana.core.profile.model import FailOn, Profile
 from guardana.core.registry import Registry
 from guardana.core.report import CheckError, ScanResult, SkippedRule
+from guardana.core.report.shortfall import CoverageShortfall
 from guardana.core.rule import Rule, RuleLoadError
 from guardana.core.target import Target, TargetKind
 from guardana.core.target.recorded import RecordedTarget
@@ -98,6 +99,11 @@ class RunPlan:
     reports them through its exit code and its error stream.
     """
 
+    shortfall: tuple[CoverageShortfall, ...] = field(default=(), metadata={"in_document": False})
+    """The coverage shortfall the run would record whatever its rules find, from
+    `incomplete_recording`. It has no switch, so a plan carrying one cannot pass.
+    """
+
     @property
     def skipped_rule_ids(self) -> tuple[str, ...]:
         """Just the ids of the rules the run would skip, as the plan document lists them."""
@@ -108,11 +114,15 @@ class RunPlan:
 
         Read off a result of the planned rules with no finding, through the gate's own
         `open_questions` and `refused_by`, so the plan and the gate cannot disagree about
-        a skip, an error or an empty selection. What only the run can reveal — a check
+        a skip, an error, a shortfall or an empty selection. What only the run can reveal — a check
         that declines, an endpoint that skips more than it declared — is not here.
         """
         foreseen = ScanResult(
-            findings=(), rules_run=self.rules, rules_skipped=self.skipped, errors=self.errors
+            findings=(),
+            rules_run=self.rules,
+            rules_skipped=self.skipped,
+            errors=self.errors,
+            coverage_shortfall=self.shortfall,
         )
         return refused_by(open_questions(foreseen), fail_on)
 
@@ -165,6 +175,7 @@ def build_plan(
     out not to support tool calls will skip more rules than this predicted.
     """
     from guardana.core.runner import (  # noqa: PLC0415 — runner is downstream
+        incomplete_recording,
         pre_run_errors,
         select_rules,
     )
@@ -215,6 +226,7 @@ def build_plan(
         if judge_meters is None
         else _price_judges(graded, registry.evaluators(), judge_meters),
         errors=(*pre_run_errors(registry, target), *_unknown_evaluators(graded, registry)),
+        shortfall=incomplete_recording(target),
     )
 
 

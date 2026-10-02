@@ -197,6 +197,12 @@ both graded the same recording, a note says both runs graded the same recorded r
 and names the digest: a difference between them is not the system answering differently.
 Only a digest of the whole file counts.
 
+When both runs were started from a recipe and the recipes declared different subjects, one
+an `application` and the other a `model_harness`, a note names both: a model reached
+without the application's prompt, tools and data answers differently, so a difference may be
+that rather than the system changing. A run started without a recipe declared nothing, and
+no note is added.
+
 ## In CI
 
 ```yaml

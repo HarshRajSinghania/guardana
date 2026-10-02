@@ -39,6 +39,31 @@ the library default is sequential and the CLI opts in (`probe`/`monitor` take
 """
 
 
+def incomplete_recording(target: Target) -> tuple[CoverageShortfall, ...]:
+    """Return the shortfall of grading a recording whose origin run was stopped.
+
+    Only a stop counts: an origin that ended `indeterminate` is what regrading exists
+    for, and its errors already return as errors. The origin is declared, not verified.
+    `Runner.run` and `build_plan` both read this, so a plan refuses what the run cannot pass.
+    """
+    if not isinstance(target, RecordedTarget):
+        return ()
+    origin = target.recording.origin
+    if origin is None or origin.stopped_by is None:
+        return ()
+    return (
+        CoverageShortfall(
+            kind=ShortfallKind.INCOMPLETE_RECORDING,
+            name=origin.run_id,
+            detail=(
+                f"{target.ref} was kept from run {origin.run_id}, which stopped with "
+                f"{origin.stopped_by}; replies it never received cannot be graded, so this "
+                f"run cannot pass"
+            ),
+        ),
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class _RuleOutcome:
     """What one rule produced: findings, unverified findings, and whether it ran."""
@@ -218,6 +243,7 @@ class Runner:
             # `diff` and the collector holding a conclusion with no cause.
             coverage_shortfall=(
                 *_coverage_shortfall(self.profile, target),
+                *incomplete_recording(target),
                 *_unexamined_components(target, observations, examined),
             ),
             stopped_by=stopped_by,
@@ -683,6 +709,7 @@ __all__ = [
     "Runner",
     "gate",
     "gate_outcome",
+    "incomplete_recording",
     "refused_by_this_run",
     "safety_refusal",
 ]

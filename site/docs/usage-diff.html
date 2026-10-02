@@ -453,6 +453,11 @@ case changed. A judge identity recorded on one side only is unknown, not a chang
 both graded the same recording, a note says both runs graded the same recorded replies
 and names the digest: a difference between them is not the system answering differently.
 Only a digest of the whole file counts.</p>
+<p>When both runs were started from a recipe and the recipes declared different subjects, one
+an <code>application</code> and the other a <code>model_harness</code>, a note names both: a model reached
+without the application's prompt, tools and data answers differently, so a difference may be
+that rather than the system changing. A run started without a recipe declared nothing, and
+no note is added.</p>
 <h2 id="in-ci">In CI</h2>
 <pre><code class="language-yaml">- name: Save this run
   run: guardana scan . --format json --output current.json

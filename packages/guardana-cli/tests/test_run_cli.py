@@ -84,6 +84,28 @@ def test_inspect_emits_json_when_asked(tmp_path: Path) -> None:
     assert payload["result_summary"]["gate"] == "pass"
 
 
+def test_inspect_names_the_recipe_and_what_it_declared_answered(tmp_path: Path) -> None:
+    path = _scan_run(tmp_path)
+    plain = runner.invoke(app, ["run", "inspect", str(path)])
+    document = json.loads(path.read_text(encoding="utf-8"))
+    document["run"]["recipe"] = {
+        "name": "checkout-assistant",
+        "digest": "sha256:" + "ab" * 32,
+        "lock_digest": None,
+        "kind": "model_harness",
+        "source": "recording",
+        "unpinned": [],
+    }
+    path.write_text(json.dumps(document), encoding="utf-8")
+
+    result = runner.invoke(app, ["run", "inspect", str(path)])
+
+    assert result.exit_code == 0, result.output
+    lines = [" ".join(line.split()) for line in result.output.splitlines()]
+    assert "recipe: checkout-assistant (model_harness, from a recording)" in lines
+    assert "recipe:" not in plain.output
+
+
 def test_inspect_refuses_a_file_that_is_not_a_run(tmp_path: Path) -> None:
     junk = tmp_path / "junk.json"
     junk.write_text("{}", encoding="utf-8")

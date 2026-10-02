@@ -21,10 +21,13 @@ from guardana.core.manifest.records import (
     EvaluatorRecord,
     ExchangesRecord,
     JudgeCorrection,
+    RecipeRecord,
     RecordingOriginRecord,
     RecordingRecord,
     ResultSummary,
     RuleRecord,
+    SubjectKind,
+    SubjectSource,
     SuiteCorrection,
     SuiteOutcome,
     SuiteSummary,
@@ -224,6 +227,7 @@ def _configuration(raw: object) -> ConfigurationRef:
         retriever_digest=_optional_text(block, "retriever_digest"),
         dataset_digest=_optional_text(block, "dataset_digest"),
         adapter_digest=_optional_text(block, "adapter_digest"),
+        provider=_nullable_text(block, "provider", "run.configuration"),
         plugins=_plugins(block),
     )
 
@@ -734,6 +738,41 @@ def _origin(raw: object) -> RecordingOriginRecord:
     )
 
 
+_RECIPE_KEYS = frozenset({"name", "digest", "lock_digest", "kind", "source", "unpinned"})
+
+
+def _recipe(run: Mapping[str, Any]) -> RecipeRecord | None:
+    """Read the recipe a run was started from, refusing a block absent or malformed.
+
+    The key is required, null included: a recipe run read back as one started without a
+    recipe would drop what the team declared answered it.
+    """
+    what = "run.recipe"
+    raw = _present(run, "recipe", "run")
+    if raw is None:
+        return None
+    block = _closed(raw, _RECIPE_KEYS, what)
+    unpinned = _present(block, "unpinned", what)
+    if not isinstance(unpinned, list) or not all(isinstance(v, str) for v in unpinned):
+        raise ManifestLoadError(f"{what}.unpinned must be a list of `rule:` and `evaluator:` ids")
+    try:
+        kind = SubjectKind(_text(block, "kind", what))
+        source = SubjectSource(_text(block, "source", what))
+    except ValueError as exc:
+        raise ManifestLoadError(f"{what}: unknown kind or source: {exc}") from exc
+    try:
+        return RecipeRecord(
+            name=_text(block, "name", what),
+            digest=_text(block, "digest", what),
+            lock_digest=_nullable_text(block, "lock_digest", what),
+            kind=kind,
+            source=source,
+            unpinned=tuple(unpinned),
+        )
+    except ValueError as exc:
+        raise ManifestLoadError(f"{what}: {exc}") from exc
+
+
 def _closed(raw: object, keys: frozenset[str], what: str) -> dict[str, Any]:
     """Return `raw` as an object holding exactly `keys`, refusing one missing or unknown."""
     block = _mapping(raw, what)
@@ -861,6 +900,7 @@ def manifest_from_dict(raw: object, *, migrated_from: int | None = None) -> RunM
         privacy=_privacy(block.get("privacy")),
         exchanges=_exchanges(block),
         recording=_recording(block),
+        recipe=_recipe(block),
         migrated_from=(
             migrated_from if migrated_from is not None else _optional_int(block, "migrated_from")
         ),

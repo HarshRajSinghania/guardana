@@ -32,6 +32,9 @@ class ConfigurationRef:
     retriever_digest: str | None = None
     dataset_digest: str | None = None
     adapter_digest: str | None = None
+    provider: str | None = None
+    """The provider wire the run spoke to its target; None when it reached none or did not say."""
+
     plugins: PluginTrust | None = None
     """Which installed distributions the run loaded entry points from.
 

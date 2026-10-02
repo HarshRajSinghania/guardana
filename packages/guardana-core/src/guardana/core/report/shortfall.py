@@ -5,7 +5,7 @@ from enum import StrEnum
 class ShortfallKind(StrEnum):
     """Why a run did not get coverage its operator demanded.
 
-    Both members mean the same thing to a gate — this run is not entitled to a
+    Every member means the same thing to a gate — this run is not entitled to a
     verdict — and differ in what the operator has to change, which is the only
     thing they can act on.
     """
@@ -18,6 +18,9 @@ class ShortfallKind(StrEnum):
 
     UNEXAMINED_COMPONENT = "unexamined_component"
     """A model component the run observed and no rule that completed read."""
+
+    INCOMPLETE_RECORDING = "incomplete_recording"
+    """A graded recording whose origin run stopped before every reply was received."""
 
 
 @dataclass(frozen=True, slots=True)

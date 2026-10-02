@@ -397,6 +397,13 @@ are errors: an unread reply may be the failing one.</li>
 anything runs (exit <code>3</code>): grade it with the probe's <code>--trials</code>.</li>
 <li>A reply that holds a placeholder Guardana's redactor writes counts as altered.</li>
 <li>A run that graded nothing is <code>indeterminate</code> (exit <code>2</code>).</li>
+<li>A recording whose <code>origin</code> says the probe was stopped (<code>stopped_by</code> is set) holds only the
+replies that probe received before it stopped. The run carries an <code>incomplete_recording</code>
+coverage shortfall naming the origin run, so it is <code>indeterminate</code> (exit <code>2</code>) even when
+every rule passes, and fails (exit <code>1</code>) only when a finding fails it. No switch turns this
+off, and <code>plan grade</code> refuses such a recording before anything runs. Only a stop counts:
+an origin that ended <code>indeterminate</code> grades normally, and the origin is declared, not
+verified.</li>
 </ul>
 <p>Under the default profile, rules the recording does not answer are skipped and do not fail the
 gate; <code>grade</code> names them on stderr. Select the rules the recording answers with
@@ -473,7 +480,7 @@ Worth knowing
 </tr>
 <tr>
 <td><code>2</code></td>
-<td>Indeterminate: a check errored, a suite declined, nothing was graded, or <code>--preset release</code> met a skip.</td>
+<td>Indeterminate: a check errored, a suite declined, nothing was graded, the recording's origin was stopped, or <code>--preset release</code> met a skip.</td>
 </tr>
 <tr>
 <td><code>3</code></td>

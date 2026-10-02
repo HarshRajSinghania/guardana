@@ -584,6 +584,11 @@ class EvaluatorRecord:
 _SHA256 = re.compile(r"sha256:[0-9a-f]{64}")
 
 
+def _require_digest(value: object, what: str) -> None:
+    if not isinstance(value, str) or not _SHA256.fullmatch(value):
+        raise ValueError(f"{what} is 'sha256:' and 64 lowercase hex digits, not {value!r}")
+
+
 @dataclass(frozen=True, slots=True)
 class ExchangesRecord:
     """The exchanges a probe kept in its sidecar: their digest, how many, how many altered.
@@ -637,6 +642,58 @@ class RecordingRecord:
 
     origin: RecordingOriginRecord | None
     """The probe it was kept from; None for a recording written by hand."""
+
+
+class SubjectKind(StrEnum):
+    """What answered a recipe's run, as the team declared it."""
+
+    APPLICATION = "application"
+    """The endpoint the team's users reach, with its own prompt, tools and data behind it."""
+
+    MODEL_HARNESS = "model_harness"
+    """A model reached without the application's prompt, tools and data."""
+
+
+class SubjectSource(StrEnum):
+    """How a recipe's run reached what answered it."""
+
+    CONNECTION = "connection"
+    RECORDING = "recording"
+
+
+@dataclass(frozen=True, slots=True)
+class RecipeRecord:
+    """The recipe a run was started from, and what it declared about its subject.
+
+    Declared, not verified: Guardana cannot tell an application from a model harness by
+    its URL, so the kind is what the reviewed recipe says.
+    """
+
+    name: str
+    digest: str
+    """The SHA-256 of the recipe's parsed content, so a comment or line endings do not move it."""
+
+    lock_digest: str | None
+    """The SHA-256 of the lock the run was held to; None when no lock was read."""
+
+    kind: SubjectKind
+    source: SubjectSource
+    unpinned: tuple[str, ...] = ()
+    """`rule:<id>` and `evaluator:<id>` whose distribution can change its code under one version."""
+
+    def __post_init__(self) -> None:
+        """Refuse a digest no reader produced and a kind or source nobody declares."""
+        _require_digest(self.digest, "a recipe digest")
+        if self.lock_digest is not None:
+            _require_digest(self.lock_digest, "a recipe lock digest")
+        if not isinstance(self.unpinned, tuple) or not all(
+            isinstance(rule_id, str) for rule_id in self.unpinned
+        ):
+            raise TypeError(f"unpinned must be a tuple of rule ids, got {self.unpinned!r}")
+        if not isinstance(self.kind, SubjectKind):
+            raise TypeError(f"kind must be a SubjectKind, got {self.kind!r}")
+        if not isinstance(self.source, SubjectSource):
+            raise TypeError(f"source must be a SubjectSource, got {self.source!r}")
 
 
 @dataclass(frozen=True, slots=True)

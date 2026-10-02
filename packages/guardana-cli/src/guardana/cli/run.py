@@ -83,6 +83,14 @@ def _stopped(manifest: RunManifest) -> str:
     return f"  stopped:   {manifest.result_summary.stopped_by}{meter} — coverage is partial"
 
 
+def _recipe_lines(manifest: RunManifest) -> list[str]:
+    """Name the recipe a run was started from and what it declared answered; none without one."""
+    recipe = manifest.recipe
+    if recipe is None:
+        return []
+    return [f"  recipe:    {recipe.name} ({recipe.kind}, from a {recipe.source})"]
+
+
 def _lines(manifest: RunManifest) -> list[str]:
     usage, summary, target = manifest.usage, manifest.result_summary, manifest.target
     lines = [
@@ -92,6 +100,7 @@ def _lines(manifest: RunManifest) -> list[str]:
         f"  source:    {manifest.source.kind} ({_value(manifest.source.provider)})",
         f"  guardana:  {manifest.guardana.version}",
         f"  target:    {target.kind} {target.ref}",
+        *_recipe_lines(manifest),
         f"  profile:   {manifest.configuration.profile_name}",
         f"  gate:      {_value(summary.gate)}",
     ]

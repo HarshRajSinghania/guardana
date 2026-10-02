@@ -352,6 +352,30 @@ def migrate_v12(document: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def migrate_v13(document: Mapping[str, Any]) -> dict[str, Any]:
+    """Rewrite a schema-13 saved run as a schema-14 one, recomputing nothing.
+
+    **`run.recipe`** and **`run.configuration.provider`** arrive null, overwriting whatever
+    the document holds: no version-13 build ran a recipe or recorded the provider wire, so
+    both are unknown, never "no recipe" or "the OpenAI wire".
+    """
+    run = _mapping(document.get("run"), "run")
+    configuration = run.get("configuration")
+    return {
+        **document,
+        "schema_version": 14,
+        "$schema": schema_url(14),
+        "run": {
+            **run,
+            "configuration": {
+                **(configuration if isinstance(configuration, dict) else {}),
+                "provider": None,
+            },
+            "recipe": None,
+        },
+    }
+
+
 _PER_CLASS_CALIBRATION = (
     "assessor",
     "judge_identity",

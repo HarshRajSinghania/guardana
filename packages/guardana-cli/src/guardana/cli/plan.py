@@ -232,6 +232,8 @@ def _explain_what_the_run_cannot_pass(
             "  • no rule would run — the profile, the flags and the target select none, "
             "and a run that verifies nothing reports no verdict"
         )
+    if OpenQuestion.COVERAGE_SHORTFALL in blockers:
+        causes.extend(f"  • coverage shortfall — {gap.detail}" for gap in run_plan.shortfall)
     if OpenQuestion.SKIPPED in blockers:
         gaps = [skip.rule_id for skip in run_plan.skipped if skip.is_coverage_gap]
         causes.append(

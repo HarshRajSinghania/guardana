@@ -44,6 +44,7 @@ def compare_reports(before: RunReport, after: RunReport) -> RunDiff:
     )
     notes = (
         _target_note(before, after)
+        + _subject_note(before, after)
         + _version_note(before, after)
         + _coverage_note(before, after)
         + _migration_note(before, after)
@@ -241,4 +242,20 @@ def _target_note(before: RunReport, after: RunReport) -> tuple[str, ...]:
         f"the runs examined different targets ({before.manifest.target.ref} and "
         f"{after.manifest.target.ref}) — intended when comparing two models, worth "
         f"a second look otherwise",
+    )
+
+
+def _subject_note(before: RunReport, after: RunReport) -> tuple[str, ...]:
+    """Say when the two runs' recipes declared a different kind of subject.
+
+    Only when both record a recipe: a run started without one declared nothing, which is
+    unknown rather than different.
+    """
+    first, second = before.manifest.recipe, after.manifest.recipe
+    if first is None or second is None or first.kind == second.kind:
+        return ()
+    return (
+        f"the runs' recipes declared different subjects ({first.kind} and {second.kind}) — "
+        f"a model harness answers without the application's prompt, tools and data, so a "
+        f"difference may be that rather than the system changing",
     )

@@ -33,10 +33,13 @@ from guardana.core.manifest.records import (
     EvaluatorRecord,
     ExchangesRecord,
     JudgeCorrection,
+    RecipeRecord,
     RecordingOriginRecord,
     RecordingRecord,
     ResultSummary,
     RuleRecord,
+    SubjectKind,
+    SubjectSource,
     SuiteCorrection,
     SuiteOutcome,
     SuiteSummary,
@@ -148,6 +151,7 @@ def run_manifest() -> RunManifest:
             retriever_digest="sha256:5555",
             dataset_digest="sha256:6666",
             adapter_digest="sha256:7777",
+            provider="ollama",
             plugins=PluginTrust(mode=PluginMode.ALLOWLIST, allowed=frozenset({"acme-rules"})),
         ),
         execution=ExecutionSettings(
@@ -291,6 +295,11 @@ def run_manifest() -> RunManifest:
                     name="approval",
                     detail="the adapter records no approval spans",
                 ),
+                CoverageShortfall(
+                    kind=ShortfallKind.INCOMPLETE_RECORDING,
+                    name="5d0c8a1b-3e2f-4a6d-9b7c-1f2e3d4c5b6a",
+                    detail="the origin stopped with budget_exhausted",
+                ),
             ),
         ),
         exchanges=ExchangesRecord(digest="sha256:" + "ef" * 32, count=12, altered=2),
@@ -306,6 +315,14 @@ def run_manifest() -> RunManifest:
                 stopped_by="budget_exhausted",
                 gate="fail",
             ),
+        ),
+        recipe=RecipeRecord(
+            name="checkout-assistant",
+            digest="sha256:" + "ab" * 32,
+            lock_digest="sha256:" + "cd" * 32,
+            kind=SubjectKind.MODEL_HARNESS,
+            source=SubjectSource.RECORDING,
+            unpinned=("acme.local.tone",),
         ),
         migrated_from=4,
     )
@@ -409,8 +426,32 @@ def scan_result() -> ScanResult:
     )
 
 
+def saved_run_at_v13(document: dict[str, Any]) -> dict[str, Any]:
+    """Rewrite a document this build wrote into the shape a version-13 build wrote."""
+    run = document["run"]
+    coverage = run["coverage"]
+    return {
+        **document,
+        "schema_version": 13,
+        "$schema": "https://guardana.dev/schemas/run/v13.schema.json",
+        "run": {
+            **{k: v for k, v in run.items() if k != "recipe"},
+            "configuration": {k: v for k, v in run["configuration"].items() if k != "provider"},
+            "coverage": {
+                **coverage,
+                "shortfall": [
+                    gap
+                    for gap in coverage["shortfall"]
+                    if gap["kind"] != str(ShortfallKind.INCOMPLETE_RECORDING)
+                ],
+            },
+        },
+    }
+
+
 def saved_run_at_v12(document: dict[str, Any]) -> dict[str, Any]:
     """Rewrite a document this build wrote into the shape a version-12 build wrote."""
+    document = saved_run_at_v13(document)
     run = document["run"]
     return {
         **document,

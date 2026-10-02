@@ -89,6 +89,13 @@ Nothing missing is ever read as a pass:
   anything runs (exit `3`): grade it with the probe's `--trials`.
 - A reply that holds a placeholder Guardana's redactor writes counts as altered.
 - A run that graded nothing is `indeterminate` (exit `2`).
+- A recording whose `origin` says the probe was stopped (`stopped_by` is set) holds only the
+  replies that probe received before it stopped. The run carries an `incomplete_recording`
+  coverage shortfall naming the origin run, so it is `indeterminate` (exit `2`) even when
+  every rule passes, and fails (exit `1`) only when a finding fails it. No switch turns this
+  off, and `plan grade` refuses such a recording before anything runs. Only a stop counts:
+  an origin that ended `indeterminate` grades normally, and the origin is declared, not
+  verified.
 
 Under the default profile, rules the recording does not answer are skipped and do not fail the
 gate; `grade` names them on stderr. Select the rules the recording answers with
@@ -164,7 +171,7 @@ Worth knowing
 |---|---|
 | `0` | The gate passed. |
 | `1` | The gate failed. |
-| `2` | Indeterminate: a check errored, a suite declined, nothing was graded, or `--preset release` met a skip. |
+| `2` | Indeterminate: a check errored, a suite declined, nothing was graded, the recording's origin was stopped, or `--preset release` met a skip. |
 | `3` | Invalid usage: an unreadable recording, other trials than the probe kept, a bad profile or flag. |
 | `4` | A judge configured under `evaluators:` could not be reached. |
 | `5` | An internal error. |
