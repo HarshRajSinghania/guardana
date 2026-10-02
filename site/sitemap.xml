@@ -38,6 +38,7 @@
   <url><loc>https://guardana.dev/docs/design/security-contracts</loc></url>
   <url><loc>https://guardana.dev/docs/design/target-locators</loc></url>
   <url><loc>https://guardana.dev/docs/design/taxonomy-editions</loc></url>
+  <url><loc>https://guardana.dev/docs/design/team-recipes</loc></url>
   <url><loc>https://guardana.dev/docs/design/trace-domain-model</loc></url>
   <url><loc>https://guardana.dev/docs/design/trace-producer</loc></url>
   <url><loc>https://guardana.dev/docs/exit-codes</loc></url>
@@ -211,6 +212,7 @@
   <url><loc>https://guardana.dev/docs/usage-pack</loc></url>
   <url><loc>https://guardana.dev/docs/usage-plan</loc></url>
   <url><loc>https://guardana.dev/docs/usage-probe</loc></url>
+  <url><loc>https://guardana.dev/docs/usage-recipe</loc></url>
   <url><loc>https://guardana.dev/docs/usage-rule-test</loc></url>
   <url><loc>https://guardana.dev/docs/usage-rules</loc></url>
   <url><loc>https://guardana.dev/docs/usage-run</loc></url>

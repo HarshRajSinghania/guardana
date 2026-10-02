@@ -21,6 +21,7 @@ from guardana.cli.new_rule import new_rule
 from guardana.cli.pack import pack_app
 from guardana.cli.plan import plan_app
 from guardana.cli.probe import probe
+from guardana.cli.recipe import recipe_app
 from guardana.cli.rule import rule_app
 from guardana.cli.rules import rules
 from guardana.cli.run import run_app
@@ -112,6 +113,7 @@ app.add_typer(config_app, name="config")
 app.add_typer(trace_app, name="trace")
 app.add_typer(rule_app, name="rule")
 app.add_typer(pack_app, name="pack")
+app.add_typer(recipe_app, name="recipe")
 app.command()(doctor)
 
 

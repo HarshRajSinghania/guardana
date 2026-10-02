@@ -674,7 +674,7 @@ class RecipeRecord:
     """The SHA-256 of the recipe's parsed content, so a comment or line endings do not move it."""
 
     lock_digest: str | None
-    """The SHA-256 of the lock the run was held to; None when no lock was read."""
+    """The SHA-256 of the lock's canonical content; None when no lock was read."""
 
     kind: SubjectKind
     source: SubjectSource

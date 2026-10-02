@@ -16,7 +16,7 @@ import json
 import threading
 import uuid
 import weakref
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
@@ -66,6 +66,7 @@ from guardana.core.report import ScanResult
 from guardana.core.report.baseline import Baseline, apply_baseline
 from guardana.core.report.location import relativize, relativize_findings
 from guardana.core.report.serialize import run_to_dict
+from guardana.core.report.shortfall import CoverageShortfall, ShortfallKind
 from guardana.core.rule import Rule
 from guardana.core.runner import DEFAULT_ENDPOINT_CONCURRENCY, Runner, select_rules
 from guardana.core.target import ArtifactTarget, EndpointError, Target, TargetKind
@@ -218,6 +219,13 @@ class Verifier:
     Only the default builder honours a judge block's `provider` or `adapter`; with
     a builder of your own, such a block raises `ProfileError` before anything is sent,
     rather than building that judge on the OpenAI wire.
+    """
+
+    demanded_rules: frozenset[str] = frozenset()
+    """Rules the run must complete; one that does not is a coverage shortfall, with no switch.
+
+    Empty by default. A recipe demands every rule its lock pins, so a recording that answers
+    none of a locked rule's questions cannot leave the run green.
     """
 
     _prepared: list[Registry] = field(default_factory=list, init=False, repr=False)
@@ -504,6 +512,13 @@ class Verifier:
         result = EvidenceRedactor(self.profile.privacy).redact_result(result)
         if baseline is not None:
             result = apply_baseline(result, baseline.active())
+        result = replace(
+            result,
+            coverage_shortfall=(
+                *result.coverage_shortfall,
+                *unfinished_demands(self.demanded_rules, result),
+            ),
+        )
         gate = gate_outcome(result, self.profile.policy)
         run_id = str(uuid.uuid4())
         exchanges = (
@@ -617,6 +632,31 @@ def refuse_other_trials(recording: Recording, registry: Registry) -> None:
             f"{'…' if len(differing) > _NAMED_AT_MOST else ''}); grade it with "
             f"the trials the probe ran"
         )
+
+
+def unfinished_demands(
+    demanded: Collection[str], result: ScanResult
+) -> tuple[CoverageShortfall, ...]:
+    """Return one shortfall for each demanded rule the run did not complete, saying why."""
+    skipped = {skip.rule_id: skip for skip in result.rules_skipped}
+    errored = {error.source: error for error in result.errors}
+    completed = set(result.rules_run)
+    gaps: list[CoverageShortfall] = []
+    for rule_id in sorted(set(demanded) - completed):
+        if rule_id in skipped:
+            why = f"was skipped ({skipped[rule_id].reason}): {skipped[rule_id].detail}"
+        elif rule_id in errored:
+            why = f"did not finish: {errored[rule_id].reason}"
+        else:
+            why = "never ran to completion"
+        gaps.append(
+            CoverageShortfall(
+                kind=ShortfallKind.DEMANDED_CHECK,
+                name=rule_id,
+                detail=f"{rule_id} is required by this run and {why}",
+            )
+        )
+    return tuple(gaps)
 
 
 def _connection_facts(target: Target) -> ConnectionFacts | None:

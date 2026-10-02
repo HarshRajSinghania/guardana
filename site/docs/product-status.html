@@ -36,6 +36,7 @@
 </ul>
 <h2>Run and policy</h2><ul>
 <li><a href="safe-testing.html">Safe active testing</a></li>
+<li><a href="usage-recipe.html">guardana recipe<span class="tag">beta</span></a></li>
 <li><a href="usage-doctor.html">guardana doctor</a></li>
 <li><a href="usage-target.html">guardana target inspect</a></li>
 <li><a href="providers.html">Providers</a></li>
@@ -128,6 +129,7 @@
 <li><a href="design/regrading-stored-exchanges.html">Re-grading stored exchanges<span class="tag">superseded</span></a></li>
 <li><a href="design/anytime-valid-monitoring.html">Anytime-valid monitoring<span class="tag">proposed</span></a></li>
 <li><a href="design/recorded-answers.html">Recorded answers and regrading<span class="tag">accepted</span></a></li>
+<li><a href="design/team-recipes.html">Repository recipes, one connection and provider conformance<span class="tag">accepted</span></a></li>
 <li><a href="design/run-manifest-v2.html">Run manifest v2<span class="tag">implemented</span></a></li>
 <li><a href="design/privacy-and-redaction.html">Privacy and redaction<span class="tag">implemented</span></a></li>
 <li><a href="design/exit-codes.html">Exit codes and gate semantics<span class="tag">implemented</span></a></li>
@@ -158,6 +160,7 @@
 </ul>
 <h2>Run and policy</h2><ul>
 <li><a href="safe-testing.html">Safe active testing</a></li>
+<li><a href="usage-recipe.html">guardana recipe<span class="tag">beta</span></a></li>
 <li><a href="usage-doctor.html">guardana doctor</a></li>
 <li><a href="usage-target.html">guardana target inspect</a></li>
 <li><a href="providers.html">Providers</a></li>
@@ -250,6 +253,7 @@
 <li><a href="design/regrading-stored-exchanges.html">Re-grading stored exchanges<span class="tag">superseded</span></a></li>
 <li><a href="design/anytime-valid-monitoring.html">Anytime-valid monitoring<span class="tag">proposed</span></a></li>
 <li><a href="design/recorded-answers.html">Recorded answers and regrading<span class="tag">accepted</span></a></li>
+<li><a href="design/team-recipes.html">Repository recipes, one connection and provider conformance<span class="tag">accepted</span></a></li>
 <li><a href="design/run-manifest-v2.html">Run manifest v2<span class="tag">implemented</span></a></li>
 <li><a href="design/privacy-and-redaction.html">Privacy and redaction<span class="tag">implemented</span></a></li>
 <li><a href="design/exit-codes.html">Exit codes and gate semantics<span class="tag">implemented</span></a></li>
@@ -333,7 +337,8 @@ so this page is maintained as carefully as the code.</p>
 <h2 id="released-and-experimental">Released and experimental</h2>
 <p><strong>Released (beta):</strong> Quality suites use the deterministic assessors <code>exact_match</code>, <code>contains</code>, <code>regex</code>, <code>json_valid</code>, and <code>length</code>. They support versioned JSONL datasets (<code>name@version</code>), deterministic sampling (<code>sample: {size, seed}</code>), repeated trials per case, and a suite gate that passes, fails, or declines with <code>min_sample</code>. Runs save a suite summary in the run document and show a Measured block in the human report. JUnit output is available.</p>
 <p><strong>Experimental:</strong> Judge-graded suites use <code>answered</code> and <code>reference_judge</code>. Judge-error correction adjusts trial and suite rates using Rogan–Gladen and a calibration recorded on the team's own corpus with <code>guardana calibrate --record</code>. Without a usable calibration, the suite declines; it never passes on an uncorrected judge rate. Experimental means shipped, but behaviour, thresholds, and saved fields may change in a minor release.</p>
-<p><strong>Not released:</strong> The five-user first-run study (F2), reproducible team checks on the real application (F6), protocol conformance fixtures (F7), and one redacted export with a webhook (F4) are roadmap items in <code>ROADMAP.md</code>. Pages under <code>docs/design/</code> record decisions; each page's status line says whether it shipped.</p>
+<p><strong>Released (beta), first half of F6:</strong> <a href="usage-recipe.html">repository recipes</a> that pin a team's checks and refuse a run whose pins moved, one set of connection settings across <code>probe</code>, <code>plan probe</code>, <code>target inspect</code>, <code>monitor</code> and every judge, and a tested <a href="providers.html">provider table</a>.</p>
+<p><strong>Not released:</strong> The five-user first-run study (F2), the rest of F6 (the team regression loop and the live retrieval pilot), protocol conformance fixtures (F7), and one redacted export with a webhook (F4) are roadmap items in <code>ROADMAP.md</code>. Pages under <code>docs/design/</code> record decisions; each page's status line says whether it shipped.</p>
 <h2 id="known-limitations">Known limitations</h2>
 <p>Stated plainly, because finding these out after adoption is worse than reading
 them now.</p>
@@ -398,6 +403,13 @@ adapter and LangChain to it against a local double that speaks each wire shape a
 cue. It describes Guardana's transports, not the servers behind them: whether vLLM, Ollama,
 SGLang, llama.cpp and TGI agree on streaming, finish reasons or usage metadata is still a
 claim to check per deployment, not a guarantee.</p>
+<h3 id="a-recipe-records-what-you-declare-about-the-subject">A recipe records what you declare about the subject</h3>
+<p><code>subject.kind</code> says whether an application or a model harness answered, and Guardana
+records it in every output without being able to check it: a URL does not say what is
+behind it. Guardana neither starts nor verifies the fixtures or test doubles your
+application runs with in CI; a recording subject is the one way a recipe runs with no live
+call at all. A check from a distribution installed from a directory or a URL is listed as
+unpinned, because its code can change under one version.</p>
 <h3 id="probabilistic-verdicts-have-probabilistic-limits">Probabilistic verdicts have probabilistic limits</h3>
 <p>A judge-graded verdict is a measurement with error. <code>guardana calibrate</code> reports
 Brier score and expected calibration error so you can see how much to trust it,

@@ -634,11 +634,11 @@ def _plan_probe_target(  # noqa: PLR0913 — one argument per connection flag
         endpoint_url, model_name, provider=provider, adapter=adapter, sending=False
     )
     return endpoint_for(
-        connection, system_prompt=_system_prompt_the_probe_will_send(system_prompt_file)
+        connection, system_prompt=system_prompt_the_probe_will_send(system_prompt_file)
     )
 
 
-def _system_prompt_the_probe_will_send(named: Path | None) -> str:
+def system_prompt_the_probe_will_send(named: Path | None) -> str:
     """Return the system prompt this plan must assume, which is never nothing.
 
     `probe` plants a fresh canary system prompt for every rule that needs one,

@@ -34,7 +34,9 @@ so this page is maintained as carefully as the code.
 
 **Experimental:** Judge-graded suites use `answered` and `reference_judge`. Judge-error correction adjusts trial and suite rates using Rogan–Gladen and a calibration recorded on the team's own corpus with `guardana calibrate --record`. Without a usable calibration, the suite declines; it never passes on an uncorrected judge rate. Experimental means shipped, but behaviour, thresholds, and saved fields may change in a minor release.
 
-**Not released:** The five-user first-run study (F2), reproducible team checks on the real application (F6), protocol conformance fixtures (F7), and one redacted export with a webhook (F4) are roadmap items in `ROADMAP.md`. Pages under `docs/design/` record decisions; each page's status line says whether it shipped.
+**Released (beta), first half of F6:** [repository recipes](usage-recipe.md) that pin a team's checks and refuse a run whose pins moved, one set of connection settings across `probe`, `plan probe`, `target inspect`, `monitor` and every judge, and a tested [provider table](providers.md).
+
+**Not released:** The five-user first-run study (F2), the rest of F6 (the team regression loop and the live retrieval pilot), protocol conformance fixtures (F7), and one redacted export with a webhook (F4) are roadmap items in `ROADMAP.md`. Pages under `docs/design/` record decisions; each page's status line says whether it shipped.
 
 ## Known limitations
 
@@ -120,6 +122,15 @@ adapter and LangChain to it against a local double that speaks each wire shape a
 cue. It describes Guardana's transports, not the servers behind them: whether vLLM, Ollama,
 SGLang, llama.cpp and TGI agree on streaming, finish reasons or usage metadata is still a
 claim to check per deployment, not a guarantee.
+
+### A recipe records what you declare about the subject
+
+`subject.kind` says whether an application or a model harness answered, and Guardana
+records it in every output without being able to check it: a URL does not say what is
+behind it. Guardana neither starts nor verifies the fixtures or test doubles your
+application runs with in CI; a recording subject is the one way a recipe runs with no live
+call at all. A check from a distribution installed from a directory or a URL is listed as
+unpinned, because its code can change under one version.
 
 ### Probabilistic verdicts have probabilistic limits
 

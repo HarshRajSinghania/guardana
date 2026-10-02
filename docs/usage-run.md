@@ -198,7 +198,7 @@ kept beside the run, `run.recording`, the recording a graded run answered from,
 `run.evaluators[].judge`, each judge's identity, `assessments[].reason`, why a trial was not
 measured, and the `not_recorded` skip reason. Version 14 records `run.recipe`, the recipe a
 run was started from and the subject it declared, `run.configuration.provider`, the provider
-wire the run spoke, and the `incomplete_recording` coverage shortfall.
+wire the run spoke, and the `incomplete_recording` and `demanded_check` coverage shortfalls.
 
 Top level:
 

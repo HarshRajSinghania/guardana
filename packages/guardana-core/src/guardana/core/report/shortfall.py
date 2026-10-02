@@ -22,6 +22,9 @@ class ShortfallKind(StrEnum):
     INCOMPLETE_RECORDING = "incomplete_recording"
     """A graded recording whose origin run stopped before every reply was received."""
 
+    DEMANDED_CHECK = "demanded_check"
+    """A check the run was required to complete that was skipped, errored or never reached."""
+
 
 @dataclass(frozen=True, slots=True)
 class CoverageShortfall:

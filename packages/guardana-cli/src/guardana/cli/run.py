@@ -88,7 +88,10 @@ def _recipe_lines(manifest: RunManifest) -> list[str]:
     recipe = manifest.recipe
     if recipe is None:
         return []
-    return [f"  recipe:    {recipe.name} ({recipe.kind}, from a {recipe.source})"]
+    lines = [f"  recipe:    {recipe.name} ({recipe.kind}, from a {recipe.source})"]
+    if recipe.unpinned:
+        lines.append(f"  unpinned:  {', '.join(recipe.unpinned)}")
+    return lines
 
 
 def _lines(manifest: RunManifest) -> list[str]:

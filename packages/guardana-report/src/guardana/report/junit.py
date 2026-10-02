@@ -13,6 +13,7 @@ from guardana.report._refusal import (
     refused_skips,
     unnamed_refusal,
 )
+from guardana.report._subject import suite_name
 
 _XML_ILLEGAL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\ud800-\udfff\ufffe\uffff]")
 """Every character XML 1.0 forbids in a document, escaped or not."""
@@ -38,6 +39,7 @@ class JUnitRenderer:
 
     def __init__(self, run: RunManifest | None = None, gate: GateOutcome | None = None) -> None:
         self._gate = recorded_gate(run, gate)
+        self._suite = suite_name(run)
 
     def render(self, result: ScanResult) -> str:
         """Render one scan result to text."""
@@ -97,7 +99,7 @@ class JUnitRenderer:
         skipped = len(unverified) + len(result.waived)
         return (
             '<?xml version="1.0" encoding="UTF-8"?>\n'
-            f'<testsuite name="guardana" tests="{result.rules_run_count}" '
+            f'<testsuite name={_attr(self._suite)} tests="{result.rules_run_count}" '
             f'failures="{len(findings) + failed}" skipped="{skipped}" '
             f'errors="{len(errors) + declined}">\n'
             f"{body}\n</testsuite>"
@@ -232,4 +234,18 @@ def _suite_case(rule_id: str, summary: SuiteSummary, subject: str) -> str:
         f"{verdict}"
         f"      <system-out>{statement}</system-out>\n"
         f"    </testcase>"
+    )
+
+
+def unfinished_document(case: str, message: str, detail: str) -> str:
+    """Return a JUnit document for a run that produced no result: one error testcase.
+
+    Written where a CI step reads a report whatever happened, so a refused or interrupted
+    run is red in the test view rather than absent from it, which a reporter shows as
+    nothing to complain about.
+    """
+    return (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<testsuite name="guardana" tests="1" failures="0" skipped="0" errors="1">\n'
+        f"{_error_case(case, 'guardana.run', message, detail)}\n</testsuite>"
     )

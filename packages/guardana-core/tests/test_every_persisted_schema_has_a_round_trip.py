@@ -74,6 +74,15 @@ GATED_BY: dict[str, str] = {
     "guardana.core.report.baseline.BASELINE_VERSION": _TESTS.format(
         package="guardana-core", module="report/test_baseline_round_trip.py"
     ),
+    "guardana.core.recipe.RECIPE_SCHEMA_VERSION": _TESTS.format(
+        package="guardana-core", module="test_recipe_documents.py"
+    ),
+    "guardana.core.recipe.RECIPE_LOCK_SCHEMA_VERSION": _TESTS.format(
+        package="guardana-core", module="test_recipe_documents.py"
+    ),
+    "guardana.cli._artifact.ARTIFACT_SCHEMA_VERSION": _TESTS.format(
+        package="guardana-cli", module="test_recipe_artifact.py"
+    ),
 }
 """Which gate walks which document. The keys are checked against the source below.
 

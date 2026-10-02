@@ -377,7 +377,7 @@ def _recorded_answers(workspace: Path) -> tuple[Path, Path, Path]:
     }
     (rules / "answers.yaml").write_text(json.dumps(rule), encoding="utf-8")
     profile = workspace / "recorded" / "guardana.yaml"
-    profile.write_text("rules:\n  include: ['acme.*']\n", encoding="utf-8")
+    profile.write_text("rules:\n  paths: [rules]\n  include: ['acme.*']\n", encoding="utf-8")
     header = {
         "guardana_recording": 1,
         "name": "support-bot",
@@ -409,7 +409,35 @@ def _recorded_checks(venv: Path, workspace: Path) -> list[Check]:
             expect=("nothing reaches the target",),
         ),
         Check("grade of a missing recording", [guardana, "grade", "/no/such.jsonl"], 3),
+        Check(
+            "recipe lock pins a recording recipe and names a directory install as unpinned",
+            [guardana, "recipe", "lock", str(_recipe(profile))],
+            2,
+            expect=("wrote", "installed from a directory or a URL"),
+        ),
+        Check(
+            "recipe run grades the recording and leaves the artifact",
+            [guardana, "recipe", "run", str(_recipe(profile))],
+            0,
+            expect=("subject: application, from a recording", "artifact:"),
+        ),
     ]
+
+
+def _recipe(profile: Path) -> Path:
+    """Write a recipe beside the recorded team's profile, grading its recording."""
+    recipe = profile.with_name("guardana-recipe.yaml")
+    if not recipe.exists():
+        recipe.write_text(
+            "schema_version: 1\n"
+            "name: support-bot\n"
+            f"profile: {profile.name}\n"
+            "subject:\n"
+            "  kind: application\n"
+            "  recording: answers.jsonl\n",
+            encoding="utf-8",
+        )
+    return recipe
 
 
 def _starter_checks(venv: Path, starter: Path) -> list[Check]:

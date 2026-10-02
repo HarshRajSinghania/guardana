@@ -61,7 +61,7 @@ trial went unmeasured (`assessments[].reason`) and the `not_recorded` skip reaso
 
 Version 14 records the recipe a run was started from and what it declared answered
 (`recipe`), the provider wire the run spoke (`configuration.provider`) and the
-`incomplete_recording` shortfall kind.
+`incomplete_recording` and `demanded_check` shortfall kinds.
 """
 
 

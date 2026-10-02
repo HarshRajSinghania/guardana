@@ -74,6 +74,21 @@ reproduced; the rest are the sweep's reading with its anchors, not yet reproduce
 - `llm_judge` places the transcript into its prompt unfenced (`core/evaluator/llm_judge.py:26`).
 - Container base images are pinned by tag, not by digest (`deploy/docker/cli.Dockerfile:12`).
 
+## Left by F6, first half (0.36.0)
+
+- **A read timeout is a rule error, not an unreachable endpoint.** urllib raises a bare
+  `TimeoutError` for a slow reply, which the runner records per rule (exit `2`) instead of
+  ending the run as unreachable (exit `4`). Never a pass, but the wrong cause.
+- **A recording carries no subject kind**, so a recipe grading a probe's kept exchanges
+  declares the kind again; and a recording's origin (`stopped_by`, planned rules) is declared,
+  not checked against the origin's `run.json`.
+- **Recipes speak the built-in connection only:** no pack `--target`, no MCP subject, no
+  `--reporter`, and no SARIF in the artifact (SARIF carries no subject label yet).
+- **A Python rule's or evaluator's code is pinned by its distribution version only**; an
+  editable or direct-URL install is listed as unpinned rather than digested.
+- Stateful tool doubles and a declared data boundary for the application's own fixtures stay
+  open for the second half of F6 (with the team regression loop and the live retrieval pilot).
+
 ## Left by F5 (0.35.0)
 
 - **Only the built-in endpoint keeps exchanges, and only its plain pass.** A pack's endpoint

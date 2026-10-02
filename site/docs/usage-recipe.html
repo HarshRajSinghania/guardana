@@ -1,0 +1,490 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>guardana recipe — Guardana documentation</title>
+<meta name="description" content="guardana recipe lock|run: a repository recipe that pins what a team&#x27;s checks are, refuses a run whose pins moved, and leaves one reviewable directory">
+<link rel="canonical" href="https://guardana.dev/docs/usage-recipe">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../assets/brand/v1/tokens.css">
+<link rel="stylesheet" href="docs.css">
+</head>
+<body>
+<header class="top"><div class="bar">
+<a class="mark" href="../"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z" style="color:var(--brand)"/><path d="m8.6 12.1 2.4 2.4 4.5-4.8"/></svg><span class="w">guard<b>ana</b></span></a>
+<nav>
+<a href="index.html">Documentation</a>
+<a href="rules/index.html">Rules</a>
+<a href="https://github.com/guardana/guardana">GitHub</a>
+</nav>
+</div></header>
+<div class="shell">
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="index.html">Overview</a></li></ul>
+<h2>First run</h2><ul>
+<li><a href="usage-init.html">guardana init</a></li>
+<li><a href="recipe-local-scan.html">Recipe: scan your own project</a></li>
+<li><a href="recipe-recorded-answers.html">Recipe: check a run your application recorded</a></li>
+<li><a href="recipe-real-application.html">Recipe: probe your real application</a></li>
+<li><a href="how-it-works.html">How Guardana works</a></li>
+<li><a href="install.html">Installing</a></li>
+<li><a href="usage-testing.html">In your test suite</a></li>
+<li><a href="python-api.html">Python API<span class="tag">beta</span></a></li>
+<li><a href="usage-scan.html">guardana scan</a></li>
+<li><a href="usage-probe.html">guardana probe</a></li>
+</ul>
+<h2>Run and policy</h2><ul>
+<li><a href="safe-testing.html">Safe active testing</a></li>
+<li><a href="usage-recipe.html" aria-current="page">guardana recipe<span class="tag">beta</span></a></li>
+<li><a href="usage-doctor.html">guardana doctor</a></li>
+<li><a href="usage-target.html">guardana target inspect</a></li>
+<li><a href="providers.html">Providers</a></li>
+<li><a href="usage-plan.html">guardana plan</a></li>
+<li><a href="exit-codes.html">Exit codes</a></li>
+<li><a href="profiles.html">Profiles — guardana.yaml</a></li>
+</ul>
+<h2>Evidence and regression</h2><ul>
+<li><a href="usage-baseline.html">guardana baseline</a></li>
+<li><a href="usage-diff.html">guardana diff</a></li>
+<li><a href="usage-monitor.html">guardana monitor</a></li>
+<li><a href="usage-run.html">guardana run</a></li>
+<li><a href="usage-calibrate.html">guardana calibrate</a></li>
+<li><a href="usage-suites.html">Quality suites<span class="tag">beta</span></a></li>
+<li><a href="privacy.html">Evidence and redaction</a></li>
+</ul>
+<h2>Recorded applications</h2><ul>
+<li><a href="usage-analyze-trace.html">guardana analyze-trace</a></li>
+<li><a href="usage-grade.html">guardana grade<span class="tag">beta</span></a></li>
+<li><a href="usage-trace-inspect.html">guardana trace inspect</a></li>
+<li><a href="usage-contracts.html">Security contracts</a></li>
+<li><a href="usage-import-observations.html">guardana import-observations</a></li>
+<li><a href="writing-an-integrator.html">Writing an integrator<span class="tag">beta</span></a></li>
+</ul>
+<h2>Rules and extensions</h2><ul>
+<li><a href="usage-rules.html">guardana rules</a></li>
+<li><a href="usage-taxonomy.html">guardana taxonomy</a></li>
+<li><a href="writing-rules.html">Writing rules</a></li>
+<li><a href="usage-rule-test.html">guardana rule test</a></li>
+<li><a href="usage-new-pack.html">guardana new-pack</a></li>
+<li><a href="usage-pack.html">guardana pack</a></li>
+<li><a href="extending.html">Extending Guardana</a></li>
+<li><a href="model-formats.html">Reading model formats</a></li>
+</ul>
+<h2>Collector and deployment</h2><ul>
+<li><a href="integrations.html">CI and pre-commit</a></li>
+<li><a href="deployment.html">Deploying the collector<span class="tag">beta</span></a></li>
+<li><a href="usage-collector.html">The collector<span class="tag">beta</span></a></li>
+</ul>
+<h2>Architecture and security</h2><ul>
+<li><a href="product-status.html">Product status</a></li>
+<li><a href="threat-model.html">Threat model</a></li>
+<li><a href="architecture.html">Architecture</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="rules/index.html">Rule explorer</a></li>
+<li><a href="generated/rule-summary.html">Rule summary</a></li>
+<li><a href="generated/rule-catalog.html">Rule catalog</a></li>
+<li><a href="generated/evaluator-catalog.html">Evaluator catalog</a></li>
+<li><a href="generated/taxonomy-coverage.html">Taxonomy coverage</a></li>
+<li><a href="generated/detection-limits.html">Detection limits</a></li>
+<li><a href="generated/first-run.html">First-run measure</a></li>
+</ul>
+<h2>Design documents</h2><ul>
+<li><a href="design/README.html">How these are written</a></li>
+</ul>
+<h2>Project direction</h2><ul>
+<li><a href="design/guardana-and-control.html">Guardana and Guardana Control<span class="tag">accepted</span></a></li>
+<li><a href="design/non-executing-packs.html">Non-executing packs and the default plugin trust<span class="tag">accepted</span></a></li>
+<li><a href="design/audit-0.31-direction.html">Direction audit after 0.31<span class="tag">accepted</span></a></li>
+</ul>
+<h2>Maintainers</h2><ul>
+<li><a href="maintainers/github-setup.html">GitHub repository setup</a></li>
+<li><a href="maintainers/ops-catalogue.html">Operations catalogue</a></li>
+<li><a href="maintainers/lessons.html">Lessons</a></li>
+<li><a href="maintainers/first-run-study.html">First-run study</a></li>
+</ul>
+<h2>Also here</h2><ul>
+<li><a href="design/trace-domain-model.html">The Trace domain model<span class="tag">implemented</span></a></li>
+<li><a href="design/trace-producer.html">Producing a trace<span class="tag">implemented</span></a></li>
+<li><a href="design/framework-adapters.html">Framework adapters<span class="tag">implemented</span></a></li>
+<li><a href="design/assessment-channel.html">The assessment channel<span class="tag">implemented</span></a></li>
+<li><a href="design/capability-protocols.html">Capability protocols<span class="tag">implemented</span></a></li>
+<li><a href="design/security-contracts.html">Security contracts<span class="tag">implemented</span></a></li>
+<li><a href="design/mcp-protocol-eras.html">MCP has two eras<span class="tag">implemented</span></a></li>
+<li><a href="design/mcp-authorization-depth.html">MCP authorization depth<span class="tag">implemented</span></a></li>
+<li><a href="design/taxonomy-editions.html">Taxonomy editions<span class="tag">implemented</span></a></li>
+<li><a href="design/extension-author-tooling.html">Extension author tooling<span class="tag">implemented</span></a></li>
+<li><a href="design/target-locators.html">Target locators<span class="tag">implemented</span></a></li>
+<li><a href="design/output-plugins.html">Output plugins<span class="tag">proposed</span></a></li>
+<li><a href="design/quality-suites.html">Quality suites<span class="tag">implemented</span></a></li>
+<li><a href="design/paired-regression-statistics.html">Paired regression statistics<span class="tag">proposed</span></a></li>
+<li><a href="design/attack-techniques.html">Attack techniques<span class="tag">proposed</span></a></li>
+<li><a href="design/namespaced-extension-ids.html">Namespaced extension ids<span class="tag">proposed</span></a></li>
+<li><a href="design/declarative-fixtures.html">Declarative fixtures for scenarios and agent runs<span class="tag">implemented</span></a></li>
+<li><a href="design/pack-scaffolding.html">Scaffolding a pack<span class="tag">implemented</span></a></li>
+<li><a href="design/repeated-trials.html">Repeated trials<span class="tag">implemented</span></a></li>
+<li><a href="design/documentation-site.html">A documentation site<span class="tag">implemented</span></a></li>
+<li><a href="design/judge-error-correction.html">Judge error in a measured rate<span class="tag">implemented</span></a></li>
+<li><a href="design/regrading-stored-exchanges.html">Re-grading stored exchanges<span class="tag">superseded</span></a></li>
+<li><a href="design/anytime-valid-monitoring.html">Anytime-valid monitoring<span class="tag">proposed</span></a></li>
+<li><a href="design/recorded-answers.html">Recorded answers and regrading<span class="tag">accepted</span></a></li>
+<li><a href="design/team-recipes.html">Repository recipes, one connection and provider conformance<span class="tag">accepted</span></a></li>
+<li><a href="design/run-manifest-v2.html">Run manifest v2<span class="tag">implemented</span></a></li>
+<li><a href="design/privacy-and-redaction.html">Privacy and redaction<span class="tag">implemented</span></a></li>
+<li><a href="design/exit-codes.html">Exit codes and gate semantics<span class="tag">implemented</span></a></li>
+<li><a href="design/collector-persistence.html">Collector persistence<span class="tag">implemented</span></a></li>
+<li><a href="design/collector-tenancy.html">Collector tenancy<span class="tag">implemented</span></a></li>
+<li><a href="design/ai-systems-and-deployments.html">AI systems and deployments<span class="tag">implemented</span></a></li>
+<li><a href="design/collector-runs-and-findings.html">Runs and findings<span class="tag">implemented</span></a></li>
+<li><a href="design/finding-lifecycle-and-waivers.html">Finding lifecycle and waivers<span class="tag">implemented</span></a></li>
+<li><a href="design/audit-retention-and-deletion.html">Audit, retention and deletion<span class="tag">implemented</span></a></li>
+<li><a href="design/panel-sessions.html">Panel sessions<span class="tag">implemented</span></a></li>
+</ul>
+</nav>
+<details class="mnav">
+<summary>Menu · <b>guardana recipe</b></summary>
+<nav class="inner" aria-label="Documentation">
+<ul class="home"><li><a href="index.html">Overview</a></li></ul>
+<h2>First run</h2><ul>
+<li><a href="usage-init.html">guardana init</a></li>
+<li><a href="recipe-local-scan.html">Recipe: scan your own project</a></li>
+<li><a href="recipe-recorded-answers.html">Recipe: check a run your application recorded</a></li>
+<li><a href="recipe-real-application.html">Recipe: probe your real application</a></li>
+<li><a href="how-it-works.html">How Guardana works</a></li>
+<li><a href="install.html">Installing</a></li>
+<li><a href="usage-testing.html">In your test suite</a></li>
+<li><a href="python-api.html">Python API<span class="tag">beta</span></a></li>
+<li><a href="usage-scan.html">guardana scan</a></li>
+<li><a href="usage-probe.html">guardana probe</a></li>
+</ul>
+<h2>Run and policy</h2><ul>
+<li><a href="safe-testing.html">Safe active testing</a></li>
+<li><a href="usage-recipe.html" aria-current="page">guardana recipe<span class="tag">beta</span></a></li>
+<li><a href="usage-doctor.html">guardana doctor</a></li>
+<li><a href="usage-target.html">guardana target inspect</a></li>
+<li><a href="providers.html">Providers</a></li>
+<li><a href="usage-plan.html">guardana plan</a></li>
+<li><a href="exit-codes.html">Exit codes</a></li>
+<li><a href="profiles.html">Profiles — guardana.yaml</a></li>
+</ul>
+<h2>Evidence and regression</h2><ul>
+<li><a href="usage-baseline.html">guardana baseline</a></li>
+<li><a href="usage-diff.html">guardana diff</a></li>
+<li><a href="usage-monitor.html">guardana monitor</a></li>
+<li><a href="usage-run.html">guardana run</a></li>
+<li><a href="usage-calibrate.html">guardana calibrate</a></li>
+<li><a href="usage-suites.html">Quality suites<span class="tag">beta</span></a></li>
+<li><a href="privacy.html">Evidence and redaction</a></li>
+</ul>
+<h2>Recorded applications</h2><ul>
+<li><a href="usage-analyze-trace.html">guardana analyze-trace</a></li>
+<li><a href="usage-grade.html">guardana grade<span class="tag">beta</span></a></li>
+<li><a href="usage-trace-inspect.html">guardana trace inspect</a></li>
+<li><a href="usage-contracts.html">Security contracts</a></li>
+<li><a href="usage-import-observations.html">guardana import-observations</a></li>
+<li><a href="writing-an-integrator.html">Writing an integrator<span class="tag">beta</span></a></li>
+</ul>
+<h2>Rules and extensions</h2><ul>
+<li><a href="usage-rules.html">guardana rules</a></li>
+<li><a href="usage-taxonomy.html">guardana taxonomy</a></li>
+<li><a href="writing-rules.html">Writing rules</a></li>
+<li><a href="usage-rule-test.html">guardana rule test</a></li>
+<li><a href="usage-new-pack.html">guardana new-pack</a></li>
+<li><a href="usage-pack.html">guardana pack</a></li>
+<li><a href="extending.html">Extending Guardana</a></li>
+<li><a href="model-formats.html">Reading model formats</a></li>
+</ul>
+<h2>Collector and deployment</h2><ul>
+<li><a href="integrations.html">CI and pre-commit</a></li>
+<li><a href="deployment.html">Deploying the collector<span class="tag">beta</span></a></li>
+<li><a href="usage-collector.html">The collector<span class="tag">beta</span></a></li>
+</ul>
+<h2>Architecture and security</h2><ul>
+<li><a href="product-status.html">Product status</a></li>
+<li><a href="threat-model.html">Threat model</a></li>
+<li><a href="architecture.html">Architecture</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="rules/index.html">Rule explorer</a></li>
+<li><a href="generated/rule-summary.html">Rule summary</a></li>
+<li><a href="generated/rule-catalog.html">Rule catalog</a></li>
+<li><a href="generated/evaluator-catalog.html">Evaluator catalog</a></li>
+<li><a href="generated/taxonomy-coverage.html">Taxonomy coverage</a></li>
+<li><a href="generated/detection-limits.html">Detection limits</a></li>
+<li><a href="generated/first-run.html">First-run measure</a></li>
+</ul>
+<h2>Design documents</h2><ul>
+<li><a href="design/README.html">How these are written</a></li>
+</ul>
+<h2>Project direction</h2><ul>
+<li><a href="design/guardana-and-control.html">Guardana and Guardana Control<span class="tag">accepted</span></a></li>
+<li><a href="design/non-executing-packs.html">Non-executing packs and the default plugin trust<span class="tag">accepted</span></a></li>
+<li><a href="design/audit-0.31-direction.html">Direction audit after 0.31<span class="tag">accepted</span></a></li>
+</ul>
+<h2>Maintainers</h2><ul>
+<li><a href="maintainers/github-setup.html">GitHub repository setup</a></li>
+<li><a href="maintainers/ops-catalogue.html">Operations catalogue</a></li>
+<li><a href="maintainers/lessons.html">Lessons</a></li>
+<li><a href="maintainers/first-run-study.html">First-run study</a></li>
+</ul>
+<h2>Also here</h2><ul>
+<li><a href="design/trace-domain-model.html">The Trace domain model<span class="tag">implemented</span></a></li>
+<li><a href="design/trace-producer.html">Producing a trace<span class="tag">implemented</span></a></li>
+<li><a href="design/framework-adapters.html">Framework adapters<span class="tag">implemented</span></a></li>
+<li><a href="design/assessment-channel.html">The assessment channel<span class="tag">implemented</span></a></li>
+<li><a href="design/capability-protocols.html">Capability protocols<span class="tag">implemented</span></a></li>
+<li><a href="design/security-contracts.html">Security contracts<span class="tag">implemented</span></a></li>
+<li><a href="design/mcp-protocol-eras.html">MCP has two eras<span class="tag">implemented</span></a></li>
+<li><a href="design/mcp-authorization-depth.html">MCP authorization depth<span class="tag">implemented</span></a></li>
+<li><a href="design/taxonomy-editions.html">Taxonomy editions<span class="tag">implemented</span></a></li>
+<li><a href="design/extension-author-tooling.html">Extension author tooling<span class="tag">implemented</span></a></li>
+<li><a href="design/target-locators.html">Target locators<span class="tag">implemented</span></a></li>
+<li><a href="design/output-plugins.html">Output plugins<span class="tag">proposed</span></a></li>
+<li><a href="design/quality-suites.html">Quality suites<span class="tag">implemented</span></a></li>
+<li><a href="design/paired-regression-statistics.html">Paired regression statistics<span class="tag">proposed</span></a></li>
+<li><a href="design/attack-techniques.html">Attack techniques<span class="tag">proposed</span></a></li>
+<li><a href="design/namespaced-extension-ids.html">Namespaced extension ids<span class="tag">proposed</span></a></li>
+<li><a href="design/declarative-fixtures.html">Declarative fixtures for scenarios and agent runs<span class="tag">implemented</span></a></li>
+<li><a href="design/pack-scaffolding.html">Scaffolding a pack<span class="tag">implemented</span></a></li>
+<li><a href="design/repeated-trials.html">Repeated trials<span class="tag">implemented</span></a></li>
+<li><a href="design/documentation-site.html">A documentation site<span class="tag">implemented</span></a></li>
+<li><a href="design/judge-error-correction.html">Judge error in a measured rate<span class="tag">implemented</span></a></li>
+<li><a href="design/regrading-stored-exchanges.html">Re-grading stored exchanges<span class="tag">superseded</span></a></li>
+<li><a href="design/anytime-valid-monitoring.html">Anytime-valid monitoring<span class="tag">proposed</span></a></li>
+<li><a href="design/recorded-answers.html">Recorded answers and regrading<span class="tag">accepted</span></a></li>
+<li><a href="design/team-recipes.html">Repository recipes, one connection and provider conformance<span class="tag">accepted</span></a></li>
+<li><a href="design/run-manifest-v2.html">Run manifest v2<span class="tag">implemented</span></a></li>
+<li><a href="design/privacy-and-redaction.html">Privacy and redaction<span class="tag">implemented</span></a></li>
+<li><a href="design/exit-codes.html">Exit codes and gate semantics<span class="tag">implemented</span></a></li>
+<li><a href="design/collector-persistence.html">Collector persistence<span class="tag">implemented</span></a></li>
+<li><a href="design/collector-tenancy.html">Collector tenancy<span class="tag">implemented</span></a></li>
+<li><a href="design/ai-systems-and-deployments.html">AI systems and deployments<span class="tag">implemented</span></a></li>
+<li><a href="design/collector-runs-and-findings.html">Runs and findings<span class="tag">implemented</span></a></li>
+<li><a href="design/finding-lifecycle-and-waivers.html">Finding lifecycle and waivers<span class="tag">implemented</span></a></li>
+<li><a href="design/audit-retention-and-deletion.html">Audit, retention and deletion<span class="tag">implemented</span></a></li>
+<li><a href="design/panel-sessions.html">Panel sessions<span class="tag">implemented</span></a></li>
+</ul>
+</nav>
+</details>
+<main>
+<h1><code>guardana recipe</code> — the same checks against your application, every time<span class="status beta">beta</span></h1><p class="lede"><code>guardana recipe lock|run</code>: a repository recipe that pins what a team's checks are, refuses a run whose pins moved, and leaves one reviewable directory</p><p>A recipe is a file in your repository that names the profile your checks come from and what
+answers them. <code>guardana recipe lock</code> pins what those checks are; <code>guardana recipe run</code> refuses
+to send anything when a pin moved, runs otherwise, and writes one directory a reviewer opens.</p>
+<pre><code class="language-bash">guardana recipe lock                 # write guardana-recipe.lock.yaml; review and commit it
+guardana recipe lock --check         # in CI: fail when a pin moved, without writing
+guardana recipe run                  # check the pins, run, write the artifact directory
+</code></pre>
+<p>Each command reads <code>./guardana-recipe.yaml</code> unless you name another recipe file.</p>
+<h2 id="the-recipe">The recipe</h2>
+<p>You write the recipe; Guardana never rewrites it.</p>
+<pre><code class="language-yaml">schema_version: 1
+name: support-bot
+profile: guardana.yaml
+subject:
+  kind: application
+  connection:
+    url: http://127.0.0.1:8080
+    model: support-bot
+    api_key_env: SUPPORT_BOT_KEY
+deployment:
+  ai_system: support-bot
+  environment: ci
+output:
+  directory: guardana-artifact
+  exchanges: false
+</code></pre>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Required</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>schema_version</code></td>
+<td>yes</td>
+<td><code>1</code>. A newer version is refused with &quot;upgrade Guardana&quot;.</td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>yes</td>
+<td>The recipe's name, recorded in the run.</td>
+</tr>
+<tr>
+<td><code>profile</code></td>
+<td>yes</td>
+<td>The <code>guardana.yaml</code> the checks come from, beside the recipe.</td>
+</tr>
+<tr>
+<td><code>subject.kind</code></td>
+<td>yes</td>
+<td>What answers: <code>application</code> or <code>model_harness</code>. No default.</td>
+</tr>
+<tr>
+<td><code>subject.connection</code></td>
+<td>one of the two</td>
+<td><code>url</code>, <code>model</code>, and optionally <code>provider</code>, <code>api_key_env</code>, <code>adapter</code>, <code>system_prompt_file</code>, with the meanings <code>guardana probe</code> gives the same flags.</td>
+</tr>
+<tr>
+<td><code>subject.recording</code></td>
+<td>one of the two</td>
+<td>A recording to grade, as <code>guardana grade</code> reads it. Nothing is sent to the application.</td>
+</tr>
+<tr>
+<td><code>deployment</code></td>
+<td>no</td>
+<td><code>ai_system</code>, <code>environment</code>, <code>deployment_id</code>, as the <code>probe</code> flags of the same names.</td>
+</tr>
+<tr>
+<td><code>output.directory</code></td>
+<td>no</td>
+<td>The artifact directory, a subdirectory beside the recipe. Default <code>guardana-artifact</code>.</td>
+</tr>
+<tr>
+<td><code>output.exchanges</code></td>
+<td>no</td>
+<td><code>true</code> puts the replies the profile keeps into the artifact. Default <code>false</code>.</td>
+</tr>
+</tbody>
+</table></div>
+<p>Unknown keys are refused. Relative paths are read beside the recipe.</p>
+<p><strong>Say what answers.</strong> <code>application</code> is the endpoint your users reach, run in CI with your own
+fixtures or test doubles behind it. <code>model_harness</code> is a model reached without your
+application's prompt, tools and data: a result about the model, not about what your users
+talk to. Guardana cannot tell the two apart from a URL, so it records what the recipe declares
+and shows it in the run, the terminal report, the JUnit suite name, <code>run inspect</code> and <code>diff</code>.</p>
+<h2 id="the-lock">The lock</h2>
+<p><code>guardana recipe lock</code> builds the plan of the recipe's run without sending a request and
+without reading a key, and writes <code>guardana-recipe.lock.yaml</code> beside the recipe. It pins:</p>
+<ul>
+<li>the recipe (its parsed content, so a comment does not count), the Guardana version and the
+plugin trust in force;</li>
+<li>the profile's digest;</li>
+<li>every selected rule's digest, which for a quality suite covers its dataset, with the
+distribution and version that registered it and its trials per case;</li>
+<li>every evaluator a selected rule grades with: who registered it, its judge identity and the
+calibration in force for it;</li>
+<li>every rule the configuration skips, by reason;</li>
+<li>the adapter file the connection names, as written, and the text of its system-prompt file.</li>
+</ul>
+<p>It never pins a key or the recording: the recording is your application's answer, not your
+configuration. A rule or evaluator from a distribution installed in editable mode or from a
+direct URL can change its code under one version, so it is listed under <code>unpinned</code>.</p>
+<h2 id="exit-codes">Exit codes</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Situation</th>
+<th><code>recipe lock</code></th>
+<th><code>recipe lock --check</code></th>
+<th><code>recipe run</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>written, or every pin holds</td>
+<td><code>0</code></td>
+<td><code>0</code></td>
+<td>the run's own code</td>
+</tr>
+<tr>
+<td>a pin moved</td>
+<td>—</td>
+<td><code>1</code></td>
+<td><code>3</code>, nothing sent</td>
+</tr>
+<tr>
+<td>something selected is <code>unpinned</code></td>
+<td><code>2</code>, written</td>
+<td><code>2</code></td>
+<td>runs, and the run records what is unpinned</td>
+</tr>
+<tr>
+<td>nothing selected, plugin trust refused an installed extension, or a selected check would not grade (a rule file that did not load, an evaluator nobody registered)</td>
+<td><code>2</code>, nothing written</td>
+<td><code>2</code></td>
+<td><code>3</code> (the lock cannot match)</td>
+</tr>
+<tr>
+<td>recipe or lock missing, unreadable, or from a newer Guardana</td>
+<td><code>3</code></td>
+<td><code>3</code></td>
+<td><code>3</code></td>
+</tr>
+</tbody>
+</table></div>
+<p><code>--check</code> never writes, so a first run cannot pass by creating its own lock. <code>recipe run</code>
+sends nothing until the pins hold; then the run's gate decides its exit code as it does for
+<code>probe</code> and <code>grade</code>. A drifted pin is named by kind, both directions — <code>rule_changed</code>,
+<code>rule_added</code>, <code>rule_removed</code>, <code>judge_changed</code>, <code>calibration_changed</code>, <code>profile_changed</code>,
+<code>trust_changed</code>, <code>guardana_changed</code>, <code>recipe_changed</code>, <code>distribution_changed</code>,
+<code>skip_changed</code>, <code>trials_changed</code>, <code>subject_file_changed</code>, <code>evaluator_added</code>,
+<code>evaluator_removed</code>. Review the change, then run <code>guardana recipe lock</code> again.</p>
+<p><code>recipe run</code> takes no selection, trust, trials or profile flags: those are what the lock pins.</p>
+<p>Every rule the lock pins must run to completion. One that the run skips — a recording that
+holds no answer for it is the usual cause — that errors or that is never reached is a
+<code>demanded_check</code> coverage shortfall: the run is <code>indeterminate</code> (exit <code>2</code>) unless a finding
+fails it, whatever the profile's <code>fail_on_*</code> switches say.</p>
+<p>Before it sends anything, <code>recipe run</code> also checks what the lock does not cover: the
+subject's key variable and every judge's key variable must be set, and an adapter file read
+again to send must still have the digest the lock holds. Each refusal exits <code>3</code> and is
+written into the artifact. When the lock lists unpinned checks, the run says so on stderr,
+at the end of <code>report.txt</code> and in <code>guardana run inspect</code>.</p>
+<h2 id="the-artifact">The artifact</h2>
+<p><code>recipe run</code> claims <code>output.directory</code> before it starts: it writes a <code>junit.xml</code> with one
+error (&quot;the run did not finish&quot;) and a <code>report.txt</code> saying so. When the run ends it replaces
+the directory whole. An interrupted run leaves the placeholder; a refused run writes the
+refusal into the same two files. A CI step that uploads the directory therefore never shows an
+earlier run's green.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>File</th>
+<th>What it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>run.json</code></td>
+<td>the saved run, with <code>run.recipe</code> (name, recipe and lock digests, kind, source, unpinned)</td>
+</tr>
+<tr>
+<td><code>report.txt</code></td>
+<td>the terminal report without colour, then the lock comparison</td>
+</tr>
+<tr>
+<td><code>junit.xml</code></td>
+<td>the JUnit report; its suite is named after the subject kind</td>
+</tr>
+<tr>
+<td><code>guardana-recipe.yaml</code>, <code>guardana-recipe.lock.yaml</code></td>
+<td>the recipe and the lock the run held</td>
+</tr>
+<tr>
+<td><code>run.exchanges.jsonl</code></td>
+<td>only when the profile keeps exchanges and <code>output.exchanges</code> is <code>true</code></td>
+</tr>
+<tr>
+<td><code>guardana-artifact.json</code></td>
+<td>the files above; it marks the directory as one a run may replace</td>
+</tr>
+</tbody>
+</table></div>
+<p>An existing directory holding a file that <code>guardana-artifact.json</code> does not list is refused, never deleted. A recipe that cannot be read marks as refused the artifact directory it names, or <code>guardana-artifact</code> beside it when even that cannot be read, if an earlier run wrote one there; it creates none. A recipe so broken that it no longer names its directory can leave an earlier run in a custom directory, so treat the command's exit code as the verdict, not the directory alone. A
+profile that keeps exchanges without <code>output.exchanges: true</code> is refused: a CI artifact is a
+copy of your application's replies that nobody controls.</p>
+
+</main>
+</div>
+<footer class="foot"><div class="bar">
+<span class="who">Guardana 0.35.0 · Apache-2.0 ·
+maintained by Konrad Karauda</span>
+<a href="https://github.com/guardana/guardana/blob/main/docs/usage-recipe.md">Edit this page on GitHub</a>
+<a href="https://github.com/guardana/guardana">github.com/guardana</a>
+<a href="../llms.txt">llms.txt</a>
+</div></footer>
+</body>
+</html>
