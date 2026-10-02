@@ -55,6 +55,21 @@ def test_a_newline_from_the_target_cannot_forge_a_report_line() -> None:
     assert "\\nline" in rendered
 
 
+@pytest.mark.parametrize("code", [0x202E, 0x202A, 0x2066, 0x2069, 0x200F, 0x061C, 0x2028])
+def test_a_bidirectional_override_or_unicode_line_break_is_shown_escaped(code: int) -> None:
+    """An override can make a finding read in an order the target did not write it in."""
+    rendered = get_renderer("human").render(_result(f"safe{chr(code)}lmth.exe"))
+
+    assert chr(code) not in rendered
+    assert f"safe\\u{code:04x}lmth.exe" in rendered
+
+
+def test_letters_outside_ascii_are_printed_as_they_are() -> None:
+    text = "za\u017c\u00f3\u0142\u0107 \u05de\u05e4\u05ea\u05d7 \u9375"
+
+    assert text in get_renderer("human").render(_result(text))
+
+
 def test_the_terminal_report_keeps_its_own_layout() -> None:
     rendered = get_renderer("human").render(_result("plain"))
 

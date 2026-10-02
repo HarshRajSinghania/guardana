@@ -154,8 +154,6 @@ Reproduced, deliberately not fixed in this pass, or found while fixing.
   documented contract of their own (`docs/usage-collector.md`), so changing them is a decision.
 - **`/stats` drops a source whose submissions all fall outside the newest 1,000** from
   `by_source`, critical ones included; only the submissions tile says the window was cut.
-- **Bidirectional controls (U+202E and friends) pass through the terminal escaping**, which
-  covers C0 and C1 only (`report/_text.py`).
 - **The pickle allowlist names exact callables**, so a legitimate pickle that rebuilds
   something else (numpy's random state, a scikit-learn estimator) is a finding; widen it only
   with a callable that cannot run code.
