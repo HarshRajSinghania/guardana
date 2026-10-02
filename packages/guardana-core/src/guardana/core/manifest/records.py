@@ -581,6 +581,13 @@ class EvaluatorRecord:
     judge grading old replies reads as a grading change, never as the system changing.
     """
 
+    deterministic: bool = False
+    """Whether the evaluator declares its verdict a fact read off the exchange.
+
+    Such an evaluator has no error rate to measure, so a missing calibration is not a
+    missing measurement. False for one that says nothing, which is read as a judge.
+    """
+
 
 _SHA256 = re.compile(r"sha256:[0-9a-f]{64}")
 

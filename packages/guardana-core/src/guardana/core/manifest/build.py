@@ -153,9 +153,15 @@ def _evaluator_records(
             id=evaluator_id,
             calibration=(measured[evaluator_id].as_record() if evaluator_id in measured else None),
             judge=_stated_judge(registered.get(evaluator_id)),
+            deterministic=_declared_deterministic(registered.get(evaluator_id)),
         )
         for evaluator_id in sorted(declared)
     )
+
+
+def _declared_deterministic(evaluator: Evaluator | None) -> bool:
+    """Return whether a registered evaluator declares itself deterministic; False for none."""
+    return evaluator is not None and evaluator.deterministic is True
 
 
 def _stated_judge(evaluator: Evaluator | None) -> str | None:

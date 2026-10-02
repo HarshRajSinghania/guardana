@@ -41,10 +41,9 @@ exit they close themselves.
 
 `open_doubles` fails the application at startup, before anything is served, when:
 
-- the fixtures file does not load (`FixturesError`, from `guardana.core.fixtures`);
+- the fixtures file does not load (`FixturesError`, from `guardana.core.fixtures`), a tool's
+  `sink` that a trace does not record included;
 - the file declares no `tools:` (`DoublesError`);
-- a tool's `sink` is not one a trace records: `sql`, `shell`, `filesystem`, `http`,
-  `messaging`, `email`, `payment`, `cloud_api`, `code_execution` or `other`;
 - the trace path already exists. A file left by an earlier job, or one another process is
   writing, is never continued: give every job a fresh path.
 

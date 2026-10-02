@@ -684,7 +684,8 @@
               "version",
               "digest",
               "calibration",
-              "judge"
+              "judge",
+              "deterministic"
             ],
             "additionalProperties": false,
             "properties": {
@@ -820,6 +821,10 @@
                   "string",
                   "null"
                 ]
+              },
+              "deterministic": {
+                "description": "Whether the evaluator declares its verdict a fact read off the exchange, so it has no error rate to measure. False for one that says nothing, and for every evaluator of a run migrated from schema 14.",
+                "type": "boolean"
               }
             }
           }

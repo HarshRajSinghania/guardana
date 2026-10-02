@@ -374,8 +374,11 @@ and the rest — accept only the keys <code>schemas/trace-v3.schema.json</code> 
 stops the read with exit <code>3</code>. A misspelled <code>aprovals:</code> would leave the approval dimension
 declared and empty; a misspelled <code>aprover</code> or a part written <code>{&quot;type&quot;: &quot;text&quot;, &quot;text&quot;: …}</code>
 would read as a missing value. Either way a rule grades nothing, or accuses a system that
-did nothing wrong. The <code>otel</code> dialect stays tolerant, because an OpenTelemetry span
-carries attributes from other domains.</p>
+did nothing wrong. The shapes are held the same way: a value where the schema has an object,
+a list or a list of strings must be one, every item of <code>messages</code>, <code>approvals</code>, <code>effects</code>
+and the other lists must be an object, and every part names its <code>type</code>. <code>&quot;approvals&quot;: {…}</code> or a bare-string part stops the read naming the span, rather than reading as no
+approvals or as text nobody typed. The <code>otel</code> dialect stays tolerant, because an
+OpenTelemetry span carries attributes from other domains.</p>
 <p><strong>Credentials are named, never carried.</strong> Write a <code>digest</code> if you have one. If you write a
 <code>value</code>, Guardana hashes it on read and keeps only the hash — the model has no field to
 put a token in. Nothing here reaches a report at any privacy level.</p>

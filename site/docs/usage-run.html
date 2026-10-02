@@ -433,9 +433,12 @@ kept beside the run, <code>run.recording</code>, the recording a graded run answ
 measured, and the <code>not_recorded</code> skip reason. Version 14 records <code>run.recipe</code>, the recipe a
 run was started from and the subject it declared, <code>run.configuration.provider</code>, the provider
 wire the run spoke, and the <code>incomplete_recording</code> and <code>demanded_check</code> coverage shortfalls.
-Version 15 records <code>run.fixtures</code>, the fixtures file a run was given, and the
+Version 15 records <code>run.fixtures</code>, the fixtures file a run was given, the
 <code>seed_not_reached</code> coverage shortfall: a seeded item whose control returned no marker for a
-tenant.</p>
+tenant, and <code>run.evaluators[].deterministic</code>, whether an evaluator declares its verdict a
+fact with no error rate to measure. A version-14 run reads every evaluator as not
+deterministic. <code>run inspect</code> prints <code>deterministic — no error rate</code> for such an evaluator
+under <code>graded by:</code>, and <code>confidence not measured</code> for a judge with no calibration.</p>
 <p>Top level:</p>
 <div class="table-wrap"><table>
 <thead>
@@ -514,7 +517,7 @@ tenant.</p>
 </tr>
 <tr>
 <td><code>rules</code> / <code>evaluators</code></td>
-<td>what did the checking, with digests, declared request counts, a <code>trial_summary</code> for each rule that repeated, a <code>suite</code> summary for each quality suite, calibration, and <code>judge</code>: the identity a judge states (its model, endpoint and samples per verdict), <code>null</code> for a deterministic evaluator or when unstated. A suite the budget stopped or that raised is listed with its declined summary, though not in <code>result_summary.rules_run</code></td>
+<td>what did the checking, with digests, declared request counts, a <code>trial_summary</code> for each rule that repeated, a <code>suite</code> summary for each quality suite, calibration, <code>judge</code>: the identity a judge states (its model, endpoint and samples per verdict), <code>null</code> for a deterministic evaluator or when unstated, and <code>deterministic</code>. A suite the budget stopped or that raised is listed with its declined summary, though not in <code>result_summary.rules_run</code></td>
 </tr>
 <tr>
 <td><code>coverage</code></td>

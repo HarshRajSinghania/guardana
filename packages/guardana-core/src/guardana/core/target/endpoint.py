@@ -35,6 +35,8 @@ _ALLOWED_SCHEMES = frozenset({"http", "https"})
 # more now that rules can run concurrently.
 _RETRY_STATUSES = frozenset({429, 500, 502, 503, 504})
 _MAX_ATTEMPTS = 3
+RETRIES_PER_REQUEST = _MAX_ATTEMPTS - 1
+"""How many times one request is sent again at most; each retry counts as a request."""
 _BACKOFF_BASE_SECONDS = 0.5
 # A server answering `Retry-After: 86400` must not be able to park a scan for a
 # day, so its request to wait is honoured only up to this bound.

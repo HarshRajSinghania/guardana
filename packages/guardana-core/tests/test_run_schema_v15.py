@@ -1,7 +1,9 @@
-"""Run schema 15 records the fixtures file a run was given and the `seed_not_reached` shortfall.
+"""Run schema 15 records the fixtures file a run was given, the `seed_not_reached` shortfall
+and whether each evaluator is deterministic.
 
 A version-14 run arrives with `fixtures` null: no version-14 build took a fixtures file,
-so the run was given none.
+so the run was given none. Its evaluators arrive not deterministic, as an evaluator that
+says nothing is read.
 """
 
 import copy
@@ -22,7 +24,7 @@ from _documents import (
     saved_run_at_v14,
     scan_result,
 )
-from guardana.core.manifest import FixturesRecord
+from guardana.core.manifest import EvaluatorRecord, FixturesRecord
 from guardana.core.manifest.load import ManifestLoadError, manifest_from_dict
 from guardana.core.manifest.migrations import migrate_v14
 from guardana.core.manifest.serialize import manifest_to_dict
@@ -165,6 +167,52 @@ _RUN_BREAKAGES: dict[str, Callable[[dict[str, Any]], None]] = {
     "fixtures markers missing": lambda run: run["fixtures"].pop("markers"),
     "fixtures markers zero": lambda run: run["fixtures"].update(markers=0),
 }
+
+
+def test_whether_an_evaluator_is_deterministic_survives_being_saved_and_read_back() -> None:
+    manifest = run_manifest()
+    deterministic = replace(
+        manifest,
+        evaluators=(
+            *manifest.evaluators,
+            EvaluatorRecord(id="tools_called", version="1", deterministic=True),
+        ),
+    )
+
+    written = run_to_dict(scan_result(), deterministic)
+
+    assert not _errors(written)
+    assert [e["deterministic"] for e in _run(written)["evaluators"]] == [False, True]
+    assert manifest_from_dict(manifest_to_dict(deterministic)) == deterministic
+
+
+_EVALUATOR_BREAKAGES: dict[str, Callable[[dict[str, Any]], None]] = {
+    "deterministic missing": lambda evaluator: evaluator.pop("deterministic"),
+    "deterministic a string": lambda evaluator: evaluator.update(deterministic="yes"),
+    "deterministic null": lambda evaluator: evaluator.update(deterministic=None),
+}
+
+
+@pytest.mark.parametrize("breakage", _EVALUATOR_BREAKAGES)
+def test_the_loader_and_the_schema_refuse_the_same_malformed_deterministic_field(
+    breakage: str,
+) -> None:
+    document = _document()
+    _EVALUATOR_BREAKAGES[breakage](_run(document)["evaluators"][0])
+
+    with pytest.raises(ManifestLoadError, match="deterministic"):
+        manifest_from_dict(document["run"])
+    assert _errors(document), f"the v15 schema accepts {breakage}, which the loader refuses"
+
+
+def test_a_v14_run_reads_every_evaluator_as_not_deterministic() -> None:
+    """No version-14 build recorded it, and a judge is what an evaluator that says nothing is."""
+    v14 = saved_run_at_v14(_document())
+
+    migrated = migrate_v14(v14)
+
+    assert all("deterministic" not in e for e in _run(v14)["evaluators"])
+    assert [e["deterministic"] for e in _run(migrated)["evaluators"]] == [False]
 
 
 @pytest.mark.parametrize("breakage", _RUN_BREAKAGES)

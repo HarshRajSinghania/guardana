@@ -69,20 +69,28 @@ evidence to pass it:
 - two tenants with the same credentials: the application would see one tenant;
 - two documents with the same topic, compared without case and punctuation: a question
   about one would retrieve both;
-- a change or send tool without `sink` and `reversible`;
+- a change or send tool without `sink` and `reversible`, or with a `sink` a trace does not
+  record: `sql`, `shell`, `filesystem`, `http`, `messaging`, `email`, `payment`,
+  `cloud_api`, `code_execution` or `other`;
 - a record that types its own `reference_code`, which is where Guardana puts its marker;
 - an item whose markers would appear in another item's text, question or fields.
 
 **A tenant's connection is complete on its own.** When the run sends through an adapter,
 every tenant names an adapter for the same URL; otherwise each names `api_key_env` or an
 adapter. Two tenants are told apart by their key variable or adapter digest when nothing is
-sent, so `plan` and `recipe lock` read no key. When sending, two tenants that share any
-secret value are refused, whichever way each sends it: one tenant's key and another's
-adapter header, or two adapters' headers. A tenant adapter header that reads a `${VAR}`
-counts as a credential, as does the variable's value, and the refusal names the tenants and
-where each sends the value, never the value itself. Put a header value that is not a secret
-in the adapter file as written. The run's own connection, which every
-other rule uses, is not a tenant.
+sent, so `plan` and `recipe lock` read no key. When sending, two tenants are refused when one
+sends no secret value the other does not send too, whichever way each sends it: one tenant's
+key and another's adapter header, or two adapters' headers. A secret both send, such as a
+shared gateway header, is fine beside a key of each tenant's own. A tenant adapter header that
+reads a `${VAR}` counts as a credential, as does the variable's value; a header written
+without one is not a secret and tells no tenant apart. The refusal names the tenants and where
+each sends the value, never the value itself.
+
+**The run's own connection is never a tenant.** Every other rule and every kept exchange use
+it, so a tenant that authenticates as it does is refused (exit `3`): by key variable or
+adapter digest when nothing is sent, and when sending by a tenant whose every secret the
+run's connection sends too. A run with no credential of its own is told apart from every
+tenant.
 
 ## Markers
 
@@ -160,11 +168,13 @@ retries — is never read as a reply without a marker; the run stops as it does 
 unreachable endpoint. A finding in any trial is a finding; one trial in which a control
 answered is enough for it.
 
-**Fixtures demand their checks.** A run given fixtures must complete the tenant check, and
-the poisoned-document check when a poisoned document is declared. Leaving either out of the
-selection (`rules.exclude`, `--safety passive`, a narrowed `include`), or a skip, is a
-`demanded_check` shortfall, so a run cannot record seeded data and check none of it.
-`plan probe --fixtures` reports the same shortfall before anything is sent and exits `3`.
+**Fixtures demand their checks.** A run given fixtures must complete every installed rule
+that needs seeded data, unless the rule says it has nothing to check on them: the tenant check
+always, the poisoned-document check when a poisoned document is declared, and any such rule a
+pack adds. Leaving one out of the selection (`rules.exclude`, `--safety passive`, a narrowed
+`include`), or a skip, is a `demanded_check` shortfall, and so is an install with no rule that
+checks seeded data, so a run cannot record seeded data and check none of it. `plan probe
+--fixtures` reports the same shortfall before anything is sent and exits `3`.
 
 **Cost.** `plan probe --fixtures` prices the tenant check at one request per item and tenant
 per trial, and the poisoned-document check at one request per poisoned document per trial;
@@ -187,7 +197,7 @@ A recipe names the file as `subject.fixtures`, beside a `connection`, with
 so the digest the lock pins and the items a run asks about come from the same bytes. The
 lock pins the file's digest and every tenant adapter, and the stand-in target it prices
 carries the seeded data, so the two checks are selected and pinned. `recipe run` resolves
-every tenant, checks each key is set and that no two tenants share a secret value, re-reads
+every tenant, checks each key is set and that every tenant sends a secret of its own, re-reads
 every tenant adapter against its pin before it sends anything, and then asks as every tenant.
 `subject.fixtures` together with `subject.recording` is refused.
 

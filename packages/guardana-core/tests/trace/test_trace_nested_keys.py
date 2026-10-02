@@ -216,3 +216,123 @@ def test_the_opentelemetry_dialect_stays_tolerant_of_extra_message_and_part_keys
     }
     read = read_trace(_write(tmp_path, record), Dialect.OTEL)
     assert read.trace.spans[0].messages[0].text() == "hi"
+
+
+_OBJECTS: dict[str, tuple[str | int, ...]] = {
+    level: where for level, where in _SPAN_LEVELS.items() if level != "session"
+}
+"""Every place the schema holds an object, but a session, which may be a bare id."""
+
+_PARTS: dict[str, tuple[str | int, ...]] = {
+    level: where for level, where in _SPAN_LEVELS.items() if level.startswith("part in")
+}
+
+_LISTS: dict[str, tuple[str | int, ...]] = {
+    "messages": ("messages",),
+    "parts of a message": ("messages", 0, "parts"),
+    "system_instructions": ("system_instructions",),
+    "tool_offers": ("tool_offers",),
+    "a tool result": ("tool", "result"),
+    "retrieval documents": ("retrieval", "documents"),
+    "content of a retrieved document": ("retrieval", "documents", 0, "content"),
+    "memory content": ("memory", "content"),
+    "a handoff payload": ("handoff", "payload"),
+    "delegations": ("delegations",),
+    "consents": ("consents",),
+    "policy_decisions": ("policy_decisions",),
+    "approvals": ("approvals",),
+    "effects": ("effects",),
+    "model finish_reasons": ("model", "finish_reasons"),
+    "handoff carried_scopes": ("handoff", "carried_scopes"),
+    "credential audience": ("identity", "credential", "audience"),
+    "credential scopes": ("identity", "credential", "scopes"),
+    "delegation scopes": ("delegations", 0, "scopes"),
+    "consent scopes": ("consents", 0, "scopes"),
+}
+
+_STRING_LISTS = {
+    level: where
+    for level, where in _LISTS.items()
+    if where[-1] in {"finish_reasons", "carried_scopes", "audience", "scopes"}
+}
+
+
+def _replaced(span: dict[str, Any], where: tuple[str | int, ...], value: object) -> dict[str, Any]:
+    changed = deepcopy(span)
+    node: Any = changed
+    for step in where[:-1]:
+        node = node[step]
+    node[where[-1]] = value
+    return changed
+
+
+@pytest.mark.parametrize("level", sorted(_OBJECTS))
+def test_a_bare_string_where_the_schema_holds_an_object_is_refused(
+    tmp_path: Path, level: str
+) -> None:
+    """A string read as an empty record, or as a text part, is a record nobody wrote."""
+    span = _replaced(_FULL_SPAN, _OBJECTS[level], "hello")
+    with pytest.raises(TraceLoadError, match=r"span 's1'.*must be a JSON object"):
+        read_trace(_write(tmp_path, _HEADER, span))
+
+
+@pytest.mark.parametrize("level", sorted(_LISTS))
+def test_a_bare_value_where_the_schema_holds_a_list_is_refused(tmp_path: Path, level: str) -> None:
+    span = _replaced(_FULL_SPAN, _LISTS[level], "hello")
+    with pytest.raises(TraceLoadError, match=r"span 's1'.*must be a JSON array"):
+        read_trace(_write(tmp_path, _HEADER, span))
+
+
+@pytest.mark.parametrize("level", sorted(_STRING_LISTS))
+def test_a_list_of_strings_holding_another_value_is_refused(tmp_path: Path, level: str) -> None:
+    span = _replaced(_FULL_SPAN, _STRING_LISTS[level], ["read", 7])
+    with pytest.raises(TraceLoadError, match=r"span 's1'.*array of strings"):
+        read_trace(_write(tmp_path, _HEADER, span))
+
+
+def test_a_misspelt_key_in_a_list_written_as_one_object_is_refused(tmp_path: Path) -> None:
+    """Read as absent, the object's misspelt key would never be seen."""
+    span = {**_FULL_SPAN, "approvals": {"action": "pay", "outcome": "granted", "aprover": "x"}}
+    with pytest.raises(TraceLoadError, match=r"span 's1'.*approvals must be a JSON array"):
+        read_trace(_write(tmp_path, _HEADER, span))
+
+
+def test_document_metadata_that_is_not_an_object_is_refused(tmp_path: Path) -> None:
+    span = _replaced(_FULL_SPAN, ("retrieval", "documents", 0, "metadata"), ["k"])
+    with pytest.raises(TraceLoadError, match=r"span 's1'.*metadata must be a JSON object"):
+        read_trace(_write(tmp_path, _HEADER, span))
+
+
+@pytest.mark.parametrize(
+    ("key", "value", "message"),
+    [
+        ("instrumented", "messages", "instrumented must be a JSON array"),
+        ("attributes", ["a"], "attributes must be a JSON object"),
+        ("producer", "acme", "producer must be a JSON object"),
+    ],
+)
+def test_a_header_field_of_the_wrong_shape_is_refused(
+    tmp_path: Path, key: str, value: object, message: str
+) -> None:
+    with pytest.raises(TraceLoadError, match=message):
+        read_trace(_write(tmp_path, {**_HEADER, key: value}, {"span_id": "s1"}))
+
+
+@pytest.mark.parametrize("level", sorted(_PARTS))
+def test_a_part_without_a_type_is_refused(tmp_path: Path, level: str) -> None:
+    span = _replaced(_FULL_SPAN, _PARTS[level], {"content": "hello"})
+    with pytest.raises(TraceLoadError, match=r"span 's1'.*`type`"):
+        read_trace(_write(tmp_path, _HEADER, span))
+
+
+def test_a_session_may_be_a_bare_id_or_an_object_and_nothing_else(tmp_path: Path) -> None:
+    as_id = _replaced(_FULL_SPAN, ("identity", "session"), "sess-1")
+    as_number = _replaced(_FULL_SPAN, ("identity", "session"), 7)
+
+    span = read_trace(_write(tmp_path, _HEADER, as_id)).trace.spans[0]
+
+    assert span.identity is not None
+    assert span.identity.session is not None
+    assert span.identity.session.id == "sess-1"
+    with pytest.raises(TraceLoadError, match=r"span 's1'.*session"):
+        read_trace(_write(tmp_path, _HEADER, as_number))

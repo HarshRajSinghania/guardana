@@ -787,7 +787,9 @@ non-empty string, from <code>not_applicable_to(target)</code>, and is recorded a
 <code>not_applicable</code> in the run and its plan alike; it returns <code>None</code> when it applies. Anything
 else, such as <code>False</code> from <code>cond and &quot;reason&quot;</code>, is recorded as an error and the rule runs,
 so <code>fail_on_error</code> keeps the run from passing. <code>guardana.retrieval.poisoned_document</code> does
-both.</p>
+both.
+A rule that requires <code>Capability.SEEDED_DATA</code> is demanded by every run given fixtures,
+whatever the profile selects, unless <code>not_applicable_to</code> says it has nothing to check there.</p>
 <p><strong>Ask the target for parsed source — never parse it yourself.</strong> A scan runs
 every rule over the same tree, so a rule that reads and parses a file for itself
 multiplies the cost of the whole scan by the number of rules:</p>

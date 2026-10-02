@@ -14,7 +14,7 @@ import pytest
 import yaml
 from _fixtures_file import fixtures_document
 from guardana.core.budget import BudgetExhausted, Budgets
-from guardana.core.fixtures import POISONING_CHECK, TENANCY_CHECK, Fixtures, parse_fixtures
+from guardana.core.fixtures import Fixtures, parse_fixtures
 from guardana.core.keeping import ExchangeKeeper
 from guardana.core.plan import build_plan
 from guardana.core.plugins import PluginMode, PluginTrust
@@ -42,6 +42,9 @@ from guardana.core.usage import UsageMeter
 from guardana.core.verify import UnsupportedTargetError, Verifier
 
 _BUILTINS = PluginTrust(mode=PluginMode.BUILTINS)
+
+TENANCY_CHECK = "guardana.tenancy.cross_tenant_answer"
+POISONING_CHECK = "guardana.retrieval.poisoned_document"
 
 
 def _fixtures(*, poisoned: bool = True) -> Fixtures:
@@ -97,6 +100,23 @@ class _Asks(Rule):
         if self._raises:
             raise RuntimeError("stopped after reporting")
         yield from ()
+
+
+class _AsksPoisoned(_Asks):
+    """Has nothing to check on seeded data that declares no poisoned document."""
+
+    def not_applicable_to(self, target: Target) -> str | None:
+        if isinstance(target, SeededData) and not target.fixtures.poisoned:
+            return "its fixtures declare no poisoned document"
+        return None
+
+
+def _seeded_checks() -> tuple[Rule, Rule]:
+    """Stand-ins for the two seeded checks, under their ids."""
+    return _Asks(TENANCY_CHECK), _AsksPoisoned(POISONING_CHECK)
+
+
+_NEITHER = replace(default_profile(), policy=Policy(exclude=(TENANCY_CHECK, POISONING_CHECK)))
 
 
 def _registry(*rules: Rule) -> Registry:
@@ -262,14 +282,14 @@ def test_the_plan_prices_a_rule_against_the_target_it_is_planned_for() -> None:
 
 
 def test_a_plan_given_fixtures_foresees_every_demanded_check_it_would_not_run() -> None:
-    plan = build_plan(_registry(_Asks()), default_profile(), _seeded())
+    plan = build_plan(_registry(_Asks(), *_seeded_checks()), _NEITHER, _seeded())
 
     assert sorted(g.name for g in plan.shortfall) == [POISONING_CHECK, TENANCY_CHECK]
     assert {g.kind for g in plan.shortfall} == {ShortfallKind.DEMANDED_CHECK}
 
 
 def test_without_a_poisoned_document_the_poisoned_check_is_not_demanded() -> None:
-    plan = build_plan(_registry(), default_profile(), _seeded(_fixtures(poisoned=False)))
+    plan = build_plan(_registry(*_seeded_checks()), _NEITHER, _seeded(_fixtures(poisoned=False)))
 
     assert [g.name for g in plan.shortfall] == [TENANCY_CHECK]
 
@@ -277,7 +297,9 @@ def test_without_a_poisoned_document_the_poisoned_check_is_not_demanded() -> Non
 def test_a_run_given_fixtures_cannot_pass_without_completing_the_checks_they_demand() -> None:
     target = _seeded()
 
-    verification = Verifier(trust=_BUILTINS, registry=_registry(_Asks())).run(target)
+    verification = Verifier(
+        trust=_BUILTINS, profile=_NEITHER, registry=_registry(_Asks(), *_seeded_checks())
+    ).run(target)
 
     demanded = [g.name for g in verification.result.coverage_shortfall]
     assert sorted(demanded) == [POISONING_CHECK, TENANCY_CHECK]
@@ -285,8 +307,7 @@ def test_a_run_given_fixtures_cannot_pass_without_completing_the_checks_they_dem
 
 
 def test_a_check_the_profile_leaves_out_is_still_demanded() -> None:
-    tenancy = _Asks(TENANCY_CHECK)
-    poisoning = _Asks(POISONING_CHECK)
+    tenancy, poisoning = _seeded_checks()
     profile = replace(default_profile(), policy=Policy(exclude=(POISONING_CHECK,)))
 
     verification = Verifier(
@@ -300,9 +321,7 @@ def test_a_check_the_profile_leaves_out_is_still_demanded() -> None:
 def test_a_seeded_run_records_its_fixtures_and_passes_once_its_checks_complete() -> None:
     target = _seeded()
 
-    verification = Verifier(
-        trust=_BUILTINS, registry=_registry(_Asks(TENANCY_CHECK), _Asks(POISONING_CHECK))
-    ).run(target)
+    verification = Verifier(trust=_BUILTINS, registry=_registry(*_seeded_checks())).run(target)
 
     assert verification.manifest.fixtures == target.fixtures.record()
     assert verification.result.coverage_shortfall == ()
@@ -319,16 +338,107 @@ def test_a_record_of_other_fixtures_is_refused_before_anything_is_sent() -> None
     assert target.usage().requests == 0
 
 
-def test_a_run_recording_fixtures_on_an_unseeded_target_demands_the_tenant_check() -> None:
+def test_a_run_recording_fixtures_on_an_unseeded_target_demands_every_seeded_check() -> None:
     from guardana.core.testing import RefusingTransport  # noqa: PLC0415
 
     plain = EndpointTarget("http://app.test", "m", transport=RefusingTransport())
 
     verification = Verifier(
-        trust=_BUILTINS, registry=Registry(), fixtures=_fixtures().record()
+        trust=_BUILTINS, registry=_registry(*_seeded_checks()), fixtures=_fixtures().record()
     ).run(plain)
 
-    assert [g.name for g in verification.result.coverage_shortfall] == [TENANCY_CHECK]
+    demanded = [g.name for g in verification.result.coverage_shortfall]
+    assert demanded == [POISONING_CHECK, TENANCY_CHECK]
+    assert verification.exit_code == 2
+
+
+def test_a_third_party_seeded_rule_is_demanded_like_a_built_in_one() -> None:
+    profile = replace(default_profile(), policy=Policy(exclude=("acme.seeded.asks",)))
+
+    verification = Verifier(
+        trust=_BUILTINS, profile=profile, registry=_registry(_Asks(), *_seeded_checks())
+    ).run(_seeded())
+
+    assert [g.name for g in verification.result.coverage_shortfall] == ["acme.seeded.asks"]
+    assert verification.exit_code == 2
+
+
+def test_a_seeded_rule_with_nothing_to_check_on_the_target_is_not_demanded() -> None:
+    inapplicable = _Asks("acme.seeded.idle", inapplicable="nothing of its kind is seeded")
+
+    verification = Verifier(
+        trust=_BUILTINS, registry=_registry(inapplicable, *_seeded_checks())
+    ).run(_seeded())
+
+    assert verification.result.coverage_shortfall == ()
+    assert verification.exit_code == 0
+
+
+class _ThirdPartySeeded(Target):
+    """A seeded target of another package's making: the protocol, not the built-in class."""
+
+    kind = TargetKind.ENDPOINT
+
+    def __init__(self, fixtures: Fixtures) -> None:
+        self._fixtures = fixtures
+
+    @property
+    def ref(self) -> str:
+        return "acme-app://support"
+
+    @property
+    def fixtures(self) -> Fixtures:
+        return self._fixtures
+
+    def capabilities(self) -> set[Capability]:
+        return {Capability.CHAT, Capability.SEEDED_DATA}
+
+    def chat(self, messages: list[ChatMessage]) -> str:
+        return "hello"
+
+    def ask_as(self, tenant: str, question: str) -> str:
+        return "I cannot say."
+
+
+def test_a_third_party_seeded_target_records_its_fixtures_and_demands_their_checks() -> None:
+    target = _ThirdPartySeeded(_fixtures())
+    registry = _registry(*_seeded_checks())
+
+    verification = Verifier(trust=_BUILTINS, profile=_NEITHER, registry=registry).run(target)
+    plan = build_plan(registry, _NEITHER, _ThirdPartySeeded(_fixtures()))
+
+    assert isinstance(target, SeededData)
+    assert verification.manifest.fixtures == target.fixtures.record()
+    demanded = sorted(g.name for g in verification.result.coverage_shortfall)
+    assert demanded == [POISONING_CHECK, TENANCY_CHECK]
+    assert sorted(g.name for g in plan.shortfall) == [POISONING_CHECK, TENANCY_CHECK]
+    assert verification.exit_code == 2
+
+
+@pytest.mark.parametrize("seeded", [True, False], ids=["seeded target", "fixtures recorded"])
+def test_fixtures_that_no_registered_rule_checks_cannot_pass(
+    seeded: bool,
+) -> None:
+    from guardana.core.testing import RefusingTransport  # noqa: PLC0415
+
+    target: Target = (
+        _seeded()
+        if seeded
+        else EndpointTarget("http://app.test", "m", transport=RefusingTransport())
+    )
+    verifier = Verifier(
+        trust=_BUILTINS,
+        registry=_registry(_Chats()),
+        fixtures=None if seeded else _fixtures().record(),
+    )
+
+    verification = verifier.run(target)
+    plan = build_plan(_registry(_Chats()), default_profile(), _seeded())
+
+    gaps = verification.result.coverage_shortfall
+    assert [(g.kind, g.name) for g in gaps] == [(ShortfallKind.DEMANDED_CHECK, "seeded_data")]
+    assert verification.exit_code == 2
+    assert [g.name for g in plan.shortfall] == ["seeded_data"]
 
 
 class _Chats(Rule):

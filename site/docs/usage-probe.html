@@ -453,7 +453,7 @@ Hugging Face TGI's <code>/generate</code>.</p>
 <tr>
 <td><code>--keep-exchanges</code></td>
 <td>off (or <code>privacy.keep_exchanges</code>)</td>
-<td>Keep every chat exchange of the plain pass, redacted, beside the saved run so <a href="usage-grade.html"><code>guardana grade</code></a> can grade it again without calling the endpoint — see <a href="#keeping-the-exchanges">Keeping the exchanges</a>. Needs <code>--format json --output</code>; refused with <code>--mcp</code>, <code>--target</code> and <code>privacy.evidence_mode: metadata_only</code> (exit <code>3</code>)</td>
+<td>Keep every chat exchange of the plain pass, redacted, beside the saved run so <a href="usage-grade.html"><code>guardana grade</code></a> can grade it again without calling the endpoint — see <a href="#keeping-the-exchanges">Keeping the exchanges</a>. Needs <code>--format json --output</code>; refused with <code>--mcp</code>, with a <code>--target</code> not built on the built-in endpoint, and with <code>privacy.evidence_mode: metadata_only</code> (exit <code>3</code>)</td>
 </tr>
 </tbody>
 </table></div>
@@ -845,9 +845,11 @@ records the file's SHA-256, its line count and how many replies redaction change
 <code>run.exchanges</code>; a sidecar that no longer matches that digest is a different execution to
 <code>guardana diff</code>.</p>
 <ul>
-<li>Only the built-in endpoint's plain pass is kept (<code>--url</code>, with or without <code>--adapter</code>):
-never the system prompt, the canary passes or tool offers, so canary and tool rules are
-not graded again. What a rule asks as a tenant under <code>--fixtures</code> is never kept either.</li>
+<li>Only the plain pass of the built-in endpoint is kept: <code>--url</code>, with or without
+<code>--adapter</code>, or a pack's <code>--target</code> built on <code>EndpointTarget</code>. Another <code>--target</code> keeps
+nothing and is refused (exit <code>3</code>). The system prompt, the canary passes and tool offers
+are never kept, so canary and tool rules are not graded again. What a rule asks as a
+tenant under <code>--fixtures</code> is never kept either.</li>
 <li>Every input and reply passes the run's redactor, matched spans only and without the
 evidence size bound; a secret is removed under every <code>evidence_mode</code>, <code>full</code> included. A
 reply redaction changed is marked <code>altered</code> and is never graded again: a reply that
@@ -873,9 +875,12 @@ only when both controls of the pair answered.</li>
 a poisoned document is a finding; skipped as <code>not_applicable</code> when none is declared.</li>
 </ul>
 <p>A control that returned no marker in any trial is a <code>seed_not_reached</code> coverage shortfall,
-so the run ends <code>indeterminate</code> (exit <code>2</code>) unless a finding fails it, and fixtures demand
-both checks: excluding or skipping one is a <code>demanded_check</code> shortfall. The run records the
-file as <code>run.fixtures</code>. What each check asks, and what its clean result does and does not
+so the run ends <code>indeterminate</code> (exit <code>2</code>) unless a finding fails it. Fixtures demand every
+installed rule that checks seeded data and has something to check, these two and any a pack
+adds: excluding or skipping one is a <code>demanded_check</code> shortfall, and so is an install with
+no such rule. A tenant that authenticates as the run's own connection (<code>--api-key-env</code> or
+<code>--adapter</code>) is refused (exit <code>3</code>): every other rule would then run as that tenant. The run
+records the file as <code>run.fixtures</code>. What each check asks, and what its clean result does and does not
 mean: <a href="usage-fixtures.html#the-two-checks-a-run-given-fixtures-makes"><code>usage-fixtures.md</code></a>.</p>
 <h2 id="quality-suites">Quality suites</h2>
 <p><a href="usage-suites.html">Quality suites</a> grade a versioned dataset under <code>guardana probe</code>.</p>

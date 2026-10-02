@@ -11,7 +11,14 @@ from guardana.cli.main import app
 from guardana.core.plugins import PluginMode, PluginTrust
 from guardana.core.registry import Registry
 from guardana.core.report import CheckError
-from guardana.core.target import Capability, ChatMessage, LocatorError, Target, TargetKind
+from guardana.core.target import (
+    Capability,
+    ChatMessage,
+    EndpointTarget,
+    LocatorError,
+    Target,
+    TargetKind,
+)
 from typer.testing import CliRunner
 
 runner = CliRunner()
@@ -69,6 +76,29 @@ class _Endpoint(Target):
 
     def chat(self, messages: Sequence[ChatMessage]) -> str:
         return "I cannot help with that request."
+
+
+class _Refuses:
+    """A chat transport that declines every request, as a careful model would."""
+
+    def send(
+        self,
+        base_url: str,
+        model: str,
+        messages: Sequence[ChatMessage],
+        api_key: str | None,
+    ) -> str:
+        return "I cannot help with that request."
+
+
+class _ChatPack(EndpointTarget):
+    """A pack's endpoint target built on the built-in one, with no system prompt of its own."""
+
+    scheme = "acme-chat"
+
+    @classmethod
+    def from_locator(cls, locator: str, *, options: Mapping[str, str]) -> Self:
+        return cls("http://chat.test", locator, transport=_Refuses())
 
 
 class _Unavailable(_Located):
@@ -281,9 +311,88 @@ def test_scan_keeps_a_plugin_owned_locator_ref_verbatim(
     assert document["run"]["target"]["ref"] == f"{locator}:default"
 
 
-def _install_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
+_CANARY = "guardana.prompt.system_prompt_leak.canary"
+
+
+def test_the_plan_selects_the_canary_rules_probe_then_runs_on_an_installed_planter(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _install_endpoint(monkeypatch, _ChatPack)
+    output = tmp_path / "probe.json"
+
+    planned = runner.invoke(
+        app, ["plan", "probe", "--target", "acme-chat://support", "--format", "json"]
+    )
+    probed = runner.invoke(
+        app,
+        ["probe", "--target", "acme-chat://support", "--format", "json", "--output", str(output)],
+    )
+
+    assert planned.exit_code == 0, planned.output
+    assert probed.exit_code in (0, 1, 2), probed.output
+    plan = json.loads(planned.output)
+    summary = json.loads(output.read_text(encoding="utf-8"))["run"]["result_summary"]
+    ran = set(summary["rules_run"])
+    assert _CANARY in plan["rules"]
+    assert _CANARY in ran
+    assert set(plan["rules"]) == ran
+    assert set(plan["skipped"]) == {skip["rule_id"] for skip in summary["rules_skipped"]}
+
+
+def test_kept_exchanges_of_an_installed_target_built_on_the_endpoint_are_written(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _install_endpoint(monkeypatch, _ChatPack)
+    output = tmp_path / "probe.json"
+
+    result = runner.invoke(
+        app,
+        [
+            "probe",
+            "--target",
+            "acme-chat://support",
+            "--keep-exchanges",
+            "--format",
+            "json",
+            "--output",
+            str(output),
+        ],
+    )
+
+    assert result.exit_code in (0, 1, 2), result.output
+    kept = tmp_path / "probe.exchanges.jsonl"
+    assert kept.exists(), _plain(result.output)
+    assert "kept" in _plain(result.output)
+
+
+def test_kept_exchanges_are_refused_for_an_installed_target_that_keeps_none(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _install_endpoint(monkeypatch)
+    output = tmp_path / "probe.json"
+
+    result = runner.invoke(
+        app,
+        [
+            "probe",
+            "--target",
+            "acme-endpoint://deployment/support",
+            "--keep-exchanges",
+            "--format",
+            "json",
+            "--output",
+            str(output),
+        ],
+    )
+
+    assert result.exit_code == 3, result.output
+    assert "keeps none" in _plain(result.output)
+    assert not output.exists()
+
+
+def _install_endpoint(monkeypatch: pytest.MonkeyPatch, target: type[Target] = _Endpoint) -> None:
     registry = Registry.discover(PluginTrust(mode=PluginMode.BUILTINS))
-    registry.register_target(_Endpoint)
+    registry.register_target(target)
     monkeypatch.setattr(
         Registry,
         "discover",

@@ -27,12 +27,14 @@ import yaml
 from guardana.core.fingerprint import DigestKind, DocumentDigest, digest_of
 from guardana.core.manifest.records import FixturesRecord
 from guardana.core.target.connection import (
+    HEADERS_AS_A_WHOLE,
     Connection,
     ConnectionConfigError,
     ResolvedConnection,
     Spelling,
     resolve_connection,
 )
+from guardana.core.trace.effect import SinkKind
 
 FIXTURES_SCHEMA_VERSION = 1
 """The `schema_version` of `guardana-fixtures.yaml` this build reads."""
@@ -50,12 +52,6 @@ RECORD_MARKER_FIELD = "reference_code"
 
 DOCUMENTS_CHANNEL = "documents"
 """The channel every document is reached through; a record's is `records/<collection>`."""
-
-TENANCY_CHECK = "guardana.tenancy.cross_tenant_answer"
-"""The built-in check every run given fixtures demands."""
-
-POISONING_CHECK = "guardana.retrieval.poisoned_document"
-"""The built-in check a run given fixtures demands when they declare a poisoned document."""
 
 DOCUMENT_FACT = "The reference code for {topic} (catalogue term {term}) is {marker}."
 DOCUMENT_QUESTION = "What is the reference code for {topic} (catalogue term {term})?"
@@ -194,7 +190,7 @@ class Tool:
     name: str
     op: ToolOp
     collection: str | None = None
-    sink: str | None = None
+    sink: SinkKind | None = None
     reversible: bool | None = None
 
 
@@ -251,16 +247,6 @@ class Fixtures:
         """Every document declared `poisoned: true`, in the order the file declares them."""
         return tuple(item for item in self.documents if item.poisoned)
 
-    def demanded_checks(self) -> frozenset[str]:
-        """Return the checks a run given these fixtures must complete.
-
-        Fixtures that nothing checks would record seeded data and verify none of it, so
-        leaving a demanded check out of the selection, or skipping it, is a shortfall.
-        """
-        if self.poisoned:
-            return frozenset({TENANCY_CHECK, POISONING_CHECK})
-        return frozenset({TENANCY_CHECK})
-
     @property
     def tenant_names(self) -> tuple[str, ...]:
         """The tenants' names, in the order the file declares them."""
@@ -299,10 +285,11 @@ class Fixtures:
         """Resolve each tenant against the run's URL and model, or raise `FixturesError`.
 
         With an adapter on the run, every tenant names an adapter for the same URL. Two
-        tenants that would authenticate the same way are refused: by variable name or
-        adapter digest when nothing is sent, so a plan and a lock read no key, and when
-        sending by any secret value they share, whether one sends it as a key and the
-        other through an adapter header or both through adapters.
+        tenants the application could not tell apart are refused, and so is a tenant that
+        authenticates as the run's own connection: by variable name or adapter digest when
+        nothing is sent, so a plan and a lock read no key, and when sending by secret value,
+        whether one sends it as a key and the other through an adapter header or both
+        through adapters.
         """
         names = spelling or Spelling()
         resolved: list[ResolvedTenant] = []
@@ -333,17 +320,23 @@ class Fixtures:
             except ConnectionConfigError as exc:
                 raise FixturesError(str(exc)) from exc
             resolved.append(ResolvedTenant(tenant.name, connected))
+        declared = [
+            (tenant.name, _declared_credential(tenant.api_key_env, connected.connection))
+            for tenant, connected in zip(self.tenants, resolved, strict=True)
+        ]
         if sending:
             _refuse_shared_secrets(resolved, self.path)
         else:
-            _refuse_shared(
-                [
-                    (declared.name, _declared_credential(declared, connected.connection))
-                    for declared, connected in zip(self.tenants, resolved, strict=True)
-                ],
-                self.path,
-                "authenticate with",
-            )
+            _refuse_shared(declared, self.path, "authenticate with")
+        if run.api_key_env is not None or run.adapter is not None:
+            try:
+                own = resolve_connection(run, sending=sending, spelling=names, environ=environ)
+            except ConnectionConfigError as exc:
+                raise FixturesError(str(exc)) from exc
+            if sending:
+                _refuse_the_runs_secrets(own, resolved, self.path)
+            else:
+                _refuse_the_runs(_declared_credential(run.api_key_env, own), declared, self.path)
         return tuple(resolved)
 
     def subject_files(self, resolved: Sequence[ResolvedTenant]) -> dict[str, str]:
@@ -355,30 +348,82 @@ class Fixtures:
         return files
 
 
-def _declared_credential(tenant: Tenant, connection: ResolvedConnection) -> str:
-    """Name what a tenant authenticates with as declared, for a caller that reads no secret."""
+def _declared_credential(api_key_env: str | None, connection: ResolvedConnection) -> str:
+    """Name what a connection authenticates with as declared, for a caller that reads no secret."""
     if connection.adapter_digest is not None:
         return f"adapter {connection.adapter_digest}"
-    return f"api_key_env {tenant.api_key_env}"
+    return f"api_key_env {api_key_env}"
+
+
+def _secrets(connection: ResolvedConnection) -> dict[str, str]:
+    """Map each secret a connection sends, by digest, to where it comes from.
+
+    The headers as a whole are left out: a literal header is no secret, so two adapters
+    that differ only in one are told apart by nothing the application can trust.
+    """
+    return {c.digest: c.source for c in connection.credentials if c.source != HEADERS_AS_A_WHOLE}
 
 
 def _refuse_shared_secrets(resolved: Sequence[ResolvedTenant], path: Path) -> None:
-    """Refuse two tenants that send any secret value in common, naming where, never what.
+    """Refuse two tenants when one sends no secret the other does not, naming where, never what.
 
-    A tenant that sends no credential at all shares that absence with another such tenant.
+    A secret both send, such as a gateway header, is allowed beside one each sends alone;
+    without one of its own a tenant is the other tenant to the application.
     """
-    seen: dict[str, tuple[str, str]] = {}
+    sent = [(tenant.name, _secrets(tenant.connection)) for tenant in resolved]
+    for index, (first, first_secrets) in enumerate(sent):
+        for second, second_secrets in sent[index + 1 :]:
+            if first_secrets.keys() <= second_secrets.keys():
+                fewer, more = (first, first_secrets), (second, second_secrets)
+            elif second_secrets.keys() <= first_secrets.keys():
+                fewer, more = (second, second_secrets), (first, first_secrets)
+            else:
+                continue
+            raise FixturesError(
+                f"{path}: tenants {first} and {second} each send the same credential "
+                f"({_shared(fewer, more)}), and {fewer[0]} sends none of its own; two tenants "
+                f"with the same credentials are one tenant to the application, so a reply "
+                f"crossing between them would read as each one's own"
+            )
+
+
+def _shared(fewer: tuple[str, dict[str, str]], more: tuple[str, dict[str, str]]) -> str:
+    """Name where `fewer`'s first secret comes from in each tenant, or that it sends none."""
+    (name, held), (other, also) = fewer, more
+    if not held:
+        return f"{name}: no credential; {other}: {', '.join(also.values()) or 'no credential'}"
+    digest = next(iter(held))
+    return f"{name}: {held[digest]}; {other}: {also[digest]}"
+
+
+def _refuse_the_runs(own: str, declared: Sequence[tuple[str, str]], path: Path) -> None:
+    """Refuse a tenant that authenticates as the run's own connection does, as declared."""
+    for tenant, credential in declared:
+        if credential == own:
+            raise _the_runs_own(path, tenant, credential)
+
+
+def _refuse_the_runs_secrets(
+    own: ResolvedConnection, resolved: Sequence[ResolvedTenant], path: Path
+) -> None:
+    """Refuse a tenant every secret of which the run's own connection sends too."""
+    run_secrets = _secrets(own)
+    if not run_secrets:
+        return
     for tenant in resolved:
-        sources = {c.digest: c.source for c in tenant.connection.credentials}
-        for digest, source in (sources or {"none": "no credential"}).items():
-            owner = seen.setdefault(digest, (tenant.name, source))
-            if owner[0] != tenant.name:
-                raise FixturesError(
-                    f"{path}: tenants {owner[0]} and {tenant.name} each send the same "
-                    f"credential ({owner[0]}: {owner[1]}; {tenant.name}: {source}); two "
-                    f"tenants with the same credentials are one tenant to the application, so "
-                    f"a reply crossing between them would read as each one's own"
-                )
+        secrets = _secrets(tenant.connection)
+        if secrets.keys() <= run_secrets.keys():
+            digest = next(iter(secrets), None)
+            source = "no credential" if digest is None else secrets[digest]
+            raise _the_runs_own(path, tenant.name, source)
+
+
+def _the_runs_own(path: Path, tenant: str, credential: str) -> FixturesError:
+    return FixturesError(
+        f"{path}: tenant {tenant} authenticates as the run's own connection does ({credential}); "
+        f"every rule but the seeded ones and every kept exchange would then run as {tenant}, "
+        f"and the run's own connection is never a tenant"
+    )
 
 
 def normalise(text: str) -> str:
@@ -941,7 +986,9 @@ def _tools(raw: object, collections: set[str], where: str) -> tuple[Tool, ...]:
     return tuple(tools)
 
 
-def _effect(entry: Mapping[Any, Any], op: ToolOp, where: str) -> tuple[str | None, bool | None]:
+def _effect(
+    entry: Mapping[Any, Any], op: ToolOp, where: str
+) -> tuple[SinkKind | None, bool | None]:
     """Read a tool's declared effect: required for a change or a send, refused for a read."""
     if not op.has_effect:
         if "sink" in entry or "reversible" in entry:
@@ -957,7 +1004,14 @@ def _effect(entry: Mapping[Any, Any], op: ToolOp, where: str) -> tuple[str | Non
     reversible = entry["reversible"]
     if not isinstance(reversible, bool):
         raise FixturesError(f"{where}: reversible must be true or false")
-    return _text(entry, "sink", where), reversible
+    sink = _text(entry, "sink", where)
+    try:
+        return SinkKind(sink), reversible
+    except ValueError:
+        raise FixturesError(
+            f"{where}: sink {sink!r} is not one a trace records; use one of "
+            f"{', '.join(s.value for s in SinkKind)}"
+        ) from None
 
 
 __all__ = [
@@ -967,12 +1021,10 @@ __all__ = [
     "FIXTURES_NAME",
     "FIXTURES_SCHEMA_VERSION",
     "MARKERS_ALGORITHM",
-    "POISONING_CHECK",
     "POISON_INSTRUCTION",
     "RECORD_MARKER_FIELD",
     "RECORD_QUESTION",
     "SYNTHETIC",
-    "TENANCY_CHECK",
     "FieldValue",
     "Fixtures",
     "FixturesError",

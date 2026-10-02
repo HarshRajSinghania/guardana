@@ -202,9 +202,12 @@ kept beside the run, `run.recording`, the recording a graded run answered from,
 measured, and the `not_recorded` skip reason. Version 14 records `run.recipe`, the recipe a
 run was started from and the subject it declared, `run.configuration.provider`, the provider
 wire the run spoke, and the `incomplete_recording` and `demanded_check` coverage shortfalls.
-Version 15 records `run.fixtures`, the fixtures file a run was given, and the
+Version 15 records `run.fixtures`, the fixtures file a run was given, the
 `seed_not_reached` coverage shortfall: a seeded item whose control returned no marker for a
-tenant.
+tenant, and `run.evaluators[].deterministic`, whether an evaluator declares its verdict a
+fact with no error rate to measure. A version-14 run reads every evaluator as not
+deterministic. `run inspect` prints `deterministic — no error rate` for such an evaluator
+under `graded by:`, and `confidence not measured` for a judge with no calibration.
 
 Top level:
 
@@ -229,7 +232,7 @@ Inside `run`:
 | `configuration` | which settings produced it, **by digest**: `profile_digest` covers every setting of the resolved profile except its name, where it was read from and its `plugins:`; `plugins` is the trust in force, `{mode, allowed}`; `provider` is the provider wire the run spoke to its target, `null` when it reached none, reached it through an adapter or did not record it; `adapter_digest` is the SHA-256 of the adapter file as written, and `system_prompt_digest` of the operator's `--system-prompt-file`, never of a planted canary, so two runs of one configuration record the same digests |
 | `execution` | what limits it ran under, and `trials`: the attempts per case the run asked for |
 | `usage` | what it actually consumed, the configured judges on their own meters |
-| `rules` / `evaluators` | what did the checking, with digests, declared request counts, a `trial_summary` for each rule that repeated, a `suite` summary for each quality suite, calibration, and `judge`: the identity a judge states (its model, endpoint and samples per verdict), `null` for a deterministic evaluator or when unstated. A suite the budget stopped or that raised is listed with its declined summary, though not in `result_summary.rules_run` |
+| `rules` / `evaluators` | what did the checking, with digests, declared request counts, a `trial_summary` for each rule that repeated, a `suite` summary for each quality suite, calibration, `judge`: the identity a judge states (its model, endpoint and samples per verdict), `null` for a deterministic evaluator or when unstated, and `deterministic`. A suite the budget stopped or that raised is listed with its declined summary, though not in `result_summary.rules_run` |
 | `coverage` | what the run was *able* to check: one fingerprint, the framework catalogues it mapped against by digest, and any protocol versions the target negotiated |
 | `result_summary` | the counts, the gate, and whether the run was cut short |
 | `privacy` | which evidence policy was in force |

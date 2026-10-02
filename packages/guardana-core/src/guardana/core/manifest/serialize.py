@@ -262,6 +262,7 @@ def _evaluator(evaluator: EvaluatorRecord) -> dict[str, object]:
         "digest": evaluator.digest,
         "calibration": None if calibration is None else _calibration(calibration),
         "judge": evaluator.judge,
+        "deterministic": evaluator.deterministic,
     }
 
 

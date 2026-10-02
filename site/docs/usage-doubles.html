@@ -306,10 +306,9 @@ clients, and only in CI. <code>doubles.call(name, **arguments)</code> calls a to
 exit they close themselves.</p>
 <p><code>open_doubles</code> fails the application at startup, before anything is served, when:</p>
 <ul>
-<li>the fixtures file does not load (<code>FixturesError</code>, from <code>guardana.core.fixtures</code>);</li>
+<li>the fixtures file does not load (<code>FixturesError</code>, from <code>guardana.core.fixtures</code>), a tool's
+<code>sink</code> that a trace does not record included;</li>
 <li>the file declares no <code>tools:</code> (<code>DoublesError</code>);</li>
-<li>a tool's <code>sink</code> is not one a trace records: <code>sql</code>, <code>shell</code>, <code>filesystem</code>, <code>http</code>,
-<code>messaging</code>, <code>email</code>, <code>payment</code>, <code>cloud_api</code>, <code>code_execution</code> or <code>other</code>;</li>
 <li>the trace path already exists. A file left by an earlier job, or one another process is
 writing, is never continued: give every job a fresh path.</li>
 </ul>

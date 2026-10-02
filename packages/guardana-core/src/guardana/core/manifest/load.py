@@ -670,9 +670,17 @@ def _evaluators(raw: object) -> tuple[EvaluatorRecord, ...]:
             digest=_optional_text(entry, "digest"),
             calibration=_calibration(entry),
             judge=_nullable_text(entry, "judge", "run.evaluators[]"),
+            deterministic=_flag(entry, "deterministic", "run.evaluators[]"),
         )
         for entry in raw
     )
+
+
+def _flag(block: Mapping[str, Any], key: str, what: str) -> bool:
+    value = _present(block, key, what)
+    if not isinstance(value, bool):
+        raise ManifestLoadError(f"{what}.{key} must be true or false")
+    return value
 
 
 _EXCHANGES_KEYS = frozenset({"digest", "count", "altered"})

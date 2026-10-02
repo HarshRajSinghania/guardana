@@ -17,7 +17,7 @@ A recording comes from one of two places:
 - **You write it**: the answers your application gave to your dataset's questions, collected
   however you run it.
 - **`guardana probe --keep-exchanges` keeps it**: every chat exchange of the probe, redacted,
-  beside the saved run. Grading it again with a new rule, a sharper expectation or a new judge
+  beside the saved run, for `--url` or a pack's `--target` built on the built-in endpoint. Grading it again with a new rule, a sharper expectation or a new judge
   measures the grading on the very same replies.
 
 ```bash

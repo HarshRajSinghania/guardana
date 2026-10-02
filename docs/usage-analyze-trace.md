@@ -117,8 +117,12 @@ and the rest — accept only the keys `schemas/trace-v3.schema.json` defines. An
 stops the read with exit `3`. A misspelled `aprovals:` would leave the approval dimension
 declared and empty; a misspelled `aprover` or a part written `{"type": "text", "text": …}`
 would read as a missing value. Either way a rule grades nothing, or accuses a system that
-did nothing wrong. The `otel` dialect stays tolerant, because an OpenTelemetry span
-carries attributes from other domains.
+did nothing wrong. The shapes are held the same way: a value where the schema has an object,
+a list or a list of strings must be one, every item of `messages`, `approvals`, `effects`
+and the other lists must be an object, and every part names its `type`. `"approvals":
+{…}` or a bare-string part stops the read naming the span, rather than reading as no
+approvals or as text nobody typed. The `otel` dialect stays tolerant, because an
+OpenTelemetry span carries attributes from other domains.
 
 **Credentials are named, never carried.** Write a `digest` if you have one. If you write a
 `value`, Guardana hashes it on read and keeps only the hash — the model has no field to

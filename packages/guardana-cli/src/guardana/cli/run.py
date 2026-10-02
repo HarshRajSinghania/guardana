@@ -140,7 +140,8 @@ def _calibration_lines(manifest: RunManifest) -> list[str]:
     no age is a claim about an evaluator that may not exist any more.
 
     An unmeasured evaluator says so rather than being left out. Omitting it would let
-    a reader assume the ones listed are all of them. A calibration without per-class
+    a reader assume the ones listed are all of them. A deterministic evaluator has no
+    error rate to measure, and says that instead. A calibration without per-class
     counts says so too, because it is one no rate in the run was corrected with.
     """
     evaluators = manifest.evaluators
@@ -149,6 +150,9 @@ def _calibration_lines(manifest: RunManifest) -> list[str]:
     lines = ["  graded by:"]
     for evaluator in evaluators:
         calibration = evaluator.calibration
+        if evaluator.deterministic:
+            lines.append(f"    {evaluator.id} — deterministic — no error rate")
+            continue
         if calibration is None:
             lines.append(f"    {evaluator.id} — confidence not measured")
             continue

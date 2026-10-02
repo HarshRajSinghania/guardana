@@ -365,20 +365,27 @@ there as its control;</li>
 <li>two tenants with the same credentials: the application would see one tenant;</li>
 <li>two documents with the same topic, compared without case and punctuation: a question
 about one would retrieve both;</li>
-<li>a change or send tool without <code>sink</code> and <code>reversible</code>;</li>
+<li>a change or send tool without <code>sink</code> and <code>reversible</code>, or with a <code>sink</code> a trace does not
+record: <code>sql</code>, <code>shell</code>, <code>filesystem</code>, <code>http</code>, <code>messaging</code>, <code>email</code>, <code>payment</code>,
+<code>cloud_api</code>, <code>code_execution</code> or <code>other</code>;</li>
 <li>a record that types its own <code>reference_code</code>, which is where Guardana puts its marker;</li>
 <li>an item whose markers would appear in another item's text, question or fields.</li>
 </ul>
 <p><strong>A tenant's connection is complete on its own.</strong> When the run sends through an adapter,
 every tenant names an adapter for the same URL; otherwise each names <code>api_key_env</code> or an
 adapter. Two tenants are told apart by their key variable or adapter digest when nothing is
-sent, so <code>plan</code> and <code>recipe lock</code> read no key. When sending, two tenants that share any
-secret value are refused, whichever way each sends it: one tenant's key and another's
-adapter header, or two adapters' headers. A tenant adapter header that reads a <code>${VAR}</code>
-counts as a credential, as does the variable's value, and the refusal names the tenants and
-where each sends the value, never the value itself. Put a header value that is not a secret
-in the adapter file as written. The run's own connection, which every
-other rule uses, is not a tenant.</p>
+sent, so <code>plan</code> and <code>recipe lock</code> read no key. When sending, two tenants are refused when one
+sends no secret value the other does not send too, whichever way each sends it: one tenant's
+key and another's adapter header, or two adapters' headers. A secret both send, such as a
+shared gateway header, is fine beside a key of each tenant's own. A tenant adapter header that
+reads a <code>${VAR}</code> counts as a credential, as does the variable's value; a header written
+without one is not a secret and tells no tenant apart. The refusal names the tenants and where
+each sends the value, never the value itself.</p>
+<p><strong>The run's own connection is never a tenant.</strong> Every other rule and every kept exchange use
+it, so a tenant that authenticates as it does is refused (exit <code>3</code>): by key variable or
+adapter digest when nothing is sent, and when sending by a tenant whose every secret the
+run's connection sends too. A run with no credential of its own is told apart from every
+tenant.</p>
 <h2 id="markers">Markers</h2>
 <p>Every seeded item gets:</p>
 <ul>
@@ -456,11 +463,12 @@ a trial with a blank reply is inconclusive, never clean. A request that ends wit
 retries — is never read as a reply without a marker; the run stops as it does for any
 unreachable endpoint. A finding in any trial is a finding; one trial in which a control
 answered is enough for it.</p>
-<p><strong>Fixtures demand their checks.</strong> A run given fixtures must complete the tenant check, and
-the poisoned-document check when a poisoned document is declared. Leaving either out of the
-selection (<code>rules.exclude</code>, <code>--safety passive</code>, a narrowed <code>include</code>), or a skip, is a
-<code>demanded_check</code> shortfall, so a run cannot record seeded data and check none of it.
-<code>plan probe --fixtures</code> reports the same shortfall before anything is sent and exits <code>3</code>.</p>
+<p><strong>Fixtures demand their checks.</strong> A run given fixtures must complete every installed rule
+that needs seeded data, unless the rule says it has nothing to check on them: the tenant check
+always, the poisoned-document check when a poisoned document is declared, and any such rule a
+pack adds. Leaving one out of the selection (<code>rules.exclude</code>, <code>--safety passive</code>, a narrowed
+<code>include</code>), or a skip, is a <code>demanded_check</code> shortfall, and so is an install with no rule that
+checks seeded data, so a run cannot record seeded data and check none of it. <code>plan probe --fixtures</code> reports the same shortfall before anything is sent and exits <code>3</code>.</p>
 <p><strong>Cost.</strong> <code>plan probe --fixtures</code> prices the tenant check at one request per item and tenant
 per trial, and the poisoned-document check at one request per poisoned document per trial;
 no key is read. The fixtures above, at one trial: 5 items × 2 tenants + 1 poisoned document
@@ -505,7 +513,7 @@ no key is read. The fixtures above, at one trial: 5 items × 2 tenants + 1 poiso
 so the digest the lock pins and the items a run asks about come from the same bytes. The
 lock pins the file's digest and every tenant adapter, and the stand-in target it prices
 carries the seeded data, so the two checks are selected and pinned. <code>recipe run</code> resolves
-every tenant, checks each key is set and that no two tenants share a secret value, re-reads
+every tenant, checks each key is set and that every tenant sends a secret of its own, re-reads
 every tenant adapter against its pin before it sends anything, and then asks as every tenant.
 <code>subject.fixtures</code> together with <code>subject.recording</code> is refused.</p>
 <h2 id="in-the-saved-run-and-in-diff">In the saved run and in <code>diff</code></h2>

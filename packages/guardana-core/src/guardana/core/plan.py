@@ -16,7 +16,7 @@ from guardana.core.registry import Registry
 from guardana.core.report import CheckError, ScanResult, SkippedRule
 from guardana.core.report.shortfall import CoverageShortfall
 from guardana.core.rule import Rule, RuleLoadError
-from guardana.core.target import SeededTarget, Target, TargetKind
+from guardana.core.target import Target, TargetKind
 from guardana.core.target.recorded import RecordedTarget
 
 
@@ -180,7 +180,11 @@ def build_plan(
         pre_run_errors,
         select_rules,
     )
-    from guardana.core.verify import unfinished_demands  # noqa: PLC0415 — verify is downstream
+    from guardana.core.verify import (  # noqa: PLC0415 — verify is downstream
+        demanded_by_fixtures,
+        unchecked_fixtures,
+        unfinished_demands,
+    )
 
     # Only an endpoint run samples a reply; a file plan given `trials: 5` in a shared
     # profile would otherwise list every artifact rule as declining something it
@@ -214,7 +218,7 @@ def build_plan(
             ceiling += declared
             floor += 1 if declared > 0 else 0
     errors = (*pre_run_errors(registry, target), *_unknown_evaluators(graded, registry))
-    demanded = target.fixtures.demanded_checks() if isinstance(target, SeededTarget) else ()
+    demanded = demanded_by_fixtures(registry, target, None)
     foreseen = ScanResult(
         findings=(), rules_run=tuple(selected), rules_skipped=tuple(skipped), errors=errors
     )
@@ -233,7 +237,11 @@ def build_plan(
         if judge_meters is None
         else _price_judges(graded, registry.evaluators(), judge_meters),
         errors=errors,
-        shortfall=(*incomplete_recording(target), *unfinished_demands(demanded, foreseen)),
+        shortfall=(
+            *incomplete_recording(target),
+            *unfinished_demands(demanded, foreseen),
+            *unchecked_fixtures(registry, target, None),
+        ),
     )
 
 

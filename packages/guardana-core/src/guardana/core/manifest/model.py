@@ -64,8 +64,9 @@ Version 14 records the recipe a run was started from and what it declared answer
 (`recipe`), the provider wire the run spoke (`configuration.provider`) and the
 `incomplete_recording` and `demanded_check` shortfall kinds.
 
-Version 15 records the fixtures file a run was given (`fixtures`) and the
-`seed_not_reached` shortfall kind.
+Version 15 records the fixtures file a run was given (`fixtures`), the
+`seed_not_reached` shortfall kind and whether each evaluator is deterministic
+(`evaluators[].deterministic`).
 """
 
 

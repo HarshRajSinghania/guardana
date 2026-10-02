@@ -14,7 +14,7 @@ import pytest
 from guardana.cli import _endpoint as endpoint_module
 from guardana.cli.exit_codes import ExitCode
 from guardana.cli.main import app
-from guardana.core.target.endpoint import ChatMessage
+from guardana.core.target.endpoint import RETRIES_PER_REQUEST, ChatMessage
 from typer.testing import CliRunner, Result
 
 runner = CliRunner()
@@ -47,6 +47,26 @@ def test_a_probe_plan_states_a_ceiling(monkeypatch: pytest.MonkeyPatch) -> None:
     assert payload["requests"]["max"] > 0
     assert payload["requests"]["min"] == len(payload["rules"])
     assert payload["complete"] is True, payload["unknown_cost"]
+
+
+def test_a_probe_plan_names_the_retries_its_ceiling_leaves_out(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A retry counts toward `--max-requests`, so a ceiling silent about them overstates the fit."""
+    ceiling = json.loads(_probe_plan(monkeypatch, "--format", "json").output)["requests"]["max"]
+
+    text = " ".join(_probe_plan(monkeypatch).output.split())
+
+    assert f"at most {ceiling} — plus up to {ceiling * RETRIES_PER_REQUEST} retries" in text
+    assert f"retried up to {RETRIES_PER_REQUEST} times" in text
+    assert "counts toward --max-requests" in text
+
+
+def test_an_mcp_plan_names_no_retries(monkeypatch: pytest.MonkeyPatch) -> None:
+    result = runner.invoke(app, ["plan", "probe", "--mcp", "http://mcp.test/mcp"])
+
+    assert result.exit_code == ExitCode.OK, result.output
+    assert "retries" not in result.output
 
 
 def test_a_scan_plan_lists_the_rules_it_would_run(tmp_path: Path) -> None:

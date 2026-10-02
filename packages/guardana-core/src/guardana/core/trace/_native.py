@@ -20,14 +20,11 @@ from guardana.core.trace._parse import (
     optional_float,
     optional_int,
     optional_text,
-    optional_text_tuple,
     optional_time,
     parts_from,
     reject_unknown_keys,
-    sequence_of,
     string_map,
     text_of,
-    text_tuple,
 )
 from guardana.core.trace.agent import AgentRef
 from guardana.core.trace.authorization import (
@@ -177,7 +174,7 @@ class NativeHeader:
         self.recorded_at = optional_time(producer, "recorded_at")
         self.instrumented = _dimensions(raw)
         self.truncated = _truncation(raw)
-        self.attributes = string_map(raw, "attributes")
+        self.attributes = _map(raw, "attributes", "trace header")
         self.terminated = optional_bool(raw, "terminated") is True
         """Whether this producer promised a footer, so its absence means truncation."""
 
@@ -283,7 +280,7 @@ def _dimensions(raw: Mapping[str, Any]) -> frozenset[Dimension]:
     recording approvals, and silently reading that as "does not record approvals"
     would turn their typo into missing coverage nobody is told about.
     """
-    declared = text_tuple(raw, "instrumented")
+    declared = _strings(raw, "instrumented", "trace header") or ()
     known = {str(d): d for d in Dimension}
     unknown = sorted(set(declared) - set(known))
     if unknown:
@@ -325,20 +322,22 @@ def _span(raw: Mapping[str, Any], span_id: str) -> Span:
         ended_at=optional_time(raw, "ended_at"),
         error=optional_text(raw, "error"),
         model=_model(raw.get("model")),
-        messages=tuple(_message(m) for m in sequence_of(raw.get("messages"))),
+        messages=tuple(_message(m) for m in _items(raw.get("messages"), "messages")),
         system_instructions=_parts(raw.get("system_instructions"), "system_instructions"),
-        tool_offers=tuple(_offer(o) for o in sequence_of(raw.get("tool_offers"))),
+        tool_offers=tuple(_offer(o) for o in _items(raw.get("tool_offers"), "tool_offers")),
         tool=_tool(raw.get("tool")),
         retrieval=_retrieval(raw.get("retrieval")),
         memory=_memory(raw.get("memory")),
         handoff=_handoff(raw.get("handoff")),
         conversation_id=optional_text(raw, "conversation_id"),
         identity=_identity(raw.get("identity")),
-        delegations=tuple(_delegation(d) for d in sequence_of(raw.get("delegations"))),
-        consents=tuple(_consent(c) for c in sequence_of(raw.get("consents"))),
-        policy_decisions=tuple(_policy(p) for p in sequence_of(raw.get("policy_decisions"))),
-        approvals=tuple(_approval(a) for a in sequence_of(raw.get("approvals"))),
-        effects=tuple(_effect(e) for e in sequence_of(raw.get("effects"))),
+        delegations=tuple(_delegation(d) for d in _items(raw.get("delegations"), "delegations")),
+        consents=tuple(_consent(c) for c in _items(raw.get("consents"), "consents")),
+        policy_decisions=tuple(
+            _policy(p) for p in _items(raw.get("policy_decisions"), "policy_decisions")
+        ),
+        approvals=tuple(_approval(a) for a in _items(raw.get("approvals"), "approvals")),
+        effects=tuple(_effect(e) for e in _items(raw.get("effects"), "effects")),
     )
 
 
@@ -347,28 +346,66 @@ def _closed(raw: Mapping[str, Any], location: str, what: str) -> None:
     reject_unknown_keys(raw, OBJECT_KEYS[location], what)
 
 
+def _object(raw: object, what: str) -> dict[str, Any] | None:
+    """Read an object the schema defines, None when absent; refuse any other value.
+
+    The shared parsers read a string or a number in its place as an empty record or as
+    text, which is a record the producer never wrote.
+    """
+    return None if raw is None else mapping_of(raw, what)
+
+
+def _items(raw: object, what: str) -> list[dict[str, Any]]:
+    """Read a list of objects the schema defines, empty when absent; refuse anything else."""
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        raise TraceLoadError(f"{what} must be a JSON array")
+    return [mapping_of(item, f"an item of {what}") for item in raw]
+
+
+def _strings(raw: Mapping[str, Any], key: str, what: str) -> tuple[str, ...] | None:
+    """Read a list of strings the schema defines, None when absent; refuse anything else.
+
+    Absence and an empty list stay different facts, which a scope list needs.
+    """
+    value = raw.get(key)
+    if value is None:
+        return None
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        raise TraceLoadError(f"{what}.{key} must be a JSON array of strings")
+    return tuple(value)
+
+
+def _map(raw: Mapping[str, Any], key: str, what: str) -> dict[str, str]:
+    """Read a string map the schema defines, empty when absent; refuse a value that is not one."""
+    _object(raw.get(key), f"{what}.{key}")
+    return string_map(raw, key)
+
+
 def _parts(raw: object, what: str) -> tuple[ContentPart, ...]:
-    """Check every part's keys here, then read the parts with the shared OTel parser.
+    """Check every part's keys and `type` here, then read them with the shared OTel parser.
 
     The shared parser reads only the keys it knows, which is right for OpenTelemetry
     and the fail-open here: a part written `{"type": "text", "text": ...}` would carry
     no text and grade as an empty message.
     """
-    for part in sequence_of(raw):
-        if isinstance(part, dict):
-            _closed(part, "part", f"a part in {what}")
-    return parts_from(raw)
+    parts = _items(raw, f"the parts of {what}")
+    for part in parts:
+        _closed(part, "part", f"a part in {what}")
+        if not isinstance(part.get("type"), str):
+            raise TraceLoadError(f"a part in {what} must name its `type` as a string")
+    return parts_from(parts)
 
 
-def _message(raw: object) -> Message:
+def _message(raw: dict[str, Any]) -> Message:
     """Check a message's keys and its parts', then read it with the shared OTel parser.
 
     Only `parts` is a native message's list: the shared parser's fallback to
     `content` serves OpenTelemetry producers and would let a native typo through.
     """
-    if isinstance(raw, dict):
-        _closed(raw, "message", "a message")
-        _parts(raw.get("parts"), "a message")
+    _closed(raw, "message", "a message")
+    _parts(raw.get("parts"), "a message")
     return message_from(raw)
 
 
@@ -389,8 +426,9 @@ def _enum(raw: Mapping[str, Any], key: str, enum: type[_E], fallback: _E) -> _E:
         return fallback
 
 
-def _model(raw: object) -> ModelCall | None:
-    if not isinstance(raw, dict):
+def _model(value: object) -> ModelCall | None:
+    raw = _object(value, "model")
+    if raw is None:
         return None
     _closed(raw, "span.model", "model")
     return ModelCall(
@@ -399,13 +437,11 @@ def _model(raw: object) -> ModelCall | None:
         response_model=optional_text(raw, "response_model"),
         input_tokens=optional_int(raw, "input_tokens"),
         output_tokens=optional_int(raw, "output_tokens"),
-        finish_reasons=text_tuple(raw, "finish_reasons"),
+        finish_reasons=_strings(raw, "finish_reasons", "model") or (),
     )
 
 
-def _offer(raw: object) -> ToolDeclaration:
-    if not isinstance(raw, dict):
-        return ToolDeclaration(name="unknown")
+def _offer(raw: dict[str, Any]) -> ToolDeclaration:
     _closed(raw, "span.tool_offers[]", "a tool offer")
     return ToolDeclaration(
         name=optional_text(raw, "name") or "unknown",
@@ -415,8 +451,9 @@ def _offer(raw: object) -> ToolDeclaration:
     )
 
 
-def _tool(raw: object) -> ToolExecution | None:
-    if not isinstance(raw, dict):
+def _tool(value: object) -> ToolExecution | None:
+    raw = _object(value, "tool")
+    if raw is None:
         return None
     _closed(raw, "span.tool", "tool")
     return ToolExecution(
@@ -430,21 +467,20 @@ def _tool(raw: object) -> ToolExecution | None:
     )
 
 
-def _retrieval(raw: object) -> Retrieval | None:
-    if not isinstance(raw, dict):
+def _retrieval(value: object) -> Retrieval | None:
+    raw = _object(value, "retrieval")
+    if raw is None:
         return None
     _closed(raw, "span.retrieval", "retrieval")
     return Retrieval(
         query=optional_text(raw, "query"),
         source=optional_text(raw, "source"),
         tenant=optional_text(raw, "tenant"),
-        documents=tuple(_document(d) for d in sequence_of(raw.get("documents"))),
+        documents=tuple(_document(d) for d in _items(raw.get("documents"), "retrieval.documents")),
     )
 
 
-def _document(raw: object) -> RetrievedDocument:
-    if not isinstance(raw, dict):
-        return RetrievedDocument(id="unknown")
+def _document(raw: dict[str, Any]) -> RetrievedDocument:
     _closed(raw, "span.retrieval.documents[]", "a retrieved document")
     return RetrievedDocument(
         id=optional_text(raw, "id") or "unknown",
@@ -452,12 +488,13 @@ def _document(raw: object) -> RetrievedDocument:
         source=optional_text(raw, "source"),
         tenant=optional_text(raw, "tenant"),
         score=optional_float(raw, "score"),
-        metadata=string_map(raw, "metadata"),
+        metadata=_map(raw, "metadata", "a retrieved document"),
     )
 
 
-def _memory(raw: object) -> MemoryOperation | None:
-    if not isinstance(raw, dict):
+def _memory(value: object) -> MemoryOperation | None:
+    raw = _object(value, "memory")
+    if raw is None:
         return None
     _closed(raw, "span.memory", "memory")
     return MemoryOperation(
@@ -476,24 +513,26 @@ def _agent(raw: object) -> AgentRef | None:
     field is to tell two agents apart, and a trace whose every span is performed by
     `unknown` would let a rule compare two different agents and find them equal.
     """
-    if not isinstance(raw, dict):
+    block = _object(raw, "agent")
+    if block is None:
         return None
-    _closed(raw, "span.agent", "agent")
-    name = optional_text(raw, "name")
+    _closed(block, "span.agent", "agent")
+    name = optional_text(block, "name")
     if name is None:
         return None
-    return AgentRef(name=name, id=optional_text(raw, "id"))
+    return AgentRef(name=name, id=optional_text(block, "id"))
 
 
-def _handoff(raw: object) -> Handoff | None:
-    if not isinstance(raw, dict):
+def _handoff(value: object) -> Handoff | None:
+    raw = _object(value, "handoff")
+    if raw is None:
         return None
     _closed(raw, "span.handoff", "handoff")
     return Handoff(
         from_agent=optional_text(raw, "from_agent") or "unknown",
         to_agent=optional_text(raw, "to_agent") or "unknown",
         payload=_parts(raw.get("payload"), "a handoff payload"),
-        carried_scopes=optional_text_tuple(raw, "carried_scopes"),
+        carried_scopes=_strings(raw, "carried_scopes", "handoff"),
     )
 
 
@@ -504,26 +543,28 @@ def credential_from(raw: object) -> CredentialRef | None:
     `CredentialRef` has no field to put it in. That is the seam: a producer's
     carelessness stops at the reader rather than travelling into a report.
     """
-    if not isinstance(raw, dict):
+    block = _object(raw, "credential")
+    if block is None:
         return None
-    _closed(raw, "credential", "credential")
-    digest = optional_text(raw, "digest")
-    value = optional_text(raw, "value")
-    kind = _enum(raw, "kind", CredentialKind, CredentialKind.OTHER)
+    _closed(block, "credential", "credential")
+    digest = optional_text(block, "digest")
+    value = optional_text(block, "value")
+    kind = _enum(block, "kind", CredentialKind, CredentialKind.OTHER)
     if digest is None and value is not None:
         digest = CredentialRef.of_value(value, kind).digest
     return CredentialRef(
         kind=kind,
         digest=digest,
-        audience=text_tuple(raw, "audience"),
-        issuer=optional_text(raw, "issuer"),
-        subject=optional_text(raw, "subject"),
-        scopes=optional_text_tuple(raw, "scopes"),
+        audience=_strings(block, "audience", "credential") or (),
+        issuer=optional_text(block, "issuer"),
+        subject=optional_text(block, "subject"),
+        scopes=_strings(block, "scopes", "credential"),
     )
 
 
-def _identity(raw: object) -> Identity | None:
-    if not isinstance(raw, dict):
+def _identity(value: object) -> Identity | None:
+    raw = _object(value, "identity")
+    if raw is None:
         return None
     _closed(raw, "span.identity", "identity")
     session = raw.get("session")
@@ -538,47 +579,42 @@ def _identity(raw: object) -> Identity | None:
 def _session(raw: object) -> SessionRef | None:
     if isinstance(raw, str):
         return SessionRef(id=raw)
-    if not isinstance(raw, dict):
+    block = _object(raw, "identity.session, unless a bare id,")
+    if block is None:
         return None
-    _closed(raw, "session", "identity.session")
-    identifier = optional_text(raw, "id")
+    _closed(block, "session", "identity.session")
+    identifier = optional_text(block, "id")
     return (
-        SessionRef(id=identifier, protocol=optional_text(raw, "protocol"))
+        SessionRef(id=identifier, protocol=optional_text(block, "protocol"))
         if identifier is not None
         else None
     )
 
 
-def _delegation(raw: object) -> Delegation:
-    if not isinstance(raw, dict):
-        return Delegation(actor="unknown", boundary="unknown")
+def _delegation(raw: dict[str, Any]) -> Delegation:
     _closed(raw, "span.delegations[]", "a delegation")
     return Delegation(
         actor=optional_text(raw, "actor") or "unknown",
         boundary=optional_text(raw, "boundary") or "unknown",
         on_behalf_of=optional_text(raw, "on_behalf_of"),
         credential=credential_from(raw.get("credential")),
-        scopes=optional_text_tuple(raw, "scopes"),
+        scopes=_strings(raw, "scopes", "a delegation"),
     )
 
 
-def _consent(raw: object) -> Consent:
-    if not isinstance(raw, dict):
-        return Consent(client="unknown", granted=False)
+def _consent(raw: dict[str, Any]) -> Consent:
     _closed(raw, "span.consents[]", "a consent")
     granted = optional_bool(raw, "granted")
     return Consent(
         client=optional_text(raw, "client") or "unknown",
         granted=granted if granted is not None else False,
-        scopes=optional_text_tuple(raw, "scopes"),
+        scopes=_strings(raw, "scopes", "a consent"),
         subject=optional_text(raw, "subject"),
         recorded_at=optional_time(raw, "recorded_at"),
     )
 
 
-def _policy(raw: object) -> PolicyDecision:
-    if not isinstance(raw, dict):
-        return PolicyDecision(outcome=PolicyOutcome.ERROR, action="unknown")
+def _policy(raw: dict[str, Any]) -> PolicyDecision:
     _closed(raw, "span.policy_decisions[]", "a policy decision")
     return PolicyDecision(
         outcome=_enum(raw, "outcome", PolicyOutcome, PolicyOutcome.ERROR),
@@ -626,9 +662,7 @@ def _approver(raw: Mapping[str, Any]) -> tuple[str | None, ApproverKind | None]:
     return approver, None
 
 
-def _approval(raw: object) -> Approval:
-    if not isinstance(raw, dict):
-        return Approval(action="unknown", outcome=ApprovalOutcome.UNKNOWN)
+def _approval(raw: dict[str, Any]) -> Approval:
     _closed(raw, "span.approvals[]", "an approval")
     approver, approver_kind = _approver(raw)
     return Approval(
@@ -641,9 +675,7 @@ def _approval(raw: object) -> Approval:
     )
 
 
-def _effect(raw: object) -> SideEffect:
-    if not isinstance(raw, dict):
-        return SideEffect(sink=SinkKind.OTHER, action="unknown")
+def _effect(raw: dict[str, Any]) -> SideEffect:
     _closed(raw, "span.effects[]", "an effect")
     return SideEffect(
         sink=_enum(raw, "sink", SinkKind, SinkKind.OTHER),

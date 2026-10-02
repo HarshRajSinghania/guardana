@@ -347,7 +347,7 @@ verification.save(Path(&quot;run.json&quot;))  # the document `--format json --o
 </tr>
 <tr>
 <td><code>fixtures</code></td>
-<td>The fixtures file the run was given, a <code>FixturesRecord</code> (<code>Fixtures.record()</code> from <code>guardana.core.fixtures</code>), written into the saved run as <code>run.fixtures</code>, with <code>data</code> labelled declared. <code>None</code> by default; <code>diff</code> reads two runs given different fixtures, or fixtures on one side only, as incomplete.</td>
+<td>The fixtures file the run was given, a <code>FixturesRecord</code> (<code>Fixtures.record()</code> from <code>guardana.core.fixtures</code>), written into the saved run as <code>run.fixtures</code>, with <code>data</code> labelled declared. <code>None</code> by default; a target that declares <code>Capability.SEEDED_DATA</code> records its own. A run given fixtures demands every registered rule that needs seeded data and has something to check on the target, and one with no such rule is a <code>demanded_check</code> shortfall too. <code>diff</code> reads two runs given different fixtures, or fixtures on one side only, as incomplete.</td>
 </tr>
 </tbody>
 </table></div>
@@ -454,7 +454,7 @@ verification = verifier.grade(path, source=None, deployment=None)
 </tr>
 <tr>
 <td><code>UnsupportedTargetError</code></td>
-<td>A trace target. Its unreadable records and its contracts are read by <a href="usage-analyze-trace.html"><code>guardana analyze-trace</code></a>, which this module does not run. Also an endpoint target other than the built-in one under <code>privacy.keep_exchanges</code>.</td>
+<td>A trace target. Its unreadable records and its contracts are read by <a href="usage-analyze-trace.html"><code>guardana analyze-trace</code></a>, which this module does not run. Also an endpoint target not built on the built-in <code>EndpointTarget</code> under <code>privacy.keep_exchanges</code>.</td>
 <td><code>3</code> for <code>probe --keep-exchanges</code></td>
 </tr>
 <tr>

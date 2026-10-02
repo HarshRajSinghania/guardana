@@ -452,6 +452,10 @@ def saved_run_at_v14(document: dict[str, Any]) -> dict[str, Any]:
         "$schema": "https://guardana.dev/schemas/run/v14.schema.json",
         "run": {
             **{k: v for k, v in run.items() if k != "fixtures"},
+            "evaluators": [
+                {k: v for k, v in evaluator.items() if k != "deterministic"}
+                for evaluator in run["evaluators"]
+            ],
             "coverage": {
                 **coverage,
                 "shortfall": [

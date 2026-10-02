@@ -15,7 +15,8 @@ guardana plan probe --url https://api.example.com --model gpt-4o-mini
 
 ```text
 14 rule(s) would run, 11 skipped.
-requests: at least 14, at most 47
+requests: at least 14, at most 47 — plus up to 94 retries
+  a request refused for a rate limit or a server error is retried up to 2 times, and each retry counts toward --max-requests
 trials: 1 attempt(s) per case, counted in the requests above
 judge calls: none — no selected rule grades with a judge
 
@@ -78,7 +79,10 @@ exactly like `guardana scan` does.
 
 Target construction is configuration-only: `plan` calls the same
 `from_locator` classmethod as the real command, but a conforming target does not
-contact the system until a run or inspection starts.
+contact the system until a run or inspection starts. An installed endpoint target that
+can plant a system prompt (`SystemPromptPlanter`) is planned as `probe` runs it: its
+canary rules are priced against a planted view, so the plan lists the rules the probe
+then runs.
 
 ## Where the numbers come from
 
@@ -95,6 +99,12 @@ exactly like an endpoint rule can. The 19 built-in artifact rules declare the
 zero themselves, on their own base class in `guardana-rules` — not a public
 extension point, so a third-party artifact rule declares its own
 `estimated_requests` rather than inheriting theirs.
+
+**Retries are not in the ceiling.** A chat endpoint sends a request again, up to two
+times, when it is refused for a rate limit or a server error, and every retry counts
+toward `--max-requests`. The human output names how many retries the ceiling could
+add; the JSON `requests.max` leaves them out. An MCP plan names none: its transport does
+not retry.
 
 The declaration is **measured, not trusted**, on both sides of that split. A
 gate in `guardana-rules` runs every shipped endpoint rule against a model that
@@ -183,8 +193,9 @@ guardana plan probe --url https://support.example.test --model support-bot \
 
 Each tenant is resolved as the probe would resolve it, without reading its key, so a
 fixtures file the probe would refuse is refused here too (exit `3`). A run given fixtures
-must complete both checks, so a plan that would not select one — a profile that excludes
-it, `--safety passive` — names it as a coverage shortfall and exits `3`.
+must complete every installed rule that checks seeded data and has something to check, so
+a plan that would not select one — a profile that excludes it, `--safety passive` — names
+it as a coverage shortfall and exits `3`.
 
 ## Pricing an MCP server
 
@@ -197,7 +208,7 @@ this at production.
 guardana plan probe --mcp https://mcp.example.com/mcp
 ```
 
-**The ceiling is higher than any run spends, on purpose.** Each rule declares what
+**The ceiling is usually higher than a run spends, on purpose.** Each rule declares what
 it would cost *alone*, because a plan cannot know which rule runs first — and the
 first one to look buys an observation the rest then share — including the single
 `server/discover` call that settles which revision of the protocol the server

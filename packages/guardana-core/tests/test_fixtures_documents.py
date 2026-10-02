@@ -25,6 +25,7 @@ from guardana.core.fixtures import (
     FixturesError,
     load_fixtures,
 )
+from guardana.core.trace import SinkKind
 from jsonschema import Draft202012Validator
 
 _SCHEMAS = Path(__file__).resolve().parents[3] / "schemas"
@@ -75,6 +76,15 @@ def test_the_published_schema_accepts_what_the_loader_reads() -> None:
     assert list(_validator().iter_errors(document())) == []
 
 
+def test_the_schema_names_exactly_the_sinks_a_trace_records() -> None:
+    schema = json.loads(
+        (_SCHEMAS / f"fixtures-v{FIXTURES_SCHEMA_VERSION}.schema.json").read_text(encoding="utf-8")
+    )
+    tool = schema["properties"]["tools"]["additionalProperties"]
+
+    assert tool["properties"]["sink"]["enum"] == [kind.value for kind in SinkKind]
+
+
 _BREAKAGES: dict[str, Callable[[dict[str, Any]], object]] = {
     "one tenant": lambda d: d["tenants"].pop("globex"),
     "a tenant naming both": lambda d: d["tenants"]["acme"].update(adapter="a.yaml"),
@@ -82,6 +92,7 @@ _BREAKAGES: dict[str, Callable[[dict[str, Any]], object]] = {
     "data not synthetic": lambda d: d.update(data="production"),
     "an update without a sink": lambda d: d["tools"]["refund_order"].pop("sink"),
     "a read with a sink": lambda d: d["tools"]["lookup_order"].update(sink="db"),
+    "a sink no trace records": lambda d: d["tools"]["refund_order"].update(sink="payments"),
     "a send with a collection": lambda d: d["tools"]["send_email"].update(collection="orders"),
     "a record typing reference_code": lambda d: d["records"]["orders"][0]["fields"].update(
         reference_code="AB12-CD34"

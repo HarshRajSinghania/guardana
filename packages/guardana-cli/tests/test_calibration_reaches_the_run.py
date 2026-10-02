@@ -238,7 +238,7 @@ def test_a_run_inspect_states_the_per_class_calibration(
         r"brier \S+ · ECE \S+ · measured \S+",
         result.output,
     ), result.output
-    assert "    canary — confidence not measured" in result.output
+    assert "    canary — deterministic — no error rate" in result.output
     assert "starter corpus" not in result.output
 
 

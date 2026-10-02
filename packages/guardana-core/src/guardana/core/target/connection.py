@@ -26,6 +26,9 @@ from guardana.core.usage import UsageMeter
 DEFAULT_PROVIDER = "openai"
 """The wire protocol of a connection that names none and has no adapter."""
 
+HEADERS_AS_A_WHOLE = "its headers as a whole"
+"""The source of the credential an adapter's expanded headers make together."""
+
 _ENV_REF = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
 _ADAPTER_KEYS = frozenset({"url", "method", "headers", "body", "response_path"})
 _ADAPTER_METHOD = "POST"
@@ -262,7 +265,7 @@ def _expanded_headers(
                 for variable, found in used
             )
             secrets.extend([expanded, *(found for _, found in used)])
-    credentials.append(Credential(_headers_digest(headers), "its headers as a whole"))
+    credentials.append(Credential(_headers_digest(headers), HEADERS_AS_A_WHOLE))
     return headers, tuple(credentials), tuple(secrets)
 
 
@@ -375,6 +378,7 @@ def _api_key(variable: str, names: Spelling, environ: Mapping[str, str]) -> str:
 
 __all__ = [
     "DEFAULT_PROVIDER",
+    "HEADERS_AS_A_WHOLE",
     "Connection",
     "ConnectionConfigError",
     "Credential",

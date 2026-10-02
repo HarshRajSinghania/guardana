@@ -441,6 +441,8 @@ non-empty string, from `not_applicable_to(target)`, and is recorded as skipped
 else, such as `False` from `cond and "reason"`, is recorded as an error and the rule runs,
 so `fail_on_error` keeps the run from passing. `guardana.retrieval.poisoned_document` does
 both.
+A rule that requires `Capability.SEEDED_DATA` is demanded by every run given fixtures,
+whatever the profile selects, unless `not_applicable_to` says it has nothing to check there.
 
 **Ask the target for parsed source — never parse it yourself.** A scan runs
 every rule over the same tree, so a rule that reads and parses a file for itself

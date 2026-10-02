@@ -378,6 +378,10 @@ _REFUSALS: dict[str, tuple[Callable[[dict[str, Any]], object], str]] = {
         lambda d: d["tools"]["send_email"].pop("reversible"),
         "declares `sink` and `reversible`",
     ),
+    "a sink no trace records": (
+        lambda d: d["tools"]["refund_order"].update(sink="payments"),
+        r"sink 'payments' is not one a trace records; use one of sql, shell",
+    ),
     "a read declaring a sink": (
         lambda d: d["tools"]["lookup_order"].update(sink="db"),
         "changes nothing",
@@ -594,6 +598,107 @@ def test_two_adapters_sharing_a_secret_under_different_other_headers_are_refused
     assert "shared-0451" not in str(refused.value)
     assert "header Authorization" in str(refused.value)
     assert len(distinct) == 2
+
+
+_GATEWAY = (
+    'body:\n  message: "{{prompt}}"\nresponse_path: reply\nheaders:\n  X-Gateway: "${GW}"\n%s'
+)
+
+
+def _gateway(tmp_path: Path, acme: str, globex: str) -> Fixtures:
+    """Load fixtures whose tenants send the shared gateway header and the headers given."""
+    written = document()
+    for name, own in (("acme", acme), ("globex", globex)):
+        (tmp_path / f"{name}.yaml").write_text(_GATEWAY % own, encoding="utf-8")
+        written["tenants"][name] = {"adapter": f"{name}.yaml"}
+    return _load(tmp_path, written)
+
+
+_GATEWAY_ENVIRON = {"GW": "gateway-0451", "ACME_KEY": "acme-0451", "GLOBEX_KEY": "globex-0451"}
+
+
+def test_tenants_sharing_a_gateway_header_beside_keys_of_their_own_are_told_apart(
+    tmp_path: Path,
+) -> None:
+    fixtures = _gateway(
+        tmp_path,
+        '  Authorization: "Bearer ${ACME_KEY}"\n',
+        '  Authorization: "Bearer ${GLOBEX_KEY}"\n',
+    )
+
+    resolved = fixtures.resolve_tenants(
+        Connection(url=_URL, model="m"), sending=True, environ=_GATEWAY_ENVIRON
+    )
+
+    assert [tenant.name for tenant in resolved] == ["acme", "globex"]
+
+
+def test_a_tenant_sending_nothing_another_does_not_send_too_is_refused(tmp_path: Path) -> None:
+    fixtures = _gateway(tmp_path, '  Authorization: "Bearer ${ACME_KEY}"\n', "")
+
+    with pytest.raises(FixturesError, match="the same credential") as refused:
+        fixtures.resolve_tenants(
+            Connection(url=_URL, model="m"), sending=True, environ=_GATEWAY_ENVIRON
+        )
+
+    assert "header X-Gateway" in str(refused.value)
+    assert "gateway-0451" not in str(refused.value)
+
+
+# The run's own connection is never a tenant
+
+
+@pytest.mark.parametrize("sending", [False, True], ids=["planned", "sent"])
+def test_a_tenant_holding_the_runs_own_key_is_refused(tmp_path: Path, sending: bool) -> None:
+    fixtures = _load(tmp_path)
+    run = Connection(url=_URL, model="m", api_key_env="ACME_KEY")
+    environ = {"ACME_KEY": "acme-0451", "GLOBEX_KEY": "globex-0451"}
+
+    with pytest.raises(FixturesError, match="the run's own connection") as refused:
+        fixtures.resolve_tenants(run, sending=sending, environ=environ)
+
+    assert "acme" in str(refused.value)
+    assert "acme-0451" not in str(refused.value)
+
+
+def test_a_tenant_whose_key_holds_the_runs_key_value_is_refused_when_sending(
+    tmp_path: Path,
+) -> None:
+    fixtures = _load(tmp_path)
+    run = Connection(url=_URL, model="m", api_key_env="RUN_KEY")
+    environ = {"RUN_KEY": "globex-0451", "ACME_KEY": "acme-0451", "GLOBEX_KEY": "globex-0451"}
+
+    planned = fixtures.resolve_tenants(run, sending=False, environ=environ)
+    with pytest.raises(FixturesError, match="the run's own connection"):
+        fixtures.resolve_tenants(run, sending=True, environ=environ)
+    distinct = fixtures.resolve_tenants(
+        run, sending=True, environ={**environ, "RUN_KEY": "run-0451"}
+    )
+
+    assert len(planned) == len(distinct) == 2
+
+
+def test_a_tenant_naming_the_runs_own_adapter_is_refused_without_reading_a_key(
+    tmp_path: Path,
+) -> None:
+    written = document()
+    _adapters(tmp_path, written)
+    fixtures = _load(tmp_path, written)
+    run = Connection(url=_URL, model="m", adapter=tmp_path / "globex.yaml")
+
+    with pytest.raises(FixturesError, match="the run's own connection"):
+        fixtures.resolve_tenants(run, sending=False, environ={})
+
+
+def test_a_run_that_sends_no_credential_is_told_apart_from_every_tenant(tmp_path: Path) -> None:
+    fixtures = _load(tmp_path)
+    environ = {"ACME_KEY": "acme-0451", "GLOBEX_KEY": "globex-0451"}
+
+    resolved = fixtures.resolve_tenants(
+        Connection(url=_URL, model="m"), sending=True, environ=environ
+    )
+
+    assert len(resolved) == 2
 
 
 @dataclass(frozen=True, slots=True)

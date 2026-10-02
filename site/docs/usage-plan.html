@@ -280,7 +280,8 @@
 <pre><code class="language-bash">guardana plan probe --url https://api.example.com --model gpt-4o-mini
 </code></pre>
 <pre><code class="language-text">14 rule(s) would run, 11 skipped.
-requests: at least 14, at most 47
+requests: at least 14, at most 47 — plus up to 94 retries
+  a request refused for a rate limit or a server error is retried up to 2 times, and each retry counts toward --max-requests
 trials: 1 attempt(s) per case, counted in the requests above
 judge calls: none — no selected rule grades with a judge
 
@@ -420,7 +421,10 @@ headers: a plan contacts nothing, so it needs no secret.</p>
 exactly like <code>guardana scan</code> does.</p>
 <p>Target construction is configuration-only: <code>plan</code> calls the same
 <code>from_locator</code> classmethod as the real command, but a conforming target does not
-contact the system until a run or inspection starts.</p>
+contact the system until a run or inspection starts. An installed endpoint target that
+can plant a system prompt (<code>SystemPromptPlanter</code>) is planned as <code>probe</code> runs it: its
+canary rules are priced against a planted view, so the plan lists the rules the probe
+then runs.</p>
 <h2 id="where-the-numbers-come-from">Where the numbers come from</h2>
 <p>Each built-in rule shape declares an upper bound on the requests it will send
 (<code>Rule.estimated_requests</code>): a YAML rule knows how many prompts it has, a
@@ -434,6 +438,11 @@ exactly like an endpoint rule can. The 19 built-in artifact rules declare the
 zero themselves, on their own base class in <code>guardana-rules</code> — not a public
 extension point, so a third-party artifact rule declares its own
 <code>estimated_requests</code> rather than inheriting theirs.</p>
+<p><strong>Retries are not in the ceiling.</strong> A chat endpoint sends a request again, up to two
+times, when it is refused for a rate limit or a server error, and every retry counts
+toward <code>--max-requests</code>. The human output names how many retries the ceiling could
+add; the JSON <code>requests.max</code> leaves them out. An MCP plan names none: its transport does
+not retry.</p>
 <p>The declaration is <strong>measured, not trusted</strong>, on both sides of that split. A
 gate in <code>guardana-rules</code> runs every shipped endpoint rule against a model that
 never refuses, counts the requests it actually sends, and fails if any rule
@@ -500,8 +509,9 @@ missing capability and cost nothing.</p>
 </code></pre>
 <p>Each tenant is resolved as the probe would resolve it, without reading its key, so a
 fixtures file the probe would refuse is refused here too (exit <code>3</code>). A run given fixtures
-must complete both checks, so a plan that would not select one — a profile that excludes
-it, <code>--safety passive</code> — names it as a coverage shortfall and exits <code>3</code>.</p>
+must complete every installed rule that checks seeded data and has something to check, so
+a plan that would not select one — a profile that excludes it, <code>--safety passive</code> — names
+it as a coverage shortfall and exits <code>3</code>.</p>
 <h2 id="pricing-an-mcp-server">Pricing an MCP server</h2>
 <p><code>plan probe --mcp</code> prices an MCP run the same way, and it is where this command
 earns its keep. Reading a manifest costs three requests; the authorization checks
@@ -509,7 +519,7 @@ send around a dozen, which is exactly the number somebody wants before pointing
 this at production.</p>
 <pre><code class="language-bash">guardana plan probe --mcp https://mcp.example.com/mcp
 </code></pre>
-<p><strong>The ceiling is higher than any run spends, on purpose.</strong> Each rule declares what
+<p><strong>The ceiling is usually higher than a run spends, on purpose.</strong> Each rule declares what
 it would cost <em>alone</em>, because a plan cannot know which rule runs first — and the
 first one to look buys an observation the rest then share — including the single
 <code>server/discover</code> call that settles which revision of the protocol the server

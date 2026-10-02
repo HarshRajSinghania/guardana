@@ -18,7 +18,7 @@ import pytest
 import yaml
 from _fixtures_file import fixtures_document
 from guardana.core.doubles import INSTRUMENTED, PRODUCER, Doubles, DoublesError, open_doubles
-from guardana.core.fixtures import RECORD_MARKER_FIELD, load_fixtures
+from guardana.core.fixtures import RECORD_MARKER_FIELD, FixturesError, load_fixtures
 from guardana.core.trace import (
     TRACE_SCHEMA_VERSION,
     EffectStatus,
@@ -453,7 +453,7 @@ def test_arguments_a_tool_does_not_take_raise_before_anything_is_written(
 
 def test_a_sink_no_rule_reads_is_refused_before_the_trace_is_created(tmp_path: Path) -> None:
     tools = {**_TOOLS, "refund_order": {**_TOOLS["refund_order"], "sink": "payments"}}
-    with pytest.raises(DoublesError, match="sink 'payments'"):
+    with pytest.raises(FixturesError, match="sink 'payments'"):
         _open(tmp_path, tools=tools)
     assert not (tmp_path / "doubles.jsonl").exists()
 

@@ -380,14 +380,24 @@ def migrate_v14(document: Mapping[str, Any]) -> dict[str, Any]:
     """Rewrite a schema-14 saved run as a schema-15 one, recomputing nothing.
 
     **`run.fixtures`** arrives null, overwriting whatever the document holds: no
-    version-14 build took a fixtures file, so the run was given none.
+    version-14 build took a fixtures file, so the run was given none. Every
+    **`run.evaluators[].deterministic`** arrives false: no version-14 build recorded it,
+    and an evaluator that says nothing is read as a judge.
     """
     run = _mapping(document.get("run"), "run")
+    evaluators = run.get("evaluators")
     return {
         **document,
         "schema_version": 15,
         "$schema": schema_url(15),
-        "run": {**run, "fixtures": None},
+        "run": {
+            **run,
+            "fixtures": None,
+            "evaluators": [
+                {**_mapping(entry, "run.evaluators[]"), "deterministic": False}
+                for entry in (evaluators if isinstance(evaluators, list) else [])
+            ],
+        },
     }
 
 

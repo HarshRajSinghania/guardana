@@ -59,7 +59,7 @@ guardana probe (--url <base-url> --model <name> | --target <scheme://locator>) [
 | `--environment TEXT` | none | Where it runs, e.g. `production`. Never guessed from a branch name. |
 | `--deployment-id TEXT` | none | Which version of it, if you have an identifier. |
 | `--output PATH` | stdout | Write the report to a file instead of stdout — needed by `guardana diff`. See [Saving a run for comparison](#saving-a-run-for-comparison) |
-| `--keep-exchanges` | off (or `privacy.keep_exchanges`) | Keep every chat exchange of the plain pass, redacted, beside the saved run so [`guardana grade`](usage-grade.md) can grade it again without calling the endpoint — see [Keeping the exchanges](#keeping-the-exchanges). Needs `--format json --output`; refused with `--mcp`, `--target` and `privacy.evidence_mode: metadata_only` (exit `3`) |
+| `--keep-exchanges` | off (or `privacy.keep_exchanges`) | Keep every chat exchange of the plain pass, redacted, beside the saved run so [`guardana grade`](usage-grade.md) can grade it again without calling the endpoint — see [Keeping the exchanges](#keeping-the-exchanges). Needs `--format json --output`; refused with `--mcp`, with a `--target` not built on the built-in endpoint, and with `privacy.evidence_mode: metadata_only` (exit `3`) |
 
 `--target` is mutually exclusive with `--url`, `--model`, provider, adapter, credential,
 system-prompt, and MCP connection flags. The plugin owns construction; Guardana
@@ -507,9 +507,11 @@ records the file's SHA-256, its line count and how many replies redaction change
 `run.exchanges`; a sidecar that no longer matches that digest is a different execution to
 `guardana diff`.
 
-- Only the built-in endpoint's plain pass is kept (`--url`, with or without `--adapter`):
-  never the system prompt, the canary passes or tool offers, so canary and tool rules are
-  not graded again. What a rule asks as a tenant under `--fixtures` is never kept either.
+- Only the plain pass of the built-in endpoint is kept: `--url`, with or without
+  `--adapter`, or a pack's `--target` built on `EndpointTarget`. Another `--target` keeps
+  nothing and is refused (exit `3`). The system prompt, the canary passes and tool offers
+  are never kept, so canary and tool rules are not graded again. What a rule asks as a
+  tenant under `--fixtures` is never kept either.
 - Every input and reply passes the run's redactor, matched spans only and without the
   evidence size bound; a secret is removed under every `evidence_mode`, `full` included. A
   reply redaction changed is marked `altered` and is never graded again: a reply that
@@ -538,9 +540,12 @@ guardana probe --url https://support.example.test --model support-bot \
   a poisoned document is a finding; skipped as `not_applicable` when none is declared.
 
 A control that returned no marker in any trial is a `seed_not_reached` coverage shortfall,
-so the run ends `indeterminate` (exit `2`) unless a finding fails it, and fixtures demand
-both checks: excluding or skipping one is a `demanded_check` shortfall. The run records the
-file as `run.fixtures`. What each check asks, and what its clean result does and does not
+so the run ends `indeterminate` (exit `2`) unless a finding fails it. Fixtures demand every
+installed rule that checks seeded data and has something to check, these two and any a pack
+adds: excluding or skipping one is a `demanded_check` shortfall, and so is an install with
+no such rule. A tenant that authenticates as the run's own connection (`--api-key-env` or
+`--adapter`) is refused (exit `3`): every other rule would then run as that tenant. The run
+records the file as `run.fixtures`. What each check asks, and what its clean result does and does not
 mean: [`usage-fixtures.md`](usage-fixtures.md#the-two-checks-a-run-given-fixtures-makes).
 
 ## Quality suites

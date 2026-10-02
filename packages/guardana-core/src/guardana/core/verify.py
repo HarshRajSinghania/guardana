@@ -33,7 +33,7 @@ from guardana.core.evaluator.config import (
     wire_config_evaluators,
 )
 from guardana.core.fingerprint import DigestKind, DocumentDigest
-from guardana.core.fixtures import TENANCY_CHECK
+from guardana.core.fixtures import Fixtures
 from guardana.core.gate import GateOutcome, OpenQuestion, exit_code_for, gate_outcome
 from guardana.core.gate import open_questions as _open_questions
 from guardana.core.keeping import ExchangeKeeper
@@ -70,12 +70,18 @@ from guardana.core.report.location import relativize, relativize_findings
 from guardana.core.report.serialize import run_to_dict
 from guardana.core.report.shortfall import CoverageShortfall, ShortfallKind
 from guardana.core.rule import Rule
-from guardana.core.runner import DEFAULT_ENDPOINT_CONCURRENCY, Runner, select_rules
+from guardana.core.runner import (
+    DEFAULT_ENDPOINT_CONCURRENCY,
+    Runner,
+    applicability_refusal,
+    select_rules,
+)
 from guardana.core.subject import SubjectKind
 from guardana.core.target import (
     ArtifactTarget,
     Capability,
     EndpointError,
+    SeededData,
     SeededTarget,
     Target,
     TargetKind,
@@ -249,12 +255,14 @@ class Verifier:
 
     None by default. A caller that builds its target from fixtures passes
     `Fixtures.record()`, so the saved run says which seeded data it asked about and `diff`
-    refuses to read a change of fixtures as a change of the system. A `SeededTarget`
-    records its own fixtures when this is None, and is refused when this names others.
+    refuses to read a change of fixtures as a change of the system. A target that declares
+    `Capability.SEEDED_DATA` records its own fixtures when this is None, and is refused when
+    this names others.
 
-    Fixtures demand their checks: the tenant check always, the poisoned-document check
-    when a poisoned document is declared. Either one not completed is a `demanded_check`
-    shortfall, so a run cannot record seeded data and verify none of it.
+    Fixtures demand their checks: every registered rule that needs seeded data, except
+    one that says it has nothing to check on the target. One not completed is a
+    `demanded_check` shortfall, and so is a registry with no such rule, so a run cannot
+    record seeded data and verify none of it.
     """
 
     _prepared: list[Registry] = field(default_factory=list, init=False, repr=False)
@@ -424,14 +432,16 @@ class Verifier:
             deployment=deployment,
             kept=None if keeper is None or planned is None else (keeper, planned),
             fixtures=fixtures,
-            demanded=self.demanded_rules | _demanded_by_fixtures(fixtures, target),
+            demanded=self.demanded_rules | demanded_by_fixtures(registry, target, fixtures),
+            unchecked=unchecked_fixtures(registry, target, fixtures),
         )
 
     def _fixtures_of(self, target: Target) -> FixturesRecord | None:
         """Return the fixtures the run records, refusing a record that names other fixtures."""
-        if not isinstance(target, SeededTarget):
+        held = _seeded_fixtures(target)
+        if held is None:
             return self.fixtures
-        seeded = target.fixtures.record()
+        seeded = held.record()
         if self.fixtures is not None and self.fixtures.digest != seeded.digest:
             raise UnsupportedTargetError(
                 f"the run was given fixtures {self.fixtures.name} ({self.fixtures.digest}) and "
@@ -444,9 +454,9 @@ class Verifier:
         """Return the endpoint whose exchanges this run keeps, refusing one that cannot keep them.
 
         Only an endpoint run has chat exchanges, and a recording is already what it answers
-        from. The built-in endpoint keeps them through its per-rule views; any other endpoint
-        target would keep nothing while the run said it kept everything, so it is refused
-        before anything is sent.
+        from. The built-in endpoint, and any target built on it, keeps them through its
+        per-rule views; any other endpoint target would keep nothing while the run said it
+        kept everything, so it is refused before anything is sent.
         """
         if (
             not self.profile.privacy.keep_exchanges
@@ -457,8 +467,8 @@ class Verifier:
         if not isinstance(target, EndpointTarget | SeededTarget):
             raise UnsupportedTargetError(
                 f"privacy.keep_exchanges keeps the chat exchanges of the built-in endpoint "
-                f"target (`--url`, `--adapter`); {target.ref} is a {type(target).__name__}, "
-                f"which keeps none"
+                f"target and of targets built on it; {target.ref} is a "
+                f"{type(target).__name__}, which keeps none"
             )
         return target
 
@@ -549,6 +559,7 @@ class Verifier:
         kept: tuple[ExchangeKeeper, dict[str, int]] | None = None,
         fixtures: FixturesRecord | None = None,
         demanded: frozenset[str] = frozenset(),
+        unchecked: tuple[CoverageShortfall, ...] = (),
     ) -> Verification:
         """Relativize, redact, apply the baseline, gate and describe — in that order.
 
@@ -566,6 +577,7 @@ class Verifier:
             coverage_shortfall=(
                 *result.coverage_shortfall,
                 *unfinished_demands(demanded, result),
+                *unchecked,
             ),
         )
         gate = gate_outcome(result, self.profile.policy)
@@ -711,17 +723,55 @@ def unfinished_demands(
     return tuple(gaps)
 
 
-def _demanded_by_fixtures(fixtures: FixturesRecord | None, target: Target) -> frozenset[str]:
-    """Return the checks the run's fixtures demand; none for a run given no fixtures.
+def demanded_by_fixtures(
+    registry: Registry, target: Target, fixtures: FixturesRecord | None
+) -> frozenset[str]:
+    """Return the rules a run given fixtures must complete; none for a run given no fixtures.
 
-    A run that records fixtures and was not handed a seeded target demands the tenant
-    check, which then cannot run, so the run cannot pass on fixtures it never asked about.
+    Every registered rule that needs `Capability.SEEDED_DATA` is demanded, whatever the
+    profile selects, unless it says it has nothing to check on `target`. A run that
+    records fixtures and was not handed a seeded target demands them too, and they then
+    cannot run, so the run cannot pass on fixtures it never asked about.
     """
-    if isinstance(target, SeededTarget):
-        return target.fixtures.demanded_checks()
-    if fixtures is not None:
-        return frozenset({TENANCY_CHECK})
-    return frozenset()
+    if fixtures is None and not _declares_seeded_data(target):
+        return frozenset()
+    return frozenset(
+        rule.meta.id
+        for rule in registry.rules()
+        if Capability.SEEDED_DATA in rule.meta.required_capabilities
+        and applicability_refusal(rule, target) is None
+    )
+
+
+def _declares_seeded_data(target: Target) -> bool:
+    """Whether `target` says it holds seeded data, whoever built it."""
+    return Capability.SEEDED_DATA in target.capabilities()
+
+
+def _seeded_fixtures(target: Target) -> Fixtures | None:
+    """Return the fixtures a target seeded with data holds, or None for any other target."""
+    if isinstance(target, SeededData) and _declares_seeded_data(target):
+        return target.fixtures
+    return None
+
+
+def unchecked_fixtures(
+    registry: Registry, target: Target, fixtures: FixturesRecord | None
+) -> tuple[CoverageShortfall, ...]:
+    """Return a shortfall when a run is given fixtures and no registered rule checks them."""
+    given = fixtures is not None or _declares_seeded_data(target)
+    if not given or demanded_by_fixtures(registry, target, fixtures):
+        return ()
+    return (
+        CoverageShortfall(
+            kind=ShortfallKind.DEMANDED_CHECK,
+            name=str(Capability.SEEDED_DATA),
+            detail=(
+                "the run was given fixtures and no registered rule checks seeded data, so "
+                "none of it was verified"
+            ),
+        ),
+    )
 
 
 def _connection_facts(target: Target) -> ConnectionFacts | None:

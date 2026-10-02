@@ -53,11 +53,13 @@ from guardana.core.entrypoints import InstalledEntryPoint
 from guardana.core.fixtures import Fixtures
 from guardana.core.gate import OpenQuestion
 from guardana.core.plan import JudgePlan, RunPlan, build_plan
+from guardana.core.probe import planned_view
 from guardana.core.profile import Profile, ProfileError
 from guardana.core.recording import RecordingError, read_recording
 from guardana.core.registry import Registry
-from guardana.core.target import ArtifactTarget, Target, TargetKind
+from guardana.core.target import ArtifactTarget, EndpointTarget, SeededTarget, Target, TargetKind
 from guardana.core.target.connection import Connection
+from guardana.core.target.endpoint import RETRIES_PER_REQUEST
 from guardana.core.target.recorded import RecordedTarget
 from guardana.core.verify import RecordingRefusedError, refuse_other_trials
 
@@ -69,7 +71,9 @@ plan_app = typer.Typer(
 )
 
 
-def _render_human(run_plan: RunPlan, kind: TargetKind, *, replayed: bool = False) -> str:
+def _render_human(
+    run_plan: RunPlan, kind: TargetKind, *, replayed: bool = False, retries: int = 0
+) -> str:
     lines = [f"{len(run_plan.rules)} rule(s) would run, {len(run_plan.skipped)} skipped."]
     if replayed:
         lines.append(
@@ -82,14 +86,7 @@ def _render_human(run_plan: RunPlan, kind: TargetKind, *, replayed: bool = False
         else:
             lines.append("requests: 0 — no selected rule sends a request")
     else:
-        lines.append(
-            f"requests: at least {run_plan.min_requests}, at most {run_plan.max_requests}"
-            + (
-                ""
-                if run_plan.requests_complete
-                else f" — plus {len(run_plan.unknown_cost)} of unknown cost"
-            )
-        )
+        lines.extend(_request_lines(run_plan, retries))
     if kind is not TargetKind.ARTIFACT and not replayed:
         lines.append(
             f"trials: {run_plan.trials} attempt(s) per case, counted in the requests above"
@@ -119,6 +116,24 @@ def _render_human(run_plan: RunPlan, kind: TargetKind, *, replayed: bool = False
     lines.append("")
     lines.append("No request was sent to produce this estimate.")
     return "\n".join(lines)
+
+
+def _request_lines(run_plan: RunPlan, retries: int) -> list[str]:
+    """State the request ceiling, what it leaves out, and that retries count toward the budget."""
+    retried = retries if run_plan.max_requests else 0
+    beyond = [] if run_plan.requests_complete else [f"{len(run_plan.unknown_cost)} of unknown cost"]
+    if retried:
+        beyond.append(f"up to {run_plan.max_requests * retried} retries")
+    lines = [
+        f"requests: at least {run_plan.min_requests}, at most {run_plan.max_requests}"
+        + ("" if not beyond else f" — plus {' and '.join(beyond)}")
+    ]
+    if retried:
+        lines.append(
+            f"  a request refused for a rate limit or a server error is retried up to "
+            f"{retried} times, and each retry counts toward --max-requests"
+        )
+    return lines
 
 
 def _judge_lines(judge: JudgePlan, budgets: Budgets) -> list[str]:
@@ -204,11 +219,12 @@ def _emit(  # noqa: PLR0913 — the plan, how to print it, and what it was plann
     profile: Profile,
     registry: Registry,
     replayed: bool = False,
+    retries: int = 0,
 ) -> None:
     if output_format is OutputFormat.json:
         typer.echo(_render_json(run_plan))
     else:
-        typer.echo(_render_human(run_plan, kind, replayed=replayed))
+        typer.echo(_render_human(run_plan, kind, replayed=replayed, retries=retries))
     cannot_pass = _explain_what_the_run_cannot_pass(run_plan, profile, registry)
     _note_what_only_the_run_can_tell(run_plan, profile, kind)
     if run_plan.exceeds_budget or cannot_pass:
@@ -445,9 +461,10 @@ def plan_probe(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; thi
 
     Capabilities are taken from what the target declares locally, so a provider
     that turns out not to support tool calls will skip more rules than this
-    predicts. Asking the endpoint would make this command cost money, which is
-    the one thing it must not do; `guardana target inspect` is where that
-    question belongs.
+    predicts. A target that can plant a system prompt is priced through a planted
+    view, as `probe` runs its canary rules. Asking the endpoint would make this
+    command cost money, which is the one thing it must not do; `guardana target
+    inspect` is where that question belongs.
 
     `--safety`, `--allow-destructive` and the budget flags mirror `guardana probe`,
     because a plan is only a preview of the run it is a preview of: without them,
@@ -519,11 +536,12 @@ def plan_probe(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; thi
     except BudgetExhausted as exc:
         raise refuse_unenforceable_budget(exc) from exc
     _emit(
-        build_plan(registry, prof, selected, judge_meters=judge_meters),
+        build_plan(registry, prof, planned_view(selected), judge_meters=judge_meters),
         format,
         selected.kind,
         profile=prof,
         registry=registry,
+        retries=_retries_per_request(selected),
     )
 
 
@@ -585,6 +603,17 @@ def plan_grade(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; thi
         registry=registry,
         replayed=True,
     )
+
+
+def _retries_per_request(target: Target) -> int:
+    """Return how often the target's transport may send one request again; none for MCP.
+
+    A chat endpoint retries a rate limit or a server error, and every retry counts
+    toward the request budget. A pack's own transport is assumed to retry as the
+    endpoint does, which can only overstate what the run may send.
+    """
+    endpoint = target.endpoint if isinstance(target, SeededTarget) else target
+    return RETRIES_PER_REQUEST if isinstance(endpoint, EndpointTarget) else 0
 
 
 def recorded_target_or_exit(path: Path) -> RecordedTarget:

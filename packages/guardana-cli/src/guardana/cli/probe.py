@@ -51,7 +51,7 @@ from guardana.core.profile import Profile, ProfileError
 from guardana.core.recording import render_recording
 from guardana.core.redaction import EvidenceMode
 from guardana.core.registry import Registry
-from guardana.core.target import EndpointTarget, Target, TargetKind, display_url
+from guardana.core.target import EndpointTarget, SeededTarget, Target, TargetKind, display_url
 from guardana.core.target.connection import Connection
 from guardana.core.usage import UsageMeter
 from guardana.core.verify import (
@@ -79,7 +79,7 @@ _ACCEPTED_FLAGS = (
 )
 
 
-def probe(  # noqa: C901, PLR0913, PLR0917 — Typer surface, target modes
+def probe(  # noqa: C901, PLR0913, PLR0915, PLR0917 — Typer surface, target modes
     url: UrlOption = None,
     model: ModelOption = None,
     api_key_env: ApiKeyEnvOption = None,
@@ -225,7 +225,7 @@ def probe(  # noqa: C901, PLR0913, PLR0917 — Typer surface, target modes
         ),
         trials=prof.trials if trials is None else trials,
     )
-    prof = _keeping(prof, keep_exchanges, mcp=mcp, target=target, output=output, format=format)
+    prof = _keeping(prof, keep_exchanges, mcp=mcp, output=output, format=format)
     resolved = resolve_trust(plugins, allow_plugin, prof)
     registry = Registry.discover(resolved.trust)
     hint_refused_plugins(registry, resolved)
@@ -287,6 +287,11 @@ def probe(  # noqa: C901, PLR0913, PLR0917 — Typer surface, target modes
             kind=TargetKind.ENDPOINT,
             fallback=_missing_target,
         )
+        if prof.privacy.keep_exchanges and not isinstance(selected, EndpointTarget | SeededTarget):
+            raise typer.BadParameter(
+                f"keeping exchanges keeps the chat exchanges of the built-in endpoint and of a "
+                f"pack's target built on it; {selected.ref} keeps none"
+            )
         custom = run_against_endpoint(
             selected.ref,
             lambda: verified(selected),
@@ -294,7 +299,13 @@ def probe(  # noqa: C901, PLR0913, PLR0917 — Typer surface, target modes
             accepts=_ACCEPTED_FLAGS,
         )
         _finish_probe(
-            custom, selected.ref, deployment, format=format, output=output, reporter=reporter
+            custom,
+            selected.ref,
+            deployment,
+            format=format,
+            output=output,
+            reporter=reporter,
+            keep=prof.privacy.keep_exchanges,
         )
         return
 
@@ -426,19 +437,19 @@ def _carried_out(run: Callable[[], _Run]) -> _Run:
         raise
 
 
-def _keeping(  # noqa: PLR0913 — the flag and every setting it has to agree with
+def _keeping(
     prof: Profile,
     flag: bool,
     *,
     mcp: str | None,
-    target: str | None,
     output: Path | None,
     format: OutputFormat,
 ) -> Profile:
     """Turn `--keep-exchanges` into the profile switch and refuse what it cannot honour.
 
     Kept exchanges are written beside the saved run, so a run that writes none would keep
-    them nowhere; and only the built-in endpoint has exchanges to keep.
+    them nowhere; and an MCP server has no chat exchanges to keep. A `--target` is checked
+    once it is built, since only a target built on the endpoint keeps them.
     """
     if flag:
         if prof.privacy.mode is EvidenceMode.METADATA_ONLY:
@@ -449,10 +460,10 @@ def _keeping(  # noqa: PLR0913 — the flag and every setting it has to agree wi
         prof = replace(prof, privacy=replace(prof.privacy, keep_exchanges=True))
     if not prof.privacy.keep_exchanges:
         return prof
-    if mcp is not None or target is not None:
+    if mcp is not None:
         raise typer.BadParameter(
-            "keeping exchanges keeps the chat exchanges of --url (with or without --adapter); "
-            "an MCP server or a pack's --target keeps none"
+            "keeping exchanges keeps the chat exchanges of --url (with or without --adapter) "
+            "or of a pack's --target built on the endpoint; an MCP server keeps none"
         )
     if output is None or format is not OutputFormat.json:
         raise typer.BadParameter(

@@ -100,6 +100,7 @@ def test_run_inspect_shows_how_honest_the_judge_was(tmp_path: Path) -> None:
                 calibration=CalibrationRecord(dataset_digest="sha256:a", brier=0.08, ece=0.03),
             ),
             EvaluatorRecord(id="keyword"),
+            EvaluatorRecord(id="tool_call", deterministic=True),
         ),
     )
     path = tmp_path / "run.json"
@@ -119,3 +120,5 @@ def test_run_inspect_shows_how_honest_the_judge_was(tmp_path: Path) -> None:
         "an unmeasured evaluator says so; omitting it would let a reader assume the "
         "listed ones are all of them"
     )
+    assert "tool_call — deterministic — no error rate" in result.output
+    assert "tool_call — confidence not measured" not in result.output

@@ -149,7 +149,19 @@
             "$ref": "#/$defs/text"
           },
           "sink": {
-            "$ref": "#/$defs/text"
+            "description": "Where the tool's effect lands, as a trace records it.",
+            "enum": [
+              "sql",
+              "shell",
+              "filesystem",
+              "http",
+              "messaging",
+              "email",
+              "payment",
+              "cloud_api",
+              "code_execution",
+              "other"
+            ]
           },
           "reversible": {
             "type": "boolean"

@@ -15,17 +15,16 @@ from guardana.cli import _endpoint
 from guardana.cli import recipe as recipe_cli
 from guardana.cli.exit_codes import ExitCode
 from guardana.cli.main import app
-from guardana.core.fixtures import (
-    DOCUMENTS_CHANNEL,
-    POISONING_CHECK,
-    TENANCY_CHECK,
-    Fixtures,
-    load_fixtures,
-)
+from guardana.core.fixtures import DOCUMENTS_CHANNEL, Fixtures, load_fixtures
 from guardana.core.testing.seeded import SeededApplication, tenant_key
+from guardana.rules.seeded.cross_tenant_answer import CrossTenantAnswerRule
+from guardana.rules.seeded.poisoned_document import PoisonedDocumentRule
 from typer.testing import CliRunner, Result
 
 runner = CliRunner()
+
+TENANCY_CHECK = CrossTenantAnswerRule.meta.id
+POISONING_CHECK = PoisonedDocumentRule.meta.id
 
 _ANSI = re.compile(r"\x1b\[[0-9;]*m")
 _URL = "http://application.test"
@@ -254,6 +253,18 @@ def test_fixtures_beside_an_mcp_server_are_refused(team: Path) -> None:
 
     assert result.exit_code == ExitCode.INVALID_USAGE
     assert "--fixtures" in normalised(result.output)
+
+
+def test_a_probe_sending_as_one_of_its_tenants_is_refused_before_anything_is_sent(
+    team: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    application = _serve(monkeypatch, team)
+
+    result, _ = _probe(team, "--api-key-env", "ACME_KEY")
+
+    assert result.exit_code == ExitCode.INVALID_USAGE, result.output
+    assert "the run's own connection" in normalised(result.output)
+    assert application.asked == []
 
 
 # The recipe: its lock's stand-in carries seeded data, and its run asks as every tenant
