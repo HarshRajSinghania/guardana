@@ -29,8 +29,12 @@ from guardana.core.report.skipped import SkipReason
 if TYPE_CHECKING:
     from guardana.core.evaluator.base import Evaluator
 
-RECIPE_SCHEMA_VERSION = 1
-"""The `schema_version` of `guardana-recipe.yaml` this build reads."""
+RECIPE_SCHEMA_VERSION = 2
+"""The newest `schema_version` of `guardana-recipe.yaml` this build reads; 1 is read too.
+
+Version 2 adds `subject.fixtures`. A build that reads only 1 refuses the version, so a
+recipe naming fixtures is never run by a build that would ignore them.
+"""
 
 RECIPE_LOCK_SCHEMA_VERSION = 1
 """The `schema_version` of `guardana-recipe.lock.yaml` this build reads and writes."""
@@ -39,7 +43,8 @@ RECIPE_NAME = "guardana-recipe.yaml"
 LOCK_NAME = "guardana-recipe.lock.yaml"
 
 _TOP_KEYS = frozenset({"schema_version", "name", "profile", "subject", "deployment", "output"})
-_SUBJECT_KEYS = frozenset({"kind", "connection", "recording"})
+_SUBJECT_KEYS = frozenset({"kind", "connection", "recording", "fixtures"})
+_FIXTURES_SINCE = 2
 _CONNECTION_KEYS = frozenset(
     {"url", "model", "provider", "api_key_env", "adapter", "system_prompt_file"}
 )
@@ -67,6 +72,9 @@ class Recipe:
     kind: SubjectKind | None
     connection: Mapping[str, str] | None
     recording: Path | None
+    fixtures: Path | None
+    """The fixtures file the application runs with, resolved beside the recipe; None without."""
+
     deployment: Mapping[str, str]
     output: Path
     keep_exchanges: bool
@@ -134,6 +142,7 @@ def parse_recipe(text: str, path: Path) -> Recipe:
     subject = _mapping(document.get("subject"), f"{where}: subject")
     _refuse_unknown(subject, _SUBJECT_KEYS, f"{where}: subject")
     connection, recording = _source(subject, path, where)
+    fixtures = _fixtures(subject, document["schema_version"], path, where)
     kind = None if recording is not None and "kind" not in subject else _kind(subject, where)
     output = document.get("output", {})
     output = _mapping(output, f"{where}: output")
@@ -150,6 +159,7 @@ def parse_recipe(text: str, path: Path) -> Recipe:
         kind=kind,
         connection=connection,
         recording=recording,
+        fixtures=fixtures,
         deployment={key: _text(deployment, key, f"{where}: deployment") for key in deployment},
         output=_output(output.get("directory", _DEFAULT_OUTPUT), path, where),
         keep_exchanges=keep,
@@ -172,6 +182,24 @@ def _source(
         if required not in connection:
             raise RecipeError(f"{where}: subject.connection needs `{required}`")
     return connection, None
+
+
+def _fixtures(subject: Mapping[str, Any], version: int, path: Path, where: str) -> Path | None:
+    """Resolve `subject.fixtures`, refused beside a recording and in a schema-1 recipe."""
+    if "fixtures" not in subject:
+        return None
+    if version < _FIXTURES_SINCE:
+        raise RecipeError(
+            f"{where}: subject.fixtures needs `schema_version: {_FIXTURES_SINCE}`, so a build "
+            f"that does not read fixtures refuses the recipe rather than running without them"
+        )
+    if "recording" in subject:
+        raise RecipeError(
+            f"{where}: subject.fixtures cannot be combined with subject.recording: a recording "
+            f"was answered without asking as any tenant, so nothing in it reached seeded data "
+            f"the way the checks need"
+        )
+    return path.parent / _text(subject, "fixtures", f"{where}: subject")
 
 
 def _kind(subject: Mapping[str, Any], where: str) -> SubjectKind:

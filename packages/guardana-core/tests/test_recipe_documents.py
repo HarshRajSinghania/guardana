@@ -49,6 +49,7 @@ def _recipe() -> dict[str, Any]:
         "profile": "guardana.yaml",
         "subject": {
             "kind": "model_harness",
+            "fixtures": "guardana-fixtures.yaml",
             "connection": {
                 "url": "http://127.0.0.1:8080",
                 "model": "support-bot",
@@ -92,6 +93,12 @@ def test_no_key_of_a_recipe_can_be_deleted_without_the_loader_noticing(tmp_path:
     assert not ignored, "recipe keys that change nothing when deleted:\n  " + "\n  ".join(ignored)
 
 
+def _schema_1(document: dict[str, Any]) -> dict[str, Any]:
+    """The same recipe as a schema-1 build wrote it: no fixtures."""
+    subject = {k: v for k, v in document["subject"].items() if k != "fixtures"}
+    return {**document, "schema_version": 1, "subject": subject}
+
+
 def test_a_recording_recipe_is_read_and_its_schema_accepts_both_subjects(tmp_path: Path) -> None:
     recording = _recipe()
     recording["subject"] = {"kind": "application", "recording": "answers.jsonl"}
@@ -99,13 +106,35 @@ def test_a_recording_recipe_is_read_and_its_schema_accepts_both_subjects(tmp_pat
     path.write_text(yaml.safe_dump(recording), encoding="utf-8")
 
     assert load_recipe(path).recording == tmp_path / "answers.jsonl"
-    validator = _validator("recipe-v1.schema.json")
-    assert list(validator.iter_errors(recording)) == []
-    assert list(validator.iter_errors(_recipe())) == []
+    v1, v2 = _validator("recipe-v1.schema.json"), _validator("recipe-v2.schema.json")
+    assert list(v2.iter_errors(recording)) == []
+    assert list(v2.iter_errors(_recipe())) == []
+    assert list(v1.iter_errors(_schema_1(recording))) == []
+    assert list(v1.iter_errors(_schema_1(_recipe()))) == []
+
+
+def test_a_schema_1_recipe_is_read_as_one_without_fixtures(tmp_path: Path) -> None:
+    path = tmp_path / "guardana-recipe.yaml"
+    path.write_text(yaml.safe_dump(_schema_1(_recipe())), encoding="utf-8")
+
+    assert load_recipe(path).fixtures is None
+
+
+def test_each_schema_refuses_what_its_version_cannot_hold() -> None:
+    fixtures_and_recording = _recipe()
+    fixtures_and_recording["subject"] = {
+        "kind": "application",
+        "recording": "answers.jsonl",
+        "fixtures": "guardana-fixtures.yaml",
+    }
+
+    assert list(_validator("recipe-v1.schema.json").iter_errors({**_recipe(), "schema_version": 1}))
+    assert list(_validator("recipe-v2.schema.json").iter_errors(fixtures_and_recording))
+    assert list(_validator("recipe-v2.schema.json").iter_errors(_schema_1(_recipe())))
 
 
 def test_the_schema_requires_a_kind_only_beside_a_connection(tmp_path: Path) -> None:
-    validator = _validator("recipe-v1.schema.json")
+    validator = _validator("recipe-v2.schema.json")
     unkinded = _recipe()
     unkinded["subject"] = {"recording": "answers.jsonl"}
     path = tmp_path / "guardana-recipe.yaml"

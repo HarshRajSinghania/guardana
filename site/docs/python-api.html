@@ -36,6 +36,7 @@
 </ul>
 <h2>Run and policy</h2><ul>
 <li><a href="safe-testing.html">Safe active testing</a></li>
+<li><a href="usage-fixtures.html">guardana fixtures<span class="tag">beta</span></a></li>
 <li><a href="usage-recipe.html">guardana recipe<span class="tag">beta</span></a></li>
 <li><a href="usage-doctor.html">guardana doctor</a></li>
 <li><a href="usage-target.html">guardana target inspect</a></li>
@@ -162,6 +163,7 @@
 </ul>
 <h2>Run and policy</h2><ul>
 <li><a href="safe-testing.html">Safe active testing</a></li>
+<li><a href="usage-fixtures.html">guardana fixtures<span class="tag">beta</span></a></li>
 <li><a href="usage-recipe.html">guardana recipe<span class="tag">beta</span></a></li>
 <li><a href="usage-doctor.html">guardana doctor</a></li>
 <li><a href="usage-target.html">guardana target inspect</a></li>
@@ -340,6 +342,10 @@ verification.save(Path(&quot;run.json&quot;))  # the document `--format json --o
 <tr>
 <td><code>subject_kind</code></td>
 <td>What answered, a <code>SubjectKind</code> (<code>application</code> or <code>model_harness</code>), written as <code>subject_kind</code> into the exchanges the run keeps. <code>None</code> by default, which declares nothing; <code>guardana recipe run</code> passes its recipe's kind.</td>
+</tr>
+<tr>
+<td><code>fixtures</code></td>
+<td>The fixtures file the run was given, a <code>FixturesRecord</code> (<code>Fixtures.record()</code> from <code>guardana.core.fixtures</code>), written into the saved run as <code>run.fixtures</code>, with <code>data</code> labelled declared. <code>None</code> by default; <code>diff</code> reads two runs given different fixtures, or fixtures on one side only, as incomplete.</td>
 </tr>
 </tbody>
 </table></div>

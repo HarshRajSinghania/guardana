@@ -106,6 +106,11 @@ class RunContext:
     A rule absent here graded nothing on record, which is unknown rather than
     unchanged; the monitor leaves it empty because one process grades both cycles."""
 
+    fixtures: str | None = None
+    """The digest of the fixtures file the run was given; None when it was given none.
+
+    The monitor leaves it None on both sides, since one process runs both cycles."""
+
 
 _NO_CONTEXT = RunContext()
 """What the monitor gets: two cycles of one process, one target, one rule set."""
@@ -194,6 +199,7 @@ def compare(
         measurement=measurement,
         incomplete=(
             *_incomplete(before, after),
+            *_fixtures_changed(before_context.fixtures, after_context.fixtures),
             *(
                 f"{rule_id}: trials changed {was} → {now}, so its results are not answers "
                 f"to one question and it was not compared"
@@ -348,6 +354,28 @@ def _incomplete(before: ScanResult, after: ScanResult) -> tuple[str, ...]:
             for label, result in sides
             if result.errors
         ),
+    )
+
+
+def _fixtures_changed(before: str | None, after: str | None) -> tuple[str, ...]:
+    """Say when the two runs asked about different seeded data.
+
+    An item one fixtures file declares and the other does not was asked about by one
+    run only, so a finding on it that disappears reads as a fixed leak when it was
+    never asked again.
+    """
+    if before == after:
+        return ()
+    if before is None or after is None:
+        given = "first" if after is None else "second"
+        return (
+            f"only the {given} run was given fixtures, so the checks they feed asked about "
+            f"seeded data the other run never had and are not comparable",
+        )
+    return (
+        f"the runs were given different fixtures ({before} and {after}), so an item one "
+        f"declares and the other does not was asked about by one run only, and its "
+        f"absence is unknown rather than fixed",
     )
 
 

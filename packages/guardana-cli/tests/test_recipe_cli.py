@@ -14,10 +14,12 @@ from pathlib import Path
 from xml.etree.ElementTree import fromstring
 
 import pytest
+import yaml
 from guardana.cli import recipe as recipe_cli
 from guardana.cli._artifact import MARKER
 from guardana.cli.exit_codes import ExitCode
 from guardana.cli.main import app
+from guardana.core import fixtures as fixtures_module
 from guardana.core.target.connection import (
     Connection,
     ResolvedConnection,
@@ -607,3 +609,158 @@ def test_a_mistyped_recipe_name_leaves_its_neighbours_artifact_alone(
     assert result.exit_code == ExitCode.INVALID_USAGE
     assert _status(recipe) == "complete"
     assert (_artifact(recipe) / "run.json").is_file()
+
+
+# Fixtures: the file and every tenant adapter are pinned, and re-checked before sending
+
+_TENANT_ADAPTER = (
+    'body:\n  message: "{{prompt}}"\nresponse_path: reply\nheaders:\n  X-Key: "${%s}"\n'
+)
+
+
+def _with_fixtures(tmp_path: Path, url: str, *, adapters: bool) -> Path:
+    recipe = _team(tmp_path, url)
+    text = recipe.read_text(encoding="utf-8").replace("schema_version: 1", "schema_version: 2")
+    recipe.write_text(text + "  fixtures: guardana-fixtures.yaml\n", encoding="utf-8")
+    tenants: dict[str, dict[str, str]] = {}
+    for name in ("acme", "globex"):
+        variable = f"{name.upper()}_KEY"
+        if adapters:
+            (tmp_path / f"{name}.yaml").write_text(_TENANT_ADAPTER % variable, encoding="utf-8")
+            tenants[name] = {"adapter": f"{name}.yaml"}
+        else:
+            tenants[name] = {"api_key_env": variable}
+    document = {
+        "schema_version": 1,
+        "name": "support-bot",
+        "data": "synthetic",
+        "tenants": tenants,
+        "documents": [
+            {"id": "acme-returns", "tenant": "acme", "topic": "returns"},
+            {"id": "globex-shipping", "tenant": "globex", "topic": "shipping times"},
+        ],
+    }
+    (tmp_path / "guardana-fixtures.yaml").write_text(
+        yaml.safe_dump(document, sort_keys=False), encoding="utf-8"
+    )
+    return recipe
+
+
+def _pins(tmp_path: Path) -> dict[str, object]:
+    lock = yaml.safe_load((tmp_path / "guardana-recipe.lock.yaml").read_text(encoding="utf-8"))
+    pins: dict[str, object] = lock["subject_files"]
+    return pins
+
+
+def test_the_lock_pins_the_fixtures_and_every_tenant_adapter_reading_no_key(
+    tmp_path: Path, wire: _Wire, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("ACME_KEY", raising=False)
+    monkeypatch.delenv("GLOBEX_KEY", raising=False)
+    recipe = _with_fixtures(tmp_path, wire.url, adapters=True)
+
+    _locked(recipe)
+
+    assert set(_pins(tmp_path)) == {
+        "fixtures",
+        "fixtures.tenants.acme.adapter",
+        "fixtures.tenants.globex.adapter",
+    }
+    assert wire.requests == []
+
+
+def test_an_edited_fixtures_file_is_drift(tmp_path: Path, wire: _Wire) -> None:
+    recipe = _with_fixtures(tmp_path, wire.url, adapters=False)
+    _locked(recipe)
+    path = tmp_path / "guardana-fixtures.yaml"
+    path.write_text(
+        path.read_text(encoding="utf-8").replace("shipping times", "delivery times"),
+        encoding="utf-8",
+    )
+
+    drifted = _invoke("lock", "--check", str(recipe))
+
+    assert drifted.exit_code == ExitCode.POLICY_FAILED
+    assert "subject_file_changed: fixtures" in normalised(drifted.output)
+
+
+def test_an_edited_tenant_adapter_is_drift(tmp_path: Path, wire: _Wire) -> None:
+    recipe = _with_fixtures(tmp_path, wire.url, adapters=True)
+    _locked(recipe)
+    (tmp_path / "globex.yaml").write_text(_TENANT_ADAPTER % "GLOBEX_TOKEN", encoding="utf-8")
+
+    drifted = _invoke("lock", "--check", str(recipe))
+
+    assert drifted.exit_code == ExitCode.POLICY_FAILED
+    assert "subject_file_changed: fixtures.tenants.globex.adapter" in normalised(drifted.output)
+
+
+def test_a_tenant_adapter_changed_after_the_check_is_refused_before_it_sends(
+    tmp_path: Path, wire: _Wire, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("ACME_KEY", "acme-key")
+    monkeypatch.setenv("GLOBEX_KEY", "globex-key")
+    recipe = _with_fixtures(tmp_path, wire.url, adapters=True)
+    _locked(recipe)
+    adapter = tmp_path / "acme.yaml"
+
+    def _edited_in_between(
+        connection: Connection,
+        *,
+        sending: bool,
+        spelling: Spelling | None = None,
+        environ: dict[str, str] | None = None,
+    ) -> ResolvedConnection:
+        if sending and connection.adapter == adapter:
+            adapter.write_text(_TENANT_ADAPTER % "ACME_TOKEN", encoding="utf-8")
+            monkeypatch.setenv("ACME_TOKEN", "other")
+        return resolve_connection(connection, sending=sending, spelling=spelling, environ=environ)
+
+    monkeypatch.setattr(fixtures_module, "resolve_connection", _edited_in_between)
+    result = _invoke("run", str(recipe))
+
+    assert result.exit_code == ExitCode.INVALID_USAGE
+    assert "subject_file_changed: fixtures.tenants.acme.adapter" in normalised(result.output)
+    assert wire.requests == []
+
+
+def test_a_tenant_whose_key_is_unset_is_refused_before_anything_is_sent(
+    tmp_path: Path, wire: _Wire, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("ACME_KEY", "acme-key")
+    monkeypatch.delenv("GLOBEX_KEY", raising=False)
+    recipe = _with_fixtures(tmp_path, wire.url, adapters=False)
+    _locked(recipe)
+
+    result = _invoke("run", str(recipe))
+
+    assert result.exit_code == ExitCode.INVALID_USAGE
+    assert "tenants.globex.api_key_env" in normalised(result.output)
+    assert wire.requests == []
+
+
+def test_two_tenants_sharing_a_key_value_are_refused_before_anything_is_sent(
+    tmp_path: Path, wire: _Wire, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("ACME_KEY", "one-key")
+    monkeypatch.setenv("GLOBEX_KEY", "one-key")
+    recipe = _with_fixtures(tmp_path, wire.url, adapters=False)
+    _locked(recipe)
+
+    result = _invoke("run", str(recipe))
+
+    assert result.exit_code == ExitCode.INVALID_USAGE
+    assert "the same credential" in normalised(result.output)
+    assert "one-key" not in result.output
+    assert wire.requests == []
+
+
+def test_a_recipe_naming_a_missing_fixtures_file_is_refused(tmp_path: Path, wire: _Wire) -> None:
+    recipe = _with_fixtures(tmp_path, wire.url, adapters=False)
+    (tmp_path / "guardana-fixtures.yaml").unlink()
+
+    result = _invoke("lock", str(recipe))
+
+    assert result.exit_code == ExitCode.INVALID_USAGE
+    assert "no fixtures file at" in normalised(result.output)
+    assert not (tmp_path / "guardana-recipe.lock.yaml").exists()

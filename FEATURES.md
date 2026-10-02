@@ -22,6 +22,7 @@ For maturity and known gaps, read [Product status](docs/product-status.md).
 | Grade recorded answers | `guardana grade RECORDING` | your rules over answers you supplied or a probe kept, with no target request |
 | Pin and run a team's checks in CI | `guardana recipe lock`, `guardana recipe run` | a lock of rules, datasets, judges and calibrations checked before anything is sent, and one artifact directory that never shows an earlier green |
 | Promote a reviewed failure into a regression case | `guardana case add`, `guardana case list` | one kept exchange added to a suite's dataset, labelled and versioned, only once its expectation fails the failure and passes a correct reply |
+| Declare the synthetic data an application runs with | `guardana-fixtures.yaml`, `guardana fixtures render FILE --out DIR` | tenants with their own credentials, seeded documents and records each carrying markers derived from what was declared, the documents a team ingests, and a recipe lock that pins the file and every tenant adapter |
 | Inspect available evidence | `guardana trace inspect TRACE` | recorded dimensions and policy gaps |
 | Compare releases | `guardana diff BEFORE AFTER` | deterioration, improvement, or an explicit refusal to compare |
 | Re-run checks on a schedule | `guardana monitor ...` | each cycle gated and compared with the first cycle |
@@ -174,7 +175,7 @@ without guessing from a short id.
   and shell-hook integration examples.
 - No account and no telemetry; an artifact scan opens no network connection unless a `--reporter` is configured.
 - JSON Schemas for saved runs, plans, comparisons, traces, recordings, suite datasets, recipes,
-  recipe locks and recipe artifacts, served at the URL each
+  recipe locks, recipe artifacts and fixtures files, served at the URL each
   `$id` names under `https://guardana.dev/schemas/`.
 
 ## Extension surface

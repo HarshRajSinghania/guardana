@@ -46,6 +46,7 @@ A run that fails, stays indeterminate or is stopped by its budget is returned li
 | `judge_endpoint` | An `EndpointBuilder`: how the endpoint of each judge under `evaluators:` is built from its URL, model and key. Defaults to the HTTP client; a test passes one that returns an `EndpointTarget` on a scripted transport. A judge block that sets `provider` or `adapter` is refused with `ProfileError` when you pass your own builder, which could not honour either. |
 | `demanded_rules` | Rule ids the run must complete. One that is skipped, errors or is never reached becomes a `demanded_check` coverage shortfall, so the run cannot pass whatever `fail_on_*` says. Empty by default; `guardana recipe run` demands every rule its lock pins. |
 | `subject_kind` | What answered, a `SubjectKind` (`application` or `model_harness`), written as `subject_kind` into the exchanges the run keeps. `None` by default, which declares nothing; `guardana recipe run` passes its recipe's kind. |
+| `fixtures` | The fixtures file the run was given, a `FixturesRecord` (`Fixtures.record()` from `guardana.core.fixtures`), written into the saved run as `run.fixtures`, with `data` labelled declared. `None` by default; `diff` reads two runs given different fixtures, or fixtures on one side only, as incomplete. |
 
 Budgets, failure bars, redaction and trials come from the profile, as on the command line.
 

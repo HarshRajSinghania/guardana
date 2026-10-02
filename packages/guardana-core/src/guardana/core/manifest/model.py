@@ -6,6 +6,7 @@ from guardana.core.manifest.identity import DeploymentRef, RunSource, TargetIden
 from guardana.core.manifest.records import (
     EvaluatorRecord,
     ExchangesRecord,
+    FixturesRecord,
     RecipeRecord,
     RecordingRecord,
     ResultSummary,
@@ -14,7 +15,7 @@ from guardana.core.manifest.records import (
 from guardana.core.manifest.settings import ConfigurationRef, ExecutionSettings, PrivacyRecord
 from guardana.core.manifest.usage import RunUsage
 
-MANIFEST_SCHEMA_VERSION = 14
+MANIFEST_SCHEMA_VERSION = 15
 """Version of the run document, moved independently of the CLI.
 
 A run written by 0.7.3 and one written by 0.9.0 are the same document if the
@@ -62,6 +63,9 @@ trial went unmeasured (`assessments[].reason`) and the `not_recorded` skip reaso
 Version 14 records the recipe a run was started from and what it declared answered
 (`recipe`), the provider wire the run spoke (`configuration.provider`) and the
 `incomplete_recording` and `demanded_check` shortfall kinds.
+
+Version 15 records the fixtures file a run was given (`fixtures`) and the
+`seed_not_reached` shortfall kind.
 """
 
 
@@ -109,6 +113,9 @@ class RunManifest:
 
     recipe: RecipeRecord | None = None
     """The recipe this run was started from; None for a run started without one."""
+
+    fixtures: FixturesRecord | None = None
+    """The fixtures file this run was given; None for a run given none."""
 
     schema_version: int = MANIFEST_SCHEMA_VERSION
     migrated_from: int | None = None

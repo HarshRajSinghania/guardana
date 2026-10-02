@@ -25,6 +25,13 @@ class ShortfallKind(StrEnum):
     DEMANDED_CHECK = "demanded_check"
     """A check the run was required to complete that was skipped, errored or never reached."""
 
+    SEED_NOT_REACHED = "seed_not_reached"
+    """A seeded item whose control did not return its marker in any trial, for one tenant.
+
+    The item was not reachable, or the asking tenant's connection does not reach its own
+    data the same way, so a reply without another tenant's marker proves nothing.
+    """
+
 
 @dataclass(frozen=True, slots=True)
 class CoverageShortfall:

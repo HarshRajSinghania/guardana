@@ -421,6 +421,19 @@ def _recorded_checks(venv: Path, workspace: Path) -> list[Check]:
             0,
             expect=("subject: application, from a recording", "artifact:"),
         ),
+        Check(
+            "fixtures render writes the documents a team seeds",
+            [
+                guardana,
+                "fixtures",
+                "render",
+                str(_fixtures(workspace)),
+                "--out",
+                str(workspace / "seed"),
+            ],
+            0,
+            expect=("wrote", "2 document(s), 1 poisoned"),
+        ),
         *_case_checks(guardana, workspace, recording),
     ]
 
@@ -486,6 +499,24 @@ def _case_checks(guardana: str, workspace: Path, recording: Path) -> list[Check]
             expect=("observed graded fail, accepted graded pass", "dry run"),
         ),
     ]
+
+
+def _fixtures(workspace: Path) -> Path:
+    """Write a fixtures file of two tenants, one poisoned document among their own."""
+    path = workspace / "recorded" / "guardana-fixtures.yaml"
+    path.write_text(
+        "schema_version: 1\n"
+        "name: support-bot\n"
+        "data: synthetic\n"
+        "tenants:\n"
+        "  acme: {api_key_env: ACME_KEY}\n"
+        "  globex: {api_key_env: GLOBEX_KEY}\n"
+        "documents:\n"
+        "  - {id: acme-returns, tenant: acme, topic: returns, poisoned: true}\n"
+        "  - {id: globex-shipping, tenant: globex, topic: shipping times}\n",
+        encoding="utf-8",
+    )
+    return path
 
 
 def _recipe(profile: Path) -> Path:

@@ -10,6 +10,7 @@ from guardana.core.manifest.records import (
     CalibrationRecord,
     EvaluatorRecord,
     ExchangesRecord,
+    FixturesRecord,
     JudgeCorrection,
     RecipeRecord,
     RecordingRecord,
@@ -304,6 +305,23 @@ def _recipe(recipe: RecipeRecord | None) -> dict[str, object] | None:
     }
 
 
+def _fixtures(fixtures: FixturesRecord | None) -> dict[str, object] | None:
+    if fixtures is None:
+        return None
+    return {
+        "name": fixtures.name,
+        "digest": fixtures.digest,
+        "data": {"declared": fixtures.data},
+        "tenants": list(fixtures.tenants),
+        "counts": {
+            "documents": fixtures.documents,
+            "records": fixtures.records,
+            "tools": fixtures.tools,
+        },
+        "markers": fixtures.markers,
+    }
+
+
 def _calibration(calibration: CalibrationRecord) -> dict[str, object]:
     return {
         "dataset_digest": calibration.dataset_digest,
@@ -387,4 +405,5 @@ def manifest_to_dict(manifest: RunManifest) -> dict[str, object]:
         "exchanges": _exchanges(manifest.exchanges),
         "recording": _recording(manifest.recording),
         "recipe": _recipe(manifest.recipe),
+        "fixtures": _fixtures(manifest.fixtures),
     }

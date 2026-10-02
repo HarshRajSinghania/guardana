@@ -36,6 +36,7 @@
 </ul>
 <h2>Run and policy</h2><ul>
 <li><a href="safe-testing.html">Safe active testing</a></li>
+<li><a href="usage-fixtures.html">guardana fixtures<span class="tag">beta</span></a></li>
 <li><a href="usage-recipe.html" aria-current="page">guardana recipe<span class="tag">beta</span></a></li>
 <li><a href="usage-doctor.html">guardana doctor</a></li>
 <li><a href="usage-target.html">guardana target inspect</a></li>
@@ -162,6 +163,7 @@
 </ul>
 <h2>Run and policy</h2><ul>
 <li><a href="safe-testing.html">Safe active testing</a></li>
+<li><a href="usage-fixtures.html">guardana fixtures<span class="tag">beta</span></a></li>
 <li><a href="usage-recipe.html" aria-current="page">guardana recipe<span class="tag">beta</span></a></li>
 <li><a href="usage-doctor.html">guardana doctor</a></li>
 <li><a href="usage-target.html">guardana target inspect</a></li>
@@ -310,7 +312,7 @@ output:
 <tr>
 <td><code>schema_version</code></td>
 <td>yes</td>
-<td><code>1</code>. A newer version is refused with &quot;upgrade Guardana&quot;.</td>
+<td><code>2</code>, or <code>1</code> for a recipe without <code>subject.fixtures</code>. A newer version is refused with &quot;upgrade Guardana&quot;.</td>
 </tr>
 <tr>
 <td><code>name</code></td>
@@ -336,6 +338,11 @@ output:
 <td><code>subject.recording</code></td>
 <td>one of the two</td>
 <td>A recording to grade, as <code>guardana grade</code> reads it. Nothing is sent to the application.</td>
+</tr>
+<tr>
+<td><code>subject.fixtures</code></td>
+<td>no</td>
+<td>With <code>connection</code> and <code>schema_version: 2</code>: the <a href="usage-fixtures.html">fixtures file</a> declaring the synthetic data the application runs with — its tenants, seeded documents, records and tools. Refused with <code>recording</code>, and in a schema-1 recipe.</td>
 </tr>
 <tr>
 <td><code>deployment</code></td>
@@ -372,7 +379,9 @@ distribution and version that registered it and its trials per case;</li>
 <li>every evaluator a selected rule grades with: who registered it, its judge identity and the
 calibration in force for it;</li>
 <li>every rule the configuration skips, by reason;</li>
-<li>the adapter file the connection names, as written, and the text of its system-prompt file.</li>
+<li>the adapter file the connection names, as written, and the text of its system-prompt file;</li>
+<li>the fixtures file <code>subject.fixtures</code> names, as written, and every tenant adapter it names
+(<code>fixtures</code>, <code>fixtures.tenants.&lt;name&gt;.adapter</code>).</li>
 </ul>
 <p>It never pins a key or the recording: the recording is your application's answer, not your
 configuration. A rule or evaluator from a distribution installed in editable mode or from a
@@ -446,7 +455,10 @@ holds no answer for it is the usual cause — that errors or that is never reach
 fails it, whatever the profile's <code>fail_on_*</code> switches say.</p>
 <p>Before it sends anything, <code>recipe run</code> also checks what the lock does not cover: the
 subject's key variable and every judge's key variable must be set, and an adapter file read
-again to send must still have the digest the lock holds. Each refusal exits <code>3</code> and is
+again to send must still have the digest the lock holds. With fixtures, every tenant's key
+variable must be set, no two tenants may send the same key or the same adapter headers, and
+every tenant adapter read again must still have its pinned digest; the fixtures file is read
+once, so the items a run asks about are the bytes the lock compared. Each refusal exits <code>3</code> and is
 written into the artifact. When the lock lists unpinned checks, the run says so on stderr,
 at the end of <code>report.txt</code> and in <code>guardana run inspect</code>.</p>
 <h2 id="the-artifact">The artifact</h2>

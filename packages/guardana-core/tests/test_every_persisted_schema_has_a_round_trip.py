@@ -80,6 +80,9 @@ GATED_BY: dict[str, str] = {
     "guardana.core.recipe.RECIPE_LOCK_SCHEMA_VERSION": _TESTS.format(
         package="guardana-core", module="test_recipe_documents.py"
     ),
+    "guardana.core.fixtures.FIXTURES_SCHEMA_VERSION": _TESTS.format(
+        package="guardana-core", module="test_fixtures_documents.py"
+    ),
     "guardana.cli._artifact.ARTIFACT_SCHEMA_VERSION": _TESTS.format(
         package="guardana-cli", module="test_recipe_artifact.py"
     ),

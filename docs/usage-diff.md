@@ -208,6 +208,11 @@ digest and they differ, a note names the settings that changed: a difference bet
 may come from that rather than from the system. A setting one run did not record is unknown,
 and no note is added for it.
 
+Two runs given different [fixtures](usage-fixtures.md) — another file digest — or fixtures on
+one side only are an incomplete comparison (exit `2`), not a note: an item one file declares
+and the other does not was asked about by one run only, so a finding on it that disappears
+would otherwise read as a fixed leak. A run migrated from schema 14 was given no fixtures.
+
 ## In CI
 
 ```yaml

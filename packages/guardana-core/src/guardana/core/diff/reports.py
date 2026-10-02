@@ -64,6 +64,7 @@ def _context(report: RunReport) -> RunContext:
         rules={rule.id: rule.digest for rule in report.manifest.rules},
         tool_version=report.manifest.guardana.version,
         grading=_grading(report),
+        fixtures=None if report.manifest.fixtures is None else report.manifest.fixtures.digest,
     )
 
 

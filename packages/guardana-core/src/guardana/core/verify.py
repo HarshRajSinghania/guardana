@@ -46,6 +46,7 @@ from guardana.core.manifest.identity import DeploymentRef, RunSource, TargetIden
 from guardana.core.manifest.model import RunManifest
 from guardana.core.manifest.records import (
     ExchangesRecord,
+    FixturesRecord,
     RecordingOriginRecord,
     RecordingRecord,
 )
@@ -233,6 +234,14 @@ class Verifier:
     """What answered, as the caller declares it, written into the exchanges a run keeps.
 
     None by default, which declares nothing; `guardana recipe run` passes its recipe's kind.
+    """
+
+    fixtures: FixturesRecord | None = None
+    """The fixtures file the run was given, written into its manifest as declared.
+
+    None by default. A caller that builds its target from fixtures passes
+    `Fixtures.record()`, so the saved run says which seeded data it asked about and `diff`
+    refuses to read a change of fixtures as a change of the system.
     """
 
     _prepared: list[Registry] = field(default_factory=list, init=False, repr=False)
@@ -561,6 +570,8 @@ class Verifier:
             run_id=run_id,
             connection=_connection_facts(target),
         )
+        if self.fixtures is not None:
+            manifest = replace(manifest, fixtures=self.fixtures)
         return Verification(
             result=result,
             manifest=manifest,

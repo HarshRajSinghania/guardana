@@ -32,6 +32,7 @@ from guardana.core.manifest.records import (
     CorrectionStatus,
     EvaluatorRecord,
     ExchangesRecord,
+    FixturesRecord,
     JudgeCorrection,
     RecipeRecord,
     RecordingOriginRecord,
@@ -300,6 +301,11 @@ def run_manifest() -> RunManifest:
                     name="5d0c8a1b-3e2f-4a6d-9b7c-1f2e3d4c5b6a",
                     detail="the origin stopped with budget_exhausted",
                 ),
+                CoverageShortfall(
+                    kind=ShortfallKind.SEED_NOT_REACHED,
+                    name="documents/acme-loyalty as globex",
+                    detail="the control of globex's own document returned no marker",
+                ),
             ),
         ),
         exchanges=ExchangesRecord(digest="sha256:" + "ef" * 32, count=12, altered=2),
@@ -323,6 +329,16 @@ def run_manifest() -> RunManifest:
             kind=SubjectKind.MODEL_HARNESS,
             source=SubjectSource.RECORDING,
             unpinned=("acme.local.tone",),
+        ),
+        fixtures=FixturesRecord(
+            name="support-bot",
+            digest="sha256:" + "fe" * 32,
+            data="synthetic",
+            tenants=("acme", "globex"),
+            documents=3,
+            records=2,
+            tools=4,
+            markers=1,
         ),
         migrated_from=4,
     )
@@ -426,8 +442,31 @@ def scan_result() -> ScanResult:
     )
 
 
+def saved_run_at_v14(document: dict[str, Any]) -> dict[str, Any]:
+    """Rewrite a document this build wrote into the shape a version-14 build wrote."""
+    run = document["run"]
+    coverage = run["coverage"]
+    return {
+        **document,
+        "schema_version": 14,
+        "$schema": "https://guardana.dev/schemas/run/v14.schema.json",
+        "run": {
+            **{k: v for k, v in run.items() if k != "fixtures"},
+            "coverage": {
+                **coverage,
+                "shortfall": [
+                    gap
+                    for gap in coverage["shortfall"]
+                    if gap["kind"] != str(ShortfallKind.SEED_NOT_REACHED)
+                ],
+            },
+        },
+    }
+
+
 def saved_run_at_v13(document: dict[str, Any]) -> dict[str, Any]:
     """Rewrite a document this build wrote into the shape a version-13 build wrote."""
+    document = saved_run_at_v14(document)
     run = document["run"]
     coverage = run["coverage"]
     return {

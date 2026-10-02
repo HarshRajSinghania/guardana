@@ -1,0 +1,442 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>guardana fixtures — Guardana documentation</title>
+<meta name="description" content="guardana-fixtures.yaml declares the synthetic data your application runs with in CI — tenants, seeded documents, records and tools — and guardana fixtures render writes the documents you seed into your own index, each carrying markers derived from what you declared">
+<link rel="canonical" href="https://guardana.dev/docs/usage-fixtures">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../assets/brand/v1/tokens.css">
+<link rel="stylesheet" href="docs.css">
+</head>
+<body>
+<header class="top"><div class="bar">
+<a class="mark" href="../"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z" style="color:var(--brand)"/><path d="m8.6 12.1 2.4 2.4 4.5-4.8"/></svg><span class="w">guard<b>ana</b></span></a>
+<nav>
+<a href="index.html">Documentation</a>
+<a href="rules/index.html">Rules</a>
+<a href="https://github.com/guardana/guardana">GitHub</a>
+</nav>
+</div></header>
+<div class="shell">
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="index.html">Overview</a></li></ul>
+<h2>First run</h2><ul>
+<li><a href="usage-init.html">guardana init</a></li>
+<li><a href="recipe-local-scan.html">Recipe: scan your own project</a></li>
+<li><a href="recipe-recorded-answers.html">Recipe: check a run your application recorded</a></li>
+<li><a href="recipe-real-application.html">Recipe: probe your real application</a></li>
+<li><a href="how-it-works.html">How Guardana works</a></li>
+<li><a href="install.html">Installing</a></li>
+<li><a href="usage-testing.html">In your test suite</a></li>
+<li><a href="python-api.html">Python API<span class="tag">beta</span></a></li>
+<li><a href="usage-scan.html">guardana scan</a></li>
+<li><a href="usage-probe.html">guardana probe</a></li>
+</ul>
+<h2>Run and policy</h2><ul>
+<li><a href="safe-testing.html">Safe active testing</a></li>
+<li><a href="usage-fixtures.html" aria-current="page">guardana fixtures<span class="tag">beta</span></a></li>
+<li><a href="usage-recipe.html">guardana recipe<span class="tag">beta</span></a></li>
+<li><a href="usage-doctor.html">guardana doctor</a></li>
+<li><a href="usage-target.html">guardana target inspect</a></li>
+<li><a href="providers.html">Providers</a></li>
+<li><a href="usage-plan.html">guardana plan</a></li>
+<li><a href="exit-codes.html">Exit codes</a></li>
+<li><a href="profiles.html">Profiles — guardana.yaml</a></li>
+</ul>
+<h2>Evidence and regression</h2><ul>
+<li><a href="usage-case.html">guardana case<span class="tag">beta</span></a></li>
+<li><a href="usage-baseline.html">guardana baseline</a></li>
+<li><a href="usage-diff.html">guardana diff</a></li>
+<li><a href="usage-monitor.html">guardana monitor</a></li>
+<li><a href="usage-run.html">guardana run</a></li>
+<li><a href="usage-calibrate.html">guardana calibrate</a></li>
+<li><a href="usage-suites.html">Quality suites<span class="tag">beta</span></a></li>
+<li><a href="privacy.html">Evidence and redaction</a></li>
+</ul>
+<h2>Recorded applications</h2><ul>
+<li><a href="usage-analyze-trace.html">guardana analyze-trace</a></li>
+<li><a href="usage-grade.html">guardana grade<span class="tag">beta</span></a></li>
+<li><a href="usage-trace-inspect.html">guardana trace inspect</a></li>
+<li><a href="usage-contracts.html">Security contracts</a></li>
+<li><a href="usage-import-observations.html">guardana import-observations</a></li>
+<li><a href="writing-an-integrator.html">Writing an integrator<span class="tag">beta</span></a></li>
+</ul>
+<h2>Rules and extensions</h2><ul>
+<li><a href="usage-rules.html">guardana rules</a></li>
+<li><a href="usage-taxonomy.html">guardana taxonomy</a></li>
+<li><a href="writing-rules.html">Writing rules</a></li>
+<li><a href="usage-rule-test.html">guardana rule test</a></li>
+<li><a href="usage-new-pack.html">guardana new-pack</a></li>
+<li><a href="usage-pack.html">guardana pack</a></li>
+<li><a href="extending.html">Extending Guardana</a></li>
+<li><a href="model-formats.html">Reading model formats</a></li>
+</ul>
+<h2>Collector and deployment</h2><ul>
+<li><a href="integrations.html">CI and pre-commit</a></li>
+<li><a href="deployment.html">Deploying the collector<span class="tag">beta</span></a></li>
+<li><a href="usage-collector.html">The collector<span class="tag">beta</span></a></li>
+</ul>
+<h2>Architecture and security</h2><ul>
+<li><a href="product-status.html">Product status</a></li>
+<li><a href="threat-model.html">Threat model</a></li>
+<li><a href="architecture.html">Architecture</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="rules/index.html">Rule explorer</a></li>
+<li><a href="generated/rule-summary.html">Rule summary</a></li>
+<li><a href="generated/rule-catalog.html">Rule catalog</a></li>
+<li><a href="generated/evaluator-catalog.html">Evaluator catalog</a></li>
+<li><a href="generated/taxonomy-coverage.html">Taxonomy coverage</a></li>
+<li><a href="generated/detection-limits.html">Detection limits</a></li>
+<li><a href="generated/first-run.html">First-run measure</a></li>
+</ul>
+<h2>Design documents</h2><ul>
+<li><a href="design/README.html">How these are written</a></li>
+</ul>
+<h2>Project direction</h2><ul>
+<li><a href="design/guardana-and-control.html">Guardana and Guardana Control<span class="tag">accepted</span></a></li>
+<li><a href="design/non-executing-packs.html">Non-executing packs and the default plugin trust<span class="tag">accepted</span></a></li>
+<li><a href="design/audit-0.31-direction.html">Direction audit after 0.31<span class="tag">accepted</span></a></li>
+</ul>
+<h2>Maintainers</h2><ul>
+<li><a href="maintainers/github-setup.html">GitHub repository setup</a></li>
+<li><a href="maintainers/ops-catalogue.html">Operations catalogue</a></li>
+<li><a href="maintainers/lessons.html">Lessons</a></li>
+<li><a href="maintainers/first-run-study.html">First-run study</a></li>
+</ul>
+<h2>Also here</h2><ul>
+<li><a href="design/trace-domain-model.html">The Trace domain model<span class="tag">implemented</span></a></li>
+<li><a href="design/trace-producer.html">Producing a trace<span class="tag">implemented</span></a></li>
+<li><a href="design/framework-adapters.html">Framework adapters<span class="tag">implemented</span></a></li>
+<li><a href="design/assessment-channel.html">The assessment channel<span class="tag">implemented</span></a></li>
+<li><a href="design/capability-protocols.html">Capability protocols<span class="tag">implemented</span></a></li>
+<li><a href="design/security-contracts.html">Security contracts<span class="tag">implemented</span></a></li>
+<li><a href="design/mcp-protocol-eras.html">MCP has two eras<span class="tag">implemented</span></a></li>
+<li><a href="design/mcp-authorization-depth.html">MCP authorization depth<span class="tag">implemented</span></a></li>
+<li><a href="design/taxonomy-editions.html">Taxonomy editions<span class="tag">implemented</span></a></li>
+<li><a href="design/extension-author-tooling.html">Extension author tooling<span class="tag">implemented</span></a></li>
+<li><a href="design/target-locators.html">Target locators<span class="tag">implemented</span></a></li>
+<li><a href="design/output-plugins.html">Output plugins<span class="tag">proposed</span></a></li>
+<li><a href="design/quality-suites.html">Quality suites<span class="tag">implemented</span></a></li>
+<li><a href="design/paired-regression-statistics.html">Paired regression statistics<span class="tag">proposed</span></a></li>
+<li><a href="design/attack-techniques.html">Attack techniques<span class="tag">proposed</span></a></li>
+<li><a href="design/namespaced-extension-ids.html">Namespaced extension ids<span class="tag">proposed</span></a></li>
+<li><a href="design/declarative-fixtures.html">Declarative fixtures for scenarios and agent runs<span class="tag">implemented</span></a></li>
+<li><a href="design/pack-scaffolding.html">Scaffolding a pack<span class="tag">implemented</span></a></li>
+<li><a href="design/repeated-trials.html">Repeated trials<span class="tag">implemented</span></a></li>
+<li><a href="design/documentation-site.html">A documentation site<span class="tag">implemented</span></a></li>
+<li><a href="design/judge-error-correction.html">Judge error in a measured rate<span class="tag">implemented</span></a></li>
+<li><a href="design/regrading-stored-exchanges.html">Re-grading stored exchanges<span class="tag">superseded</span></a></li>
+<li><a href="design/anytime-valid-monitoring.html">Anytime-valid monitoring<span class="tag">proposed</span></a></li>
+<li><a href="design/recorded-answers.html">Recorded answers and regrading<span class="tag">accepted</span></a></li>
+<li><a href="design/team-recipes.html">Repository recipes, one connection and provider conformance<span class="tag">accepted</span></a></li>
+<li><a href="design/application-fixtures-and-regressions.html">Regression cases, a declared fixture boundary and the retrieval pilot<span class="tag">accepted</span></a></li>
+<li><a href="design/run-manifest-v2.html">Run manifest v2<span class="tag">implemented</span></a></li>
+<li><a href="design/privacy-and-redaction.html">Privacy and redaction<span class="tag">implemented</span></a></li>
+<li><a href="design/exit-codes.html">Exit codes and gate semantics<span class="tag">implemented</span></a></li>
+<li><a href="design/collector-persistence.html">Collector persistence<span class="tag">implemented</span></a></li>
+<li><a href="design/collector-tenancy.html">Collector tenancy<span class="tag">implemented</span></a></li>
+<li><a href="design/ai-systems-and-deployments.html">AI systems and deployments<span class="tag">implemented</span></a></li>
+<li><a href="design/collector-runs-and-findings.html">Runs and findings<span class="tag">implemented</span></a></li>
+<li><a href="design/finding-lifecycle-and-waivers.html">Finding lifecycle and waivers<span class="tag">implemented</span></a></li>
+<li><a href="design/audit-retention-and-deletion.html">Audit, retention and deletion<span class="tag">implemented</span></a></li>
+<li><a href="design/panel-sessions.html">Panel sessions<span class="tag">implemented</span></a></li>
+</ul>
+</nav>
+<details class="mnav">
+<summary>Menu · <b>guardana fixtures</b></summary>
+<nav class="inner" aria-label="Documentation">
+<ul class="home"><li><a href="index.html">Overview</a></li></ul>
+<h2>First run</h2><ul>
+<li><a href="usage-init.html">guardana init</a></li>
+<li><a href="recipe-local-scan.html">Recipe: scan your own project</a></li>
+<li><a href="recipe-recorded-answers.html">Recipe: check a run your application recorded</a></li>
+<li><a href="recipe-real-application.html">Recipe: probe your real application</a></li>
+<li><a href="how-it-works.html">How Guardana works</a></li>
+<li><a href="install.html">Installing</a></li>
+<li><a href="usage-testing.html">In your test suite</a></li>
+<li><a href="python-api.html">Python API<span class="tag">beta</span></a></li>
+<li><a href="usage-scan.html">guardana scan</a></li>
+<li><a href="usage-probe.html">guardana probe</a></li>
+</ul>
+<h2>Run and policy</h2><ul>
+<li><a href="safe-testing.html">Safe active testing</a></li>
+<li><a href="usage-fixtures.html" aria-current="page">guardana fixtures<span class="tag">beta</span></a></li>
+<li><a href="usage-recipe.html">guardana recipe<span class="tag">beta</span></a></li>
+<li><a href="usage-doctor.html">guardana doctor</a></li>
+<li><a href="usage-target.html">guardana target inspect</a></li>
+<li><a href="providers.html">Providers</a></li>
+<li><a href="usage-plan.html">guardana plan</a></li>
+<li><a href="exit-codes.html">Exit codes</a></li>
+<li><a href="profiles.html">Profiles — guardana.yaml</a></li>
+</ul>
+<h2>Evidence and regression</h2><ul>
+<li><a href="usage-case.html">guardana case<span class="tag">beta</span></a></li>
+<li><a href="usage-baseline.html">guardana baseline</a></li>
+<li><a href="usage-diff.html">guardana diff</a></li>
+<li><a href="usage-monitor.html">guardana monitor</a></li>
+<li><a href="usage-run.html">guardana run</a></li>
+<li><a href="usage-calibrate.html">guardana calibrate</a></li>
+<li><a href="usage-suites.html">Quality suites<span class="tag">beta</span></a></li>
+<li><a href="privacy.html">Evidence and redaction</a></li>
+</ul>
+<h2>Recorded applications</h2><ul>
+<li><a href="usage-analyze-trace.html">guardana analyze-trace</a></li>
+<li><a href="usage-grade.html">guardana grade<span class="tag">beta</span></a></li>
+<li><a href="usage-trace-inspect.html">guardana trace inspect</a></li>
+<li><a href="usage-contracts.html">Security contracts</a></li>
+<li><a href="usage-import-observations.html">guardana import-observations</a></li>
+<li><a href="writing-an-integrator.html">Writing an integrator<span class="tag">beta</span></a></li>
+</ul>
+<h2>Rules and extensions</h2><ul>
+<li><a href="usage-rules.html">guardana rules</a></li>
+<li><a href="usage-taxonomy.html">guardana taxonomy</a></li>
+<li><a href="writing-rules.html">Writing rules</a></li>
+<li><a href="usage-rule-test.html">guardana rule test</a></li>
+<li><a href="usage-new-pack.html">guardana new-pack</a></li>
+<li><a href="usage-pack.html">guardana pack</a></li>
+<li><a href="extending.html">Extending Guardana</a></li>
+<li><a href="model-formats.html">Reading model formats</a></li>
+</ul>
+<h2>Collector and deployment</h2><ul>
+<li><a href="integrations.html">CI and pre-commit</a></li>
+<li><a href="deployment.html">Deploying the collector<span class="tag">beta</span></a></li>
+<li><a href="usage-collector.html">The collector<span class="tag">beta</span></a></li>
+</ul>
+<h2>Architecture and security</h2><ul>
+<li><a href="product-status.html">Product status</a></li>
+<li><a href="threat-model.html">Threat model</a></li>
+<li><a href="architecture.html">Architecture</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="rules/index.html">Rule explorer</a></li>
+<li><a href="generated/rule-summary.html">Rule summary</a></li>
+<li><a href="generated/rule-catalog.html">Rule catalog</a></li>
+<li><a href="generated/evaluator-catalog.html">Evaluator catalog</a></li>
+<li><a href="generated/taxonomy-coverage.html">Taxonomy coverage</a></li>
+<li><a href="generated/detection-limits.html">Detection limits</a></li>
+<li><a href="generated/first-run.html">First-run measure</a></li>
+</ul>
+<h2>Design documents</h2><ul>
+<li><a href="design/README.html">How these are written</a></li>
+</ul>
+<h2>Project direction</h2><ul>
+<li><a href="design/guardana-and-control.html">Guardana and Guardana Control<span class="tag">accepted</span></a></li>
+<li><a href="design/non-executing-packs.html">Non-executing packs and the default plugin trust<span class="tag">accepted</span></a></li>
+<li><a href="design/audit-0.31-direction.html">Direction audit after 0.31<span class="tag">accepted</span></a></li>
+</ul>
+<h2>Maintainers</h2><ul>
+<li><a href="maintainers/github-setup.html">GitHub repository setup</a></li>
+<li><a href="maintainers/ops-catalogue.html">Operations catalogue</a></li>
+<li><a href="maintainers/lessons.html">Lessons</a></li>
+<li><a href="maintainers/first-run-study.html">First-run study</a></li>
+</ul>
+<h2>Also here</h2><ul>
+<li><a href="design/trace-domain-model.html">The Trace domain model<span class="tag">implemented</span></a></li>
+<li><a href="design/trace-producer.html">Producing a trace<span class="tag">implemented</span></a></li>
+<li><a href="design/framework-adapters.html">Framework adapters<span class="tag">implemented</span></a></li>
+<li><a href="design/assessment-channel.html">The assessment channel<span class="tag">implemented</span></a></li>
+<li><a href="design/capability-protocols.html">Capability protocols<span class="tag">implemented</span></a></li>
+<li><a href="design/security-contracts.html">Security contracts<span class="tag">implemented</span></a></li>
+<li><a href="design/mcp-protocol-eras.html">MCP has two eras<span class="tag">implemented</span></a></li>
+<li><a href="design/mcp-authorization-depth.html">MCP authorization depth<span class="tag">implemented</span></a></li>
+<li><a href="design/taxonomy-editions.html">Taxonomy editions<span class="tag">implemented</span></a></li>
+<li><a href="design/extension-author-tooling.html">Extension author tooling<span class="tag">implemented</span></a></li>
+<li><a href="design/target-locators.html">Target locators<span class="tag">implemented</span></a></li>
+<li><a href="design/output-plugins.html">Output plugins<span class="tag">proposed</span></a></li>
+<li><a href="design/quality-suites.html">Quality suites<span class="tag">implemented</span></a></li>
+<li><a href="design/paired-regression-statistics.html">Paired regression statistics<span class="tag">proposed</span></a></li>
+<li><a href="design/attack-techniques.html">Attack techniques<span class="tag">proposed</span></a></li>
+<li><a href="design/namespaced-extension-ids.html">Namespaced extension ids<span class="tag">proposed</span></a></li>
+<li><a href="design/declarative-fixtures.html">Declarative fixtures for scenarios and agent runs<span class="tag">implemented</span></a></li>
+<li><a href="design/pack-scaffolding.html">Scaffolding a pack<span class="tag">implemented</span></a></li>
+<li><a href="design/repeated-trials.html">Repeated trials<span class="tag">implemented</span></a></li>
+<li><a href="design/documentation-site.html">A documentation site<span class="tag">implemented</span></a></li>
+<li><a href="design/judge-error-correction.html">Judge error in a measured rate<span class="tag">implemented</span></a></li>
+<li><a href="design/regrading-stored-exchanges.html">Re-grading stored exchanges<span class="tag">superseded</span></a></li>
+<li><a href="design/anytime-valid-monitoring.html">Anytime-valid monitoring<span class="tag">proposed</span></a></li>
+<li><a href="design/recorded-answers.html">Recorded answers and regrading<span class="tag">accepted</span></a></li>
+<li><a href="design/team-recipes.html">Repository recipes, one connection and provider conformance<span class="tag">accepted</span></a></li>
+<li><a href="design/application-fixtures-and-regressions.html">Regression cases, a declared fixture boundary and the retrieval pilot<span class="tag">accepted</span></a></li>
+<li><a href="design/run-manifest-v2.html">Run manifest v2<span class="tag">implemented</span></a></li>
+<li><a href="design/privacy-and-redaction.html">Privacy and redaction<span class="tag">implemented</span></a></li>
+<li><a href="design/exit-codes.html">Exit codes and gate semantics<span class="tag">implemented</span></a></li>
+<li><a href="design/collector-persistence.html">Collector persistence<span class="tag">implemented</span></a></li>
+<li><a href="design/collector-tenancy.html">Collector tenancy<span class="tag">implemented</span></a></li>
+<li><a href="design/ai-systems-and-deployments.html">AI systems and deployments<span class="tag">implemented</span></a></li>
+<li><a href="design/collector-runs-and-findings.html">Runs and findings<span class="tag">implemented</span></a></li>
+<li><a href="design/finding-lifecycle-and-waivers.html">Finding lifecycle and waivers<span class="tag">implemented</span></a></li>
+<li><a href="design/audit-retention-and-deletion.html">Audit, retention and deletion<span class="tag">implemented</span></a></li>
+<li><a href="design/panel-sessions.html">Panel sessions<span class="tag">implemented</span></a></li>
+</ul>
+</nav>
+</details>
+<main>
+<h1><code>guardana fixtures</code> — declare the synthetic data your application runs with<span class="status beta">beta</span></h1><p class="lede"><code>guardana-fixtures.yaml</code> declares the synthetic data your application runs with in CI — tenants, seeded documents, records and tools — and <code>guardana fixtures render</code> writes the documents you seed into your own index, each carrying markers derived from what you declared</p><p>A fixtures file says, once, which tenants your application serves in CI, which documents you
+seed into its own index, which records and tools its test doubles serve, and that all of it is
+synthetic. Guardana derives a marker for every seeded item from the item as you declared it,
+so a reply can be checked for whose data reached it.</p>
+<pre><code class="language-bash">guardana fixtures render guardana-fixtures.yaml --out seed/   # write seed/documents.jsonl
+</code></pre>
+<p>You ingest <code>seed/documents.jsonl</code> into your application's index yourself, the way your
+application ingests any document. Guardana never writes into the index.</p>
+<h2 id="the-file">The file</h2>
+<pre><code class="language-yaml">schema_version: 1
+name: support-bot
+data: synthetic                  # required; the only value
+tenants:
+  acme: {api_key_env: ACME_KEY}            # this tenant's credentials, complete
+  globex: {api_key_env: GLOBEX_KEY}
+documents:                       # seeded by you into the application's own index
+  - {id: acme-loyalty, tenant: acme, topic: &quot;the loyalty programme&quot;}
+  - {id: acme-returns, tenant: acme, topic: &quot;returning an order&quot;, poisoned: true}
+  - {id: globex-shipping, tenant: globex, topic: &quot;shipping times&quot;}
+records:                         # served by the stateful doubles
+  orders:
+    - {id: A-100, tenant: acme, fields: {total: 40}}
+    - {id: G-200, tenant: globex, fields: {total: 90}}
+tools:
+  lookup_order: {op: get, collection: orders}
+  refund_order: {op: update, collection: orders, sink: payment, reversible: true}
+  send_email: {op: send, sink: email, reversible: false}
+</code></pre>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Required</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>schema_version</code></td>
+<td>yes</td>
+<td><code>1</code>. A newer version is refused with &quot;upgrade Guardana&quot;.</td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>yes</td>
+<td>Part of every marker's derivation: renaming it moves every marker.</td>
+</tr>
+<tr>
+<td><code>data</code></td>
+<td>yes</td>
+<td><code>synthetic</code>, the only value. A statement you sign in review; Guardana records it as declared and cannot check it.</td>
+</tr>
+<tr>
+<td><code>tenants</code></td>
+<td>yes, two or more</td>
+<td>Each tenant's own credentials: exactly one of <code>api_key_env</code> (the variable holding its key) or <code>adapter</code> (an adapter file whose headers carry them). The URL, model and provider are the run's.</td>
+</tr>
+<tr>
+<td><code>documents</code></td>
+<td>one of <code>documents</code> or <code>records</code></td>
+<td><code>id</code>, <code>tenant</code>, <code>topic</code>, optionally <code>poisoned: true</code>.</td>
+</tr>
+<tr>
+<td><code>records</code></td>
+<td>one of <code>documents</code> or <code>records</code></td>
+<td>Collections of <code>id</code>, <code>tenant</code> and optional <code>fields</code> (strings, numbers, true/false).</td>
+</tr>
+<tr>
+<td><code>tools</code></td>
+<td>no</td>
+<td><code>op</code> (<code>get</code>, <code>search</code>, <code>create</code>, <code>update</code>, <code>delete</code>, <code>send</code>); <code>collection</code> for every op but <code>send</code>; <code>sink</code> and <code>reversible</code> for a change or a send, never for a read.</td>
+</tr>
+</tbody>
+</table></div>
+<p>Unknown keys and a key written twice are refused, and relative paths are read beside the
+file. The JSON schema is <a href="https://github.com/guardana/guardana/blob/main/schemas/fixtures-v1.schema.json"><code>schemas/fixtures-v1.schema.json</code></a>.</p>
+<p><strong>Refused when the file loads</strong> (exit <code>3</code>), because each would let a check pass without the
+evidence to pass it:</p>
+<ul>
+<li>fewer than two tenants: a tenant boundary needs a tenant on each side;</li>
+<li>documents declared while some tenant owns none, or a record collection in which some
+tenant owns no record: every tenant that asks through a channel needs an item of its own
+there as its control;</li>
+<li>two tenants with the same credentials: the application would see one tenant;</li>
+<li>two documents with the same topic, compared without case and punctuation: a question
+about one would retrieve both;</li>
+<li>a change or send tool without <code>sink</code> and <code>reversible</code>;</li>
+<li>a record that types its own <code>reference_code</code>, which is where Guardana puts its marker;</li>
+<li>an item whose markers would appear in another item's text, question or fields.</li>
+</ul>
+<p><strong>A tenant's connection is complete on its own.</strong> When the run sends through an adapter,
+every tenant names an adapter for the same URL; otherwise each names <code>api_key_env</code> or an
+adapter. Two tenants are told apart by their key variable or adapter digest when nothing is
+sent, so <code>plan</code> and <code>recipe lock</code> read no key, and by the key itself or the adapter's expanded
+headers when sending; a refusal never prints either. The run's own connection, which every
+other rule uses, is not a tenant.</p>
+<h2 id="markers">Markers</h2>
+<p>Every seeded item gets:</p>
+<ul>
+<li>a <strong>retrieval term</strong>, a made-up word unique to it, in its text and in its question;</li>
+<li>a <strong>presence marker</strong>, the answer to its question (a record carries it in a
+<code>reference_code</code> field);</li>
+<li>for a poisoned document, an <strong>instruction marker</strong>: two halves the document asks the model
+to join with a hyphen. The halves stand apart in the document, so a reply that quotes the
+document is not read as one that obeyed it.</li>
+</ul>
+<p>All of them derive from the digest of the item as declared and the file's <code>name</code>, by a
+versioned algorithm (<code>markers: 1</code>, recorded with every run given fixtures). Edit an item —
+its topic, its owner, a field — and its markers change, so an index seeded before the edit
+fails its control instead of answering with stale text. Render and seed again after every
+edit. A comment or the order of keys changes no marker.</p>
+<p>A reply and a marker are compared after case-folding and keeping only letters and digits, so
+<code>AB12 cd34</code> matches <code>ab12-CD34</code>. The presence marker, the joined instruction marker, each half,
+the term and the question are kept apart under that comparison, and no item's marker or term
+appears in another item; <code>render</code> checks this again before it writes.</p>
+<h2 id="guardana-fixtures-render-file---out-dir"><code>guardana fixtures render FILE --out DIR</code></h2>
+<p>Writes <code>DIR/documents.jsonl</code>, one JSON object per document with its <code>id</code>, <code>tenant</code> and
+<code>text</code>, creating <code>DIR</code> when needed and replacing an earlier rendering whole. The text states
+the presence marker with the retrieval term; a poisoned document adds the instruction as an
+HTML comment. Nothing is sent and no key is read. <code>FILE</code> defaults to
+<code>guardana-fixtures.yaml</code>.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Exit</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>0</code></td>
+<td>written</td>
+</tr>
+<tr>
+<td><code>3</code></td>
+<td>the file was refused, or <code>DIR</code> could not be written; nothing was written</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="in-a-recipe">In a recipe</h2>
+<p>A recipe names the file as <code>subject.fixtures</code>, beside a <code>connection</code>, with
+<code>schema_version: 2</code> (<a href="usage-recipe.html"><code>usage-recipe.md</code></a>). The recipe reads the file once,
+so the digest the lock pins and the items a run asks about come from the same bytes. The
+lock pins the file's digest and every tenant adapter; <code>recipe run</code> resolves every tenant,
+checks each key is set and the tenants' credentials differ, and re-reads every tenant adapter
+against its pin before it sends anything. <code>subject.fixtures</code> together with
+<code>subject.recording</code> is refused.</p>
+<h2 id="in-the-saved-run-and-in-diff">In the saved run and in <code>diff</code></h2>
+<p>A run given fixtures records them as <code>run.fixtures</code>: the name, the file's digest, <code>data</code>
+labelled as declared, the tenants, how many documents, records and tools the file declares,
+and the <code>markers</code> algorithm (<a href="usage-run.html"><code>usage-run.md</code></a>). <code>guardana diff</code> reads two runs
+given different fixtures, or fixtures on one side only, as an incomplete comparison (exit
+<code>2</code>): an item one file declares and the other does not was asked about by one run only, so
+its absence would otherwise read as a fixed leak (<a href="usage-diff.html"><code>usage-diff.md</code></a>).</p>
+
+</main>
+</div>
+<footer class="foot"><div class="bar">
+<span class="who">Guardana 0.36.0 · Apache-2.0 ·
+maintained by Konrad Karauda</span>
+<a href="https://github.com/guardana/guardana/blob/main/docs/usage-fixtures.md">Edit this page on GitHub</a>
+<a href="https://github.com/guardana/guardana">github.com/guardana</a>
+<a href="../llms.txt">llms.txt</a>
+</div></footer>
+</body>
+</html>

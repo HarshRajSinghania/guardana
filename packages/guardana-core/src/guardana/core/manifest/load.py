@@ -20,6 +20,7 @@ from guardana.core.manifest.records import (
     CorrectionStatus,
     EvaluatorRecord,
     ExchangesRecord,
+    FixturesRecord,
     JudgeCorrection,
     RecipeRecord,
     RecordingOriginRecord,
@@ -773,6 +774,42 @@ def _recipe(run: Mapping[str, Any]) -> RecipeRecord | None:
         raise ManifestLoadError(f"{what}: {exc}") from exc
 
 
+_FIXTURES_KEYS = frozenset({"name", "digest", "data", "tenants", "counts", "markers"})
+_FIXTURES_DATA_KEYS = frozenset({"declared"})
+_FIXTURES_COUNT_KEYS = frozenset({"documents", "records", "tools"})
+
+
+def _fixtures(run: Mapping[str, Any]) -> FixturesRecord | None:
+    """Read the fixtures file a run was given, refusing a block absent or malformed.
+
+    The key is required, null included: a run given fixtures read back as one given none
+    would let `diff` compare it with a run that seeded nothing.
+    """
+    what = "run.fixtures"
+    raw = _present(run, "fixtures", "run")
+    if raw is None:
+        return None
+    block = _closed(raw, _FIXTURES_KEYS, what)
+    data = _closed(block["data"], _FIXTURES_DATA_KEYS, f"{what}.data")
+    counts = _closed(block["counts"], _FIXTURES_COUNT_KEYS, f"{what}.counts")
+    tenants = block["tenants"]
+    if not isinstance(tenants, list) or not all(isinstance(name, str) for name in tenants):
+        raise ManifestLoadError(f"{what}.tenants must be a list of tenant names")
+    try:
+        return FixturesRecord(
+            name=_text(block, "name", what),
+            digest=_text(block, "digest", what),
+            data=_text(data, "declared", f"{what}.data"),
+            tenants=tuple(tenants),
+            documents=_whole(counts, "documents", f"{what}.counts"),
+            records=_whole(counts, "records", f"{what}.counts"),
+            tools=_whole(counts, "tools", f"{what}.counts"),
+            markers=_whole(block, "markers", what),
+        )
+    except (TypeError, ValueError) as exc:
+        raise ManifestLoadError(f"{what}: {exc}") from exc
+
+
 def _closed(raw: object, keys: frozenset[str], what: str) -> dict[str, Any]:
     """Return `raw` as an object holding exactly `keys`, refusing one missing or unknown."""
     block = _mapping(raw, what)
@@ -901,6 +938,7 @@ def manifest_from_dict(raw: object, *, migrated_from: int | None = None) -> RunM
         exchanges=_exchanges(block),
         recording=_recording(block),
         recipe=_recipe(block),
+        fixtures=_fixtures(block),
         migrated_from=(
             migrated_from if migrated_from is not None else _optional_int(block, "migrated_from")
         ),

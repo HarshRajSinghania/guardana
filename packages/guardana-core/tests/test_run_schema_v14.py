@@ -16,18 +16,15 @@ from typing import Any
 import pytest
 from _documents import (
     run_manifest,
-    saved_run_at_v9,
-    saved_run_at_v10,
-    saved_run_at_v11,
-    saved_run_at_v12,
     saved_run_at_v13,
+    saved_run_at_v14,
     scan_result,
 )
 from guardana.core.manifest import RecipeRecord, SubjectKind, SubjectSource
 from guardana.core.manifest.load import ManifestLoadError, manifest_from_dict
 from guardana.core.manifest.migrations import migrate_v13
 from guardana.core.manifest.serialize import manifest_to_dict
-from guardana.core.report.load import load_report, migrate_forward
+from guardana.core.report.load import load_report
 from guardana.core.report.serialize import run_to_dict
 from guardana.core.report.shortfall import ShortfallKind
 from jsonschema import Draft202012Validator
@@ -38,6 +35,9 @@ _LOCK = "sha256:" + "cd" * 32
 
 
 def _errors(document: dict[str, Any], version: int = 14) -> list[str]:
+    """Validate `document` against a run schema, a current one in the shape version 14 wrote."""
+    if document["schema_version"] == 15:
+        document = saved_run_at_v14(document)
     schema = json.loads((_SCHEMAS / f"run-v{version}.schema.json").read_text(encoding="utf-8"))
     return [error.message for error in Draft202012Validator(schema).iter_errors(document)]
 
@@ -239,25 +239,3 @@ def test_a_loaded_v13_run_says_it_was_migrated_and_records_no_subject(tmp_path: 
     assert report.manifest.migrated_from == 13
     assert report.manifest.recipe is None
     assert report.manifest.configuration.provider is None
-
-
-@pytest.mark.parametrize(
-    ("version", "shape"),
-    [
-        (13, saved_run_at_v13),
-        (12, saved_run_at_v12),
-        (11, saved_run_at_v11),
-        (10, saved_run_at_v10),
-        (9, saved_run_at_v9),
-    ],
-    ids=["v13", "v12", "v11", "v10", "v9"],
-)
-def test_every_older_version_reaches_14_through_the_chain(
-    version: int, shape: Callable[[dict[str, Any]], dict[str, Any]]
-) -> None:
-    migrated = migrate_forward(shape(_document()), version)
-
-    assert migrated["schema_version"] == 14
-    assert not _errors(migrated)
-    assert _run(migrated)["recipe"] is None
-    assert _run(migrated)["configuration"]["provider"] is None

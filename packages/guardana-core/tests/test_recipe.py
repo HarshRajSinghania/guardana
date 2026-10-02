@@ -90,7 +90,24 @@ def test_a_comment_or_key_order_does_not_change_the_recipe_digest(tmp_path: Path
         (lambda t: t.replace("directory: artifact", "directory: ."), "own directory"),
         (lambda t: t.replace("directory: artifact", "directory: ../out"), "beside the recipe"),
         (lambda t: t.replace("directory: artifact", "directory: /tmp/out"), "beside the recipe"),
-        (lambda t: t.replace("schema_version: 1", "schema_version: 2"), "upgrade Guardana"),
+        (lambda t: t.replace("schema_version: 1", "schema_version: 3"), "upgrade Guardana"),
+        (
+            lambda t: t.replace("  connection:\n", "  fixtures: f.yaml\n  connection:\n"),
+            "needs `schema_version: 2`",
+        ),
+        (
+            lambda t: t.replace("schema_version: 1", "schema_version: 2").replace(
+                "  connection:\n", "  fixtures: f.yaml\n  recording: a.jsonl\n  connection:\n"
+            ),
+            "exactly one",
+        ),
+        (
+            lambda t: t.replace("schema_version: 1", "schema_version: 2").replace(
+                "  connection:\n    url: http://127.0.0.1:8080\n    model: support-bot\n",
+                "  fixtures: f.yaml\n  recording: a.jsonl\n",
+            ),
+            "cannot be combined with subject.recording",
+        ),
         (
             lambda t: t.replace("  connection:\n", "  recording: a.jsonl\n  connection:\n"),
             "exactly one",
@@ -103,6 +120,24 @@ def test_a_recipe_that_cannot_be_trusted_as_written_is_refused(
     assert callable(edit)
     with pytest.raises(RecipeError, match=says):
         load_recipe(_write(tmp_path, edit(_RECIPE)))
+
+
+def test_a_schema_1_recipe_is_still_read_and_names_no_fixtures(tmp_path: Path) -> None:
+    recipe = load_recipe(_write(tmp_path))
+
+    assert recipe.fixtures is None
+
+
+def test_a_schema_2_recipe_names_its_fixtures_beside_itself(tmp_path: Path) -> None:
+    text = _RECIPE.replace("schema_version: 1", "schema_version: 2").replace(
+        "  connection:\n", "  fixtures: data/guardana-fixtures.yaml\n  connection:\n"
+    )
+
+    recipe = load_recipe(_write(tmp_path, text))
+
+    assert recipe.fixtures == tmp_path / "data" / "guardana-fixtures.yaml"
+    assert recipe.source is SubjectSource.CONNECTION
+    assert recipe.digest != load_recipe(_write(tmp_path, _RECIPE, "plain.yaml")).digest
 
 
 _CONNECTION = "  connection:\n    url: http://127.0.0.1:8080\n    model: support-bot\n"

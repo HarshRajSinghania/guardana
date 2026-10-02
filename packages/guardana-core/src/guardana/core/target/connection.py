@@ -9,6 +9,7 @@ A secret is read only for a connection that will send. A plan prices a run and a
 pins one; neither needs the key, so neither may fail for the want of it.
 """
 
+import json
 import os
 import re
 from collections.abc import Mapping
@@ -16,7 +17,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import yaml
-from guardana.core.fingerprint import DigestKind, DocumentDigest
+from guardana.core.fingerprint import DigestKind, DocumentDigest, digest_of
 from guardana.core.target._url import display_url, private_url_parts
 from guardana.core.target.adapter import AdapterConfig, HttpAdapterTransport
 from guardana.core.target.endpoint import ChatTransport, EndpointError, EndpointTarget
@@ -94,6 +95,12 @@ class ResolvedConnection:
     api_key: str | None
     transport: ChatTransport | None
     adapter_digest: str | None
+    credential: str | None = None
+    """A digest of what authenticates the requests: the key, or the adapter's expanded headers.
+
+    Set only for a connection resolved to send that names a key or an adapter, so two
+    connections can be told apart by what they send without holding the secret twice.
+    """
 
     def endpoint(
         self,
@@ -147,6 +154,7 @@ def resolve_connection(
         api_key=api_key,
         transport=None,
         adapter_digest=None,
+        credential=None if api_key is None else digest_of("credential", "key", api_key),
     )
 
 
@@ -230,7 +238,14 @@ def _through_adapter(
         api_key=None,
         transport=transport,
         adapter_digest=loaded.digest,
+        credential=None if environ is None else _headers_credential(loaded.config.headers),
     )
+
+
+def _headers_credential(headers: Mapping[str, str]) -> str:
+    """Digest expanded headers, names case-folded because HTTP compares them that way."""
+    folded = {name.casefold(): value for name, value in headers.items()}
+    return digest_of("credential", "headers", json.dumps(folded, sort_keys=True))
 
 
 def _adapter_url(written: object, url: str, path: Path, names: Spelling) -> str:

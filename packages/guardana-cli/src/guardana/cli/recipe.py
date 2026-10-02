@@ -22,6 +22,7 @@ from guardana.core import __version__
 from guardana.core.budget import BudgetExhausted
 from guardana.core.calibration.store import RecordedCalibration
 from guardana.core.fingerprint import DigestKind, DocumentDigest
+from guardana.core.fixtures import Fixtures, FixturesError, ResolvedTenant, load_fixtures
 from guardana.core.manifest import DeploymentRef, RecipeRecord, SubjectKind
 from guardana.core.plan import build_plan
 from guardana.core.plugins import PluginTrust
@@ -84,10 +85,12 @@ _SPELLING = Spelling(
 
 @dataclass(frozen=True, slots=True)
 class _Read:
-    """A recipe as parsed, with the exact text it was parsed from."""
+    """A recipe as parsed, with the exact text it was parsed from and the fixtures it names."""
 
     recipe: Recipe
     text: str
+    fixtures: Fixtures | None = None
+    """Read once, so the digest the lock compares and the items a run asks come from one read."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -105,6 +108,8 @@ class _Prepared:
 
     errors: tuple[CheckError, ...]
     """What the run would record before its first rule: a check that would not grade."""
+
+    fixtures: Fixtures | None = None
 
 
 class _Refusal(Exception):  # noqa: N818 — named for the outcome a command reports
@@ -211,9 +216,11 @@ def run(
 def _load(path: Path) -> _Read:
     try:
         text = read_text(path, "recipe")
-        return _Read(parse_recipe(text, path), text)
-    except RecipeError as exc:
+        recipe = parse_recipe(text, path)
+        fixtures = None if recipe.fixtures is None else load_fixtures(recipe.fixtures)
+    except (RecipeError, FixturesError) as exc:
         raise _Refusal(str(exc)) from exc
+    return _Read(recipe, text, fixtures)
 
 
 def _refuse_unreadable(path: Path, reason: str) -> None:
@@ -302,7 +309,7 @@ def _prepare(read: _Read) -> _Prepared:
     except ProfileError as exc:
         raise refuse_invalid_profile(exc) from exc
     prompt = read_system_prompt(recipe.subject_file("system_prompt_file"))
-    target, files = _stand_in(recipe, prompt)
+    target, files = _stand_in(recipe, prompt, read.fixtures)
     plan = build_plan(priced, profile, target)
     current = lock_of(
         recipe,
@@ -322,7 +329,15 @@ def _prepare(read: _Read) -> _Prepared:
         )
     _refuse_broken_regressions(priced, current)
     return _Prepared(
-        recipe, profile, resolved.trust, registry, calibrations, current, prompt, plan.errors
+        recipe,
+        profile,
+        resolved.trust,
+        registry,
+        calibrations,
+        current,
+        prompt,
+        plan.errors,
+        read.fixtures,
     )
 
 
@@ -355,11 +370,14 @@ def _refuse_unloadable(prepared: _Prepared) -> None:
         )
 
 
-def _stand_in(recipe: Recipe, prompt: str | None) -> tuple[Target, dict[str, str]]:
+def _stand_in(
+    recipe: Recipe, prompt: str | None, fixtures: Fixtures | None
+) -> tuple[Target, dict[str, str]]:
     """Return a target that sends nothing, shaped like the subject, and the subject files' digests.
 
     A recording stands in as one holding no reply, so a rule it leaves unanswered is
-    still a rule the configuration selected.
+    still a rule the configuration selected. Fixtures pin their file and every tenant
+    adapter, resolved without reading a key.
     """
     if recipe.connection is None:
         empty = Recording(
@@ -375,6 +393,8 @@ def _stand_in(recipe: Recipe, prompt: str | None) -> tuple[Target, dict[str, str
         files["adapter"] = resolved.adapter_digest
     if prompt is not None:
         files["system_prompt_file"] = _text_digest(prompt)
+    if fixtures is not None:
+        files.update(fixtures.subject_files(_tenants(recipe, fixtures, sending=False)))
     target = endpoint_for(resolved, system_prompt=prompt or system_prompt_the_probe_will_send(None))
     return target, files
 
@@ -414,17 +434,39 @@ def _subject(prepared: _Prepared) -> Target:
         resolved = resolve_connection(_connection(recipe), sending=True, spelling=_SPELLING)
     except ConnectionConfigError as exc:
         raise _Refusal(f"{recipe.path}: {exc}") from exc
-    pinned = prepared.lock.subject_files.get("adapter")
-    if resolved.adapter_digest != pinned:
-        moved = LockDrift(
-            LockDriftKind.SUBJECT_FILE_CHANGED,
-            "adapter",
-            f"changed while the run was being checked: {pinned} is now {resolved.adapter_digest}",
-        )
-        raise _Refusal(f"nothing was sent: {moved.describe()}")
+    found = {"adapter": resolved.adapter_digest}
+    if prepared.fixtures is not None:
+        tenants = _tenants(recipe, prepared.fixtures, sending=True)
+        found.update(prepared.fixtures.subject_files(tenants))
+    _refuse_moved(prepared.lock, found)
     return endpoint_for(
         resolved, system_prompt=prepared.system_prompt, meter=UsageMeter(prepared.profile.budgets)
     )
+
+
+def _tenants(recipe: Recipe, fixtures: Fixtures, *, sending: bool) -> tuple[ResolvedTenant, ...]:
+    """Resolve the fixtures' tenants against the recipe's connection, or raise `_Refusal`."""
+    try:
+        return fixtures.resolve_tenants(_connection(recipe), sending=sending, spelling=_SPELLING)
+    except FixturesError as exc:
+        raise _Refusal(str(exc)) from exc
+
+
+def _refuse_moved(lock: RecipeLock, found: dict[str, str | None]) -> None:
+    """Refuse a subject file read again before sending that no longer matches its pin.
+
+    `found` holds what the sending side resolved; the fixtures file itself was read once,
+    so its digest is the one the lock was compared with.
+    """
+    for name, digest in sorted(found.items()):
+        pinned = lock.subject_files.get(name)
+        if digest != pinned:
+            moved = LockDrift(
+                LockDriftKind.SUBJECT_FILE_CHANGED,
+                name,
+                f"changed while the run was being checked: {pinned} is now {digest}",
+            )
+            raise _Refusal(f"nothing was sent: {moved.describe()}")
 
 
 def _run_kind(recipe: Recipe, subject: Target) -> SubjectKind:

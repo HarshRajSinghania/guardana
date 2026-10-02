@@ -688,6 +688,50 @@ class RecipeRecord:
 
 
 @dataclass(frozen=True, slots=True)
+class FixturesRecord:
+    """The fixtures file a run was given: what it declares, never what Guardana verified.
+
+    `data` is the file's `data:` statement, which the team signs in review and Guardana
+    cannot check. `markers` names the algorithm the run's markers were derived with.
+    """
+
+    name: str
+    digest: str
+    """The SHA-256 of the fixtures file's bytes, as the run read them."""
+
+    data: str
+    """What the team declares the data is; declared, not verified."""
+
+    tenants: tuple[str, ...]
+    documents: int
+    records: int
+    tools: int
+    markers: int
+
+    def __post_init__(self) -> None:
+        """Refuse a digest no reader produced, and counts or tenants no fixtures file holds."""
+        _require_digest(self.digest, "a fixtures digest")
+        if not isinstance(self.tenants, tuple) or not all(
+            isinstance(name, str) and name for name in self.tenants
+        ):
+            raise TypeError(f"tenants must be a tuple of tenant names, got {self.tenants!r}")
+        if len(self.tenants) < 2 or len(set(self.tenants)) != len(self.tenants):  # noqa: PLR2004
+            raise ValueError(
+                f"fixtures declare at least two distinct tenants, not {list(self.tenants)}"
+            )
+        for name in ("documents", "records", "tools"):
+            value = getattr(self, name)
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                raise ValueError(f"{name} must be a whole number of at least 0, got {value!r}")
+        if isinstance(self.markers, bool) or not isinstance(self.markers, int) or self.markers < 1:
+            raise ValueError(
+                f"markers names an algorithm version of at least 1, not {self.markers!r}"
+            )
+        if not isinstance(self.data, str) or not self.data.strip():
+            raise ValueError("data is the statement the fixtures file makes, never empty")
+
+
+@dataclass(frozen=True, slots=True)
 class ResultSummary:
     """The counts and the verdict, written by the engine rather than inferred.
 

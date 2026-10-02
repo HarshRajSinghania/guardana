@@ -43,12 +43,13 @@ output:
 
 | Key | Required | Meaning |
 |---|---|---|
-| `schema_version` | yes | `1`. A newer version is refused with "upgrade Guardana". |
+| `schema_version` | yes | `2`, or `1` for a recipe without `subject.fixtures`. A newer version is refused with "upgrade Guardana". |
 | `name` | yes | The recipe's name, recorded in the run. |
 | `profile` | yes | The `guardana.yaml` the checks come from, beside the recipe. |
 | `subject.kind` | with `connection` | What answers: `application` or `model_harness`. No default. With `recording` it may be left out when the recording's header declares `subject_kind`; a run where neither declares one, or the two differ, is refused before anything is graded (exit `3`). |
 | `subject.connection` | one of the two | `url`, `model`, and optionally `provider`, `api_key_env`, `adapter`, `system_prompt_file`, with the meanings `guardana probe` gives the same flags. |
 | `subject.recording` | one of the two | A recording to grade, as `guardana grade` reads it. Nothing is sent to the application. |
+| `subject.fixtures` | no | With `connection` and `schema_version: 2`: the [fixtures file](usage-fixtures.md) declaring the synthetic data the application runs with — its tenants, seeded documents, records and tools. Refused with `recording`, and in a schema-1 recipe. |
 | `deployment` | no | `ai_system`, `environment`, `deployment_id`, as the `probe` flags of the same names. |
 | `output.directory` | no | The artifact directory, a subdirectory beside the recipe. Default `guardana-artifact`. |
 | `output.exchanges` | no | `true` puts the replies the profile keeps into the artifact. Default `false`. |
@@ -74,7 +75,9 @@ without reading a key, and writes `guardana-recipe.lock.yaml` beside the recipe.
 - every evaluator a selected rule grades with: who registered it, its judge identity and the
   calibration in force for it;
 - every rule the configuration skips, by reason;
-- the adapter file the connection names, as written, and the text of its system-prompt file.
+- the adapter file the connection names, as written, and the text of its system-prompt file;
+- the fixtures file `subject.fixtures` names, as written, and every tenant adapter it names
+  (`fixtures`, `fixtures.tenants.<name>.adapter`).
 
 It never pins a key or the recording: the recording is your application's answer, not your
 configuration. A rule or evaluator from a distribution installed in editable mode or from a
@@ -115,7 +118,10 @@ fails it, whatever the profile's `fail_on_*` switches say.
 
 Before it sends anything, `recipe run` also checks what the lock does not cover: the
 subject's key variable and every judge's key variable must be set, and an adapter file read
-again to send must still have the digest the lock holds. Each refusal exits `3` and is
+again to send must still have the digest the lock holds. With fixtures, every tenant's key
+variable must be set, no two tenants may send the same key or the same adapter headers, and
+every tenant adapter read again must still have its pinned digest; the fixtures file is read
+once, so the items a run asks about are the bytes the lock compared. Each refusal exits `3` and is
 written into the artifact. When the lock lists unpinned checks, the run says so on stderr,
 at the end of `report.txt` and in `guardana run inspect`.
 

@@ -36,6 +36,7 @@
 </ul>
 <h2>Run and policy</h2><ul>
 <li><a href="safe-testing.html">Safe active testing</a></li>
+<li><a href="usage-fixtures.html">guardana fixtures<span class="tag">beta</span></a></li>
 <li><a href="usage-recipe.html">guardana recipe<span class="tag">beta</span></a></li>
 <li><a href="usage-doctor.html">guardana doctor</a></li>
 <li><a href="usage-target.html">guardana target inspect</a></li>
@@ -162,6 +163,7 @@
 </ul>
 <h2>Run and policy</h2><ul>
 <li><a href="safe-testing.html">Safe active testing</a></li>
+<li><a href="usage-fixtures.html">guardana fixtures<span class="tag">beta</span></a></li>
 <li><a href="usage-recipe.html">guardana recipe<span class="tag">beta</span></a></li>
 <li><a href="usage-doctor.html">guardana doctor</a></li>
 <li><a href="usage-target.html">guardana target inspect</a></li>
@@ -375,6 +377,8 @@ judge is unknown, so <code>diff</code> does not read it as a change of judge.</p
 <p>A schema-13 run migrates to schema 14 with <code>recipe: null</code> and <code>configuration.provider: null</code>:
 no earlier schema recorded a recipe or the provider wire, so both are unknown, never &quot;no
 recipe&quot; or &quot;the OpenAI wire&quot;. <code>inspect</code> prints no <code>recipe:</code> line for it.</p>
+<p>A schema-14 run migrates to schema 15 with <code>fixtures: null</code>: no earlier build took a fixtures
+file, so the run was given none.</p>
 <p>One thing <em>is</em> recovered: the <strong>title</strong> of a framework reference, which version 3
 onward records beside its framework and id. It is looked up from the installed
 catalogue for the exact <code>(framework, id)</code> pair the document already carries, so
@@ -399,8 +403,8 @@ published was the file. There is now a test that validates the <em>artifact</em>
 parametrised over every field a version-1 run could be missing.</p>
 <h2 id="the-document">The document</h2>
 <p>The saved-run schema lives at
-<a href="https://github.com/guardana/guardana/blob/main/schemas/run-v14.schema.json"><code>schemas/run-v14.schema.json</code></a>, identified by
-<code>https://guardana.dev/schemas/run/v14.schema.json</code>, and the site serves every schema
+<a href="https://github.com/guardana/guardana/blob/main/schemas/run-v15.schema.json"><code>schemas/run-v15.schema.json</code></a>, identified by
+<code>https://guardana.dev/schemas/run/v15.schema.json</code>, and the site serves every schema
 at the URL its identifier names. The version is in the identifier,
 so a consumer can tell which contract it is holding before parsing anything; it
 changes whenever the change is not backwards-compatible. A test validates what
@@ -426,7 +430,10 @@ kept beside the run, <code>run.recording</code>, the recording a graded run answ
 <code>run.evaluators[].judge</code>, each judge's identity, <code>assessments[].reason</code>, why a trial was not
 measured, and the <code>not_recorded</code> skip reason. Version 14 records <code>run.recipe</code>, the recipe a
 run was started from and the subject it declared, <code>run.configuration.provider</code>, the provider
-wire the run spoke, and the <code>incomplete_recording</code> and <code>demanded_check</code> coverage shortfalls.</p>
+wire the run spoke, and the <code>incomplete_recording</code> and <code>demanded_check</code> coverage shortfalls.
+Version 15 records <code>run.fixtures</code>, the fixtures file a run was given, and the
+<code>seed_not_reached</code> coverage shortfall: a seeded item whose control returned no marker for a
+tenant.</p>
 <p>Top level:</p>
 <div class="table-wrap"><table>
 <thead>
@@ -438,7 +445,7 @@ wire the run spoke, and the <code>incomplete_recording</code> and <code>demanded
 <tbody>
 <tr>
 <td><code>schema_version</code></td>
-<td><code>14</code>. Stated once, for the whole document.</td>
+<td><code>15</code>. Stated once, for the whole document.</td>
 </tr>
 <tr>
 <td><code>run</code></td>
@@ -530,6 +537,10 @@ wire the run spoke, and the <code>incomplete_recording</code> and <code>demanded
 <tr>
 <td><code>recipe</code></td>
 <td>for a run started from a recipe, <code>{name, digest, lock_digest, kind, source, unpinned}</code>: the recipe's name, the SHA-256 of the recipe file and of the lock the run was held to (<code>null</code> when none was read), what the team declared answered (<code>kind</code>: <code>application</code> or <code>model_harness</code>), how the run reached it (<code>source</code>: <code>connection</code> or <code>recording</code>) and the rule ids it ran that the lock does not pin. <code>kind</code> is declared, not verified. <code>null</code> otherwise</td>
+</tr>
+<tr>
+<td><code>fixtures</code></td>
+<td>for a run given a <a href="usage-fixtures.html">fixtures file</a>, <code>{name, digest, data, tenants, counts, markers}</code>: the file's <code>name</code>, the SHA-256 of its bytes, <code>data</code> as <code>{declared: &quot;synthetic&quot;}</code> — the team's statement, recorded and never verified —, the tenants it declares, <code>{documents, records, tools}</code> it declares, and the version of the algorithm that derived its markers. <code>null</code> otherwise</td>
 </tr>
 </tbody>
 </table></div>

@@ -36,6 +36,7 @@
 </ul>
 <h2>Run and policy</h2><ul>
 <li><a href="safe-testing.html">Safe active testing</a></li>
+<li><a href="usage-fixtures.html">guardana fixtures<span class="tag">beta</span></a></li>
 <li><a href="usage-recipe.html">guardana recipe<span class="tag">beta</span></a></li>
 <li><a href="usage-doctor.html">guardana doctor</a></li>
 <li><a href="usage-target.html">guardana target inspect</a></li>
@@ -162,6 +163,7 @@
 </ul>
 <h2>Run and policy</h2><ul>
 <li><a href="safe-testing.html">Safe active testing</a></li>
+<li><a href="usage-fixtures.html">guardana fixtures<span class="tag">beta</span></a></li>
 <li><a href="usage-recipe.html">guardana recipe<span class="tag">beta</span></a></li>
 <li><a href="usage-doctor.html">guardana doctor</a></li>
 <li><a href="usage-target.html">guardana target inspect</a></li>
@@ -472,6 +474,10 @@ no note is added.</p>
 digest and they differ, a note names the settings that changed: a difference between the runs
 may come from that rather than from the system. A setting one run did not record is unknown,
 and no note is added for it.</p>
+<p>Two runs given different <a href="usage-fixtures.html">fixtures</a> — another file digest — or fixtures on
+one side only are an incomplete comparison (exit <code>2</code>), not a note: an item one file declares
+and the other does not was asked about by one run only, so a finding on it that disappears
+would otherwise read as a fixed leak. A run migrated from schema 14 was given no fixtures.</p>
 <h2 id="in-ci">In CI</h2>
 <pre><code class="language-yaml">- name: Save this run
   # exit 1 is a finding the comparison will judge; 2 and above still stop the job

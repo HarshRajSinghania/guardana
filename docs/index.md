@@ -26,6 +26,7 @@ Start with the root [README](../README.md). Before production use, read [Product
 
 - [`profiles.md`](profiles.md) — configure rules, gates, budgets, trust, and redaction
 - [`usage-recipe.md`](usage-recipe.md) — pin a team's checks in a recipe and run them in CI
+- [`usage-fixtures.md`](usage-fixtures.md) — declare the synthetic data your application runs with, and render what you seed
 - [`usage-plan.md`](usage-plan.md) — estimate a run before sending requests
 - [`usage-target.md`](usage-target.md) — verify endpoint capabilities
 - [`providers.md`](providers.md) — what each provider and adapter carries, and which failures it retries

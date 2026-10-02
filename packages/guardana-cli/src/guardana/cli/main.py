@@ -13,6 +13,7 @@ from guardana.cli.config import config_app
 from guardana.cli.diff import diff
 from guardana.cli.doctor import doctor
 from guardana.cli.exit_codes import ExitCode
+from guardana.cli.fixtures import fixtures_app
 from guardana.cli.grade import grade
 from guardana.cli.import_observations import import_observations
 from guardana.cli.init import init
@@ -116,6 +117,7 @@ app.add_typer(rule_app, name="rule")
 app.add_typer(pack_app, name="pack")
 app.add_typer(recipe_app, name="recipe")
 app.add_typer(case_app, name="case")
+app.add_typer(fixtures_app, name="fixtures")
 app.command()(doctor)
 
 

@@ -138,6 +138,9 @@ A schema-13 run migrates to schema 14 with `recipe: null` and `configuration.pro
 no earlier schema recorded a recipe or the provider wire, so both are unknown, never "no
 recipe" or "the OpenAI wire". `inspect` prints no `recipe:` line for it.
 
+A schema-14 run migrates to schema 15 with `fixtures: null`: no earlier build took a fixtures
+file, so the run was given none.
+
 One thing *is* recovered: the **title** of a framework reference, which version 3
 onward records beside its framework and id. It is looked up from the installed
 catalogue for the exact `(framework, id)` pair the document already carries, so
@@ -170,8 +173,8 @@ parametrised over every field a version-1 run could be missing.
 ## The document
 
 The saved-run schema lives at
-[`schemas/run-v14.schema.json`](../schemas/run-v14.schema.json), identified by
-`https://guardana.dev/schemas/run/v14.schema.json`, and the site serves every schema
+[`schemas/run-v15.schema.json`](../schemas/run-v15.schema.json), identified by
+`https://guardana.dev/schemas/run/v15.schema.json`, and the site serves every schema
 at the URL its identifier names. The version is in the identifier,
 so a consumer can tell which contract it is holding before parsing anything; it
 changes whenever the change is not backwards-compatible. A test validates what
@@ -199,12 +202,15 @@ kept beside the run, `run.recording`, the recording a graded run answered from,
 measured, and the `not_recorded` skip reason. Version 14 records `run.recipe`, the recipe a
 run was started from and the subject it declared, `run.configuration.provider`, the provider
 wire the run spoke, and the `incomplete_recording` and `demanded_check` coverage shortfalls.
+Version 15 records `run.fixtures`, the fixtures file a run was given, and the
+`seed_not_reached` coverage shortfall: a seeded item whose control returned no marker for a
+tenant.
 
 Top level:
 
 | Key | What it is |
 |---|---|
-| `schema_version` | `14`. Stated once, for the whole document. |
+| `schema_version` | `15`. Stated once, for the whole document. |
 | `run` | the manifest — everything below |
 | `findings` / `unverified` / `waived` / `errors` / `observations` | the problem, evidence and inventory channels |
 | `assessments` | what the run *measured*, pass included — see [assessments](#assessments) |
@@ -230,6 +236,7 @@ Inside `run`:
 | `exchanges` | for a probe that kept its exchanges ([`probe --keep-exchanges`](usage-probe.md#keeping-the-exchanges)), `{digest, count, altered}`: the SHA-256 of the sidecar file, how many exchanges it holds and how many replies redaction changed; `null` otherwise |
 | `recording` | for a run [`guardana grade`](usage-grade.md) wrote, what the recording says of itself: `{name, version, subject, verbatim, origin}`, with `origin` `{run_id, target, started_at, stopped_by, gate}` when a probe kept it; declared, not verified. `null` otherwise |
 | `recipe` | for a run started from a recipe, `{name, digest, lock_digest, kind, source, unpinned}`: the recipe's name, the SHA-256 of the recipe file and of the lock the run was held to (`null` when none was read), what the team declared answered (`kind`: `application` or `model_harness`), how the run reached it (`source`: `connection` or `recording`) and the rule ids it ran that the lock does not pin. `kind` is declared, not verified. `null` otherwise |
+| `fixtures` | for a run given a [fixtures file](usage-fixtures.md), `{name, digest, data, tenants, counts, markers}`: the file's `name`, the SHA-256 of its bytes, `data` as `{declared: "synthetic"}` — the team's statement, recorded and never verified —, the tenants it declares, `{documents, records, tools}` it declares, and the version of the algorithm that derived its markers. `null` otherwise |
 
 Three conventions hold everywhere in it:
 
