@@ -97,7 +97,7 @@ def test_a_misspelled_header_key_is_refused(tmp_path: Path) -> None:
 
 def test_an_unparseable_truncation_reason_is_refused(tmp_path: Path) -> None:
     path = _write(tmp_path, {**_HEADER, "truncated": "somebody-unplugged-it"})
-    with pytest.raises(TraceLoadError, match="not a known reason"):
+    with pytest.raises(TraceLoadError, match=r"truncated .* not one of"):
         read_trace(path)
 
 

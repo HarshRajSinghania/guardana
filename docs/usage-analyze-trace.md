@@ -104,7 +104,7 @@ one.
 {"guardana_trace_end": 3, "spans": 2}
 ```
 
-Six rules of the format, each with a reason:
+Seven rules of the format, each with a reason:
 
 **`instrumented` is what licenses a finding.** List the dimensions your producer really
 records. Leave one out and its rules do not run — which is the safe direction. If you
@@ -123,6 +123,19 @@ and the other lists must be an object, and every part names its `type`. `"approv
 {…}` or a bare-string part stops the read naming the span, rather than reading as no
 approvals or as text nobody typed. The `otel` dialect stays tolerant, because an
 OpenTelemetry span carries attributes from other domains.
+
+**Values are refused unless they have the schema's type and, for a list of choices, are
+one of them.** Every field typed in `schemas/trace-v3.schema.json` must hold that type:
+`"reversible": "false"`, `"terminated": "true"`, `"input_tokens": "12"` or a `null` stop the
+read with exit `3`, naming the span and the field. A field with a fixed list of values —
+a span's `kind`, a tool's `status`, a memory `action`, a credential's `kind`, an effect's
+`sink` and `status`, a policy or approval `outcome`, `approver_kind`, the header's
+`truncated` — accepts exactly the values the schema lists, in lower case: `"Shell"` and
+`"bash"` are refused, never read as `other`. An effect's `sink` and a policy decision's or
+an approval's `outcome` are required. Write `other` or `unknown` when that is what you
+mean. Read leniently, `"sink": "Shell"` would reach no contract forbidding a shell, and
+`"terminated": "true"` would withdraw the promise that makes a missing footer
+`unterminated`.
 
 **Credentials are named, never carried.** Write a `digest` if you have one. If you write a
 `value`, Guardana hashes it on read and keeps only the hash — the model has no field to

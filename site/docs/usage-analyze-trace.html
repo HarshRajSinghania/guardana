@@ -363,7 +363,7 @@ one.</p>
 {&quot;span_id&quot;: &quot;s2&quot;, &quot;kind&quot;: &quot;tool_execution&quot;, &quot;name&quot;: &quot;refund&quot;, &quot;tool&quot;: {&quot;name&quot;: &quot;refund&quot;, &quot;arguments&quot;: &quot;{\&quot;order\&quot;: 12}&quot;, &quot;mutates&quot;: true}, &quot;identity&quot;: {&quot;actor&quot;: &quot;support-agent&quot;, &quot;session&quot;: {&quot;id&quot;: &quot;sess-1&quot;, &quot;protocol&quot;: &quot;mcp&quot;}}, &quot;delegations&quot;: [{&quot;actor&quot;: &quot;support-agent&quot;, &quot;boundary&quot;: &quot;agent-&gt;billing-mcp&quot;, &quot;credential&quot;: {&quot;kind&quot;: &quot;bearer&quot;, &quot;digest&quot;: &quot;sha256:…&quot;, &quot;audience&quot;: [&quot;https://billing.internal/&quot;]}, &quot;scopes&quot;: [&quot;orders:read&quot;, &quot;orders:refund&quot;]}], &quot;effects&quot;: [{&quot;sink&quot;: &quot;payment&quot;, &quot;action&quot;: &quot;refund&quot;, &quot;target&quot;: &quot;order/12&quot;, &quot;status&quot;: &quot;executed&quot;, &quot;reversible&quot;: false}], &quot;approvals&quot;: [{&quot;action&quot;: &quot;refund&quot;, &quot;outcome&quot;: &quot;not_requested&quot;}]}
 {&quot;guardana_trace_end&quot;: 3, &quot;spans&quot;: 2}
 </code></pre>
-<p>Six rules of the format, each with a reason:</p>
+<p>Seven rules of the format, each with a reason:</p>
 <p><strong><code>instrumented</code> is what licenses a finding.</strong> List the dimensions your producer really
 records. Leave one out and its rules do not run — which is the safe direction. If you
 omit the field entirely, Guardana derives it from what is present, and derivation can only
@@ -379,6 +379,18 @@ a list or a list of strings must be one, every item of <code>messages</code>, <c
 and the other lists must be an object, and every part names its <code>type</code>. <code>&quot;approvals&quot;: {…}</code> or a bare-string part stops the read naming the span, rather than reading as no
 approvals or as text nobody typed. The <code>otel</code> dialect stays tolerant, because an
 OpenTelemetry span carries attributes from other domains.</p>
+<p><strong>Values are refused unless they have the schema's type and, for a list of choices, are
+one of them.</strong> Every field typed in <code>schemas/trace-v3.schema.json</code> must hold that type:
+<code>&quot;reversible&quot;: &quot;false&quot;</code>, <code>&quot;terminated&quot;: &quot;true&quot;</code>, <code>&quot;input_tokens&quot;: &quot;12&quot;</code> or a <code>null</code> stop the
+read with exit <code>3</code>, naming the span and the field. A field with a fixed list of values —
+a span's <code>kind</code>, a tool's <code>status</code>, a memory <code>action</code>, a credential's <code>kind</code>, an effect's
+<code>sink</code> and <code>status</code>, a policy or approval <code>outcome</code>, <code>approver_kind</code>, the header's
+<code>truncated</code> — accepts exactly the values the schema lists, in lower case: <code>&quot;Shell&quot;</code> and
+<code>&quot;bash&quot;</code> are refused, never read as <code>other</code>. An effect's <code>sink</code> and a policy decision's or
+an approval's <code>outcome</code> are required. Write <code>other</code> or <code>unknown</code> when that is what you
+mean. Read leniently, <code>&quot;sink&quot;: &quot;Shell&quot;</code> would reach no contract forbidding a shell, and
+<code>&quot;terminated&quot;: &quot;true&quot;</code> would withdraw the promise that makes a missing footer
+<code>unterminated</code>.</p>
 <p><strong>Credentials are named, never carried.</strong> Write a <code>digest</code> if you have one. If you write a
 <code>value</code>, Guardana hashes it on read and keeps only the hash — the model has no field to
 put a token in. Nothing here reaches a report at any privacy level.</p>
