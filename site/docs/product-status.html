@@ -38,6 +38,7 @@
 <li><a href="safe-testing.html">Safe active testing</a></li>
 <li><a href="usage-doctor.html">guardana doctor</a></li>
 <li><a href="usage-target.html">guardana target inspect</a></li>
+<li><a href="providers.html">Providers</a></li>
 <li><a href="usage-plan.html">guardana plan</a></li>
 <li><a href="exit-codes.html">Exit codes</a></li>
 <li><a href="profiles.html">Profiles — guardana.yaml</a></li>
@@ -159,6 +160,7 @@
 <li><a href="safe-testing.html">Safe active testing</a></li>
 <li><a href="usage-doctor.html">guardana doctor</a></li>
 <li><a href="usage-target.html">guardana target inspect</a></li>
+<li><a href="providers.html">Providers</a></li>
 <li><a href="usage-plan.html">guardana plan</a></li>
 <li><a href="exit-codes.html">Exit codes</a></li>
 <li><a href="profiles.html">Profiles — guardana.yaml</a></li>
@@ -391,10 +393,11 @@ reasons and usage metadata. A rule that needs a capability a provider does not
 support is skipped and reported as skipped — never as a pass, and <code>guardana target</code>
 tells you which capabilities an endpoint answered for <em>before</em> you trust a run
 against it.</p>
-<p>What is still missing is a <strong>tested conformance matrix</strong>: the capability handshake
-reports what one endpoint answered, not which of vLLM, Ollama, SGLang, llama.cpp
-and TGI agree on streaming, finish reasons or usage metadata. Until that exists,
-treat &quot;OpenAI-compatible&quot; as a claim to check per deployment, not a guarantee.</p>
+<p>The <a href="providers.html">provider table</a> is tested: one suite holds every built-in transport, the
+adapter and LangChain to it against a local double that speaks each wire shape and fails on
+cue. It describes Guardana's transports, not the servers behind them: whether vLLM, Ollama,
+SGLang, llama.cpp and TGI agree on streaming, finish reasons or usage metadata is still a
+claim to check per deployment, not a guarantee.</p>
 <h3 id="probabilistic-verdicts-have-probabilistic-limits">Probabilistic verdicts have probabilistic limits</h3>
 <p>A judge-graded verdict is a measurement with error. <code>guardana calibrate</code> reports
 Brier score and expected calibration error so you can see how much to trust it,

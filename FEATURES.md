@@ -26,6 +26,9 @@ For maturity and known gaps, read [Product status](docs/product-status.md).
 | Use verification in tests | `guardana.testing.assert_secure(...)` | the same policy as a pytest assertion |
 | Run verification from Python | `guardana.core.verify.Verifier(trust=...)` | the run `scan` or `probe` writes, as typed data, failed and stopped runs included |
 
+[Providers](docs/providers.md) lists what each provider and adapter carries and retries; one
+conformance suite holds them to it.
+
 Every target-building workflow also accepts an installed, trusted custom target
 as `--target scheme://locator`. The command retains control of the target kind,
 budgets, policy, evidence, and exit behavior; the extension owns only how its

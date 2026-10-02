@@ -115,10 +115,11 @@ support is skipped and reported as skipped — never as a pass, and `guardana ta
 tells you which capabilities an endpoint answered for *before* you trust a run
 against it.
 
-What is still missing is a **tested conformance matrix**: the capability handshake
-reports what one endpoint answered, not which of vLLM, Ollama, SGLang, llama.cpp
-and TGI agree on streaming, finish reasons or usage metadata. Until that exists,
-treat "OpenAI-compatible" as a claim to check per deployment, not a guarantee.
+The [provider table](providers.md) is tested: one suite holds every built-in transport, the
+adapter and LangChain to it against a local double that speaks each wire shape and fails on
+cue. It describes Guardana's transports, not the servers behind them: whether vLLM, Ollama,
+SGLang, llama.cpp and TGI agree on streaming, finish reasons or usage metadata is still a
+claim to check per deployment, not a guarantee.
 
 ### Probabilistic verdicts have probabilistic limits
 

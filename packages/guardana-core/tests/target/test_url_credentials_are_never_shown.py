@@ -122,7 +122,7 @@ def test_an_endpoint_ref_cleans_the_base_url_before_the_model() -> None:
 def test_a_transport_error_names_the_endpoint_without_its_query(
     monkeypatch: pytest.MonkeyPatch, module: str, transport: ChatTransport
 ) -> None:
-    monkeypatch.setattr(f"{module}.post_json", lambda *args: {"unexpected": True})
+    monkeypatch.setattr(f"{module}.post_json", lambda *args, **kwargs: {"unexpected": True})
 
     with pytest.raises(EndpointError) as raised:
         transport.send(f"http://host?key={_MARKER}", "m", _HELLO, None)
@@ -173,7 +173,7 @@ def test_the_adapter_default_fetch_names_the_endpoint_without_its_query(
             self.close()
 
     monkeypatch.setattr(
-        "guardana.core.target.adapter.open_unredirected",
+        "guardana.core.target.endpoint.open_unredirected",
         lambda *args, **kwargs: _Response(b"not json"),
     )
     config = AdapterConfig(

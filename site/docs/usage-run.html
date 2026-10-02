@@ -38,6 +38,7 @@
 <li><a href="safe-testing.html">Safe active testing</a></li>
 <li><a href="usage-doctor.html">guardana doctor</a></li>
 <li><a href="usage-target.html">guardana target inspect</a></li>
+<li><a href="providers.html">Providers</a></li>
 <li><a href="usage-plan.html">guardana plan</a></li>
 <li><a href="exit-codes.html">Exit codes</a></li>
 <li><a href="profiles.html">Profiles — guardana.yaml</a></li>
@@ -159,6 +160,7 @@
 <li><a href="safe-testing.html">Safe active testing</a></li>
 <li><a href="usage-doctor.html">guardana doctor</a></li>
 <li><a href="usage-target.html">guardana target inspect</a></li>
+<li><a href="providers.html">Providers</a></li>
 <li><a href="usage-plan.html">guardana plan</a></li>
 <li><a href="exit-codes.html">Exit codes</a></li>
 <li><a href="profiles.html">Profiles — guardana.yaml</a></li>
@@ -295,8 +297,8 @@ a model is counted whatever transport is in use — a custom adapter, a scripted
 double in a test, or one of the built-ins. A target that does not meter itself
 (anything you wrote yourself, unless you override <code>Target.usage()</code>) reports
 nothing rather than zero.</p>
-<p>Token counts depend on the provider. The built-in OpenAI, Ollama and TGI paths
-read them from the response; a transport that does not implement the optional
+<p>Token counts depend on the provider. The built-in OpenAI and Ollama paths read
+them from the response, and TGI reports none (<a href="providers.html">providers</a>); a transport that does not implement the optional
 <code>UsageReportingTransport</code> protocol leaves them unknown. Where only <em>some</em>
 requests reported tokens, the manifest carries the sum <strong>and</strong>
 <code>requests_missing_token_counts</code>, so the number is never mistaken for the whole

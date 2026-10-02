@@ -10,10 +10,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **`guardana.core.testing.fake_github_pat` builds a fine-grained GitHub token shape for redaction tests.** `fake_secrets()` now includes it beside the AWS, OpenAI and JWT shapes.
+- **[`docs/providers.md`](docs/providers.md) states what each provider and adapter carries — the system message, tools, token counts, tool turns — and which failures it retries.** One conformance suite holds openai, ollama, tgi, the adapter and LangChain to that table against a local double.
 
 ### Changed
 
 - **Saved runs use schema 14.** A coverage shortfall can be `incomplete_recording`; `run.recipe` and `run.configuration.provider` are recorded as null until a run fills them. A schema-13 run migrates with both null.
+- **The adapter retries `429` and `503` within `--max-requests`, honouring `Retry-After`, and never `500`, `502` or `504`,** which an application may answer after it already acted.
+- **Ollama's token counts are read**, so a token ceiling over Ollama is enforced instead of refused. A LangChain tool turn carries its token counts, so an agent run under a token ceiling no longer stops at its first tool turn.
+- **`usage.requests_missing_token_counts` also counts a request that reported only one of its two token counts**, such as an Ollama reply to a cached prompt; the reported half still adds to its sum.
 
 ### Fixed
 

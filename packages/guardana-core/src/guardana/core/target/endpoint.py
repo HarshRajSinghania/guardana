@@ -286,24 +286,32 @@ class UsageReportingTransport(Protocol):
         raise NotImplementedError
 
 
-def _read_with_retry(request: Request, ref: str) -> bytes:
-    """Send `request`, retrying only the statuses that mean "ask again".
+def read_with_retry(
+    request: Request,
+    ref: str,
+    *,
+    timeout: float = REQUEST_TIMEOUT_SECONDS,
+    retry_statuses: frozenset[int] = _RETRY_STATUSES,
+) -> bytes:
+    """Send `request`, retrying only `retry_statuses`, the ones that mean "ask again".
 
     A failure that survives the retries is raised, never swallowed: a rule handed
     silence here would grade a model it never actually reached. One byte past the
     cap is read so an over-limit reply is reported as truncated rather than
-    mis-diagnosed as non-JSON once `json.loads` chokes on the tail.
+    mis-diagnosed as non-JSON once `json.loads` chokes on the tail. Every retry
+    passes the sending target's meter first, so it counts against the run's
+    request ceiling and in its usage.
     """
     for attempt in range(_MAX_ATTEMPTS):
         try:
-            with open_unredirected(request, timeout=REQUEST_TIMEOUT_SECONDS) as response:
+            with open_unredirected(request, timeout=timeout) as response:
                 raw: bytes = response.read(_MAX_RESPONSE_BYTES + 1)
         except HTTPError as exc:
             refusal = redirect_refusal(exc, ref)
             if refusal is not None:
                 raise refusal from exc
             last_attempt = attempt == _MAX_ATTEMPTS - 1
-            if exc.code not in _RETRY_STATUSES or last_attempt:
+            if exc.code not in retry_statuses or last_attempt:
                 raise
             exc.close()
             before_retry = _BEFORE_RETRY.get()
@@ -320,7 +328,14 @@ def endpoint_ref(base_url: str, model: str) -> str:
     return f"{display_url(base_url)}#{model}"
 
 
-def post_json(url: str, payload: dict[str, object], api_key: str | None, ref: str) -> object:
+def post_json(
+    url: str,
+    payload: dict[str, object],
+    api_key: str | None,
+    ref: str,
+    *,
+    timeout: float = REQUEST_TIMEOUT_SECONDS,
+) -> object:
     """POST a JSON payload and return the parsed JSON reply — bounded and fail-closed.
 
     Shared by every built-in transport so the response cap, the truncation guard,
@@ -332,7 +347,7 @@ def post_json(url: str, payload: dict[str, object], api_key: str | None, ref: st
         headers["Authorization"] = f"Bearer {api_key}"
     # S310 x2: the scheme is validated to be http/https in EndpointTarget.__init__.
     request = Request(url, data=body, headers=headers, method="POST")  # noqa: S310
-    raw = _read_with_retry(request, ref)
+    raw = read_with_retry(request, ref, timeout=timeout)
     if len(raw) > _MAX_RESPONSE_BYTES:
         raise EndpointError(f"response from {ref} exceeds {_MAX_RESPONSE_BYTES} bytes; refusing it")
     try:
@@ -343,6 +358,9 @@ def post_json(url: str, payload: dict[str, object], api_key: str | None, ref: st
 
 class UrllibTransport:
     """Default `ChatTransport` — POSTs to an OpenAI-compatible chat endpoint via stdlib urllib."""
+
+    def __init__(self, *, timeout: float = REQUEST_TIMEOUT_SECONDS) -> None:
+        self._timeout = timeout
 
     def send(
         self,
@@ -361,6 +379,7 @@ class UrllibTransport:
             },
             api_key,
             ref,
+            timeout=self._timeout,
         )
         return _extract_content(payload, ref=ref)
 
@@ -378,6 +397,7 @@ class UrllibTransport:
             {"model": model, "messages": [wire_message(m) for m in messages]},
             api_key,
             ref,
+            timeout=self._timeout,
         )
         return ChatReply(
             text=_extract_content(payload, ref=ref), usage=extract_token_usage(payload)
@@ -402,6 +422,7 @@ class UrllibTransport:
             },
             api_key,
             ref,
+            timeout=self._timeout,
         )
         return replace(_extract_tool_reply(payload, ref=ref), usage=extract_token_usage(payload))
 

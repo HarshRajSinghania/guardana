@@ -13,21 +13,25 @@ path does not resolve to text, is an error, never a silent empty exchange.
 import json
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
-from urllib.error import HTTPError
+from functools import partial
 from urllib.parse import urlsplit
 from urllib.request import Request
 
 from guardana.core.target._url import display_url
 from guardana.core.target.endpoint import (
+    REQUEST_TIMEOUT_SECONDS,
     ChatMessage,
     EndpointError,
-    open_unredirected,
-    redirect_refusal,
+    read_with_retry,
 )
 
-_TIMEOUT_SECONDS = 30
 _MAX_RESPONSE_BYTES = 8 * 1024 * 1024
 _ALLOWED_SCHEMES = frozenset({"http", "https"})
+
+# Only the statuses that say the request was not acted on. An application may have
+# written, sent or charged something before answering 500, 502 or 504, and sending
+# the same prompt again would do it twice.
+_RETRY_STATUSES = frozenset({429, 503})
 
 Fetch = Callable[[str, bytes, Mapping[str, str]], object]
 """Send `data` to a URL with headers and return the parsed JSON reply. Injectable for tests."""
@@ -114,16 +118,15 @@ def extract_path(payload: object, path: str, *, ref: str) -> str:
 
 
 def _default_fetch(url: str, data: bytes, headers: Mapping[str, str]) -> object:
+    return _post(url, data, headers, timeout=REQUEST_TIMEOUT_SECONDS)
+
+
+def _post(url: str, data: bytes, headers: Mapping[str, str], *, timeout: float) -> object:
     # S310: the scheme is validated to be http/https in HttpAdapterTransport.__init__.
     request = Request(url, data=data, headers=dict(headers), method="POST")  # noqa: S310
-    try:
-        with open_unredirected(request, timeout=_TIMEOUT_SECONDS) as response:
-            raw = response.read(_MAX_RESPONSE_BYTES + 1)
-    except HTTPError as exc:
-        refusal = redirect_refusal(exc, display_url(url))
-        if refusal is not None:
-            raise refusal from exc
-        raise
+    raw = read_with_retry(
+        request, display_url(url), timeout=timeout, retry_statuses=_RETRY_STATUSES
+    )
     if len(raw) > _MAX_RESPONSE_BYTES:
         raise EndpointError(
             f"response from {display_url(url)} exceeds {_MAX_RESPONSE_BYTES} bytes; refusing it"
@@ -135,9 +138,19 @@ def _default_fetch(url: str, data: bytes, headers: Mapping[str, str]) -> object:
 
 
 class HttpAdapterTransport:
-    """A `ChatTransport` that maps a probe onto a custom endpoint's request/response schema."""
+    """A `ChatTransport` that maps a probe onto a custom endpoint's request/response schema.
 
-    def __init__(self, config: AdapterConfig, *, fetch: Fetch | None = None) -> None:
+    A `429` or `503` is retried, honouring `Retry-After`, within the run's request
+    ceiling; every other failure is raised on the first attempt.
+    """
+
+    def __init__(
+        self,
+        config: AdapterConfig,
+        *,
+        fetch: Fetch | None = None,
+        timeout: float | None = None,
+    ) -> None:
         scheme = urlsplit(config.url).scheme
         if scheme not in _ALLOWED_SCHEMES:
             # Never repeated: in `user:pw@host:8000` the "scheme" is the user name.
@@ -152,7 +165,9 @@ class HttpAdapterTransport:
                 f"the probe would never reach the endpoint"
             )
         self._config = config
-        self._fetch = fetch or _default_fetch
+        if fetch is None:
+            fetch = _default_fetch if timeout is None else partial(_post, timeout=timeout)
+        self._fetch = fetch
 
     def send(
         self,

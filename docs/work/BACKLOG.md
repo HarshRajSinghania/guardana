@@ -158,8 +158,8 @@ Reproduced, deliberately not fixed in this pass, or found while fixing.
 - `ci-passed` in `release.yml` was tested against a fake `gh`, not the real API; the first
   release with it is the test.
 - An stdio MCP server's `stdin.write` has no deadline; the selector-based read is POSIX-only.
-- Agent and tool rules now stop a token-bounded run on any transport whose tool replies carry
-  no usage (the LangChain adapter, scripted doubles).
+- Agent and tool rules stop a token-bounded run on any transport whose tool replies carry no
+  usage (scripted doubles; LangChain carries it since 0.36.0).
 
 ## Accepted designs the roadmap does not carry
 

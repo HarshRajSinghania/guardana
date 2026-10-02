@@ -41,7 +41,7 @@ class TargetUsage:
 
     `requests_missing_token_counts` is what keeps a partial sum honest. Ten
     requests where three reported tokens would otherwise present those three as
-    the whole bill.
+    the whole bill; a request that reported only one of its two counts is missing too.
     """
 
     requests: int = 0
@@ -168,6 +168,10 @@ class UsageMeter:
                 self._missing_token_counts += 1
                 return
             self._any_tokens_reported = True
+            # One count without the other leaves that sum short; say so rather than
+            # present the reported half as the whole request.
+            if tokens.input_tokens is None or tokens.output_tokens is None:
+                self._missing_token_counts += 1
             self._input_tokens += tokens.input_tokens or 0
             self._output_tokens += tokens.output_tokens or 0
 

@@ -49,8 +49,8 @@ double in a test, or one of the built-ins. A target that does not meter itself
 (anything you wrote yourself, unless you override `Target.usage()`) reports
 nothing rather than zero.
 
-Token counts depend on the provider. The built-in OpenAI, Ollama and TGI paths
-read them from the response; a transport that does not implement the optional
+Token counts depend on the provider. The built-in OpenAI and Ollama paths read
+them from the response, and TGI reports none ([providers](providers.md)); a transport that does not implement the optional
 `UsageReportingTransport` protocol leaves them unknown. Where only *some*
 requests reported tokens, the manifest carries the sum **and**
 `requests_missing_token_counts`, so the number is never mistaken for the whole
