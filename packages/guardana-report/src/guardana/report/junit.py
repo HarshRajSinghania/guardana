@@ -14,7 +14,7 @@ from guardana.report._refusal import (
     unnamed_refusal,
 )
 
-_XML_ILLEGAL = re.compile("[^\t\n\r\x20-\ud7ff\ue000-\ufffd\U00010000-\U0010ffff]")
+_XML_ILLEGAL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\ud800-\udfff\ufffe\uffff]")
 """Every character XML 1.0 forbids in a document, escaped or not."""
 
 

@@ -11,7 +11,7 @@ import pytest
 from guardana.core.evaluator.base import Verdict
 from guardana.core.report import CheckError, Evidence, Finding, ScanResult
 from guardana.core.severity import Severity
-from guardana.report import JUnitRenderer, get_renderer
+from guardana.report import JUnitRenderer, get_renderer, junit
 
 _HOSTILE = "reply\x1b[2J\x1b[H\x07\x00\x9b31m\x7f\rFAKE\nline"
 """Clear screen, cursor home, bell, NUL, a C1 CSI, DEL, a carriage return and a newline."""
@@ -102,3 +102,25 @@ def test_junit_keeps_the_whitespace_xml_allows() -> None:
     failure = document.find("testcase/failure")
     assert failure is not None
     assert failure.text == "a\tb\nc"
+
+
+def _xml_char(code: int) -> bool:
+    """The `Char` production of XML 1.0, fifth edition, section 2.2."""
+    return (
+        code in (0x9, 0xA, 0xD)
+        or 0x20 <= code <= 0xD7FF
+        or 0xE000 <= code <= 0xFFFD
+        or 0x10000 <= code <= 0x10FFFF
+    )
+
+
+def test_junit_replaces_exactly_the_characters_xml_forbids() -> None:
+    every = "".join(map(chr, range(0x110000)))
+
+    kept = junit._legal(every)
+
+    assert len(kept) == len(every)
+    wrong = [
+        hex(c) for c, k in zip(range(0x110000), kept, strict=True) if (k == chr(c)) != _xml_char(c)
+    ]
+    assert wrong == []
