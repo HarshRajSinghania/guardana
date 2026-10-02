@@ -136,10 +136,24 @@ def catalogs() -> tuple[TaxonomyCatalog, ...]:
     """Every built-in catalogue, with its digest — what a run manifest pins.
 
     Third-party references registered through the entry point are in `known_refs()`
-    and not here: a package registers references, not a catalogue file, so there is
-    no digest to pin for them and inventing one would claim provenance nobody has.
+    and not here: a package registers references, not a catalogue file. A run manifest
+    pins them per framework by a digest over the references themselves.
     """
     return _CATALOGS
+
+
+def extensions() -> dict[str, tuple[TaxonomyRef, ...]]:
+    """Every reference registered beyond the built-in catalogues, grouped by framework.
+
+    Includes a control a package adds to a built-in framework: it changes what a mapping
+    to that framework says, so it is pinned like a framework of the package's own.
+    """
+    builtin = {ref.reference for catalog in _CATALOGS for ref in catalog.refs}
+    grouped: dict[str, list[TaxonomyRef]] = {}
+    for ref in known_refs():
+        if ref.reference not in builtin:
+            grouped.setdefault(ref.framework, []).append(ref)
+    return {framework: tuple(refs) for framework, refs in grouped.items()}
 
 
 def register(ref: TaxonomyRef) -> None:
@@ -150,6 +164,11 @@ def register(ref: TaxonomyRef) -> None:
     registered cleanly must not look broken the second time round.
     """
     _registry.add(ref)
+
+
+def unregister(reference: str) -> None:
+    """Drop one registered reference; used to undo a provider that failed part-way."""
+    _registry.forget(reference)
 
 
 def register_all(refs: Iterable[TaxonomyRef]) -> None:
@@ -234,9 +253,11 @@ __all__ = [
     "TaxonomyRef",
     "catalogs",
     "correspondents",
+    "extensions",
     "known_refs",
     "register",
     "register_all",
     "resolve",
     "resolve_recorded",
+    "unregister",
 ]

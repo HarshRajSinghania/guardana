@@ -11,7 +11,6 @@ this build load it* — the declared extension API range, refused in both direct
 its entry points actually register.
 """
 
-from collections import defaultdict
 from pathlib import Path
 from typing import Annotated
 
@@ -50,7 +49,7 @@ from guardana.core.pack.lock import (
     lock_to_dict,
 )
 from guardana.core.registry import Registry
-from guardana.core.taxonomy import TaxonomyRef, catalogs, known_refs
+from guardana.core.taxonomy import extensions, known_refs
 
 _NAMED_IN_A_WARNING = 5
 """How many unpinnable extensions a warning names before it says "and more".
@@ -266,21 +265,17 @@ def _registered(registry: Registry) -> Registered:
 def _installed(registry: Registry) -> Installed:
     """Collect what this build registers, in the vocabulary a lock pins.
 
-    The engine's own catalogues are left out. They ship inside `guardana-core` as
+    The engine's own references are left out. They ship inside `guardana-core` as
     catalogue files, are pinned by its version and its recorded digest, and belong to
     no pack — listing them here would report seven frameworks as extensions nobody
-    declared on every single run, which is how a warning stops being read.
+    declared on every single run, which is how a warning stops being read. A control a
+    package adds to a built-in framework is an extension and is pinned.
     """
-    builtin = {ref.framework for catalog in catalogs() for ref in catalog.refs}
-    frameworks: dict[str, list[TaxonomyRef]] = defaultdict(list)
-    for ref in known_refs():
-        if ref.framework not in builtin:
-            frameworks[ref.framework].append(ref)
     return Installed(
         rules={rule.meta.id: rule.digest() for rule in registry.rules()},
         evaluators=tuple(sorted(registry.evaluators())),
         targets=tuple(sorted(target.__name__ for target in registry.targets())),
-        catalogues={name: catalogue_digest(refs) for name, refs in frameworks.items()},
+        catalogues={name: catalogue_digest(refs) for name, refs in extensions().items()},
     )
 
 

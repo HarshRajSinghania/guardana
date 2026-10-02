@@ -45,6 +45,7 @@ from guardana.core.manifest.settings import ConfigurationRef, ExecutionSettings,
 from guardana.core.manifest.summary import summarize
 from guardana.core.manifest.usage import JudgeUsage, RunUsage
 from guardana.core.origin import Origin
+from guardana.core.pack.lock import catalogue_digest
 from guardana.core.profile import Profile
 from guardana.core.profile.digest import profile_digest
 from guardana.core.registry import Registry
@@ -52,7 +53,7 @@ from guardana.core.report import CoverageShortfall, ScanResult
 from guardana.core.rule import Rule
 from guardana.core.target import REQUEST_TIMEOUT_SECONDS, Target, TargetKind, TraceReader
 from guardana.core.target.recorded import RecordedTarget
-from guardana.core.taxonomy import catalogs
+from guardana.core.taxonomy import catalogs, extensions
 from guardana.core.trials import reduce_rule
 from guardana.core.usage import TargetUsage
 
@@ -207,14 +208,18 @@ def _coverage(
     shortfall: Sequence[CoverageShortfall],
 ) -> CoverageRecord:
     """Describe what this run was able to check, and pin the catalogues it mapped against."""
-    taxonomies = tuple(
-        TaxonomyCatalogRecord(
-            framework=catalog.framework,
-            digest=catalog.digest,
-            entries=len(catalog.refs),
-            version=catalog.version,
-        )
-        for catalog in catalogs()
+    builtin = catalogs()
+    taxonomies = (
+        *(
+            TaxonomyCatalogRecord(
+                framework=catalog.framework,
+                digest=catalog.digest,
+                entries=len(catalog.refs),
+                version=catalog.version,
+            )
+            for catalog in builtin
+        ),
+        *_installed_catalogues(),
     )
     return CoverageRecord(
         digest=coverage_digest(rules, evaluators, capabilities, taxonomies, protocols),
@@ -224,6 +229,14 @@ def _coverage(
         # verdict this run reached is `indeterminate` because of these, and evidence
         # that states a conclusion without its cause is evidence nobody can act on.
         shortfall=tuple(shortfall),
+    )
+
+
+def _installed_catalogues() -> tuple[TaxonomyCatalogRecord, ...]:
+    """Pin the references packages registered, per framework, by the digest `pack lock` takes."""
+    return tuple(
+        TaxonomyCatalogRecord(framework=framework, digest=catalogue_digest(refs), entries=len(refs))
+        for framework, refs in sorted(extensions().items())
     )
 
 

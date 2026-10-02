@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **A run pins the framework catalogues installed packs register**, by the digest `pack lock` already takes of their references, beside the built-in catalogues. A control a pack adds to a built-in framework is pinned the same way, in the run and in `pack lock`, and `guardana diff` compares every catalogue a framework holds. A run with a taxonomy pack installed records one more catalogue, so its coverage fingerprint moves once.
 - **The engine never lets an evaluator pass a reply with no text.** A `pass` on an empty or whitespace-only reply becomes `inconclusive` for every built-in rule kind and in calibration, so a third-party evaluator that returned `pass` for silence no longer turns an endpoint that answered nothing into a clean run. A trajectory is exempt; a `fail` stays a finding. A Python rule that asks an evaluator itself gets the same check from `guardana.core.evaluator.grade`.
 
 ### Fixed
@@ -17,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`guardana.supply_chain.pickle_opcode` reads every entry of a ZIP and bounds its work.** Two members with the same name were read as one, so a payload in the earlier entry was never scanned. Pickle opcodes across an archive's members are bounded by its size and members past 100,000 are not opened; reaching either bound is reported as not scanned. A crafted archive of a few hundred kilobytes kept a scan busy for minutes.
 - **A safetensors file that cannot be opened is reported as not scanned**, never as a structural finding about a file nobody read.
 - **A collector's error body is read up to 64 KiB.** A collector answering with an endless body could exhaust the scanning machine's memory.
+- **A taxonomy provider that fails part-way leaves none of its references registered**, so a rule cannot cite a reference whose provider was reported broken.
 
 ## [0.36.0] - 2026-10-02 — recipe locks, shared endpoint connections, token counts, and coverage shortfalls
 

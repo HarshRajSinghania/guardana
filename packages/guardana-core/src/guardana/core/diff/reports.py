@@ -184,9 +184,17 @@ def _coverage_detail(before: RunReport, after: RunReport) -> str:
 
 
 def _changed_catalogues(before: RunReport, after: RunReport) -> list[str]:
-    first = {c.framework: c.digest for c in before.manifest.coverage.taxonomies}
-    second = {c.framework: c.digest for c in after.manifest.coverage.taxonomies}
+    # A framework can hold two records, its built-in catalogue and what packages added.
+    first = _catalogue_digests(before)
+    second = _catalogue_digests(after)
     return sorted(name for name in first | second if first.get(name) != second.get(name))
+
+
+def _catalogue_digests(report: RunReport) -> dict[str, frozenset[str]]:
+    digests: dict[str, set[str]] = {}
+    for catalogue in report.manifest.coverage.taxonomies:
+        digests.setdefault(catalogue.framework, set()).add(catalogue.digest)
+    return {framework: frozenset(found) for framework, found in digests.items()}
 
 
 def _migration_note(before: RunReport, after: RunReport) -> tuple[str, ...]:

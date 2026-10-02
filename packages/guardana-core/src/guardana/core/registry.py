@@ -21,8 +21,9 @@ from guardana.core.rule.base import Rule
 from guardana.core.rule.errors import RuleLoadError
 from guardana.core.rule.yaml_rule import load_yaml_rules
 from guardana.core.target import Target
-from guardana.core.taxonomy import TaxonomyRef
+from guardana.core.taxonomy import TaxonomyRef, known_refs
 from guardana.core.taxonomy import register as register_taxonomy
+from guardana.core.taxonomy import unregister as unregister_taxonomy
 from guardana.core.trials import check_trials
 
 _CANARY_EVALUATOR_ID = "canary"
@@ -387,13 +388,18 @@ class Registry:
             origin = Origin(distribution=entry_point.distribution, version=entry_point.version)
             # Rollback rather than a pre-flight, so a refusal added later stays
             # atomic without needing a second implementation. The framework
-            # catalogue is deliberately outside it: it is process-wide, and
-            # re-registering an identical reference is already a no-op.
+            # catalogue is process-wide, so what a failed provider added to it
+            # is forgotten too, and a rule cannot cite a reference whose
+            # provider was reported broken.
             snapshot = reg._snapshot()
+            references = {ref.reference for ref in known_refs()}
             try:
                 _absorb(_provided_by(entry_point), expected, register, origin)
             except Exception as exc:
                 reg._restore(snapshot)
+                for ref in known_refs():
+                    if ref.reference not in references:
+                        unregister_taxonomy(ref.reference)
                 failure = CheckError.from_exception(entry_point.name, "discovery", exc)
                 reg._load.failed.append((entry_point, failure))
                 reg.record_load_error(failure)
