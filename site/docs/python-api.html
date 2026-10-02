@@ -36,6 +36,7 @@
 </ul>
 <h2>Run and policy</h2><ul>
 <li><a href="safe-testing.html">Safe active testing</a></li>
+<li><a href="usage-doubles.html">Stateful tool doubles<span class="tag">beta</span></a></li>
 <li><a href="usage-fixtures.html">guardana fixtures<span class="tag">beta</span></a></li>
 <li><a href="usage-recipe.html">guardana recipe<span class="tag">beta</span></a></li>
 <li><a href="usage-doctor.html">guardana doctor</a></li>
@@ -163,6 +164,7 @@
 </ul>
 <h2>Run and policy</h2><ul>
 <li><a href="safe-testing.html">Safe active testing</a></li>
+<li><a href="usage-doubles.html">Stateful tool doubles<span class="tag">beta</span></a></li>
 <li><a href="usage-fixtures.html">guardana fixtures<span class="tag">beta</span></a></li>
 <li><a href="usage-recipe.html">guardana recipe<span class="tag">beta</span></a></li>
 <li><a href="usage-doctor.html">guardana doctor</a></li>
@@ -463,8 +465,10 @@ verification = verifier.grade(path, source=None, deployment=None)
 </tbody>
 </table></div>
 <p>A profile that does not load raises <code>ProfileError</code> from <code>guardana.core.profile</code>. Ctrl-C propagates as <code>KeyboardInterrupt</code>.</p>
+<h2 id="serve-your-applications-tools-in-ci">Serve your application's tools in CI</h2>
+<p><code>guardana.core.doubles</code> is public too: <code>open_doubles(FILE, trace=PATH)</code> returns <code>Doubles</code> over the tools and records a fixtures file declares, with <code>acting_as(tenant)</code>, <code>call(name, **arguments)</code>, <code>tool(name)</code> and <code>close()</code>, and raises <code>DoublesError</code> for a call or a setup it refuses. Its behaviour and its trace are described in <a href="usage-doubles.html"><code>usage-doubles.md</code></a>.</p>
 <h2 id="what-is-supported">What is supported</h2>
-<p>The supported surface is <code>guardana.core.verify.__all__</code>: <code>Verifier</code>, <code>Verification</code>, <code>EndpointBuilder</code>, <code>exchanges_path</code> and the errors above, with the argument and field names on this page. A test pins their signatures. Everything else is internal and may change in any release: the <code>Runner</code>, the registry's load state, <code>guardana.cli.*</code>, and every module or name that starts with <code>_</code>.</p>
+<p>The supported surface is <code>guardana.core.verify.__all__</code>: <code>Verifier</code>, <code>Verification</code>, <code>EndpointBuilder</code>, <code>exchanges_path</code> and the errors above, with the argument and field names on this page; and <code>guardana.core.doubles.__all__</code>: <code>open_doubles</code>, <code>Doubles</code>, <code>DoublesError</code>, <code>PRODUCER</code> and <code>INSTRUMENTED</code>. A test pins their signatures. Everything else is internal and may change in any release: the <code>Runner</code>, the registry's load state, <code>guardana.cli.*</code>, and every module or name that starts with <code>_</code>.</p>
 <p>Until 1.0, a change to the supported surface is announced under &quot;Changed — breaking&quot; in the <a href="https://github.com/guardana/guardana/blob/main/CHANGELOG.md">changelog</a> with what to write instead, and the old spelling keeps working with a <code>DeprecationWarning</code> for at least one minor release wherever that is possible. Not covered yet: <code>monitor</code>, <code>baseline create</code>, trace analysis and the import of observations run only from the command line, and the partial result of a run whose target failed mid-run is not kept.</p>
 
 </main>

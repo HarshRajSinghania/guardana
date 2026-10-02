@@ -152,6 +152,20 @@ Write the span when the call **finishes**, not when it starts. A span records wh
 happened; a span written at the start would record an intention, and an effect that
 never landed is not a consequence.
 
+## If your producer may record nothing
+
+`create_trace` takes the same keywords as `open_trace` for a producer that might never
+write a span, such as a test double that a run may not reach. It creates the file
+exclusively, refusing one that already exists, and holds the header back until the first
+span, writing the two in one write. The file is then either empty, which every reader
+refuses, or holds a span: never a header alone that declares dimensions over nothing.
+`finish()` before any span leaves it empty.
+
+A tool that reaches no sink at all goes in `SinkMap(..., read_only=frozenset({"lookup"}))`,
+and its calls record no effect. A read you did not name still falls through to `default`,
+because nobody saying is not the same as nothing happening; a call to a read-only tool that
+says it changed something is refused.
+
 ## If your agent's hooks are commands, not callbacks
 
 A large family of agents spawns a process per hook event and pipes it a JSON payload.

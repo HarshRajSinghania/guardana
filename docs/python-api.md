@@ -102,8 +102,12 @@ Every error derives from `VerificationError`.
 
 A profile that does not load raises `ProfileError` from `guardana.core.profile`. Ctrl-C propagates as `KeyboardInterrupt`.
 
+## Serve your application's tools in CI
+
+`guardana.core.doubles` is public too: `open_doubles(FILE, trace=PATH)` returns `Doubles` over the tools and records a fixtures file declares, with `acting_as(tenant)`, `call(name, **arguments)`, `tool(name)` and `close()`, and raises `DoublesError` for a call or a setup it refuses. Its behaviour and its trace are described in [`usage-doubles.md`](usage-doubles.md).
+
 ## What is supported
 
-The supported surface is `guardana.core.verify.__all__`: `Verifier`, `Verification`, `EndpointBuilder`, `exchanges_path` and the errors above, with the argument and field names on this page. A test pins their signatures. Everything else is internal and may change in any release: the `Runner`, the registry's load state, `guardana.cli.*`, and every module or name that starts with `_`.
+The supported surface is `guardana.core.verify.__all__`: `Verifier`, `Verification`, `EndpointBuilder`, `exchanges_path` and the errors above, with the argument and field names on this page; and `guardana.core.doubles.__all__`: `open_doubles`, `Doubles`, `DoublesError`, `PRODUCER` and `INSTRUMENTED`. A test pins their signatures. Everything else is internal and may change in any release: the `Runner`, the registry's load state, `guardana.cli.*`, and every module or name that starts with `_`.
 
 Until 1.0, a change to the supported surface is announced under "Changed — breaking" in the [changelog](../CHANGELOG.md) with what to write instead, and the old spelling keeps working with a `DeprecationWarning` for at least one minor release wherever that is possible. Not covered yet: `monitor`, `baseline create`, trace analysis and the import of observations run only from the command line, and the partial result of a run whose target failed mid-run is not kept.

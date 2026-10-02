@@ -85,6 +85,7 @@ from guardana.core.trace.tool import ToolDeclaration, ToolExecution, ToolStatus
 from guardana.core.trace.writer import (
     TraceWriteError,
     TraceWriter,
+    create_trace,
     open_trace,
     resume_trace,
 )
@@ -146,6 +147,7 @@ __all__ = [
     "TraceWriteError",
     "TraceWriter",
     "UnreadableRecord",
+    "create_trace",
     "detect_dialect",
     "detect_observation_dialect",
     "evidence_matrix",

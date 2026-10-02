@@ -36,6 +36,7 @@
 </ul>
 <h2>Run and policy</h2><ul>
 <li><a href="safe-testing.html">Safe active testing</a></li>
+<li><a href="usage-doubles.html">Stateful tool doubles<span class="tag">beta</span></a></li>
 <li><a href="usage-fixtures.html">guardana fixtures<span class="tag">beta</span></a></li>
 <li><a href="usage-recipe.html">guardana recipe<span class="tag">beta</span></a></li>
 <li><a href="usage-doctor.html">guardana doctor</a></li>
@@ -163,6 +164,7 @@
 </ul>
 <h2>Run and policy</h2><ul>
 <li><a href="safe-testing.html">Safe active testing</a></li>
+<li><a href="usage-doubles.html">Stateful tool doubles<span class="tag">beta</span></a></li>
 <li><a href="usage-fixtures.html">guardana fixtures<span class="tag">beta</span></a></li>
 <li><a href="usage-recipe.html">guardana recipe<span class="tag">beta</span></a></li>
 <li><a href="usage-doctor.html">guardana doctor</a></li>
@@ -409,6 +411,17 @@ than as read-only.</p>
 <p>Write the span when the call <strong>finishes</strong>, not when it starts. A span records what
 happened; a span written at the start would record an intention, and an effect that
 never landed is not a consequence.</p>
+<h2 id="if-your-producer-may-record-nothing">If your producer may record nothing</h2>
+<p><code>create_trace</code> takes the same keywords as <code>open_trace</code> for a producer that might never
+write a span, such as a test double that a run may not reach. It creates the file
+exclusively, refusing one that already exists, and holds the header back until the first
+span, writing the two in one write. The file is then either empty, which every reader
+refuses, or holds a span: never a header alone that declares dimensions over nothing.
+<code>finish()</code> before any span leaves it empty.</p>
+<p>A tool that reaches no sink at all goes in <code>SinkMap(..., read_only=frozenset({&quot;lookup&quot;}))</code>,
+and its calls record no effect. A read you did not name still falls through to <code>default</code>,
+because nobody saying is not the same as nothing happening; a call to a read-only tool that
+says it changed something is refused.</p>
 <h2 id="if-your-agents-hooks-are-commands-not-callbacks">If your agent's hooks are commands, not callbacks</h2>
 <p>A large family of agents spawns a process per hook event and pipes it a JSON payload.
 Nothing survives between events — no writer, no variable, no open file — so <code>open_trace</code>
