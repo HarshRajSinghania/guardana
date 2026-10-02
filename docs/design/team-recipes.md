@@ -7,7 +7,7 @@ status: accepted
 
 # Repository recipes, one connection and provider conformance
 
-**Status:** accepted, implemented — ships in the next release · **Written:** 2026-10-02 · **Serves:** ROADMAP F6
+**Status:** implemented in 0.36.0 · **Written:** 2026-10-02 · **Serves:** ROADMAP F6
 (first half), backlog B08, the F5 leftover on stopped recordings
 
 ## The question

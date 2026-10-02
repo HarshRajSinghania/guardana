@@ -46,7 +46,7 @@ jobs:
       security-events: write   # required to upload SARIF
     steps:
       - uses: actions/checkout@v4
-      - uses: guardana/guardana@v0.35   # moving tag; pins to the latest 0.35.x
+      - uses: guardana/guardana@v0.36   # moving tag; pins to the latest 0.36.x
         with:
           path: .
           # args: --preset ci --baseline guardana-baseline.yaml
@@ -96,7 +96,7 @@ copied. The shortest form, which is also what the Jenkins and Azure templates
 run:
 
 ```bash
-docker run --rm -v "$PWD:/work:ro" ghcr.io/guardana/guardana:0.35 \
+docker run --rm -v "$PWD:/work:ro" ghcr.io/guardana/guardana:0.36 \
   scan /work --format junit > guardana-junit.xml
 ```
 
@@ -110,7 +110,7 @@ GitLab can include the job rather than copy it:
 
 ```yaml
 include:
-  - remote: "https://raw.githubusercontent.com/guardana/guardana/v0.35/deploy/ci/gitlab-ci.yml"
+  - remote: "https://raw.githubusercontent.com/guardana/guardana/v0.36/deploy/ci/gitlab-ci.yml"
 
 guardana:
   variables:

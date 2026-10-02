@@ -86,6 +86,9 @@ reproduced; the rest are the sweep's reading with its anchors, not yet reproduce
   `--reporter`, and no SARIF in the artifact (SARIF carries no subject label yet).
 - **A Python rule's or evaluator's code is pinned by its distribution version only**; an
   editable or direct-URL install is listed as unpinned rather than digested.
+- **A resolved connection becomes an endpoint in four hand-written places** (`cli/_connection.py`
+  `endpoint_for`, `cli/_evaluators.py`, `core/evaluator/config.py`, the `monitor` connection), so
+  the next connection field (headers, TLS) can be dropped by one of them; one builder would close it.
 - Stateful tool doubles and a declared data boundary for the application's own fixtures stay
   open for the second half of F6 (with the team regression loop and the live retrieval pilot).
 
