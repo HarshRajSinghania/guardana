@@ -104,7 +104,7 @@ def test_a_refused_issuer_is_shown_without_its_query() -> None:
 
 
 def test_the_authorization_server_address_is_shown_without_its_query() -> None:
-    view = cast(
+    view: McpAuthorizationView = cast(
         "McpAuthorizationView",
         SimpleNamespace(
             server=ROUTABLE,
