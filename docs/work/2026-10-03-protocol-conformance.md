@@ -41,9 +41,9 @@ touching the tree.
 
 | # | lane | files (main ones) | owner | depends on | verify | done |
 |---|---|---|---|---|---|---|
-| 1 | core: `NotOffered`, `SkipReason.NOT_OFFERED`, `FixtureOutcome.NOT_OFFERED`, `StopReason.TARGET_CHANGED`, `UnreadableReply`, `TargetChanged`, run schema 17 | `core/rule/{__init__,base,fixture,verify}.py`, `core/report/skipped.py`, `core/runner.py`, `core/verify.py`, `core/gate.py`, `core/target/{endpoint,failure}.py`, `core/manifest/{migrations,model}.py`, `core/report/load.py`, `schemas/run-v17.schema.json`, diff stop explanations, `cli/_errors.py` (`EndpointFlag` gains MCP and A2A token flags) | coder | — | `uv run pytest packages/guardana-core packages/guardana-report -q` | [ ] |
-| 2 | MCP core: decisions 2–6 | `core/target/{_mcp_http,_mcp_client,_mcp_wire,_mcp_authorization,mcp,__init__}.py`, `core/testing/mcp.py`, `cli/_mcp_run.py`, `rules/mcp/session_binding.py`, tests below | coder | 1 | `uv run pytest packages -q -k "mcp or discovery or redirect or url_credentials or probe_cost or verify"` then all | [ ] |
-| 3 | A2A: decisions 10–11 | `core/target/{a2a,_a2a_view,_a2a_wire,base,protocols,__init__}.py`, `core/testing/{a2a,__init__}.py`, `core/verify.py` (A2A path), `rules/a2a/*`, `cli/{_a2a_run,probe,plan}.py`, tests | coder | 1 | `uv run pytest packages -q -k "a2a or probe_cost or fixture_coverage"` then all | [ ] |
+| 1 | core: `NotOffered`, `SkipReason.NOT_OFFERED`, `FixtureOutcome.NOT_OFFERED`, `StopReason.TARGET_CHANGED`, `UnreadableReply`, `TargetChanged`, run schema 17 | `core/rule/{__init__,base,fixture,verify}.py`, `core/report/skipped.py`, `core/runner.py`, `core/verify.py`, `core/gate.py`, `core/target/{endpoint,failure}.py`, `core/manifest/{migrations,model}.py`, `core/report/load.py`, `schemas/run-v17.schema.json`, diff stop explanations, `cli/_errors.py` (`EndpointFlag` gains MCP and A2A token flags) | coder | — | `uv run pytest packages/guardana-core packages/guardana-report -q` | [x] |
+| 2 | MCP core: decisions 2–6 | `core/target/{_mcp_http,_mcp_client,_mcp_wire,_mcp_authorization,mcp,__init__}.py`, `core/testing/mcp.py`, `cli/_mcp_run.py`, `rules/mcp/session_binding.py`, tests below | coder | 1 | `uv run pytest packages -q -k "mcp or discovery or redirect or url_credentials or probe_cost or verify"` then all | [x] |
+| 3 | A2A: decisions 10–11 | `core/target/{a2a,_a2a_view,_a2a_wire,base,protocols,__init__}.py`, `core/testing/{a2a,__init__}.py`, `core/verify.py` (A2A path), `rules/a2a/*`, `cli/{_a2a_run,probe,plan}.py`, tests | coder | 1 | `uv run pytest packages -q -k "a2a or probe_cost or fixture_coverage"` then all | [x] |
 | 4 | MCP rules: decisions 7–9 | `core/target/{_mcp_authorization,_mcp_registry,mcp,base,protocols,__init__}.py`, `rules/mcp/{task_identity,_ids,session_binding,authorization_discovery,registry_entry}.py`, `cli/{probe,plan,_mcp_run}.py`, tests | coder | 2, 3 | `uv run pytest packages -q -k "mcp or probe_cost or fixture_coverage"` then all | [ ] |
 | 5 | fixtures: decision 12 | `pyproject.toml`, `uv.lock`, import-linter config, `packages/guardana-rules/tests/conformance/*` | coder | 3 (A2A part), 4 (MCP part) | `uv run pytest packages/guardana-rules/tests/conformance -q` | [ ] |
 | 6 | docs: five places, design status, generated pages | `docs/{usage-probe,usage-plan,exit-codes,python-api,writing-rules,extending,threat-model,product-status,index}.md`, `FEATURES.md`, `docs/design/protocol-conformance.md` | main | 1–5 | `uv run python scripts/generate_docs.py --check` and the docs tests | [ ] |
@@ -104,8 +104,13 @@ install and example suites do not.
 
 ## Handoff
 
-- Done: design accepted and reviewed; this plan.
-- Next: lane 1.
-- How to verify where we are: `git log --oneline main..integration/v0.39`.
+- Done: lanes 1, 2, 3 and the SDK fixture servers (lane 5, first half) merged on
+  `integration/v0.39`; full gate green but for `pg_dump` (NOT RUN, allowed). The MCP request
+  ceiling in `test_probe_cost.py` is 72: `notifications/initialized` and the legacy probe are
+  metered, as decision 3 says.
+- Next: lane 4 (with lane 5's MCP rows and the `--allow-exec` exit fix), then lane 6, review,
+  false-green hunt, release.
+- How to verify where we are: `git log --oneline main..integration/v0.39`; the integration
+  worktree runs `scripts/ci_local.sh --quiet`.
 - Surprises: an `mcp` SDK server lists only modern revisions in `server/discover` yet answers
   `initialize` (decision 3's legacy probe).
