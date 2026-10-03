@@ -6,7 +6,7 @@ digests, the profile digest, judge identities — plus what those records miss: 
 contents, the distribution behind every rule, evaluator and installed target, plugin trust,
 the subject's own reviewed files and the files of every distribution installed from a
 directory or a URL. Design: `docs/design/team-recipes.md`,
-`docs/design/guarded-applications.md` (decisions 7 and 8).
+`docs/design/guarded-applications.md`.
 """
 
 import importlib.metadata
@@ -415,7 +415,8 @@ class RecipeLock:
     unpinned: Mapping[str, str] = field(default_factory=dict)
     """Each pin a lock cannot vouch for, to why: `rule:<id>`, `evaluator:<id>` and
     `target:<scheme>` from a distribution that can change under one version and could not
-    be pinned by its files, and `distribution:<name>` for such a distribution they require."""
+    be pinned by its files, and `distribution:<name>` for such a distribution they require
+    or whose entry points the run imported without using what they register."""
 
     target: PinnedTarget | None = None
     """The installed target the recipe names; None for a connection or a recording."""
@@ -458,8 +459,10 @@ def lock_of(  # noqa: PLR0913 — the independent inputs a lock pins, each named
     recording leaves unanswered is still a rule the configuration selected. `movable` says
     whether a distribution can change its code under one version (installed editable or
     from a direct URL); `pin_source` pins such a distribution by its files, or says why it
-    cannot; `requires` names the installed distributions one requires, so a helper library
-    the checks import is pinned as the pack that registers them is.
+    cannot. Every such distribution whose entry points discovery imported is pinned, as is
+    each one that registers a selected rule, an evaluator they grade with or the target;
+    `requires` names the installed distributions one requires, so a helper library the
+    checks import is pinned as the pack that registers them is.
     """
     rules_by_id = {rule.meta.id: rule for rule in registry.rules()}
     selected = [
@@ -486,8 +489,9 @@ def lock_of(  # noqa: PLR0913 — the independent inputs a lock pins, each named
         origin = registry.origin_of(f"target-scheme:{scheme}")
         _registers(registrants, origin.distribution, f"target:{scheme}")
         target = PinnedTarget(scheme, PinnedOrigin(origin.distribution, origin.version))
+    loaded = {ep.distribution for ep in registry.admitted if ep.distribution is not None}
     sources, unpinned = _sources(
-        registrants, movable=movable, pin_source=pin_source, requires=requires
+        registrants, loaded, movable=movable, pin_source=pin_source, requires=requires
     )
     return RecipeLock(
         recipe=recipe.digest,
@@ -516,19 +520,23 @@ def _registers(registrants: dict[str, list[str]], distribution: str | None, entr
 
 def _sources(
     registrants: Mapping[str, list[str]],
+    loaded: Iterable[str],
     *,
     movable: Callable[[str], bool],
     pin_source: Callable[[str], SourcePin | str],
     requires: Callable[[str], Iterable[str]],
 ) -> tuple[dict[str, SourcePin], dict[str, str]]:
-    """Pin every movable distribution that registers a pin or is required by one that does.
+    """Pin every movable distribution whose code the run imports, and what it requires.
 
-    One that cannot be pinned leaves what it registers unpinned, with the reason; one
-    only required leaves itself, as `distribution:<name>`.
+    That is every distribution that registers a pin, and every one whose entry points
+    discovery imported, since importing one runs its code whatever the run selects. One
+    that cannot be pinned leaves what it registers unpinned, with the reason; one that
+    registers no pin leaves itself, as `distribution:<name>`.
     """
     sources: dict[str, SourcePin] = {}
     unpinned: dict[str, str] = {}
-    for name in sorted(requirement_closure(registrants, requires)):
+    roots = {*registrants, *(normalized_name(name) for name in loaded)}
+    for name in sorted(requirement_closure(roots, requires)):
         if not movable(name):
             continue
         pinned = pin_source(name)

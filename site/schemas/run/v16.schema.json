@@ -1220,7 +1220,7 @@
               ]
             },
             "unpinned": {
-              "description": "`rule:<id>` and `evaluator:<id>` the lock lists but cannot vouch for: their distribution was installed from a directory or a URL, so its code can change under one version.",
+              "description": "Each pin the lock cannot vouch for: `rule:<id>`, `evaluator:<id>` and `target:<scheme>` registered by a distribution installed from a directory or a URL that could not be pinned by its files, so its code can change under one version, and `distribution:<name>` for such a distribution that registers none of them but that the run imported or that one of them requires.",
               "type": "array",
               "items": {
                 "type": "string"

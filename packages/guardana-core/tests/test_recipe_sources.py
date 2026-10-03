@@ -78,6 +78,14 @@ def _source_tree(root: Path) -> Path:
         ".pytest_cache/x": "x",
         ".tox/x": "x",
         ".nox/x": "x",
+        ".DS_Store": "finder",
+        "src/acme_pack/.DS_Store": "finder",
+        ".idea/workspace.xml": "<project/>",
+        ".vscode/settings.json": "{}",
+        ".coverage": "coverage",
+        ".coverage.host.1.x": "coverage",
+        "htmlcov/index.html": "<html/>",
+        ".env": "TOKEN=local\n",
     }
     for relative, text in files.items():
         path = root / relative
@@ -104,7 +112,7 @@ def test_an_editable_install_is_pinned_by_its_source_files_and_nothing_else(
     pinned = pin_distribution_source("acme-pack")
 
     assert pinned == SourcePin(
-        digest="sha256:35458eec4ec48358ae4413a7217a1ec122bbed145b246fdf77573ce7c3160d56", files=4
+        digest="sha256:d88dbd444d175cf6d68fe1d26a432cf639315c153c419647b682377123dace4e", files=5
     )
 
 
@@ -121,6 +129,14 @@ def test_the_digest_holds_until_a_pinned_file_changes(tmp_path: Path, site: Path
         "dist/acme_pack-1.0.tar.gz",
         "node_modules/x/index.js",
         "venv/lib/site.py",
+        ".DS_Store",
+        "src/acme_pack/.DS_Store",
+        ".idea/workspace.xml",
+        ".vscode/settings.json",
+        ".coverage",
+        ".coverage.host.1.x",
+        "htmlcov/index.html",
+        ".env",
     ):
         (root / excluded).write_text("edited", encoding="utf-8")
     unchanged = pin_distribution_source("acme-pack")
@@ -192,7 +208,7 @@ def test_a_symlink_inside_the_directory_is_pinned_by_what_it_holds(tmp_path: Pat
     edited = tree_pin(root)
 
     assert isinstance(first, SourcePin)
-    assert first.files == 5
+    assert first.files == 6
     assert isinstance(edited, SourcePin)
     assert edited.digest != first.digest
 
@@ -341,3 +357,168 @@ def test_requirements_are_followed_by_their_normalised_name_markers_and_extras_i
     assert found == ("acme-base", "acme-helpers")
     assert closure == frozenset({"acme-pack", "acme-helpers", "acme-base"})
     assert installed_requirements("acme-absent") == ()
+
+
+def test_bytecode_outside_a_cache_directory_is_pinned(tmp_path: Path) -> None:
+    root = _source_tree(tmp_path / "acme-pack")
+    first = tree_pin(root)
+
+    (root / "src/acme_pack/stale.pyc").write_text("other bytecode", encoding="utf-8")
+    edited = tree_pin(root)
+
+    assert isinstance(first, SourcePin)
+    assert isinstance(edited, SourcePin)
+    assert edited.digest != first.digest
+
+
+def test_what_a_recipe_run_writes_inside_the_editable_directory_is_left_out(
+    tmp_path: Path, site: Path
+) -> None:
+    root = _source_tree(tmp_path / "acme-pack")
+    _editable(site, root)
+    lock = root / "checks" / "guardana-recipe.lock.yaml"
+    output = root / "checks" / "guardana-artifact"
+    first = pin_distribution_source("acme-pack", leave_out=(lock, output))
+
+    lock.parent.mkdir()
+    lock.write_text("schema_version: 2\n", encoding="utf-8")
+    output.mkdir()
+    (output / "run.json").write_text("{}", encoding="utf-8")
+    held = pin_distribution_source("acme-pack", leave_out=(lock, output))
+    counted = pin_distribution_source("acme-pack")
+
+    assert held == first
+    assert isinstance(first, SourcePin)
+    assert isinstance(counted, SourcePin)
+    assert counted.files == first.files + 2
+
+
+def test_console_scripts_outside_the_install_root_are_left_out_of_a_record_pin() -> None:
+    def installed(interpreter: str) -> str:
+        return _RECORD + _record(
+            f"../../../bin/acme,sha256={interpreter},250",
+            f"acme_pack-1.0.data/scripts/acme-tool,sha256={interpreter},250",
+        )
+
+    here = record_pin(installed("1111"))
+    elsewhere = record_pin(installed("2222"))
+
+    assert here == record_pin(_RECORD)
+    assert elsewhere == here
+
+
+def test_bytecode_a_record_lists_outside_a_cache_directory_is_pinned() -> None:
+    shipped = _RECORD + "acme_pack/compiled.pyc,sha256=GGGG,90\n"
+
+    first = record_pin(shipped)
+    rebuilt = record_pin(shipped.replace("sha256=GGGG", "sha256=HHHH"))
+
+    assert isinstance(first, SourcePin)
+    assert first.files == 4
+    assert isinstance(rebuilt, SourcePin)
+    assert rebuilt.digest != first.digest
+
+
+def _editable_with(site: Path, root: Path, files: Mapping[str, str]) -> None:
+    """Install `acme-pack` editable from `root`, with `files` beside it in site-packages."""
+    for name, text in files.items():
+        (site / name).write_text(text, encoding="utf-8")
+    listed = "".join(f"{name},sha256=AAAA,1\n" for name in files)
+    _install(
+        site,
+        "acme-pack",
+        direct_url={"url": root.as_uri(), "dir_info": {"editable": True}},
+        record=f"{listed}acme_pack-1.0.dist-info/RECORD,,\n",
+    )
+
+
+def _finder(mapping: Mapping[str, str], namespaces: Mapping[str, list[str]]) -> str:
+    return (
+        "import sys\n"
+        f"MAPPING: dict[str, str] = {dict(mapping)!r}\n"
+        f"NAMESPACES: dict[str, list[str]] = {dict(namespaces)!r}\n"
+        "def install():\n    pass\n"
+    )
+
+
+def test_an_editable_path_file_inside_its_directory_is_pinned(tmp_path: Path, site: Path) -> None:
+    root = _source_tree(tmp_path / "acme-pack")
+    _editable_with(
+        site, root, {"_acme_pack.pth": f"# comment\n\n{root / 'src'}\nimport acme_hook\n"}
+    )
+
+    assert isinstance(pin_distribution_source("acme-pack"), SourcePin)
+
+
+def test_an_editable_path_file_reaching_outside_its_directory_leaves_it_unpinned(
+    tmp_path: Path, site: Path
+) -> None:
+    root = _source_tree(tmp_path / "acme-pack")
+    outside = tmp_path / "elsewhere"
+    outside.mkdir()
+    _editable_with(site, root, {"_acme_pack.pth": f"{root / 'src'}\n{outside}\n"})
+
+    assert pin_distribution_source("acme-pack") == (
+        f"its _acme_pack.pth loads code from {outside}, outside the directory it was installed from"
+    )
+
+
+@pytest.mark.parametrize("field", ["mapping", "namespaces"])
+def test_an_editable_finder_mapping_outside_its_directory_leaves_it_unpinned(
+    tmp_path: Path, site: Path, field: str
+) -> None:
+    root = _source_tree(tmp_path / "acme-pack")
+    outside = tmp_path / "elsewhere"
+    inside = {"acme_pack": str(root / "src" / "acme_pack")}
+    finder = (
+        _finder({**inside, "acme_helpers": str(outside)}, {})
+        if field == "mapping"
+        else _finder(inside, {"acme_ns": [str(root / "src"), str(outside)]})
+    )
+    name = "__editable___acme_pack_1_0_finder.py"
+    _editable_with(site, root, {name: finder})
+
+    assert pin_distribution_source("acme-pack") == (
+        f"its {name} loads code from {outside}, outside the directory it was installed from"
+    )
+
+
+def test_an_editable_finder_mapping_inside_its_directory_is_pinned(
+    tmp_path: Path, site: Path
+) -> None:
+    root = _source_tree(tmp_path / "acme-pack")
+    finder = _finder(
+        {"acme_pack": str(root / "src" / "acme_pack")}, {"acme_ns": [str(root / "src")]}
+    )
+    _editable_with(site, root, {"__editable___acme_pack_1_0_finder.py": finder})
+
+    assert isinstance(pin_distribution_source("acme-pack"), SourcePin)
+
+
+@pytest.mark.parametrize(
+    "finder",
+    ["MAPPING = {'acme_pack': SRC}\n", "def broken(:\n", "MAPPING = ['not', 'a', 'mapping']\n"],
+    ids=["not-a-literal", "not-python", "not-a-mapping"],
+)
+def test_an_editable_finder_that_cannot_be_read_leaves_it_unpinned(
+    tmp_path: Path, site: Path, finder: str
+) -> None:
+    root = _source_tree(tmp_path / "acme-pack")
+    name = "__editable___acme_pack_1_0_finder.py"
+    _editable_with(site, root, {name: finder})
+
+    assert pin_distribution_source("acme-pack") == (
+        f"its {name} maps its packages in a way Guardana cannot read"
+    )
+
+
+def test_an_editable_install_without_a_record_stays_unpinned(tmp_path: Path, site: Path) -> None:
+    root = _source_tree(tmp_path / "acme-pack")
+    _install(
+        site,
+        "acme-pack",
+        direct_url={"url": root.as_uri(), "dir_info": {"editable": True}},
+        record=None,
+    )
+
+    assert pin_distribution_source("acme-pack") == "it has no RECORD to read"

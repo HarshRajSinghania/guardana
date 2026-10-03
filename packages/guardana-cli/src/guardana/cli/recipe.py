@@ -334,6 +334,7 @@ def _prepare(read: _Read) -> _Prepared:
         installed = _installed_target(recipe, recipe.target, registry, profile)
         target, files = installed, {}
     plan = build_plan(priced, profile, target)
+    written = (recipe.lock_path, recipe.output)
     current = lock_of(
         recipe,
         plan=plan,
@@ -343,7 +344,7 @@ def _prepare(read: _Read) -> _Prepared:
         guardana_version=__version__,
         subject_files=files,
         movable=moves_under_one_version,
-        pin_source=pin_distribution_source,
+        pin_source=lambda name: pin_distribution_source(name, leave_out=written),
     )
     if not current.rules:
         raise _Refusal(

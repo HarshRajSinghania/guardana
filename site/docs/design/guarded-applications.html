@@ -579,21 +579,25 @@ it does for <code>plan</code>. The lock pins <code>target: {scheme, distribution
 and keep their digest.</p>
 <h3 id="8-a-directory-installed-distribution-is-pinned-by-its-files">8. A directory-installed distribution is pinned by its files</h3>
 <p>Recipe lock schema 2 adds <code>sources: {&lt;distribution&gt;: {digest: &quot;sha256:…&quot;, files: N}}</code> for every
-distribution that moves under one version (<code>direct_url.json</code>) and either registers a selected
-rule, an evaluator a selected rule grades with, or the recipe's target, or is in the installed
-<code>Requires-Dist</code> closure of one that does (a helper library installed editable moves the checks
+distribution that moves under one version (<code>direct_url.json</code>) and either has a Guardana entry
+point plugin trust let the run import, registers a selected rule, an evaluator a selected rule
+grades with, or the recipe's target, or is in the installed <code>Requires-Dist</code> closure of one of
+those (a helper library installed editable moves the checks
 as much as the pack does). The closure follows every <code>Requires-Dist</code> whose PEP 503-normalised
 name is installed, markers and extras ignored (an over-approximation), with no new dependency.</p>
 <ul>
 <li><strong>Editable</strong> (<code>dir_info.editable: true</code>): the digest covers the directory the <code>file://</code> URL
-names — every file under it except <code>.git/</code>, <code>__pycache__/</code>, <code>*.pyc</code>, <code>.venv/</code>, <code>venv/</code>,
-<code>.tox/</code>, <code>.nox/</code>, <code>node_modules/</code>, <code>build/</code>, <code>dist/</code>, <code>*.egg-info/</code> and the tool caches
-(<code>.mypy_cache/</code>, <code>.ruff_cache/</code>, <code>.pytest_cache/</code>) — by sorted POSIX relative path and
-SHA-256 of content. The source directory holds the code, its package data and its manifest,
-whatever finder the editable install uses.</li>
+names — every file under it, untracked ones included, except <code>.git/</code>, <code>__pycache__/</code>,
+<code>.venv/</code>, <code>venv/</code>, <code>.tox/</code>, <code>.nox/</code>, <code>node_modules/</code>, <code>build/</code>, <code>dist/</code>, <code>*.egg-info/</code>, the
+tool caches (<code>.mypy_cache/</code>, <code>.ruff_cache/</code>, <code>.pytest_cache/</code>), local leftovers (<code>.DS_Store</code>,
+<code>.idea/</code>, <code>.vscode/</code>, <code>.coverage</code>, <code>htmlcov/</code>, <code>.env</code>) and the recipe's own lock and output
+directory — by sorted POSIX relative path and SHA-256 of content. The source directory holds
+the code, its package data and its manifest; a <code>.pth</code> file or setuptools finder the
+<code>RECORD</code> lists that adds or maps a path outside it leaves the distribution unpinned.</li>
 <li><strong>Any other direct URL</strong> (a non-editable directory, a VCS checkout, an archive): the digest
-covers the distribution's installed <code>RECORD</code> entries (path and recorded hash), except <code>*.pyc</code>
-and the <code>RECORD</code>, <code>INSTALLER</code> and <code>direct_url.json</code> files themselves.</li>
+covers the distribution's installed <code>RECORD</code> entries (path and recorded hash), except
+bytecode under <code>__pycache__/</code>, the installer's own <code>.dist-info</code> files, and the console
+scripts generated outside the install root or under <code>*.data/scripts/</code>.</li>
 <li>Above 20,000 files or 256 MiB, with a symlink leading outside the directory, or with no
 <code>RECORD</code> to read, the distribution stays under <code>unpinned</code> with the reason. <code>recipe lock</code> exits
 <code>2</code> only for what is still unpinned. Drift <code>source_added</code>, <code>source_removed</code>,
@@ -603,7 +607,8 @@ with a current lock it drifts <code>source_added</code> for every movable distri
 <code>guardana_changed</code> every upgrade brings. <code>recipe lock</code> writes schema 2, digest tag
 <code>recipe-lock-v2</code>.</li>
 <li>The seam: <code>lock_of(..., pin_source: Callable[[str], SourcePin | str])</code> beside <code>movable</code>, where
-a string is the reason a distribution stays unpinned; the CLI tests that patch
+a string is the reason a distribution stays unpinned (the CLI binds the recipe's lock path
+and output directory as <code>leave_out</code>); the CLI tests that patch
 <code>moves_under_one_version</code> patch it too. <code>recipe run</code> recomputes the lock on every run, so it
 re-hashes each editable tree, within the bounds above.</li>
 </ul>

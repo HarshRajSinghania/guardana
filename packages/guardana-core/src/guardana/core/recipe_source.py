@@ -3,11 +3,13 @@
 A version pin says nothing about such a distribution: its code can change while its
 version stays put. An editable install is pinned by the source directory its
 `direct_url.json` names; any other direct URL by the hashes its installed `RECORD` lists.
-A distribution too large to read, with a symlink leading out of its directory, or with
+An editable install whose path file or finder loads code from outside that directory, a
+distribution too large to read, with a symlink leading out of its directory, or with
 nothing to read stays unpinned, with the reason. Design:
-`docs/design/guarded-applications.md`, decision 8.
+`docs/design/guarded-applications.md`.
 """
 
+import ast
 import csv
 import hashlib
 import importlib.metadata
@@ -40,14 +42,22 @@ _EXCLUDED_ANYWHERE = frozenset(
         ".mypy_cache",
         ".ruff_cache",
         ".pytest_cache",
+        ".idea",
+        ".vscode",
     }
 )
-_EXCLUDED_AT_TOP = frozenset({"venv", "build", "dist"})
+_EXCLUDED_AT_TOP = frozenset({"venv", "build", "dist", "htmlcov"})
 """Names a package of the project could also carry, so they are left out only at the top."""
+
+_FILES_EXCLUDED_ANYWHERE = frozenset({".DS_Store"})
+_FILES_EXCLUDED_AT_TOP = frozenset({".coverage", ".env"})
+_COVERAGE_PART = ".coverage."
+"""The prefix of a coverage database one parallel test process writes."""
 
 _DIST_INFO_KEPT = frozenset({"METADATA", "entry_points.txt"})
 """What in a `.dist-info` says what runs: the version and requirements, and what it registers."""
 _REQUIREMENT_NAME = re.compile(r"\s*([A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)")
+_FINDER_TABLES = frozenset({"MAPPING", "NAMESPACES"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -107,8 +117,14 @@ def requirement_closure(
     return frozenset(seen)
 
 
-def pin_distribution_source(distribution: str) -> SourcePin | str:
-    """Pin an installed distribution by its files, or return why it stays unpinned."""
+def pin_distribution_source(
+    distribution: str, *, leave_out: Iterable[Path] = ()
+) -> SourcePin | str:
+    """Pin an installed distribution by its files, or return why it stays unpinned.
+
+    `leave_out` names files and directories an editable tree may hold that are not its
+    code, such as the lock and the output of a recipe kept inside it.
+    """
     try:
         found = importlib.metadata.distribution(distribution)
     except importlib.metadata.PackageNotFoundError:
@@ -124,11 +140,13 @@ def pin_distribution_source(distribution: str) -> SourcePin | str:
         return "its direct_url.json is not an object"
     info = direct.get("dir_info")
     if isinstance(info, dict) and info.get("editable") is True:
-        return _editable_pin(direct.get("url"))
+        return _editable_pin(found, direct.get("url"), leave_out)
     return record_pin(found.read_text("RECORD"))
 
 
-def _editable_pin(url: object) -> SourcePin | str:
+def _editable_pin(
+    found: importlib.metadata.Distribution, url: object, leave_out: Iterable[Path]
+) -> SourcePin | str:
     if not isinstance(url, str):
         return "its editable install names no directory"
     parts = urlsplit(url)
@@ -137,17 +155,108 @@ def _editable_pin(url: object) -> SourcePin | str:
     root = Path(url2pathname(parts.path))
     if not root.is_dir():
         return "the directory its editable install names does not exist"
-    return tree_pin(root)
+    escaped = _loaded_from_outside(found, root)
+    if escaped is not None:
+        return escaped
+    return tree_pin(root, leave_out=leave_out)
 
 
-def tree_pin(root: Path) -> SourcePin | str:
+def _loaded_from_outside(found: importlib.metadata.Distribution, root: Path) -> str | None:
+    """Why the install imports code its directory does not hold; None when it imports none.
+
+    The path files and setuptools finders its `RECORD` lists are what make an editable
+    install importable, so a path one of them names outside `root` is code no tree pin
+    covers.
+    """
+    files = found.files
+    if files is None:
+        return "it has no RECORD to read"
+    inside = root.resolve()
+    for entry in files:
+        name = entry.name
+        finder = name.startswith("__editable__") and name.endswith("finder.py")
+        if not finder and not name.endswith(".pth"):
+            continue
+        located = Path(str(entry.locate()))
+        try:
+            text = located.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            return f"its {name} cannot be read"
+        paths = _finder_paths(text) if finder else _path_file_paths(text)
+        if paths is None:
+            return f"its {name} maps its packages in a way Guardana cannot read"
+        for path in paths:
+            if not (located.parent / path).resolve().is_relative_to(inside):
+                return (
+                    f"its {name} loads code from {path}, outside the directory it was "
+                    f"installed from"
+                )
+    return None
+
+
+def _path_file_paths(text: str) -> list[str]:
+    """Return the paths a `.pth` file adds to `sys.path`, relative to its own directory.
+
+    Lines are read as `site` reads them. An `import` line runs a module the install lists
+    beside it; a setuptools finder among those is read on its own.
+    """
+    return [
+        line.rstrip()
+        for line in text.splitlines()
+        if line.strip() and not line.startswith(("#", "import ", "import\t"))
+    ]
+
+
+def _finder_paths(text: str) -> list[str] | None:
+    """Every path a setuptools editable finder maps a package to; None when it cannot be read."""
+    try:
+        module = ast.parse(text)
+    except (SyntaxError, ValueError):
+        return None
+    tables: dict[str, object] = {}
+    for statement in module.body:
+        name, value = _assigned(statement)
+        if name not in _FINDER_TABLES or value is None:
+            continue
+        try:
+            tables[name] = ast.literal_eval(value)
+        except (ValueError, TypeError, SyntaxError, RecursionError):
+            return None
+    mapping, namespaces = tables.get("MAPPING"), tables.get("NAMESPACES", {})
+    if not isinstance(mapping, dict) or not isinstance(namespaces, dict):
+        return None
+    paths: list[object] = [*mapping.values()]
+    for listed in namespaces.values():
+        if not isinstance(listed, list):
+            return None
+        paths.extend(listed)
+    named = [path for path in paths if isinstance(path, str)]
+    return named if len(named) == len(paths) else None
+
+
+def _assigned(statement: ast.stmt) -> tuple[str | None, ast.expr | None]:
+    """Return the name a top-level assignment binds and its value; None for anything else."""
+    if isinstance(statement, ast.AnnAssign) and isinstance(statement.target, ast.Name):
+        return statement.target.id, statement.value
+    if (
+        isinstance(statement, ast.Assign)
+        and len(statement.targets) == 1
+        and isinstance(statement.targets[0], ast.Name)
+    ):
+        return statement.targets[0].id, statement.value
+    return None, None
+
+
+def tree_pin(root: Path, *, leave_out: Iterable[Path] = ()) -> SourcePin | str:
     """Pin a source directory: every file but the excluded ones, by path and content.
 
+    Untracked files count, since an editable install imports what the directory holds.
     Symlinks are followed, so a linked file is pinned by what it holds, and one that
-    leads outside `root` leaves the directory unpinned.
+    leads outside `root` leaves the directory unpinned. `leave_out` names files and
+    directories under `root` that are not pinned.
     """
     try:
-        listed = _listed(root.resolve())
+        listed = _listed(root.resolve(), frozenset(path.resolve() for path in leave_out))
     except OSError as exc:
         return f"its directory cannot be read: {exc.strerror or type(exc).__name__}"
     if isinstance(listed, str):
@@ -163,7 +272,7 @@ def tree_pin(root: Path) -> SourcePin | str:
     return _pin(_TREE_TAG, entries)
 
 
-def _listed(root: Path) -> list[tuple[str, Path]] | str:
+def _listed(root: Path, leave_out: frozenset[Path]) -> list[tuple[str, Path]] | str:
     """Every file to pin under `root`, by POSIX relative path, or why the tree stays unpinned."""
     files: list[tuple[str, Path]] = []
     total = 0
@@ -177,26 +286,36 @@ def _listed(root: Path) -> list[tuple[str, Path]] | str:
         real = here.resolve()
         if not real.is_relative_to(root):
             return "a symlink leads outside its directory"
-        if real in visited:
+        top = here == root
+        if real in visited or (real in leave_out and not top):
             directories[:] = []
             continue
         visited.add(real)
-        top = here == root
         directories[:] = sorted(name for name in directories if not _excluded(name, top=top))
         for name in names:
-            if name.endswith(".pyc"):
+            if _excluded_file(name, top=top):
                 continue
             path = here / name
             resolved = path.resolve()
             if not resolved.is_relative_to(root):
                 return "a symlink leads outside its directory"
+            if resolved in leave_out:
+                continue
             total += resolved.stat().st_size
             files.append((PurePosixPath(*path.relative_to(root).parts).as_posix(), path))
-            if len(files) > MAX_SOURCE_FILES:
-                return f"it holds more than {MAX_SOURCE_FILES} files"
-            if total > MAX_SOURCE_BYTES:
-                return f"it holds more than {MAX_SOURCE_BYTES // (1024 * 1024)} MiB"
+            above = _above_bounds(len(files), total)
+            if above is not None:
+                return above
     return files
+
+
+def _above_bounds(files: int, total: int) -> str | None:
+    """Why a distribution of `files` files and `total` bytes is too large to pin; None if not."""
+    if files > MAX_SOURCE_FILES:
+        return f"it holds more than {MAX_SOURCE_FILES} files"
+    if total > MAX_SOURCE_BYTES:
+        return f"it holds more than {MAX_SOURCE_BYTES // (1024 * 1024)} MiB"
+    return None
 
 
 def _excluded(name: str, *, top: bool) -> bool:
@@ -207,13 +326,20 @@ def _excluded(name: str, *, top: bool) -> bool:
     )
 
 
+def _excluded_file(name: str, *, top: bool) -> bool:
+    return name in _FILES_EXCLUDED_ANYWHERE or (
+        top and (name in _FILES_EXCLUDED_AT_TOP or name.startswith(_COVERAGE_PART))
+    )
+
+
 def record_pin(record: str | None) -> SourcePin | str:
     """Pin a distribution by its installed `RECORD`: every entry's path and recorded hash.
 
-    Compiled bytecode and the installer's bookkeeping — every file of the distribution's
-    own `.dist-info` but `METADATA` and `entry_points.txt` — are left out, so installing
-    the same code again pins the same; any other entry without a hash leaves the
-    distribution unpinned.
+    Bytecode under `__pycache__/`, the installer's bookkeeping — every file of the
+    distribution's own `.dist-info` but `METADATA` and `entry_points.txt` — and the
+    scripts it generated outside the install root are left out, so installing the same
+    code again, into any environment, pins the same; any other entry without a hash
+    leaves the distribution unpinned.
     """
     if record is None:
         return "it has no RECORD to read"
@@ -229,18 +355,27 @@ def record_pin(record: str | None) -> SourcePin | str:
             return f"its RECORD lists {path} without a hash"
         total += int(size) if size.isdigit() else 0
         entries.append((path.encode("utf-8"), recorded))
-        if len(entries) > MAX_SOURCE_FILES:
-            return f"it holds more than {MAX_SOURCE_FILES} files"
-        if total > MAX_SOURCE_BYTES:
-            return f"it holds more than {MAX_SOURCE_BYTES // (1024 * 1024)} MiB"
+        above = _above_bounds(len(entries), total)
+        if above is not None:
+            return above
     return _pin(_RECORD_TAG, entries)
 
 
 def _installer_own(path: str) -> bool:
-    if path.endswith(".pyc"):
+    """Whether a `RECORD` entry records the install rather than the code it installed.
+
+    A generated console script embeds the interpreter of the environment it was installed
+    into; `entry_points.txt`, which is pinned, says what it calls.
+    """
+    entry = PurePosixPath(path)
+    parts = entry.parts
+    if not parts or entry.is_absolute() or parts[0] == "..":
         return True
-    parts = PurePosixPath(path).parts
-    if not parts or not parts[0].endswith(".dist-info"):
+    if entry.suffix == ".pyc" and "__pycache__" in parts:
+        return True
+    if parts[0].endswith(".data") and parts[1:2] == ("scripts",):
+        return True
+    if not parts[0].endswith(".dist-info"):
         return False
     return "/".join(parts[1:]) not in _DIST_INFO_KEPT
 

@@ -14,7 +14,9 @@ from typing import Self
 
 import pytest
 import yaml
+from _fake_distribution import MARKING_MODULE, FakeSite
 from guardana.core.calibration.store import RecordedCalibration
+from guardana.core.entrypoints import RULE_GROUP
 from guardana.core.evaluator.base import Evaluator, Expectation, Verdict
 from guardana.core.exchange import Exchange
 from guardana.core.fingerprint import digest_of
@@ -590,6 +592,34 @@ def test_a_required_helper_installed_editable_is_pinned_or_named(tmp_path: Path)
         "distribution:acme-helpers": "acme-helpers: it has no RECORD to read",
     }
     assert sorted(pinned.sources) == ["acme-deep", "acme-helpers"]
+    assert pinned.unpinned == {}
+
+
+def test_a_movable_pack_that_registers_nothing_selected_is_still_pinned_or_named(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Discovery imported the pack, so its code ran whatever the recipe selects."""
+    (tmp_path / "site").mkdir()
+    site = FakeSite(tmp_path / "site", monkeypatch)
+    site.distribution("Acme_Quiet", (RULE_GROUP, "quiet", site.module(MARKING_MODULE).name))
+    discovered = Registry.discover(
+        PluginTrust(mode=PluginMode.ALLOWLIST, allowed=frozenset({"acme-quiet"}))
+    )
+    site.forget_imports()
+    registry = discovered.empty_with_load_state()
+    for rule in load_yaml_rules(_rule_file(tmp_path, "acme.a")):
+        registry.register_rule(rule, Origin(source="rules/acme.a.yaml"))
+    registry.register_evaluator(_Judge(), Origin(distribution="acme-judges", version="1.0"))
+    recipe = load_recipe(_write(tmp_path))
+    movable = frozenset({"acme-quiet"})
+
+    unpinnable = _lock(recipe, registry, movable=movable)
+    pinned = _lock(recipe, registry, movable=movable, sources={"acme-quiet": _PIN})
+
+    assert unpinnable.unpinned == {
+        "distribution:acme-quiet": "acme-quiet: it has no RECORD to read"
+    }
+    assert pinned.sources == {"acme-quiet": _PIN}
     assert pinned.unpinned == {}
 
 

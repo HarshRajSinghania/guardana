@@ -64,6 +64,8 @@ class _LoadRecord:
     """The entries of `errors` that record a refusal, the same objects rather than copies."""
     failed: list[tuple[InstalledEntryPoint, CheckError]] = field(default_factory=list)
     """Each admitted entry point that failed to load, with the entry of `errors` it recorded."""
+    admitted: list[InstalledEntryPoint] = field(default_factory=list)
+    """Each entry point plugin trust let discovery import, whether it loaded or failed."""
     trust: PluginTrust | None = None
     """The trust discovery applied; None for a registry nothing discovered."""
 
@@ -139,6 +141,14 @@ class Registry:
         caller can read without parsing a reason written for a human.
         """
         return tuple(self._load.refused)
+
+    @property
+    def admitted(self) -> tuple[InstalledEntryPoint, ...]:
+        """Every entry point plugin trust let discovery import, in discovery order.
+
+        One that failed to load is here too: importing it ran its distribution's code.
+        """
+        return tuple(self._load.admitted)
 
     @property
     def failed(self) -> tuple[tuple[InstalledEntryPoint, CheckError], ...]:
@@ -428,6 +438,7 @@ class Registry:
                 reg._load.refusal_errors.append(refusal)
                 reg.record_load_error(refusal)
                 continue
+            reg._load.admitted.append(entry_point)
             origin = Origin(distribution=entry_point.distribution, version=entry_point.version)
             # Rollback rather than a pre-flight, so a refusal added later stays
             # atomic without needing a second implementation. The framework

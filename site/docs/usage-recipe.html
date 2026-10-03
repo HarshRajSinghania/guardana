@@ -423,31 +423,43 @@ configuration.</p>
 <h3 id="distributions-installed-from-a-directory-or-a-url">Distributions installed from a directory or a URL</h3>
 <p>A distribution installed in editable mode or from a direct URL (PEP 610 <code>direct_url.json</code>) can
 change its code under one version, so a version pin says nothing about it. The lock pins each
-such distribution by its files, under <code>sources</code> (<code>digest</code>, <code>files</code>), when it registers a
-selected rule, an evaluator a selected rule grades with or the recipe's target, or when it is
-in the installed <code>Requires-Dist</code> closure of one that does: every requirement whose PEP
-503-normalised name is installed is followed, markers and extras ignored, so a helper library
-installed editable is pinned as the pack that imports it is.</p>
+such distribution by its files, under <code>sources</code> (<code>digest</code>, <code>files</code>), when plugin trust let the
+run import any of its Guardana entry points (importing one runs its code, whether or not the
+recipe selects what it registers), when it registers a selected rule, an evaluator a selected
+rule grades with or the recipe's target, or when it is in the installed <code>Requires-Dist</code> closure
+of one of those: every requirement whose PEP 503-normalised name is installed is followed,
+markers and extras ignored, so a helper library installed editable is pinned as the pack that
+imports it is.</p>
 <ul>
 <li>An <strong>editable</strong> install is pinned by the directory its <code>file://</code> URL names: every file under
-it by sorted POSIX relative path and the SHA-256 of its content, except <code>.git/</code>,
-<code>__pycache__/</code>, <code>*.pyc</code>, <code>.venv/</code>, <code>.tox/</code>, <code>.nox/</code>, <code>node_modules/</code>, <code>*.egg-info/</code>,
-<code>.mypy_cache/</code>, <code>.ruff_cache/</code> and <code>.pytest_cache/</code> at any depth, and <code>venv/</code>, <code>build/</code> and
-<code>dist/</code> at the top of the directory only (a package of the project may carry those names).
-Symlinks are followed, so a linked file is pinned by what it holds.</li>
+it by sorted POSIX relative path and the SHA-256 of its content. Untracked files count: an
+editable install imports what the directory holds, not what git tracks. Left out are
+<code>.git/</code>, <code>__pycache__/</code>, <code>.venv/</code>, <code>.tox/</code>, <code>.nox/</code>, <code>node_modules/</code>, <code>*.egg-info/</code>,
+<code>.mypy_cache/</code>, <code>.ruff_cache/</code>, <code>.pytest_cache/</code>, <code>.idea/</code>, <code>.vscode/</code> and <code>.DS_Store</code> at
+any depth; <code>venv/</code>, <code>build/</code>, <code>dist/</code>, <code>htmlcov/</code>, <code>.coverage</code>, <code>.coverage.*</code> and <code>.env</code> at
+the top of the directory only (a package of the project may carry those names); and the
+recipe's own lock file and output directory when the recipe sits inside the directory, since
+<code>recipe lock</code> and <code>recipe run</code> write them. Symlinks are followed, so a linked file is pinned
+by what it holds. The <code>.pth</code> files and setuptools <code>__editable__…finder.py</code> modules the
+install's <code>RECORD</code> lists are read first: a path they add or map outside the directory is code
+the pin would not cover, so the distribution stays unpinned.</li>
 <li><strong>Any other direct URL</strong> — a directory installed without <code>-e</code>, a VCS checkout, an archive —
-is pinned by its installed <code>RECORD</code>: each entry's path and recorded hash, except <code>*.pyc</code> and
-every file of its own <code>.dist-info</code> but <code>METADATA</code> (its version and requirements) and
-<code>entry_points.txt</code> (what it registers). The rest — <code>RECORD</code>, <code>INSTALLER</code>, <code>REQUESTED</code>,
-<code>direct_url.json</code>, an installer's cache file — records the install, not the code that runs,
-so installing the same code again pins the same.</li>
+is pinned by its installed <code>RECORD</code>: each entry's path and recorded hash, except bytecode
+under <code>__pycache__/</code> and every file of its own <code>.dist-info</code> but <code>METADATA</code> (its version and
+requirements) and <code>entry_points.txt</code> (what it registers). The rest — <code>RECORD</code>, <code>INSTALLER</code>,
+<code>REQUESTED</code>, <code>direct_url.json</code>, an installer's cache file — records the install, not the
+code that runs. Entries outside the install root (<code>../../../bin/…</code>) and under
+<code>*.data/scripts/</code> are left out too: they are the console scripts an installer generates, each
+embedding the path of the environment's interpreter, and <code>entry_points.txt</code> already pins what
+they call. Installing the same code again, into any environment, pins the same.</li>
 </ul>
 <p>A distribution stays under <code>unpinned</code>, with the reason, when it holds more than 20,000 files or
-256 MiB, when a symlink leads outside its directory, when it has no <code>RECORD</code> to read, or when
-its <code>RECORD</code> lists an entry without a hash. <code>unpinned</code> maps each <code>rule:&lt;id&gt;</code>,
-<code>evaluator:&lt;id&gt;</code> and <code>target:&lt;scheme&gt;</code> it registers — or <code>distribution:&lt;name&gt;</code> when it is only
-required — to that reason. <code>recipe run</code> computes the lock again on every run, so it hashes
-each editable tree again, within the same bounds.</p>
+256 MiB, when a symlink leads outside its directory, when its editable install loads code from
+outside its directory or maps its packages in a way Guardana cannot read, when it has no
+<code>RECORD</code> to read, or when its <code>RECORD</code> lists an entry without a hash. <code>unpinned</code> maps each
+<code>rule:&lt;id&gt;</code>, <code>evaluator:&lt;id&gt;</code> and <code>target:&lt;scheme&gt;</code> it registers — or <code>distribution:&lt;name&gt;</code>
+when it registers none of them — to that reason. <code>recipe run</code> computes the lock again on every
+run, so it hashes each editable tree again, within the same bounds.</p>
 <p>A lock written before <code>sources</code> existed (schema 1) is still read, with no <code>sources</code>; compared
 with the current configuration it drifts <code>source_added</code> for each distribution the lock now
 pins, beside the <code>guardana_changed</code> an upgrade brings. Run <code>guardana recipe lock</code> again.</p>

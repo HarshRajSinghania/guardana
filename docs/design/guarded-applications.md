@@ -291,21 +291,25 @@ and keep their digest.
 ### 8. A directory-installed distribution is pinned by its files
 
 Recipe lock schema 2 adds `sources: {<distribution>: {digest: "sha256:…", files: N}}` for every
-distribution that moves under one version (`direct_url.json`) and either registers a selected
-rule, an evaluator a selected rule grades with, or the recipe's target, or is in the installed
-`Requires-Dist` closure of one that does (a helper library installed editable moves the checks
+distribution that moves under one version (`direct_url.json`) and either has a Guardana entry
+point plugin trust let the run import, registers a selected rule, an evaluator a selected rule
+grades with, or the recipe's target, or is in the installed `Requires-Dist` closure of one of
+those (a helper library installed editable moves the checks
 as much as the pack does). The closure follows every `Requires-Dist` whose PEP 503-normalised
 name is installed, markers and extras ignored (an over-approximation), with no new dependency.
 
 - **Editable** (`dir_info.editable: true`): the digest covers the directory the `file://` URL
-  names — every file under it except `.git/`, `__pycache__/`, `*.pyc`, `.venv/`, `venv/`,
-  `.tox/`, `.nox/`, `node_modules/`, `build/`, `dist/`, `*.egg-info/` and the tool caches
-  (`.mypy_cache/`, `.ruff_cache/`, `.pytest_cache/`) — by sorted POSIX relative path and
-  SHA-256 of content. The source directory holds the code, its package data and its manifest,
-  whatever finder the editable install uses.
+  names — every file under it, untracked ones included, except `.git/`, `__pycache__/`,
+  `.venv/`, `venv/`, `.tox/`, `.nox/`, `node_modules/`, `build/`, `dist/`, `*.egg-info/`, the
+  tool caches (`.mypy_cache/`, `.ruff_cache/`, `.pytest_cache/`), local leftovers (`.DS_Store`,
+  `.idea/`, `.vscode/`, `.coverage`, `htmlcov/`, `.env`) and the recipe's own lock and output
+  directory — by sorted POSIX relative path and SHA-256 of content. The source directory holds
+  the code, its package data and its manifest; a `.pth` file or setuptools finder the
+  `RECORD` lists that adds or maps a path outside it leaves the distribution unpinned.
 - **Any other direct URL** (a non-editable directory, a VCS checkout, an archive): the digest
-  covers the distribution's installed `RECORD` entries (path and recorded hash), except `*.pyc`
-  and the `RECORD`, `INSTALLER` and `direct_url.json` files themselves.
+  covers the distribution's installed `RECORD` entries (path and recorded hash), except
+  bytecode under `__pycache__/`, the installer's own `.dist-info` files, and the console
+  scripts generated outside the install root or under `*.data/scripts/`.
 - Above 20,000 files or 256 MiB, with a symlink leading outside the directory, or with no
   `RECORD` to read, the distribution stays under `unpinned` with the reason. `recipe lock` exits
   `2` only for what is still unpinned. Drift `source_added`, `source_removed`,
@@ -315,7 +319,8 @@ name is installed, markers and extras ignored (an over-approximation), with no n
   `guardana_changed` every upgrade brings. `recipe lock` writes schema 2, digest tag
   `recipe-lock-v2`.
 - The seam: `lock_of(..., pin_source: Callable[[str], SourcePin | str])` beside `movable`, where
-  a string is the reason a distribution stays unpinned; the CLI tests that patch
+  a string is the reason a distribution stays unpinned (the CLI binds the recipe's lock path
+  and output directory as `leave_out`); the CLI tests that patch
   `moves_under_one_version` patch it too. `recipe run` recomputes the lock on every run, so it
   re-hashes each editable tree, within the bounds above.
 

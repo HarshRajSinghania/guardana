@@ -16,11 +16,13 @@ from xml.etree.ElementTree import fromstring
 
 import pytest
 import yaml
+from _fake_distribution import MARKING_MODULE, FakeSite
 from guardana.cli import recipe as recipe_cli
 from guardana.cli._artifact import MARKER
 from guardana.cli.exit_codes import ExitCode
 from guardana.cli.main import app
 from guardana.core import fixtures as fixtures_module
+from guardana.core.entrypoints import RULE_GROUP
 from guardana.core.origin import Origin
 from guardana.core.plugins import PluginMode, PluginTrust
 from guardana.core.recipe_source import SourcePin
@@ -389,7 +391,9 @@ def _editable_rules(monkeypatch: pytest.MonkeyPatch, pin: SourcePin | str) -> No
     monkeypatch.setattr(
         recipe_cli, "moves_under_one_version", lambda distribution: distribution == "guardana-rules"
     )
-    monkeypatch.setattr(recipe_cli, "pin_distribution_source", lambda _distribution: pin)
+    monkeypatch.setattr(
+        recipe_cli, "pin_distribution_source", lambda _distribution, *, leave_out: pin
+    )
 
 
 def test_a_check_from_an_editable_install_is_unpinned_and_never_reads_clean(
@@ -430,6 +434,43 @@ def test_an_editable_install_pinned_by_its_files_locks_clean_and_its_edit_is_dri
     assert "source_changed: guardana-rules" in normalised(drifted.output)
     assert refused.exit_code == ExitCode.INVALID_USAGE
     assert wire.requests == []
+
+
+def test_a_recipe_inside_the_editable_project_it_pins_holds_from_lock_to_run(
+    tmp_path: Path, wire: _Wire, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The lock and the artifact a run writes are not the code the pin vouches for."""
+    project = tmp_path / "acme-quiet"
+    project.mkdir()
+    (project / "pyproject.toml").write_text("[project]\nname = 'acme-quiet'\n", encoding="utf-8")
+    (tmp_path / "site").mkdir()
+    site = FakeSite(tmp_path / "site", monkeypatch)
+    site.distribution("acme-quiet", (RULE_GROUP, "quiet", site.module(MARKING_MODULE).name))
+    info = site.root / "acme_quiet-1.0.dist-info"
+    (info / "direct_url.json").write_text(
+        json.dumps({"url": project.as_uri(), "dir_info": {"editable": True}}), encoding="utf-8"
+    )
+    (info / "RECORD").write_text("acme_quiet-1.0.dist-info/RECORD,,\n", encoding="utf-8")
+    monkeypatch.setattr(
+        recipe_cli, "moves_under_one_version", lambda distribution: distribution == "acme-quiet"
+    )
+    recipe = _team(project, wire.url, extra="plugins:\n  mode: allowlist\n  allow: [acme-quiet]\n")
+    try:
+        locked = _invoke("lock", str(recipe))
+        checked = _invoke("lock", "--check", str(recipe))
+        first = _invoke("run", str(recipe))
+        second = _invoke("run", str(recipe))
+    finally:
+        site.forget_imports()
+
+    assert locked.exit_code == ExitCode.OK, locked.output
+    lock = yaml.safe_load((project / "guardana-recipe.lock.yaml").read_text(encoding="utf-8"))
+    assert list(lock["sources"]) == ["acme-quiet"]
+    assert lock["unpinned"] == {}
+    assert checked.exit_code == ExitCode.OK, checked.output
+    assert first.exit_code == ExitCode.OK, first.output
+    assert second.exit_code == ExitCode.OK, second.output
+    assert wire.requests
 
 
 def test_a_recipe_that_selects_nothing_writes_no_lock(tmp_path: Path, wire: _Wire) -> None:
