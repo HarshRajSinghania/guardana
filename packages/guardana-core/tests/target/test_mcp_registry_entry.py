@@ -115,6 +115,7 @@ def test_an_entry_that_is_not_json_or_too_large_or_missing_is_refused(tmp_path: 
         ("https://mcp.example.com/{tenant}/mcp", "https://mcp.example.com/acme/mcp"),
         ("https://mcp.example.com/{tenant}?v=2", "https://mcp.example.com/acme?v=2"),
         ("https://[2001:db8::1]:443/mcp", "https://[2001:db8::1]/mcp"),
+        ("https://mcp.example.com/mcp?t={tenant}", "https://mcp.example.com/mcp?t=acme"),
     ],
 )
 def test_a_reached_url_matches_the_remote_that_publishes_it(published: str, reached: str) -> None:
@@ -137,7 +138,8 @@ def test_a_reached_url_matches_the_remote_that_publishes_it(published: str, reac
         ("https://mcp.example.com/{tenant}", "https://mcp.example.com/acme?v=2"),
         ("https://mcp.example.com/{tenant}/mcp", "https://mcp.example.com/acme?x=/mcp"),
         ("https://mcp.example.com/{tenant}?v=2", "https://mcp.example.com/acme?v=3"),
-        ("https://mcp.example.com/mcp?t={tenant}", "https://mcp.example.com/mcp?t=acme"),
+        ("https://mcp.example.com/mcp?t={tenant}", "https://mcp.example.com/mcp?t=a&x=1"),
+        ("https://mcp.example.com/mcp?t={tenant}", "https://mcp.example.com/mcp?t="),
     ],
 )
 def test_a_reached_url_that_differs_matches_no_remote(published: str, reached: str) -> None:

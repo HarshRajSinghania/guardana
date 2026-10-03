@@ -137,8 +137,10 @@ Three consequences worth knowing:
   only the new revision in `server/discover` and still answer `initialize`. When
   discovery lists no older revision, the checks that need it send one `initialize` over
   the `2025-11-25` wire, with your token when you gave one. A result naming `2025-11-25`
-  makes the server dual-era, graded over that revision; JSON-RPC `-32601` or `-32022`, or a
-  `400`, `404` or `405` carrying no JSON-RPC error, makes it modern-only. A `401` or `403`
+  makes the server dual-era, graded over that revision; JSON-RPC `-32601`, a `-32022` that
+  names no older revision, or a `400`, `404` or `405` carrying no JSON-RPC error, makes it
+  modern-only. A `-32022` naming an older handshake revision leaves its sessions
+  unexamined, and `session_binding` reports `inconclusive` naming that revision. A `401` or `403`
   leaves it unknown, and `session_binding` reports `inconclusive` naming `--mcp-token-env`;
   so does any other answer — a timeout, a rate limit, a server error, another JSON-RPC
   error — naming what came back, because one failed request does not show which revisions
@@ -260,9 +262,9 @@ conversation's opening:
 
 - **The URL** (HTTP only): the server must answer at one of the entry's `remotes`. Scheme
   and host compare lowercased, a default port and one trailing `/` are dropped, the query
-  compares on its own and verbatim, a fragment is ignored, and a `{variable}` in a published
-  URL stands for one or more characters other than `/`, `?` and `#`, never for part of the
-  query. An entry without remotes publishes none.
+  compares on its own, a fragment is ignored, and a `{variable}` in a published URL stands
+  for one or more characters other than `/`, `?` and `#` in the address, and other than `&`
+  and `#` in the query. An entry without remotes publishes none.
   A URL it does not publish is `medium`.
 - **The version** (HTTP and stdio): the version the server reports in `serverInfo` or
   discovery `_meta` must equal the entry's. A different one is `low`, worded as a
@@ -383,15 +385,15 @@ checks that need a credential report `inconclusive`, naming the schemes the card
 |---|---|
 | `guardana.a2a.agent_card` | The card has every required field (`name`, `description`, `supportedInterfaces`, `version`, `capabilities`, `defaultInputModes`, `defaultOutputModes`, `skills`), every scheme a requirement names is declared, and its JSON-RPC 1.0 interface is not plain `http` unless that interface's own host is loopback or private — on the agent's host, whatever the port, judged by the addresses the run's connections reached; on another host, by its URL alone, and then worded "not shown to be loopback or private". One `medium` finding lists every defect |
 | `guardana.a2a.caller_identity` | The agent does not answer a caller presenting nothing when the card requires a credential (`high`), or when it declares no security (`high`, `low` on a loopback or private address); and it never serves its extended card anonymously (`high`). An optional requirement makes an anonymous answer what the card declared. An agent that neither refused nor answered any anonymous request is `inconclusive` (under an optional requirement, only when it was sent the extended-card request), and so is one whose card requires a credential and that answered an anonymous request with "task not found" instead of refusing it, naming the method |
-| `guardana.a2a.task_visibility` | An anonymous `ListTasks` lists no task, and neither the second caller nor a caller presenting no credential can read a task the first caller listed as its own (`high` each). An anonymous listing or read answered with an error that is neither a refusal nor a result is `inconclusive` |
+| `guardana.a2a.task_visibility` | An anonymous `ListTasks` lists no task, and neither the second caller nor a caller presenting no credential can read a task the first caller listed as its own (`high` each). An anonymous listing answered with an error that is neither a refusal nor a result, or an anonymous read answered with anything but a refusal, a task-not-found or a result, is `inconclusive` |
 
-A "task not found" is never graded: the specification asks an agent not to tell "absent"
+A "task not found" is never a finding: the specification asks an agent not to tell "absent"
 from "not yours", and a random id exists for nobody. An agent that answers every
 `ListTasks` it was sent as an operation it does not support (`-32004`, or `-32601` once it
 answered with an A2A error code) has no listing to grade: `task_visibility` is skipped
 `not_offered`, a coverage gap that `fail_on.fail_on_skipped` and `--preset release` turn
 into an indeterminate run. The terminal report names each `not_offered` skip in its summary
-line and prints no `✓` over one.
+line.
 
 **When the agent fails.** The card and the first caller's request are the conversation, and
 fail as an MCP server's does: no reply, `404`, `408`, `425`, `429`, `5xx`, a reply that is

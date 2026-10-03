@@ -73,9 +73,14 @@ _QUOTED_BODY_BYTES = 4096
 _STALE_LINES = 16
 """How many replies to no pending request an stdio server may send per request; more is unreadable.
 
-A line carrying `method` is the server's own request or notification, not a reply: a request
-is answered and a notification skipped, neither counted; the request's deadline bounds how
-long those can go on.
+A line carrying `method` is the server's own request or notification, not a reply: a
+notification is skipped, uncounted, and the request's deadline bounds how long those go on.
+"""
+_SERVER_REQUESTS = 16
+"""How many of its own requests an stdio server may make per request; more is unreadable.
+
+Each is answered with a blocking write, and a server that never reads its input would fill
+the pipe and stall the run past any deadline; this many answers fit in any pipe buffer.
 """
 _METHOD_NOT_FOUND = -32601
 
@@ -435,10 +440,20 @@ class StdioMcpTransport:
         self._write(self._wire.body(method, params, request_id=asked))
         deadline = time.monotonic() + self._timeout
         stale = 0
+        answered = 0
         while stale <= _STALE_LINES:
             payload = self._read_payload(deadline)
             if "method" in payload:
                 if "id" in payload:
+                    answered += 1
+                    if answered > _SERVER_REQUESTS:
+                        raise self._fail(
+                            UnreadableReply(
+                                f"the MCP server at {self._ref} made more than "
+                                f"{_SERVER_REQUESTS} requests of its own while one was waiting "
+                                f"for its reply"
+                            )
+                        )
                     self._answer(payload)
                 continue
             if payload.get("id") != asked:

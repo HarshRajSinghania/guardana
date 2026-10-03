@@ -131,7 +131,7 @@ class A2aTaskVisibilityRule(A2aRule):
                 "a caller who presented no credential read the first caller's task by its "
                 "id through GetTask",
             )
-        elif read.answer is A2aAnswer.OTHER:
+        elif read.answer not in (A2aAnswer.REFUSED, A2aAnswer.NOT_FOUND):
             yield self.unverified(
                 view,
                 f"whether a caller presenting no credential can read the first caller's task "

@@ -545,8 +545,10 @@ sessions to every client that asks for them.</li>
 only the new revision in <code>server/discover</code> and still answer <code>initialize</code>. When
 discovery lists no older revision, the checks that need it send one <code>initialize</code> over
 the <code>2025-11-25</code> wire, with your token when you gave one. A result naming <code>2025-11-25</code>
-makes the server dual-era, graded over that revision; JSON-RPC <code>-32601</code> or <code>-32022</code>, or a
-<code>400</code>, <code>404</code> or <code>405</code> carrying no JSON-RPC error, makes it modern-only. A <code>401</code> or <code>403</code>
+makes the server dual-era, graded over that revision; JSON-RPC <code>-32601</code>, a <code>-32022</code> that
+names no older revision, or a <code>400</code>, <code>404</code> or <code>405</code> carrying no JSON-RPC error, makes it
+modern-only. A <code>-32022</code> naming an older handshake revision leaves its sessions
+unexamined, and <code>session_binding</code> reports <code>inconclusive</code> naming that revision. A <code>401</code> or <code>403</code>
 leaves it unknown, and <code>session_binding</code> reports <code>inconclusive</code> naming <code>--mcp-token-env</code>;
 so does any other answer — a timeout, a rate limit, a server error, another JSON-RPC
 error — naming what came back, because one failed request does not show which revisions
@@ -683,9 +685,9 @@ conversation's opening:</p>
 <ul>
 <li><strong>The URL</strong> (HTTP only): the server must answer at one of the entry's <code>remotes</code>. Scheme
 and host compare lowercased, a default port and one trailing <code>/</code> are dropped, the query
-compares on its own and verbatim, a fragment is ignored, and a <code>{variable}</code> in a published
-URL stands for one or more characters other than <code>/</code>, <code>?</code> and <code>#</code>, never for part of the
-query. An entry without remotes publishes none.
+compares on its own, a fragment is ignored, and a <code>{variable}</code> in a published URL stands
+for one or more characters other than <code>/</code>, <code>?</code> and <code>#</code> in the address, and other than <code>&amp;</code>
+and <code>#</code> in the query. An entry without remotes publishes none.
 A URL it does not publish is <code>medium</code>.</li>
 <li><strong>The version</strong> (HTTP and stdio): the version the server reports in <code>serverInfo</code> or
 discovery <code>_meta</code> must equal the entry's. A different one is <code>low</code>, worded as a
@@ -852,17 +854,17 @@ checks that need a credential report <code>inconclusive</code>, naming the schem
 </tr>
 <tr>
 <td><code>guardana.a2a.task_visibility</code></td>
-<td>An anonymous <code>ListTasks</code> lists no task, and neither the second caller nor a caller presenting no credential can read a task the first caller listed as its own (<code>high</code> each). An anonymous listing or read answered with an error that is neither a refusal nor a result is <code>inconclusive</code></td>
+<td>An anonymous <code>ListTasks</code> lists no task, and neither the second caller nor a caller presenting no credential can read a task the first caller listed as its own (<code>high</code> each). An anonymous listing answered with an error that is neither a refusal nor a result, or an anonymous read answered with anything but a refusal, a task-not-found or a result, is <code>inconclusive</code></td>
 </tr>
 </tbody>
 </table></div>
-<p>A &quot;task not found&quot; is never graded: the specification asks an agent not to tell &quot;absent&quot;
+<p>A &quot;task not found&quot; is never a finding: the specification asks an agent not to tell &quot;absent&quot;
 from &quot;not yours&quot;, and a random id exists for nobody. An agent that answers every
 <code>ListTasks</code> it was sent as an operation it does not support (<code>-32004</code>, or <code>-32601</code> once it
 answered with an A2A error code) has no listing to grade: <code>task_visibility</code> is skipped
 <code>not_offered</code>, a coverage gap that <code>fail_on.fail_on_skipped</code> and <code>--preset release</code> turn
 into an indeterminate run. The terminal report names each <code>not_offered</code> skip in its summary
-line and prints no <code>✓</code> over one.</p>
+line.</p>
 <p><strong>When the agent fails.</strong> The card and the first caller's request are the conversation, and
 fail as an MCP server's does: no reply, <code>404</code>, <code>408</code>, <code>425</code>, <code>429</code>, <code>5xx</code>, a reply that is
 not JSON-RPC, and <code>401</code> or <code>403</code> to the first caller's token stop the run (exit <code>4</code>),

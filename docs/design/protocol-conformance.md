@@ -185,8 +185,9 @@ a run whose conversation works).
   listed no legacy revision, the sections that need the legacy era (`sessions`, `tasks`) buy one
   `initialize` over `LEGACY_WIRE`, with the operator's credential when configured, cached for
   the run: a result naming `2025-11-25` → dual-era, `legacy_wire` is `LEGACY_WIRE`; a result
-  naming another revision → a legacy revision Guardana does not speak; JSON-RPC `-32601` or
-  `-32022` at any status, or `400`, `404` or `405` carrying no JSON-RPC error → modern-only;
+  naming another revision, or a `-32022` whose `data.supported` names one → a legacy revision
+  Guardana does not speak; JSON-RPC `-32601`, a `-32022` naming no handshake revision, at any
+  status, or `400`, `404` or `405` carrying no JSON-RPC error → modern-only;
   `401` or `403` → unknown, and so is every other answer — `408`, `425`, `429`, `5xx`, another
   JSON-RPC error such as a `503` carrying `-32603` — because one failed request says nothing
   about which era the server answers. `legacy_wire` is never anything but
@@ -338,9 +339,10 @@ entry publishes, so the entry is an input the operator supplies — never fetche
 - The rule, URL half (HTTP only): the server URL matches no `remotes[].url` → MEDIUM, "the server
   at `<display_url>` is not a remote its registry entry `<name>` publishes" (an entry without
   remotes publishes none). URLs compare with scheme and host lowercased, the default port
-  dropped, one trailing `/` of the path dropped, the query compared on its own and verbatim and
-  the fragment ignored; a `{variable}` in a published URL matches one or more characters other
-  than `/`, `?` and `#`, so it never stands for any part of the query. Version half:
+  dropped, one trailing `/` of the path dropped, the query compared on its own and the
+  fragment ignored; a `{variable}` in a published URL matches one or more characters other
+  than `/`, `?` and `#` in the address and other than `&` and `#` in the query, so it never
+  spans from the address into the query or across a query parameter. Version half:
   a reported version that differs → LOW, worded as self-reported; none reported → inconclusive,
   "the server reports no version to compare with `<version>`". Taxonomy `MCP09:2025`,
   `MCP04:2025`, `ASI04:2026`; no request beyond the opening.
@@ -411,7 +413,7 @@ does the same for the session ids it collected.
 |---|---|---|---|---|
 | `guardana.a2a.agent_card` | a required field missing (`name`, `description`, `supportedInterfaces`, `version`, `capabilities`, `defaultInputModes`, `defaultOutputModes`, `skills`); a requirement naming a scheme `securitySchemes` does not declare; a JSON-RPC 1.0 interface on plain `http` whose own host is not local (on the agent's host, whatever the port, judged by the connections the run made to that host; on another host by its URL alone, worded "not shown to be loopback or private") — MEDIUM, one finding listing each | `card_error` | — | `ASI07:2026`, `ASI04:2026` |
 | `guardana.a2a.caller_identity` | security **required** and an anonymous `GetTask`, `ListTasks` or `GetExtendedAgentCard` `answered` → HIGH; security **none** and one `answered` → HIGH, LOW when the card host is local; the extended card `answered` anonymously → HIGH under any security — one finding per shape | `unsupported`; no anonymous request `refused` or `answered` (under **optional** security only when the extended card was asked for); under **required** security an anonymous request answered `not_found` instead of `refused`, naming the method; `GetTask` answered `-32601` before any A2A code | — | `ASI03:2026`, `ASI07:2026` |
-| `guardana.a2a.task_visibility` | an anonymous `ListTasks` `answered` with a task or `totalSize` above 0 → HIGH; the second caller `answered` a `GetTask` for the first caller's task → HIGH; the anonymous `GetTask` for the first caller's task `answered` → HIGH ("a caller who presented no credential read the first caller's task") | `unsupported`; the anonymous `ListTasks` or the anonymous read of a listed task answered `other`; the cross-caller half when a credential is missing or could not be sent (naming the two flags or the card's schemes); the first caller listed no task; the second caller `refused` | every `ListTasks` sent answered `not_offered`, at least one sent | `ASI03:2026`, `ASI07:2026` |
+| `guardana.a2a.task_visibility` | an anonymous `ListTasks` `answered` with a task or `totalSize` above 0 → HIGH; the second caller `answered` a `GetTask` for the first caller's task → HIGH; the anonymous `GetTask` for the first caller's task `answered` → HIGH ("a caller who presented no credential read the first caller's task") | `unsupported`; the anonymous `ListTasks` answered `other`; the anonymous read of a listed task answered anything but `refused`, `not_found` or `answered`; the cross-caller half when a credential is missing or could not be sent (naming the two flags or the card's schemes); the first caller listed no task; the second caller `refused` | every `ListTasks` sent answered `not_offered`, at least one sent | `ASI03:2026`, `ASI07:2026` |
 
 A `not_found` is never graded: the specification asks a server not to tell "does not exist" from
 "not yours", and a random id exists for nobody. An optional requirement makes an anonymous

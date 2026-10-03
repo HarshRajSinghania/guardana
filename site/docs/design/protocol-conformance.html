@@ -483,8 +483,9 @@ and named no revision it offers&quot;). The run stops, saved, exit <code>4</code
 listed no legacy revision, the sections that need the legacy era (<code>sessions</code>, <code>tasks</code>) buy one
 <code>initialize</code> over <code>LEGACY_WIRE</code>, with the operator's credential when configured, cached for
 the run: a result naming <code>2025-11-25</code> → dual-era, <code>legacy_wire</code> is <code>LEGACY_WIRE</code>; a result
-naming another revision → a legacy revision Guardana does not speak; JSON-RPC <code>-32601</code> or
-<code>-32022</code> at any status, or <code>400</code>, <code>404</code> or <code>405</code> carrying no JSON-RPC error → modern-only;
+naming another revision, or a <code>-32022</code> whose <code>data.supported</code> names one → a legacy revision
+Guardana does not speak; JSON-RPC <code>-32601</code>, a <code>-32022</code> naming no handshake revision, at any
+status, or <code>400</code>, <code>404</code> or <code>405</code> carrying no JSON-RPC error → modern-only;
 <code>401</code> or <code>403</code> → unknown, and so is every other answer — <code>408</code>, <code>425</code>, <code>429</code>, <code>5xx</code>, another
 JSON-RPC error such as a <code>503</code> carrying <code>-32603</code> — because one failed request says nothing
 about which era the server answers. <code>legacy_wire</code> is never anything but
@@ -643,9 +644,10 @@ new capabilities enter <code>CAPABILITY_SURFACE</code> (<code>target/protocols.p
 <li>The rule, URL half (HTTP only): the server URL matches no <code>remotes[].url</code> → MEDIUM, &quot;the server
 at <code>&lt;display_url&gt;</code> is not a remote its registry entry <code>&lt;name&gt;</code> publishes&quot; (an entry without
 remotes publishes none). URLs compare with scheme and host lowercased, the default port
-dropped, one trailing <code>/</code> of the path dropped, the query compared on its own and verbatim and
-the fragment ignored; a <code>{variable}</code> in a published URL matches one or more characters other
-than <code>/</code>, <code>?</code> and <code>#</code>, so it never stands for any part of the query. Version half:
+dropped, one trailing <code>/</code> of the path dropped, the query compared on its own and the
+fragment ignored; a <code>{variable}</code> in a published URL matches one or more characters other
+than <code>/</code>, <code>?</code> and <code>#</code> in the address and other than <code>&amp;</code> and <code>#</code> in the query, so it never
+spans from the address into the query or across a query parameter. Version half:
 a reported version that differs → LOW, worded as self-reported; none reported → inconclusive,
 &quot;the server reports no version to compare with <code>&lt;version&gt;</code>&quot;. Taxonomy <code>MCP09:2025</code>,
 <code>MCP04:2025</code>, <code>ASI04:2026</code>; no request beyond the opening.</li>
@@ -730,7 +732,7 @@ does the same for the session ids it collected.</p>
 <tr>
 <td><code>guardana.a2a.task_visibility</code></td>
 <td>an anonymous <code>ListTasks</code> <code>answered</code> with a task or <code>totalSize</code> above 0 → HIGH; the second caller <code>answered</code> a <code>GetTask</code> for the first caller's task → HIGH; the anonymous <code>GetTask</code> for the first caller's task <code>answered</code> → HIGH (&quot;a caller who presented no credential read the first caller's task&quot;)</td>
-<td><code>unsupported</code>; the anonymous <code>ListTasks</code> or the anonymous read of a listed task answered <code>other</code>; the cross-caller half when a credential is missing or could not be sent (naming the two flags or the card's schemes); the first caller listed no task; the second caller <code>refused</code></td>
+<td><code>unsupported</code>; the anonymous <code>ListTasks</code> answered <code>other</code>; the anonymous read of a listed task answered anything but <code>refused</code>, <code>not_found</code> or <code>answered</code>; the cross-caller half when a credential is missing or could not be sent (naming the two flags or the card's schemes); the first caller listed no task; the second caller <code>refused</code></td>
 <td>every <code>ListTasks</code> sent answered <code>not_offered</code>, at least one sent</td>
 <td><code>ASI03:2026</code>, <code>ASI07:2026</code></td>
 </tr>

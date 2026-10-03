@@ -29,8 +29,9 @@ class McpRegistryEntryRule(Rule):
 
     Two halves. Over HTTP, the URL the server answered at must be one of the entry's
     `remotes`: scheme and host compared lowercased, a default port and one trailing `/`
-    dropped, the query compared verbatim, a fragment ignored, and a `{variable}` standing
-    for one or more characters other than `/`. An entry without remotes publishes none.
+    dropped, the query compared apart from the address, a fragment ignored, and a
+    `{variable}` standing for one or more characters other than `/`, `?` and `#` in the
+    address, and other than `&` and `#` in the query. An entry without remotes publishes none.
     In either transport, the version the server reports in `serverInfo` (or in
     discovery `_meta`) is compared with the entry's: a different one is a low finding
     worded as what it is, a self-report; none reported leaves the comparison open.

@@ -346,3 +346,26 @@ def test_any_other_server_request_is_answered_as_an_unknown_method() -> None:
     assert answered["id"] == "s-1"
     assert answered["error"]["code"] == -32601
     assert "result" not in answered
+
+
+_FLOODS_PINGS = """
+import json, sys, time
+sys.stdin.readline()
+for n in range(20000):
+    sys.stdout.write(json.dumps({"jsonrpc": "2.0", "id": f"p{n}", "method": "ping"}) + "\\n")
+sys.stdout.flush()
+time.sleep(60)
+"""
+"""Sends far more requests than a pipe holds answers for, and never reads its input again."""
+
+
+def test_a_server_flooding_its_own_requests_is_unreadable_not_a_hang() -> None:
+    transport = StdioMcpTransport(_child(_FLOODS_PINGS), timeout=2.0)
+    try:
+        outcome = _request_in_background(transport)
+    finally:
+        transport.close()
+
+    assert len(outcome) == 1
+    assert isinstance(outcome[0], UnreadableReply)
+    assert "requests of its own" in str(outcome[0])

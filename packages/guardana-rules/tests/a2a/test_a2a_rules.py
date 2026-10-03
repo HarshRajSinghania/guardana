@@ -342,6 +342,30 @@ def test_a_task_a_caller_presenting_nothing_reads_by_id_is_high() -> None:
     assert TASK not in findings[0].evidence.summary
 
 
+class _AnonymousGetTaskNotOffered(_AnonymousGetTaskUnscoped):
+    """Answers the anonymous `GetTask` on a stored task as an operation it does not offer."""
+
+    def _read(self, method: str, params: Mapping[str, Any], owner: str | None) -> RawReply:
+        stored = {task_id for ids in self.tasks.values() for task_id in ids}
+        if method == "GetTask" and owner is None and params.get("id") in stored:
+            error = {"code": -32004, "message": "unsupported operation"}
+            payload = {"jsonrpc": "2.0", "id": 1, "error": error}
+            return RawReply(200, {"Content-Type": "application/json"}, json.dumps(payload).encode())
+        return super()._read(method, params, owner)
+
+
+def test_an_anonymous_read_of_a_listed_task_answered_as_not_offered_is_inconclusive() -> None:
+    agent = _AnonymousGetTaskNotOffered(
+        PUBLIC, callers={A: "alice", B: "bob"}, tasks={"alice": [TASK]}
+    )
+    target = A2aAgentTarget(PUBLIC, credential=A, other_credential=B, sender=agent)
+
+    findings = _run(A2aTaskVisibilityRule(), target)
+
+    assert _fired(findings) == []
+    assert any("can read the first caller's task" in said for said in _inconclusive(findings))
+
+
 def test_a_required_credential_met_with_task_not_found_is_inconclusive_naming_the_method() -> None:
     findings = _run(A2aCallerIdentityRule(), _unscoped_get_task())
 

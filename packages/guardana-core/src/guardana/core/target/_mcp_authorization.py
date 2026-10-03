@@ -757,6 +757,9 @@ class _Probe:
         payload = reply.json_object()
         error = error_member(payload)
         code = error.get("code") if error is not None else None
+        older = _older_handshake(error)
+        if older is not None:
+            return older
         if code in _NOT_THE_ERA_CODES or (error is None and reply.status in _NOT_THE_ERA):
             return LegacyOffer(modern_only=True)
         result = payload.get("result") if payload is not None and error is None else None
@@ -1213,6 +1216,25 @@ def _host_of(parts: SplitResult) -> str:
 def _segment(claims: Mapping[str, object]) -> str:
     raw = json.dumps(claims, separators=(",", ":")).encode("utf-8")
     return base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
+
+
+def _older_handshake(error: Mapping[str, object] | None) -> LegacyOffer | None:
+    """Return the unknown offer a `-32022` naming a handshake revision means, or None.
+
+    The server still serves the handshake era, in a revision guardana does not speak, so
+    its sessions are there and unexamined rather than absent.
+    """
+    if error is None or error.get("code") != UNSUPPORTED_PROTOCOL_VERSION:
+        return None
+    supported = McpProtocolError("", code=UNSUPPORTED_PROTOCOL_VERSION, data=error.get("data"))
+    offered = newest_legacy(supported.supported_versions())
+    if offered is None:
+        return None
+    return LegacyOffer(
+        unsettled=(
+            f"the server offers {offered} of the handshake era, a revision guardana does not speak"
+        )
+    )
 
 
 __all__ = [

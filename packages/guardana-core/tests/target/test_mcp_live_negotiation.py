@@ -476,3 +476,34 @@ def test_every_session_id_the_run_learned_is_withheld_with_the_credential() -> N
 
     assert target.sent_secrets()[0] == CREDENTIAL
     assert set(target.sent_secrets()[1:]) == set(IDS)
+
+
+class _OffersAnOlderHandshake(_AnswersTheLegacyProbe):
+    """Answers the legacy probe with `-32022` naming a handshake revision guardana lacks."""
+
+    def __call__(self, url: str, **kwargs: object) -> RawReply:
+        body, _ = _sent(kwargs)
+        if body.get("method") != "initialize":
+            return super().__call__(url, **kwargs)
+        self.bodies.append(body)
+        error = {"code": -32022, "message": "no", "data": {"supported": [OLDER]}}
+        payload = {"jsonrpc": "2.0", "id": 1, "error": error}
+        return RawReply(400, {}, json.dumps(payload).encode())
+
+
+def test_a_legacy_probe_naming_another_handshake_revision_leaves_the_era_unknown() -> None:
+    server = _OffersAnOlderHandshake(
+        ROUTABLE,
+        status=400,
+        error=-32022,
+        tools=TOOLS,
+        protocol_versions=[LATEST_VERSION, LEGACY_VERSION],
+        discovers=[LATEST_VERSION],
+    )
+
+    offer = _target(server).authorization().legacy_offer
+
+    assert not offer.modern_only
+    assert offer.wire is None
+    assert offer.unsettled is not None
+    assert OLDER in offer.unsettled

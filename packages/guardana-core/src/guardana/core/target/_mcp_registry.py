@@ -151,18 +151,21 @@ def _canonical(url: str) -> tuple[str, str] | None:
 
 
 def _matches(published: str, reached: tuple[str, str]) -> bool:
-    """Match a reached URL against a published one; a `{variable}` stands for `[^/?#]+`.
+    """Match a reached URL against a published one, its address and its query apart.
 
-    Variables stand only in the address; the queries compare verbatim.
+    A `{variable}` stands for `[^/?#]+` in the address and for `[^&#]+` in the query, so
+    it never spans into the query or across a query parameter.
     """
     canonical = _canonical(published)
     if canonical is None:
         return False
     address, query = canonical
-    if query != reached[1]:
-        return False
-    pattern = "[^/?#]+".join(re.escape(piece) for piece in _VARIABLE.split(address))
-    return re.fullmatch(pattern, reached[0], re.DOTALL) is not None
+    return _fills(address, reached[0], "[^/?#]+") and _fills(query, reached[1], "[^&#]+")
+
+
+def _fills(template: str, text: str, variable: str) -> bool:
+    pattern = variable.join(re.escape(piece) for piece in _VARIABLE.split(template))
+    return re.fullmatch(pattern, text, re.DOTALL) is not None
 
 
 __all__ = ["MAX_ENTRY_BYTES", "RegistryEntry", "RegistryEntryError", "ReportedServer"]
