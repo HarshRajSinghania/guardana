@@ -526,9 +526,11 @@ for any other; <code>recipe run</code> swaps in the partial artifact; <code>Veri
 <code>Verification</code> instead of raising. <code>TargetUnavailableError</code> stays exported and is raised only
 for a failure the runner did not classify.</li>
 <li><code>monitor</code>: a cycle stopped by its target is a cycle that could not be sampled, as a failing
-cycle is today — a warning, never the baseline, never passed to <code>_worst</code> (so <code>_WORST_LAST</code> is
-unchanged), and the CLI's existing unsampled path gives exit <code>4</code>; a first cycle that stopped
-exits <code>4</code> with its cause.</li>
+cycle is today — a warning, never the baseline, <code>_WORST_LAST</code> unchanged, and the CLI's
+existing unsampled path gives exit <code>4</code>; a first cycle that stopped exits <code>4</code> with its cause.
+A finding the stopped cycle produced is still proven: when the partial result fails the
+policy with the stop set aside, the cycle alerts (printed and submitted) and folds <code>1</code> into
+the worst code, before re-raising when it is the first cycle.</li>
 <li><code>diff</code>: <code>_STOP_EXPLANATIONS</code> names the new stop; a stopped side is incomplete, as for a
 budget stop.</li>
 <li>Unchanged: <code>target inspect</code>, <code>calibrate</code>, a judge failure (exit <code>4</code>, nothing saved); MCP
@@ -616,7 +618,8 @@ re-hashes each editable tree, within the bounds above.</li>
 <p>A <code>FileReader</code> target whose file scope holds no file other than ignore files (<code>.guardanaignore</code>,
 wherever it sits) carries a coverage shortfall of a new kind, <code>empty_target</code>, named by the
 target's ref (&quot;holds no file to scan — check the path, or the excludes that removed every
-file&quot;). Any other file counts, a stray <code>.DS_Store</code> included: the scan read it. Computed once,
+file&quot;). Any other file counts, a stray <code>.DS_Store</code> included, because the scan listed it, not
+because a rule read it. Computed once,
 by a function <code>Runner.run</code> and <code>build_plan</code> both call, so <code>plan scan</code> refuses it (exit <code>3</code>) and
 <code>scan</code> is <code>2</code> under every preset.</p>
 <h3 id="10-a-model-or-notebook-a-rule-could-not-read-is-an-unexamined-component">10. A model or notebook a rule could not read is an unexamined component</h3>

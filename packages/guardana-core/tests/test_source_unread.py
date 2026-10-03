@@ -14,6 +14,7 @@ neither half drifts.
 
 from pathlib import Path
 
+from guardana.core.gate import GateOutcome, gate_outcome
 from guardana.core.plugins import PluginMode, PluginTrust
 from guardana.core.profile.model import Policy, Profile
 from guardana.core.registry import Registry
@@ -154,3 +155,71 @@ def test_a_directory_that_can_be_listed_but_not_entered_does_not_crash_the_scan(
         locked.chmod(0o755)
 
     assert [o.attributes for o in result.observations] == [{"format": "pickle", "read": "failed"}]
+
+
+def _linked_models(tmp_path: Path, name: str = "models") -> Path:
+    """Build a scan root holding a README and `name`, a symlink to a directory of models."""
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "loader.py").write_text(_SINK, encoding="utf-8")
+    root = tmp_path / "scan"
+    root.mkdir()
+    (root / "README.md").write_text("models\n", encoding="utf-8")
+    (root / name).symlink_to(real, target_is_directory=True)
+    return root
+
+
+def test_a_symlinked_directory_is_recorded_as_unread_and_not_walked(tmp_path: Path) -> None:
+    root = _linked_models(tmp_path)
+    target = ArtifactTarget(root)
+
+    listed = [path.name for path in target.iter_files()]
+    unread = target.unread_sources()
+
+    assert listed == ["README.md"]
+    assert [u.path for u in unread] == [root / "models"]
+    assert "a symlinked directory is not walked" in unread[0].reason
+
+
+def test_a_scan_fails_the_gate_on_a_symlinked_directory(tmp_path: Path) -> None:
+    result = Runner(
+        registry=Registry.discover(PluginTrust(mode=PluginMode.BUILTINS)),
+        profile=Profile(name="t", policy=Policy()),
+    ).run(ArtifactTarget(_linked_models(tmp_path)))
+
+    assert [(e.source, e.stage) for e in result.errors] == [("guardana.core.source", "read")]
+    assert "models" in result.errors[0].reason
+    assert gate_outcome(result, Policy()) is GateOutcome.INDETERMINATE
+
+
+def test_a_dangling_file_symlink_is_recorded_as_unread_and_not_listed(tmp_path: Path) -> None:
+    (tmp_path / "seen.py").write_text("x = 1\n", encoding="utf-8")
+    (tmp_path / "model.pkl").symlink_to(tmp_path / "gone.pkl")
+    target = ArtifactTarget(tmp_path)
+
+    listed = [path.name for path in target.iter_files()]
+    unread = target.unread_sources()
+
+    assert listed == ["seen.py"]
+    assert [u.path for u in unread] == [tmp_path / "model.pkl"]
+
+
+def test_a_file_symlink_that_resolves_is_listed_and_read(tmp_path: Path) -> None:
+    real = tmp_path / "real.py"
+    real.write_text("x = 1\n", encoding="utf-8")
+    root = tmp_path / "scan"
+    root.mkdir()
+    (root / "linked.py").symlink_to(real)
+    target = ArtifactTarget(root)
+
+    assert [path.name for path in target.iter_files()] == ["linked.py"]
+    assert target.unread_sources() == ()
+
+
+def test_an_ignored_or_excluded_symlinked_directory_stays_pruned(tmp_path: Path) -> None:
+    root = _linked_models(tmp_path, name=".venv")
+    (root / "vendor").symlink_to(tmp_path / "real", target_is_directory=True)
+    target = ArtifactTarget(root, excludes=("vendor",))
+
+    assert [path.name for path in target.iter_files()] == ["README.md"]
+    assert target.unread_sources() == ()

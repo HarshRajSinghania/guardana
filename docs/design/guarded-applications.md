@@ -229,9 +229,11 @@ The runner classifies what a rule's send raised, in `_run_rule`, after re-raisin
   `Verification` instead of raising. `TargetUnavailableError` stays exported and is raised only
   for a failure the runner did not classify.
 - `monitor`: a cycle stopped by its target is a cycle that could not be sampled, as a failing
-  cycle is today — a warning, never the baseline, never passed to `_worst` (so `_WORST_LAST` is
-  unchanged), and the CLI's existing unsampled path gives exit `4`; a first cycle that stopped
-  exits `4` with its cause.
+  cycle is today — a warning, never the baseline, `_WORST_LAST` unchanged, and the CLI's
+  existing unsampled path gives exit `4`; a first cycle that stopped exits `4` with its cause.
+  A finding the stopped cycle produced is still proven: when the partial result fails the
+  policy with the stop set aside, the cycle alerts (printed and submitted) and folds `1` into
+  the worst code, before re-raising when it is the first cycle.
 - `diff`: `_STOP_EXPLANATIONS` names the new stop; a stopped side is incomplete, as for a
   budget stop.
 - Unchanged: `target inspect`, `calibrate`, a judge failure (exit `4`, nothing saved); MCP
@@ -329,7 +331,8 @@ name is installed, markers and extras ignored (an over-approximation), with no n
 A `FileReader` target whose file scope holds no file other than ignore files (`.guardanaignore`,
 wherever it sits) carries a coverage shortfall of a new kind, `empty_target`, named by the
 target's ref ("holds no file to scan — check the path, or the excludes that removed every
-file"). Any other file counts, a stray `.DS_Store` included: the scan read it. Computed once,
+file"). Any other file counts, a stray `.DS_Store` included, because the scan listed it, not
+because a rule read it. Computed once,
 by a function `Runner.run` and `build_plan` both call, so `plan scan` refuses it (exit `3`) and
 `scan` is `2` under every preset.
 

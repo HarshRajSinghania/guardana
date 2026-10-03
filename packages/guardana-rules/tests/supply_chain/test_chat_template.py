@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 
 import pytest
-from guardana.core.report import ShortfallKind
+from guardana.core.report import Finding, ShortfallKind
 from guardana.core.rule import RuleContext
 from guardana.core.severity import Severity
 from guardana.core.target import ArtifactTarget, EndpointTarget
@@ -53,7 +53,7 @@ def _unread(root: Path) -> list[str]:
     ]
 
 
-def _run(root: Path) -> list[object]:
+def _run(root: Path) -> list[Finding]:
     return list(ChatTemplateRule().run(ArtifactTarget(root), RuleContext()))
 
 
@@ -64,6 +64,31 @@ def _severities(root: Path) -> list[str]:
 def test_flags_a_gadget_in_a_gguf_chat_template(tmp_path: Path) -> None:
     (tmp_path / "m.gguf").write_bytes(build_gguf({_KEY: _PAYLOAD}))
     assert _severities(tmp_path) == [Severity.CRITICAL.name]
+
+
+def test_flags_a_gadget_in_a_named_gguf_chat_template(tmp_path: Path) -> None:
+    (tmp_path / "m.gguf").write_bytes(
+        build_gguf({_KEY: _REAL_TEMPLATE, f"{_KEY}.tool_use": _PAYLOAD})
+    )
+
+    findings = _run(tmp_path)
+
+    assert [f.severity for f in findings] == [Severity.CRITICAL]
+    assert f"source={_KEY}.tool_use " in findings[0].evidence.detail
+
+
+def test_a_clean_named_gguf_chat_template_is_clean(tmp_path: Path) -> None:
+    (tmp_path / "m.gguf").write_bytes(
+        build_gguf({_KEY: _REAL_TEMPLATE, f"{_KEY}.tool_use": _REAL_TEMPLATE})
+    )
+
+    assert _run(tmp_path) == []
+
+
+def test_a_key_that_only_shares_the_prefix_is_not_a_template(tmp_path: Path) -> None:
+    (tmp_path / "m.gguf").write_bytes(build_gguf({f"{_KEY}s": _PAYLOAD}))
+
+    assert _run(tmp_path) == []
 
 
 def test_flags_a_gadget_appended_after_a_full_length_real_template(tmp_path: Path) -> None:

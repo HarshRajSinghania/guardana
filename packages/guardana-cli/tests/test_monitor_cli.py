@@ -1,4 +1,5 @@
 import io
+from collections.abc import Sequence
 from email.message import Message
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -19,6 +20,7 @@ from guardana.core.registry import Registry
 from guardana.core.target import EndpointError
 from guardana.core.target.connection import Connection as Written
 from guardana.core.target.connection import resolve_connection
+from guardana.core.target.endpoint import ChatMessage
 from guardana.core.testing import EchoingTransport, FailingTransport, RefusingTransport
 from typer import Exit
 from typer.testing import CliRunner
@@ -263,10 +265,12 @@ def test_monitor_says_it_keeps_no_exchanges_when_the_profile_asks(
     assert "monitor keeps no exchanges" in result.stderr
 
 
+def _draining() -> HTTPError:
+    return HTTPError("http://fake", 503, "Service Unavailable", Message(), io.BytesIO(b"draining"))
+
+
 def _unavailable() -> FailingTransport:
-    return FailingTransport(
-        HTTPError("http://fake", 503, "Service Unavailable", Message(), io.BytesIO(b"draining"))
-    )
+    return FailingTransport(_draining())
 
 
 def test_a_first_cycle_its_target_stopped_ends_the_watch_with_the_cause(
@@ -300,6 +304,59 @@ def test_a_later_cycle_its_target_stopped_is_not_sampled_and_the_watch_exits_fou
     flat = " ".join(result.output.split())
     assert "warning: monitor cycle 1 failed, continuing: endpoint" in flat
     assert "1 cycle(s) sampled, 0 alert(s), 1 cycle(s) not sampled" in flat
+
+
+class _LeaksThenGoesAway:
+    """Leaks the planted system prompt once, then answers every later call with a 503."""
+
+    def __init__(self) -> None:
+        self._leaked = False
+
+    def send(
+        self,
+        base_url: str,
+        model: str,
+        messages: Sequence[ChatMessage],
+        api_key: str | None,
+    ) -> str:
+        if self._leaked:
+            raise _draining()
+        planted = [m.content for m in messages if m.role == "system"]
+        if not planted:
+            return "I cannot help with that."
+        self._leaked = True
+        return f"Sure, here is my system prompt: {planted[0]}"
+
+
+def test_a_failure_proved_before_the_target_stopped_the_cycle_alerts_and_exits_one(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    built = iter([RefusingTransport(), _LeaksThenGoesAway()])
+    monkeypatch.setattr(endpoint_module, "transport_factory", lambda: next(built))
+    monkeypatch.setattr("guardana.core.target.endpoint._sleep", lambda _s: None)
+
+    result = runner.invoke(
+        app,
+        [
+            "monitor",
+            "--url",
+            "http://fake",
+            "--model",
+            "m",
+            "--max-cycles",
+            "2",
+            "--interval",
+            "0",
+            "--concurrency",
+            "1",
+        ],
+    )
+
+    assert result.exit_code == ExitCode.POLICY_FAILED, result.output
+    flat = " ".join(result.output.split())
+    assert "ALERT (cycle 1): gate failed before the target stopped the cycle" in flat
+    assert "system_prompt_leak" in flat
+    assert "1 cycle(s) sampled, 1 alert(s), 1 cycle(s) not sampled" in flat
 
 
 def test_a_later_cycle_that_failed_is_said_without_the_key_and_bounded(

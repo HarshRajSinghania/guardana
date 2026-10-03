@@ -56,9 +56,16 @@ A scan whose path holds no file other than `.guardanaignore` files is a coverage
 shortfall named `empty_target`, naming the scanned path: the directory is empty, or
 `rules.paths_exclude`, `.guardanaignore` and the directories every scan skips removed
 every file. The run is `indeterminate` (exit `2`) under every preset, and
-`guardana plan scan` refuses the same path with exit `3`. Any other file counts as read,
-a `.DS_Store` included; a single-file path is never empty. A third-party file target
-(`--target scheme://locator`) that lists no file is the same shortfall.
+`guardana plan scan` refuses the same path with exit `3`. Any other file counts, a
+`.DS_Store` included, because the scan listed it, not because a rule read it; a
+single-file path is never empty. A third-party file target (`--target scheme://locator`)
+that lists no file is the same shortfall.
+
+A scan does not follow a symlinked directory, and does not list a symlink whose target
+does not exist. Each one it meets is recorded as a source it could not read, naming the
+link, so the run records an error (exit `2` under the default `fail_on_error`). Scan the
+link's target directly, or exclude the link. A link the excludes remove, or a directory link
+named like a directory every scan skips, is not reported.
 
 ## Model files no rule reads
 

@@ -17,13 +17,15 @@ from urllib.error import HTTPError, URLError
 
 import pytest
 from guardana.core import verify
+from guardana.core.assessment import Assessment, AssessmentStatus
 from guardana.core.budget import BudgetExhausted
 from guardana.core.evaluator.config import JudgeUnavailableError
 from guardana.core.gate import exit_code_for, gate_outcome
 from guardana.core.plugins import PluginMode, PluginTrust
-from guardana.core.profile.model import Policy, Profile
+from guardana.core.profile.model import FailOn, Policy, Profile
 from guardana.core.registry import Registry
 from guardana.core.report import Evidence, Finding, ScanResult, StopReason
+from guardana.core.report.shortfall import ShortfallKind
 from guardana.core.rule import Rule, RuleContext, RuleMeta
 from guardana.core.runner import Runner, target_failures
 from guardana.core.severity import Severity
@@ -171,6 +173,64 @@ def test_a_rejected_request_is_an_error_of_its_rule_and_the_run_goes_on(code: in
     assert f"rejected the request (HTTP {code})" in result.errors[0].reason
     assert result.rules_run == ("second", "third")
     assert _exit(result) == 2
+
+
+class _Grading(_Asking):
+    """Ask each prompt in turn and record every reply as one graded case."""
+
+    def run(self, target: Target, ctx: RuleContext) -> Iterable[Finding]:
+        """Send every prompt, recording a measured case per reply."""
+        for index, prompt in enumerate(self._prompts):
+            if not isinstance(target, EndpointTarget):
+                return ()
+            target.chat([ChatMessage(role="user", content=prompt)])
+            ctx.record(
+                Assessment(
+                    case_id=f"case-{index}",
+                    assessor="acme.test",
+                    subject_ref=target.ref,
+                    status=AssessmentStatus.MEASURED,
+                    rule_id=self.meta.id,
+                    passed=True,
+                )
+            )
+        return ()
+
+
+_LENIENT = Profile(name="t", policy=Policy(fail_on=FailOn(fail_on_error=False)))
+
+
+def _ungraded(result: ScanResult) -> list[str]:
+    return [g.name for g in result.coverage_shortfall if g.kind is ShortfallKind.UNGRADED_CASES]
+
+
+def test_a_rule_whose_request_was_refused_graded_nothing_whatever_fail_on_error() -> None:
+    transport = _Answers(guarded=_status(400), second="fine")
+    registry = Registry()
+    registry.register_rule(_Grading("guarded"))
+    registry.register_rule(_Grading("second"))
+
+    result = Runner(registry=registry, profile=_LENIENT).run(
+        EndpointTarget("http://x", "m", transport=transport)
+    )
+
+    assert [(e.source, e.stage) for e in result.errors] == [("guarded", "request")]
+    assert _ungraded(result) == ["guarded"]
+    assert [a.rule_id for a in result.assessments] == ["second"]
+    assert exit_code_for(gate_outcome(result, _LENIENT.policy), result.stopped_by) == 2
+
+
+def test_a_rule_that_graded_a_case_before_a_refused_request_is_not_short_without_a_floor() -> None:
+    transport = _Answers(early="fine", late=_status(400))
+    registry = Registry()
+    registry.register_rule(_Grading("half", "early", "late"))
+
+    result = Runner(registry=registry, profile=_LENIENT).run(
+        EndpointTarget("http://x", "m", transport=transport)
+    )
+
+    assert _ungraded(result) == []
+    assert len(result.assessments) == 1
 
 
 @pytest.mark.parametrize(

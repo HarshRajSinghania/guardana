@@ -1,7 +1,8 @@
-"""A cycle its target stopped sampled nothing: it warns, and is never the baseline or a verdict.
+"""A cycle its target stopped sampled nothing: it warns, and is never the baseline.
 
-The first cycle that stops ends the watch with its cause, as a target that never answered
-does; a cycle the budget stopped is still a sampled cycle with its own result code.
+A failure it proved before the stop still alerts and still fails the watch. The first cycle
+that stops ends the watch with its cause, as a target that never answered does; a cycle the
+budget stopped is still a sampled cycle with its own result code.
 """
 
 from collections.abc import Callable, Iterator
@@ -26,9 +27,11 @@ _HIT = Finding(
 )
 
 
-def _stopped(by: StopReason = StopReason.TARGET_UNAVAILABLE) -> ScanResult:
+def _stopped(
+    by: StopReason = StopReason.TARGET_UNAVAILABLE, findings: tuple[Finding, ...] = (_HIT,)
+) -> ScanResult:
     return ScanResult(
-        (_HIT,),
+        findings,
         rules_run=(),
         rules_skipped=(),
         errors=(CheckError(source="r0", stage="target", reason=_REASON),),
@@ -51,7 +54,7 @@ def test_a_cycle_its_target_stopped_warns_and_is_not_sampled() -> None:
     alerts: list[Alert] = []
     warned: list[tuple[int, Exception]] = []
 
-    summary = _monitor(_scans(_CLEAN, _stopped(), _CLEAN), 3).run(
+    summary = _monitor(_scans(_CLEAN, _stopped(findings=()), _CLEAN), 3).run(
         alerts.append,
         on_error=lambda cycle, exc: warned.append((cycle, exc)),
         sleep=lambda _s: None,
@@ -62,14 +65,58 @@ def test_a_cycle_its_target_stopped_warns_and_is_not_sampled() -> None:
     assert (summary.cycles, summary.unsampled, summary.exit_code) == (2, 1, 0)
 
 
+def test_a_failure_a_stopped_cycle_proved_alerts_and_fails_the_watch() -> None:
+    alerts: list[Alert] = []
+    warned: list[tuple[int, Exception]] = []
+
+    summary = _monitor(_scans(_CLEAN, _stopped(), _CLEAN), 3).run(
+        alerts.append,
+        on_error=lambda cycle, exc: warned.append((cycle, exc)),
+        sleep=lambda _s: None,
+    )
+
+    assert [cycle for cycle, _exc in warned] == [1]
+    assert [(a.cycle, a.result.findings) for a in alerts] == [(1, (_HIT,))]
+    assert (summary.cycles, summary.alerts, summary.unsampled) == (2, 1, 1)
+    assert summary.exit_code == 1
+
+
+def test_a_finding_below_the_bar_in_a_stopped_cycle_does_not_alert() -> None:
+    alerts: list[Alert] = []
+    low = Finding(
+        rule_id="guardana.ep.low",
+        severity=Severity.LOW,
+        title="low",
+        taxonomy=(),
+        target_ref="http://fake#m",
+        evidence=Evidence(summary="x"),
+    )
+
+    summary = _monitor(_scans(_CLEAN, _stopped(findings=(low,))), 2).run(
+        alerts.append, sleep=lambda _s: None
+    )
+
+    assert alerts == []
+    assert (summary.unsampled, summary.exit_code) == (1, 0)
+
+
 def test_a_stopped_cycle_is_never_the_baseline() -> None:
     alerts: list[Alert] = []
 
     with pytest.raises(TargetStoppedError, match="returned HTTP 503") as stopped:
-        _monitor(_scans(_stopped(), _CLEAN), 2).run(alerts.append, sleep=lambda _s: None)
+        _monitor(_scans(_stopped(findings=()), _CLEAN), 2).run(alerts.append, sleep=lambda _s: None)
 
     assert stopped.value.result.stopped_by is StopReason.TARGET_UNAVAILABLE
     assert alerts == []
+
+
+def test_a_first_cycle_that_stopped_alerts_its_failure_before_ending_the_watch() -> None:
+    alerts: list[Alert] = []
+
+    with pytest.raises(TargetStoppedError, match="returned HTTP 503"):
+        _monitor(_scans(_stopped(), _CLEAN), 2).run(alerts.append, sleep=lambda _s: None)
+
+    assert [(a.cycle, a.result.findings) for a in alerts] == [(0, (_HIT,))]
 
 
 def test_a_cycle_the_budget_stopped_is_still_sampled() -> None:

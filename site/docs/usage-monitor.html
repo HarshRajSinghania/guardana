@@ -462,11 +462,14 @@ stays proven whatever cut a later one short. An alert raised only by a change th
 policy's bar does not reach — a regression <code>diff</code> would also exit <code>0</code> for — leaves the
 exit code at <code>0</code>. A cycle a transient endpoint failure prevented, or one its target
 stopped part-way (<a href="usage-probe.html#when-the-target-fails-part-way">as <code>probe</code> decides it</a>),
-verified nothing: it is reported as a warning naming the cause, is never the cycle the
-others are compared with, and earns no exit code of its own; if no sampled cycle earned
-anything worse, the run exits <code>4</code>. When the first cycle is such a cycle, the watch ends
-there with exit <code>4</code> and the cause after <code>error:</code>. <code>--max-cycles 0</code> samples nothing and
-exits <code>2</code>.</p>
+is not sampled: it is reported as a warning naming the cause, is never the cycle the
+others are compared with, and proves no coverage. A finding a stopped cycle produced
+before the stop is still proven, so when it fails the policy the cycle alerts (printed
+and forwarded to <code>--reporter</code>) and the run exits <code>1</code>. Otherwise such a cycle earns no
+exit code of its own; if no sampled cycle earned anything worse, the run exits <code>4</code>.
+When the first cycle is such a cycle, the watch ends there with exit <code>4</code> and the cause
+after <code>error:</code>, after alerting any failure that cycle proved. <code>--max-cycles 0</code> samples
+nothing and exits <code>2</code>.</p>
 <p>An unbounded run never ends on its own. Ctrl-C exits <code>7</code> whatever the cycles before
 it found — the alerts already printed are the record of those cycles, and the code
 says the watch did not finish. See <a href="exit-codes.html"><code>exit-codes.md</code></a>.</p>

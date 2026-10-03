@@ -395,9 +395,15 @@ naming it.</p>
 shortfall named <code>empty_target</code>, naming the scanned path: the directory is empty, or
 <code>rules.paths_exclude</code>, <code>.guardanaignore</code> and the directories every scan skips removed
 every file. The run is <code>indeterminate</code> (exit <code>2</code>) under every preset, and
-<code>guardana plan scan</code> refuses the same path with exit <code>3</code>. Any other file counts as read,
-a <code>.DS_Store</code> included; a single-file path is never empty. A third-party file target
-(<code>--target scheme://locator</code>) that lists no file is the same shortfall.</p>
+<code>guardana plan scan</code> refuses the same path with exit <code>3</code>. Any other file counts, a
+<code>.DS_Store</code> included, because the scan listed it, not because a rule read it; a
+single-file path is never empty. A third-party file target (<code>--target scheme://locator</code>)
+that lists no file is the same shortfall.</p>
+<p>A scan does not follow a symlinked directory, and does not list a symlink whose target
+does not exist. Each one it meets is recorded as a source it could not read, naming the
+link, so the run records an error (exit <code>2</code> under the default <code>fail_on_error</code>). Scan the
+link's target directly, or exclude the link. A link the excludes remove, or a directory link
+named like a directory every scan skips, is not reported.</p>
 <h2 id="model-files-no-rule-reads">Model files no rule reads</h2>
 <p>Every model file the scan observes must be read by a rule that ran. One that no rule
 read is a coverage shortfall named <code>unexamined_component</code>, one per format, so the run

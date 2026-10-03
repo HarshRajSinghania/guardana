@@ -79,10 +79,11 @@ def incomplete_recording(target: Target) -> tuple[CoverageShortfall, ...]:
 def empty_target(target: Target, scope: FileScope | None = None) -> tuple[CoverageShortfall, ...]:
     """Return the shortfall of a file target whose scope holds no file but ignore files.
 
-    A scan that read nothing found nothing, which is not the target found clean. Any other
-    file counts, whatever it is: the scan read it. `scope` is the listing the caller already
-    took, so the run does not list the target twice; None lists it here. `Runner.run` and
-    `build_plan` both read this, so a plan refuses what the run cannot pass.
+    A scan that listed nothing found nothing, which is not the target found clean. Any other
+    file counts, whatever it is, because the scan listed it, not because a rule read it.
+    `scope` is the listing the caller already took, so the run does not list the target
+    twice; None lists it here. `Runner.run` and `build_plan` both read this, so a plan
+    refuses what the run cannot pass.
     """
     if not isinstance(target, FileReader):
         return ()
@@ -103,30 +104,35 @@ def empty_target(target: Target, scope: FileScope | None = None) -> tuple[Covera
 
 
 def ungraded_cases(
-    assessments: Mapping[str, Sequence[Assessment]], floor: float | None
+    assessments: Mapping[str, Sequence[Assessment]],
+    floor: float | None,
+    refused: Collection[str] = (),
 ) -> tuple[CoverageShortfall, ...]:
     """Return a shortfall per rule that graded none of its case attempts, or fewer than `floor`.
 
-    Graded is `measured`; attempted is every assessment that is not `skipped`, so a rule
-    whose every case was skipped is not checked. A rule that attempted cases and graded
-    none established nothing, with or without a floor. `assessments` maps each rule id to
-    what it recorded, in rule order.
+    Graded is `measured`; attempted is every assessment that is not `skipped`, plus one
+    for each rule in `refused`, whose send the application refused before it could record
+    the case. So a rule whose every case was skipped is not checked, and a refused rule
+    always is, whatever `fail_on_error` says about its error. A rule that attempted cases
+    and graded none established nothing, with or without a floor. `assessments` maps each
+    rule id to what it recorded, in rule order.
     """
     gaps: list[CoverageShortfall] = []
     for rule_id, recorded in assessments.items():
-        attempted = [a for a in recorded if a.status is not AssessmentStatus.SKIPPED]
+        graded = sum(1 for a in recorded if a.status is AssessmentStatus.MEASURED)
+        attempted = sum(1 for a in recorded if a.status is not AssessmentStatus.SKIPPED)
+        attempted += 1 if rule_id in refused else 0
         if not attempted:
             continue
-        graded = sum(1 for a in attempted if a.status is AssessmentStatus.MEASURED)
         if graded == 0:
             detail = (
-                f"graded 0 of {len(attempted)} case attempt(s): every one was declined or "
+                f"graded 0 of {attempted} case attempt(s): every one was declined or "
                 f"could not be decided, so the check established nothing"
             )
-        elif floor is not None and graded / len(attempted) < floor:
+        elif floor is not None and graded / attempted < floor:
             detail = (
-                f"graded {graded} of {len(attempted)} case attempts "
-                f"({_percent_down(graded, len(attempted))}), below the floor of {floor * 100:g}%"
+                f"graded {graded} of {attempted} case attempts "
+                f"({_percent_down(graded, attempted)}), below the floor of {floor * 100:g}%"
             )
         else:
             continue
@@ -330,6 +336,7 @@ class Runner:
         examined: set[str] = set()
         assessments: list[Assessment] = []
         by_rule: dict[str, tuple[Assessment, ...]] = {}
+        refused: set[str] = set()
         suites: dict[str, SuiteSummary] = {}
         reported: list[CoverageShortfall] = []
         stopped_by: StopReason | None = None
@@ -353,6 +360,8 @@ class Runner:
                     errors.append(outcome.error)
             elif outcome.error is not None:
                 errors.append(outcome.error)
+                if outcome.error.stage == FailureScope.REQUEST:
+                    refused.add(outcome.rule_id)
             else:
                 ran.append(outcome.rule_id)
                 examined.update(outcome.examined)
@@ -363,17 +372,18 @@ class Runner:
                 suites[outcome.rule_id] = outcome.suite
         if isinstance(target, RecordedTarget):
             errors.extend(_ungraded_lines(target, executed))
-        # A file the rules were prevented from reading is a check that did not
-        # run, so it joins `errors` rather than disappearing. Collected after the
-        # rules, because that is when the target knows what it was asked for.
-        errors.extend(
-            CheckError(source="guardana.core.source", stage="read", reason=unread.reason)
-            for unread in _unread_sources(target)
-        )
         # Taken from the target, not from the rules: if the inventory came out of what
         # fired, narrowing a profile would quietly shrink the list of components a
         # report says are deployed.
         scope = _file_scope(target)
+        # A file the rules were prevented from reading is a check that did not
+        # run, so it joins `errors` rather than disappearing. Collected after the
+        # rules and the listing, because that is when the target knows what it
+        # was asked for and what its walk could not enter.
+        errors.extend(
+            CheckError(source="guardana.core.source", stage="read", reason=unread.reason)
+            for unread in _unread_sources(target)
+        )
         observations = observe(
             target, files=None if scope is None else [Path(path) for path in scope.files]
         )
@@ -400,7 +410,7 @@ class Runner:
                 *_coverage_shortfall(self.profile, target),
                 *empty_target(target, scope),
                 *incomplete_recording(target),
-                *ungraded_cases(by_rule, self.profile.policy.fail_on.min_graded_share),
+                *ungraded_cases(by_rule, self.profile.policy.fail_on.min_graded_share, refused),
                 *_unexamined_components(target, observations, examined),
                 *reported,
             ),

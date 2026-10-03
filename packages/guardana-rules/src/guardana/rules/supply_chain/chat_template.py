@@ -33,7 +33,8 @@ _PAST_THE_BOUND = f"the file is larger than the {MAX_SCAN_BYTES}-byte read bound
 # The same template ships in up to four places for one model, and a scanner that
 # knows only one of them reports the other three clean: inside GGUF metadata, in
 # `tokenizer_config.json`, and — since transformers 4.47 saves it this way by
-# default — as a standalone `chat_template.jinja`.
+# default — as a standalone `chat_template.jinja`. A GGUF file also carries named
+# templates (`tokenizer.chat_template.tool_use`), which llama.cpp loads as readily.
 _GGUF_TEMPLATE_KEY = "tokenizer.chat_template"
 _CONFIG_NAMES = frozenset({"tokenizer_config.json", "chat_template.json", "processor_config.json"})
 _CONFIG_KEY = "chat_template"
@@ -89,9 +90,12 @@ class ChatTemplateRule(ArtifactRule):
             return
         # A model with no template is not an open question — the file was read and
         # understood. Only an unreadable file is.
-        template = metadata.text(_GGUF_TEMPLATE_KEY)
-        if template is not None:
-            yield from self._graded(path, _GGUF_TEMPLATE_KEY, template)
+        for key in sorted(metadata.entries):
+            if key != _GGUF_TEMPLATE_KEY and not key.startswith(f"{_GGUF_TEMPLATE_KEY}."):
+                continue
+            template = metadata.text(key)
+            if template is not None:
+                yield from self._graded(path, key, template)
 
     def _scan_template_file(self, path: Path, ctx: RuleContext) -> Iterator[Finding]:
         prefix = read_bytes_bounded(path)

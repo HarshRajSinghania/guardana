@@ -1,6 +1,6 @@
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from guardana.core.diff import IncomparableRunsError, compare, gate_diff
 from guardana.core.gate import GateOutcome, StopReason, exit_code_for, gate_outcome
@@ -71,13 +71,13 @@ class MonitorSummary:
     """Cycles that produced a result."""
     alerts: int
     unsampled: int
-    """Cycles a transient failure prevented or the target stopped; none verified anything."""
+    """Cycles a transient failure prevented or the target stopped; none verified coverage."""
     exit_code: int
     """The worst result code any sampled cycle earned; `2` when no cycle was sampled.
 
-    A result code only: a cycle that could not be sampled verified nothing and is not in
-    it, so `0` with `unsampled` above zero is not a pass. The `monitor` command turns that
-    `0` into `4`; a caller reading this summary checks `unsampled` the same way.
+    A failure a stopped cycle proved before the stop is in it as `1`; nothing else about
+    that cycle is, so `0` with `unsampled` above zero is not a pass. The `monitor` command
+    turns that `0` into `4`; a caller reading this summary checks `unsampled` the same way.
     """
 
 
@@ -155,9 +155,11 @@ class Monitor:
         A transient endpoint failure during a cycle is reported to `on_error`
         (if given) and the loop continues — one blip must not kill a long-running
         monitor. A cycle its target stopped part-way is such a failure, raised as
-        `TargetStoppedError`: it is never the baseline and earns no result code. But a
-        failure before any cycle has ever succeeded is not a blip; it's a dead endpoint
-        or a bad URL, and it propagates rather than spinning.
+        `TargetStoppedError`: it is never the baseline and earns no result code, except
+        that findings it produced which fail the policy alert and fail the watch, before
+        the error propagates when it is the first cycle. A failure before any cycle has
+        ever succeeded is not a blip; it's a dead endpoint or a bad URL, and it
+        propagates rather than spinning.
 
         The summary carries the worst code any cycle earned, judged as `probe` judges
         the cycle and as `guardana diff` judges it against the first one, so an alert
@@ -176,6 +178,17 @@ class Monitor:
                 if result.stopped_by is StopReason.TARGET_UNAVAILABLE:
                     raise TargetStoppedError(result)
             except _TRANSIENT as exc:
+                if isinstance(exc, TargetStoppedError) and self._proved_failure(exc.result):
+                    on_alert(
+                        Alert(
+                            cycle,
+                            exc.result,
+                            "gate failed before the target stopped the cycle",
+                            gate_outcome(exc.result, self.policy),
+                        )
+                    )
+                    alerts += 1
+                    worst = _FAILED
                 if baseline is None:
                     raise  # never worked once — surface it, don't loop on it
                 if on_error is not None:
@@ -197,8 +210,16 @@ class Monitor:
             cycles=sampled,
             alerts=alerts,
             unsampled=unsampled,
-            exit_code=worst if sampled else _INDETERMINATE,
+            exit_code=worst if sampled else _worst(worst, _INDETERMINATE),
         )
+
+    def _proved_failure(self, result: ScanResult) -> bool:
+        """Whether what a stopped cycle did produce fails the policy on its own.
+
+        The stop leaves coverage unproven, never a finding: a failure stays proven
+        whatever cut the cycle short.
+        """
+        return gate_outcome(replace(result, stopped_by=None), self.policy) is GateOutcome.FAIL
 
 
 def _worst(first: int, second: int) -> int:

@@ -27,6 +27,16 @@ def _is_ignored(dirname: str) -> bool:
     return any(fnmatch(dirname, pattern) for pattern in IGNORED_DIRECTORIES)
 
 
+# `Path.exists` and `Path.is_symlink` raise inside a directory that can be listed but
+# not entered; the `os.path` forms answer False there, and the read reports the file.
+def _is_link(path: Path) -> bool:
+    return os.path.islink(path)  # noqa: PTH114
+
+
+def _is_dangling(path: Path) -> bool:
+    return not os.path.exists(path) and _is_link(path)  # noqa: PTH110
+
+
 def _read_ignore_file(root: Path) -> tuple[str, ...]:
     """Read glob patterns from a `.guardanaignore` at the scan root (blank/`#` skipped)."""
     try:
@@ -134,7 +144,7 @@ class ArtifactTarget(Target):
         return source
 
     def unread_sources(self) -> tuple[UnreadSource, ...]:
-        """Every Python file and directory the scan was prevented from reading, in path order.
+        """Every file, directory and symlink the scan was prevented from reading, in path order.
 
         The runner turns these into `errors`, because a file nobody could look at
         is a check that did not run — not a clean one. Padding a malicious loader
@@ -191,15 +201,34 @@ class ArtifactTarget(Target):
             return
         matches: list[Path] = []
         for dirpath, dirnames, filenames in os.walk(self._root, onerror=self._unlisted):
-            dirnames[:] = [
+            kept = [
                 d
                 for d in sorted(dirnames)
                 if not _is_ignored(d) and not self._excluded(Path(dirpath) / d)
             ]
+            # `os.walk` does not descend a symlinked directory, so everything behind
+            # one would leave the scan without a trace.
+            linked = {d for d in kept if _is_link(Path(dirpath) / d)}
+            for name in sorted(linked):
+                path = Path(dirpath) / name
+                self._unread[path] = UnreadSource(
+                    path,
+                    f"{path}: a symlinked directory is not walked; scan its target "
+                    f"directly or exclude it",
+                )
+            dirnames[:] = [d for d in kept if d not in linked]
             for filename in filenames:
                 path = Path(dirpath) / filename
-                if not self._excluded(path):
-                    matches.append(path)
+                if self._excluded(path):
+                    continue
+                if _is_dangling(path):
+                    self._unread[path] = UnreadSource(
+                        path,
+                        f"{path}: a symlink whose target does not exist is not read; fix "
+                        f"the link or exclude it",
+                    )
+                    continue
+                matches.append(path)
         yield from sorted(matches)
 
     def _unlisted(self, error: OSError) -> None:

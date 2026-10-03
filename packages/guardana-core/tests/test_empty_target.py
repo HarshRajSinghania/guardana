@@ -122,11 +122,23 @@ def test_a_directory_holding_only_ignore_files_is_empty(tmp_path: Path) -> None:
     assert _shortfall(ArtifactTarget(tmp_path))
 
 
-def test_any_other_file_counts_as_read(tmp_path: Path) -> None:
+def test_any_other_file_counts_as_listed(tmp_path: Path) -> None:
     (tmp_path / ".guardanaignore").write_text("# nothing\n")
     (tmp_path / ".DS_Store").write_bytes(b"\0")
 
     assert not _shortfall(ArtifactTarget(tmp_path))
+
+
+def test_a_directory_holding_only_a_dangling_symlink_is_empty_and_says_so(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "notes.txt").symlink_to(tmp_path / "gone.txt")
+
+    result = Runner(_registry(), default_profile()).run(ArtifactTarget(tmp_path))
+
+    assert [g.kind for g in result.coverage_shortfall] == [ShortfallKind.EMPTY_TARGET]
+    assert [(e.source, e.stage) for e in result.errors] == [("guardana.core.source", "read")]
+    assert "notes.txt" in result.errors[0].reason
 
 
 def test_a_single_file_path_is_not_empty(tmp_path: Path) -> None:
