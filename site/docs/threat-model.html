@@ -372,12 +372,25 @@ normal case for this tool, and an allowlist would make the tool refuse its own
 primary use while stopping nobody who can already edit the command line. The
 boundary that matters is who chose the address, and Guardana enforces it there.</li>
 </ul>
-<p><strong>Residual risk:</strong> DNS rebinding across the check. A discovery host is resolved
-when it is validated and connected to by name afterwards, so a domain that answers
-differently between the two calls is not caught. Pinning the resolved address needs
-a custom opener on every request path; it is recorded here rather than implied to
-be solved. Guardana also still fetches whatever the <em>operator</em> points it at, per
-the position above.</p>
+<p><strong>DNS rebinding.</strong> A discovery request connects only to an address it checked. Its
+connection resolves the host once, holds every address in the answer to the rules
+above (one refused address refuses the host), and dials one of the accepted
+addresses; the host name still travels as the <code>Host</code> header and as TLS SNI, and the
+certificate is verified against the name. A redirect hop opens a new connection
+that is resolved, checked and pinned the same way. A name that answers differently
+between the guard's lookup and the connection's is caught at the connection, and
+<code>guardana.mcp.discovery_target</code> reports it as a refused address. Whether the
+server under test is local is decided once per discovery, so its own name cannot
+loosen the rules between one fetch and the next. A discovery host that does not
+resolve is a document that could not be read, never a refused address.</p>
+<p>Discovery uses no HTTP proxy: <code>HTTP_PROXY</code>, <code>HTTPS_PROXY</code> and their lowercase
+forms are ignored for these requests, because a proxy resolves the name again
+where the guard cannot see it. On a network that reaches the internet only
+through a proxy, discovery documents read as unreadable rather than as fetched.</p>
+<p><strong>Residual risk:</strong> the protection covers discovery only. Requests to the server
+under test itself (<code>--mcp</code>) connect by name and honour the proxy settings, because
+the operator chose that address; Guardana fetches whatever the <em>operator</em> points it
+at, per the position above.</p>
 <h3 id="t3--a-malicious-plugin-or-rule-pack">T3 — A malicious plugin or rule pack</h3>
 <p><strong>Scenario:</strong> <code>pip install</code> of a package that registers a <code>guardana.rules</code> entry
 point and runs arbitrary code on discovery.</p>

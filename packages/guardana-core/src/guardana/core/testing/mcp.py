@@ -18,7 +18,7 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 from urllib.parse import urlsplit
 
-from guardana.core.target._mcp_http import RawReply
+from guardana.core.target._mcp_http import DiscoveryScope, RawReply
 from guardana.core.target._mcp_wire import (
     LEGACY_VERSION,
     UNSUPPORTED_PROTOCOL_VERSION,
@@ -95,7 +95,7 @@ class ScriptedMcpServer:
         """
         self._handed_out = 0
 
-    def __call__(
+    def __call__(  # noqa: PLR0913 — the keywords the `Sender` protocol publishes
         self,
         url: str,
         *,
@@ -103,13 +103,15 @@ class ScriptedMcpServer:
         body: bytes | None = None,
         headers: Mapping[str, str] | None = None,
         alongside: str | None = None,
+        discovery: DiscoveryScope | None = None,
     ) -> RawReply:
         """Answer one request the way the configured server would.
 
-        `alongside` is accepted and ignored: it exists so the real sender can guard
-        each redirect hop, and this double never redirects. Taking it keeps the
-        signature the one the `Sender` protocol publishes, so a double cannot drift
-        out of the contract it stands in for.
+        `alongside` and `discovery` are accepted and ignored: they exist so the real
+        sender can guard each redirect hop and pin each discovery connection, and
+        this double neither redirects nor connects. Taking them keeps the signature
+        the one the `Sender` protocol publishes, so a double cannot drift out of the
+        contract it stands in for.
         """
         sent = dict(headers or {})
         self.requests.append((method, url, sent))

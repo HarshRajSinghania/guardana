@@ -9,7 +9,12 @@ from guardana.core.target._mcp_authorization import (
     forged_token,
     scopes_in,
 )
-from guardana.core.target._mcp_http import Sender, is_local_address, same_origin
+from guardana.core.target._mcp_http import (
+    DiscoveryScope,
+    Sender,
+    is_local_address,
+    same_origin,
+)
 from guardana.core.target._url import display_url, private_url_parts
 from guardana.core.target.adapter import AdapterConfig, HttpAdapterTransport
 from guardana.core.target.artifact import ArtifactTarget
@@ -59,6 +64,7 @@ __all__ = [
     "ChatMessage",
     "ChatTransport",
     "Discovery",
+    "DiscoveryScope",
     "Document",
     "EndpointError",
     "EndpointTarget",

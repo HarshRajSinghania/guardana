@@ -11,7 +11,7 @@ from collections.abc import Mapping
 import pytest
 from guardana.core.target import McpServerTarget
 from guardana.core.target._mcp_client import carries_tools
-from guardana.core.target._mcp_http import RawReply
+from guardana.core.target._mcp_http import DiscoveryScope, RawReply
 from guardana.core.testing import ScriptedMcpServer
 
 ROUTABLE = "https://93.184.215.14/mcp"
@@ -62,7 +62,7 @@ class _FailingWithoutCredential:
             protocol_versions=["2026-07-28"] if modern else None,
         )
 
-    def __call__(
+    def __call__(  # noqa: PLR0913 — the keywords the `Sender` protocol publishes
         self,
         url: str,
         *,
@@ -70,12 +70,20 @@ class _FailingWithoutCredential:
         body: bytes | None = None,
         headers: Mapping[str, str] | None = None,
         alongside: str | None = None,
+        discovery: DiscoveryScope | None = None,
     ) -> RawReply:
         request = json.loads((body or b"{}").decode("utf-8"))
         settling = request.get("method") == "server/discover"
         if method == "POST" and not settling and "Authorization" not in (headers or {}):
             return _reply(self.status)
-        return self.inner(url, method=method, body=body, headers=headers, alongside=alongside)
+        return self.inner(
+            url,
+            method=method,
+            body=body,
+            headers=headers,
+            alongside=alongside,
+            discovery=discovery,
+        )
 
 
 @pytest.mark.parametrize("modern", [False, True], ids=["legacy", "modern"])

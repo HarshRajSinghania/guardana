@@ -13,7 +13,7 @@ from typing import cast
 from guardana.core.report import Finding
 from guardana.core.rule import RuleContext
 from guardana.core.target import Anonymous, Document, McpAuthorizationView, McpServerTarget
-from guardana.core.target._mcp_http import RawReply, RedirectRefusedError
+from guardana.core.target._mcp_http import DiscoveryScope, RawReply, RedirectRefusedError
 from guardana.rules.mcp import (
     McpAuthorizationDiscoveryRule,
     McpDiscoveryTargetRule,
@@ -44,19 +44,27 @@ def test_a_refused_advertised_address_is_shown_without_its_query() -> None:
 def test_a_refused_redirect_is_shown_without_its_query() -> None:
     inner = guarded()
 
-    def redirecting(
+    def redirecting(  # noqa: PLR0913 — the keywords the `Sender` protocol publishes
         url: str,
         *,
         method: str = "POST",
         body: bytes | None = None,
         headers: Mapping[str, str] | None = None,
         alongside: str | None = None,
+        discovery: DiscoveryScope | None = None,
     ) -> RawReply:
         if method == "GET":
             raise RedirectRefusedError(
                 f"http://169.254.169.254/latest?key={_PLANTED}", "it is link-local"
             )
-        return inner(url, method=method, body=body, headers=headers, alongside=alongside)
+        return inner(
+            url,
+            method=method,
+            body=body,
+            headers=headers,
+            alongside=alongside,
+            discovery=discovery,
+        )
 
     target = McpServerTarget(ROUTABLE, credential=CREDENTIAL, sender=redirecting)
     reported = list(McpDiscoveryTargetRule().run(target, RuleContext()))

@@ -8,7 +8,7 @@ from guardana.core.report import Finding
 from guardana.core.rule import RuleContext
 from guardana.core.severity import Severity
 from guardana.core.target import McpServerTarget, forged_token
-from guardana.core.target._mcp_http import RawReply
+from guardana.core.target._mcp_http import DiscoveryScope, RawReply
 from guardana.rules.mcp import McpTokenAudienceRule
 from mcp_fixtures import CREDENTIAL, findings, guarded, outcomes, summaries, wide_open
 
@@ -54,7 +54,7 @@ class _AnsweringTheForgedToken:
         self.inner = guarded()
         self.url = self.inner.url
 
-    def __call__(
+    def __call__(  # noqa: PLR0913 — the keywords the `Sender` protocol publishes
         self,
         url: str,
         *,
@@ -62,10 +62,18 @@ class _AnsweringTheForgedToken:
         body: bytes | None = None,
         headers: Mapping[str, str] | None = None,
         alongside: str | None = None,
+        discovery: DiscoveryScope | None = None,
     ) -> RawReply:
         if (headers or {}).get("Authorization") == f"Bearer {forged_token()}":
             return RawReply(status=self.status, headers={}, body=b"")
-        return self.inner(url, method=method, body=body, headers=headers, alongside=alongside)
+        return self.inner(
+            url,
+            method=method,
+            body=body,
+            headers=headers,
+            alongside=alongside,
+            discovery=discovery,
+        )
 
 
 def _against(server: _AnsweringTheForgedToken) -> list[Finding]:

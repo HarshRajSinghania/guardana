@@ -116,12 +116,27 @@ operator *types*, and they are answered differently.
   primary use while stopping nobody who can already edit the command line. The
   boundary that matters is who chose the address, and Guardana enforces it there.
 
-**Residual risk:** DNS rebinding across the check. A discovery host is resolved
-when it is validated and connected to by name afterwards, so a domain that answers
-differently between the two calls is not caught. Pinning the resolved address needs
-a custom opener on every request path; it is recorded here rather than implied to
-be solved. Guardana also still fetches whatever the *operator* points it at, per
-the position above.
+**DNS rebinding.** A discovery request connects only to an address it checked. Its
+connection resolves the host once, holds every address in the answer to the rules
+above (one refused address refuses the host), and dials one of the accepted
+addresses; the host name still travels as the `Host` header and as TLS SNI, and the
+certificate is verified against the name. A redirect hop opens a new connection
+that is resolved, checked and pinned the same way. A name that answers differently
+between the guard's lookup and the connection's is caught at the connection, and
+`guardana.mcp.discovery_target` reports it as a refused address. Whether the
+server under test is local is decided once per discovery, so its own name cannot
+loosen the rules between one fetch and the next. A discovery host that does not
+resolve is a document that could not be read, never a refused address.
+
+Discovery uses no HTTP proxy: `HTTP_PROXY`, `HTTPS_PROXY` and their lowercase
+forms are ignored for these requests, because a proxy resolves the name again
+where the guard cannot see it. On a network that reaches the internet only
+through a proxy, discovery documents read as unreadable rather than as fetched.
+
+**Residual risk:** the protection covers discovery only. Requests to the server
+under test itself (`--mcp`) connect by name and honour the proxy settings, because
+the operator chose that address; Guardana fetches whatever the *operator* points it
+at, per the position above.
 
 ### T3 — A malicious plugin or rule pack
 

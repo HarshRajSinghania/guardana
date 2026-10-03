@@ -21,10 +21,13 @@ from urllib.parse import SplitResult, urlsplit, urlunsplit
 
 from guardana.core.target._mcp_client import REFUSAL_STATUSES, Negotiation, carries_tools
 from guardana.core.target._mcp_http import (
+    AddressRefusedError,
+    DiscoveryScope,
     McpError,
     RawReply,
     RedirectRefusedError,
     Sender,
+    is_local_address,
     refusal_for,
 )
 from guardana.core.target._mcp_wire import Era, Wire
@@ -312,16 +315,21 @@ class _Probe:
         return Anonymous(status=listing.status, listed_tools=listed, challenge=challenge)
 
     def discovery(self, anonymous: Anonymous) -> "Discovery":
-        """Follow the authorization discovery chain, refusing addresses a client must not."""
+        """Follow the authorization discovery chain, refusing addresses a client must not.
+
+        Whether the server under test is local is decided once, here, so a name
+        that answers differently between fetches cannot loosen the guard halfway.
+        """
         if anonymous.open_to_anyone:
             return Discovery()
+        scope = DiscoveryScope(local_target=is_local_address(self._url))
         resource, refused = self._first_readable(
-            _resource_metadata_urls(self._url, anonymous.challenge)
+            _resource_metadata_urls(self._url, anonymous.challenge), scope
         )
         issuer = _first_issuer(resource)
         if issuer is None:
             return Discovery(resource=resource, refused=tuple(refused))
-        authorization, more = self._first_readable(_authorization_server_urls(issuer))
+        authorization, more = self._first_readable(_authorization_server_urls(issuer), scope)
         return Discovery(
             resource=resource, authorization=authorization, refused=tuple(refused + more)
         )
@@ -495,8 +503,9 @@ class _Probe:
             )
         )
 
-    def _fetch(self, url: str) -> Document:
-        refusal = refusal_for(url, alongside=self._url)
+    def _fetch(self, url: str, scope: DiscoveryScope) -> Document:
+        """Fetch one discovery document over a connection pinned to an address the guard passed."""
+        refusal = refusal_for(url, local_target=scope.local_target)
         if refusal is not None:
             return Document(url=url, refused=refusal)
         try:
@@ -506,14 +515,13 @@ class _Probe:
                     method="GET",
                     headers={"Accept": "application/json"},
                     alongside=self._url,
+                    discovery=scope,
                 )
             )
-        except RedirectRefusedError as exc:
+        except (RedirectRefusedError, AddressRefusedError) as exc:
             # A refusal is a finding, not a gap in the evidence: the address was
             # reached for and turned down, which is what `discovery_target` reports.
-            return Document(
-                url=url, refused=f"it redirected to {display_url(exc.url)}, and {exc.reason}"
-            )
+            return Document(url=url, refused=_refused_because(exc))
         except McpError as exc:
             return Document(url=url, error=str(exc))
         if reply.status >= _HTTP_ERROR:
@@ -523,7 +531,9 @@ class _Probe:
             return Document(url=url, status=reply.status, error="the reply is not a JSON object")
         return Document(url=url, status=reply.status, content=content)
 
-    def _first_readable(self, urls: tuple[str, ...]) -> tuple[Document | None, list[Document]]:
+    def _first_readable(
+        self, urls: tuple[str, ...], scope: DiscoveryScope
+    ) -> tuple[Document | None, list[Document]]:
         """Try each candidate in specification order; return the answer and every refusal.
 
         Refusals are returned separately rather than as the result, because a server
@@ -536,7 +546,7 @@ class _Probe:
         attempts: list[Document] = []
         refused: list[Document] = []
         for url in urls:
-            document = self._fetch(url)
+            document = self._fetch(url, scope)
             if document.refused is not None:
                 refused.append(document)
                 continue
@@ -555,6 +565,13 @@ class _Probe:
     def _session_id_of(self, reply: RawReply) -> str | None:
         """Read the session id a reply issued, or None when it issued none."""
         return reply.header("Mcp-Session-Id")
+
+
+def _refused_because(exc: RedirectRefusedError | AddressRefusedError) -> str:
+    """Say why a discovery fetch was turned down after it had set out."""
+    if isinstance(exc, RedirectRefusedError):
+        return f"it redirected to {display_url(exc.url)}, and {exc.reason}"
+    return f"when it was connected to, {exc.reason}"
 
 
 def _refused_handshake(status: int, challenge: str | None) -> Anonymous:

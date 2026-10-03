@@ -11,7 +11,7 @@ from collections.abc import Mapping
 from guardana.core.report import Finding
 from guardana.core.rule import Rule, RuleContext
 from guardana.core.target import McpError, McpServerTarget
-from guardana.core.target._mcp_http import RawReply
+from guardana.core.target._mcp_http import DiscoveryScope, RawReply
 from guardana.core.testing import ScriptedMcpServer
 
 ROUTABLE = "https://93.184.215.14/mcp"
@@ -79,13 +79,14 @@ def outcomes(reported: list[Finding]) -> list[str | None]:
     return [finding.verdict.outcome if finding.verdict else None for finding in reported]
 
 
-def unreachable(
+def unreachable(  # noqa: PLR0913 — the keywords the `Sender` protocol publishes
     url: str,
     *,
     method: str = "POST",
     body: bytes | None = None,
     headers: Mapping[str, str] | None = None,
     alongside: str | None = None,
+    discovery: DiscoveryScope | None = None,
 ) -> RawReply:
     """A sender for the server that is not there."""
     raise McpError(f"could not reach {url}: connection refused")

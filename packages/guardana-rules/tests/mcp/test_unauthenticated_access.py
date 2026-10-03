@@ -5,7 +5,7 @@ from collections.abc import Mapping
 from guardana.core.rule import RuleContext
 from guardana.core.severity import Severity
 from guardana.core.target import McpServerTarget
-from guardana.core.target._mcp_http import RawReply
+from guardana.core.target._mcp_http import DiscoveryScope, RawReply
 from guardana.rules.mcp import McpUnauthenticatedAccessRule
 from mcp_fixtures import (
     LOOPBACK,
@@ -55,13 +55,14 @@ def test_a_server_that_could_not_be_reached_is_inconclusive_not_silence() -> Non
 def test_a_server_error_to_an_anonymous_caller_is_inconclusive_not_silence() -> None:
     # A `500` is the server failing before it decided who may ask, so whether it
     # requires a credential was never seen.
-    def failing(
+    def failing(  # noqa: PLR0913 — the keywords the `Sender` protocol publishes
         url: str,
         *,
         method: str = "POST",
         body: bytes | None = None,
         headers: Mapping[str, str] | None = None,
         alongside: str | None = None,
+        discovery: DiscoveryScope | None = None,
     ) -> RawReply:
         return RawReply(status=500, headers={}, body=b"")
 
