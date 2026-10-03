@@ -42,8 +42,10 @@ provides:
     - guardana.mcp.cache_scope
     - guardana.mcp.discovery_target
     - guardana.mcp.issuer_identification
+    - guardana.mcp.registry_entry
     - guardana.mcp.scope_breadth
     - guardana.mcp.session_binding
+    - guardana.mcp.task_identity
     - guardana.mcp.token_audience
     - guardana.mcp.unauthenticated_access
     - guardana.output.secrets

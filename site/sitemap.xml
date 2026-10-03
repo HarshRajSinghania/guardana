@@ -140,6 +140,7 @@
   <url><loc>https://guardana.dev/docs/rules/by/reference-MCP04-2025</loc></url>
   <url><loc>https://guardana.dev/docs/rules/by/reference-MCP06-2025</loc></url>
   <url><loc>https://guardana.dev/docs/rules/by/reference-MCP07-2025</loc></url>
+  <url><loc>https://guardana.dev/docs/rules/by/reference-MCP09-2025</loc></url>
   <url><loc>https://guardana.dev/docs/rules/by/reference-MCP10-2025</loc></url>
   <url><loc>https://guardana.dev/docs/rules/by/reference-ML02-2023</loc></url>
   <url><loc>https://guardana.dev/docs/rules/by/reference-ML06-2023</loc></url>
@@ -164,8 +165,10 @@
   <url><loc>https://guardana.dev/docs/rules/guardana.mcp.cache_scope</loc></url>
   <url><loc>https://guardana.dev/docs/rules/guardana.mcp.discovery_target</loc></url>
   <url><loc>https://guardana.dev/docs/rules/guardana.mcp.issuer_identification</loc></url>
+  <url><loc>https://guardana.dev/docs/rules/guardana.mcp.registry_entry</loc></url>
   <url><loc>https://guardana.dev/docs/rules/guardana.mcp.scope_breadth</loc></url>
   <url><loc>https://guardana.dev/docs/rules/guardana.mcp.session_binding</loc></url>
+  <url><loc>https://guardana.dev/docs/rules/guardana.mcp.task_identity</loc></url>
   <url><loc>https://guardana.dev/docs/rules/guardana.mcp.token_audience</loc></url>
   <url><loc>https://guardana.dev/docs/rules/guardana.mcp.unauthenticated_access</loc></url>
   <url><loc>https://guardana.dev/docs/rules/guardana.output.secrets</loc></url>

@@ -719,6 +719,48 @@
       ]
     },
     {
+      "id": "guardana.mcp.registry_entry",
+      "namespace": "guardana",
+      "family": "mcp",
+      "title": "MCP server is not the one its registry entry publishes",
+      "severity": "MEDIUM",
+      "surface": "runtime",
+      "target_kind": "endpoint",
+      "evaluator": null,
+      "impact": "active",
+      "destructive": false,
+      "maturity": "stable",
+      "detection": "invariant",
+      "requires": [
+        "registry_entry"
+      ],
+      "estimated_requests": 2,
+      "goal": null,
+      "taxonomy": [
+        {
+          "reference": "MCP09:2025",
+          "framework": "OWASP-MCP-2025",
+          "id": "MCP09",
+          "title": "Shadow MCP Servers",
+          "rank": 9
+        },
+        {
+          "reference": "MCP04:2025",
+          "framework": "OWASP-MCP-2025",
+          "id": "MCP04",
+          "title": "Software Supply Chain Attacks & Dependency Tampering",
+          "rank": 4
+        },
+        {
+          "reference": "ASI04:2026",
+          "framework": "OWASP-ASI-2026",
+          "id": "ASI04",
+          "title": "Agentic Supply Chain Vulnerabilities",
+          "rank": 4
+        }
+      ]
+    },
+    {
       "id": "guardana.mcp.scope_breadth",
       "namespace": "guardana",
       "family": "mcp",
@@ -785,6 +827,48 @@
           "id": "MCP07",
           "title": "Insufficient Authentication & Authorization",
           "rank": 7
+        },
+        {
+          "reference": "ASI03:2026",
+          "framework": "OWASP-ASI-2026",
+          "id": "ASI03",
+          "title": "Identity and Privilege Abuse",
+          "rank": 3
+        }
+      ]
+    },
+    {
+      "id": "guardana.mcp.task_identity",
+      "namespace": "guardana",
+      "family": "mcp",
+      "title": "MCP server shows tasks to a caller who presented no credential",
+      "severity": "HIGH",
+      "surface": "runtime",
+      "target_kind": "endpoint",
+      "evaluator": null,
+      "impact": "active",
+      "destructive": false,
+      "maturity": "stable",
+      "detection": "invariant",
+      "requires": [
+        "inspect_authorization"
+      ],
+      "estimated_requests": 6,
+      "goal": null,
+      "taxonomy": [
+        {
+          "reference": "MCP07:2025",
+          "framework": "OWASP-MCP-2025",
+          "id": "MCP07",
+          "title": "Insufficient Authentication & Authorization",
+          "rank": 7
+        },
+        {
+          "reference": "MCP10:2025",
+          "framework": "OWASP-MCP-2025",
+          "id": "MCP10",
+          "title": "Context Injection & Over-Sharing",
+          "rank": 10
         },
         {
           "reference": "ASI03:2026",

@@ -62,6 +62,14 @@ class ScriptedMcpServer:
     `discovers` is what `server/discover` lists when it differs from what the server
     answers: a server listing only modern revisions while still answering `initialize`
     is dual-era, and only the legacy handshake tells.
+
+    `tasks` are the task ids `tasks/list` answers with; left unset, the method is unknown.
+    `tasks_owner_bound` shows them only to a caller presenting `credential`, and
+    `tasks_unguarded` answers the listing without asking who is calling.
+    `task_declaration` is what the server declares: `"listing"` (`tasks.list` in its
+    handshake capabilities), `"unlisted"` (`tasks` without `list`) or `"extension"` (the
+    modern tasks extension in `server/discover`). `server_info` is the identity reported
+    in both eras.
     """
 
     def __init__(  # noqa: PLR0913 — one keyword per behaviour a real server varies in
@@ -80,6 +88,11 @@ class ScriptedMcpServer:
         cache_scope: str | None = None,
         ttl_ms: int | None = None,
         discovers: Sequence[str] | None = None,
+        tasks: Sequence[str] | None = None,
+        tasks_owner_bound: bool = False,
+        tasks_unguarded: bool = False,
+        task_declaration: str | None = None,
+        server_info: Mapping[str, Any] | None = None,
     ) -> None:
         self.url = url
         self.tools = list(tools)
@@ -94,6 +107,11 @@ class ScriptedMcpServer:
         self.cache_scope = cache_scope
         self.ttl_ms = ttl_ms
         self.discovers = list(discovers) if discovers is not None else None
+        self.tasks = list(tasks) if tasks is not None else None
+        self.tasks_owner_bound = tasks_owner_bound
+        self.tasks_unguarded = tasks_unguarded
+        self.task_declaration = task_declaration
+        self.server_info = dict(server_info or {"name": "scripted", "version": "0"})
         self.requests: list[tuple[str, str, dict[str, str]]] = []
         self.bodies: list[Mapping[str, Any]] = []
         """Every JSON-RPC request this server was sent, parsed.
@@ -134,12 +152,14 @@ class ScriptedMcpServer:
         rejected = self._version_refusal(sent)
         if rejected is not None:
             return rejected
-        if not self._authorized(sent):
+        method_name = str(request.get("method"))
+        unguarded = self.tasks_unguarded and method_name == "tasks/list"
+        if not unguarded and not self._authorized(sent):
             return _reply(401, {}, headers=self._challenge_headers())
         if "id" not in request:
             # A notification: accepted, and nothing answers it.
             return RawReply(status=202, headers={}, body=b"")
-        return self._json_rpc(str(request.get("method")), _era_of_request(request))
+        return self._json_rpc(method_name, _era_of_request(request), sent)
 
     @property
     def offers_legacy(self) -> bool:
@@ -172,7 +192,11 @@ class ScriptedMcpServer:
             return True
         return self.session_authenticates and "Mcp-Session-Id" in headers
 
-    def _json_rpc(self, method: str, era: Era) -> RawReply:
+    def _json_rpc(  # noqa: PLR0911 — one answer per method the double serves
+        self, method: str, era: Era, headers: Mapping[str, str]
+    ) -> RawReply:
+        if method == "tasks/list":
+            return self._task_listing(headers, era)
         if method == "server/discover":
             if self.protocol_versions is None:
                 return _error(200, _METHOD_NOT_FOUND, "Method not found", None)
@@ -182,19 +206,41 @@ class ScriptedMcpServer:
                 return _error(200, _METHOD_NOT_FOUND, "Method not found", None)
             return _reply(
                 200,
-                {"protocolVersion": self._legacy_version(), "capabilities": {}},
+                {
+                    "protocolVersion": self._legacy_version(),
+                    "capabilities": self._legacy_capabilities(),
+                    "serverInfo": self.server_info,
+                },
                 headers=self._session_headers(),
             )
         if method == "tools/list":
             return _reply(200, {"tools": self.tools, **self._caching()}, era=era)
         return _reply(200, {}, era=era)
 
+    def _task_listing(self, headers: Mapping[str, str], era: Era) -> RawReply:
+        if self.tasks is None:
+            return _error(200, _METHOD_NOT_FOUND, "Method not found", None)
+        owner = headers.get("Authorization") == f"Bearer {self.credential}"
+        shown = [] if self.tasks_owner_bound and not owner else self.tasks
+        listed = [{"taskId": task_id, "status": "completed"} for task_id in shown]
+        return _reply(200, {"tasks": listed}, era=era)
+
+    def _legacy_capabilities(self) -> dict[str, Any]:
+        if self.task_declaration == "listing":
+            return {"tasks": {"list": {}}}
+        if self.task_declaration == "unlisted":
+            return {"tasks": {}}
+        return {}
+
     def _discovery(self) -> dict[str, Any]:
         listed = self.discovers if self.discovers is not None else self.protocol_versions
+        capabilities: dict[str, Any] = {"tools": {}}
+        if self.task_declaration == "extension":
+            capabilities["extensions"] = {"io.modelcontextprotocol/tasks": {}}
         return {
             "supportedVersions": list(listed or ()),
-            "capabilities": {"tools": {}},
-            "_meta": {"io.modelcontextprotocol/serverInfo": {"name": "scripted", "version": "0"}},
+            "capabilities": capabilities,
+            "_meta": {"io.modelcontextprotocol/serverInfo": self.server_info},
             **self._caching(),
         }
 

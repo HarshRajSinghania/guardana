@@ -27,8 +27,10 @@ frameworks it maps to. A rule without a mapping does not ship.
 | `guardana.mcp.cache_scope` | MEDIUM | runtime | `MCP10:2025`, `MCP07:2025`, `ASI03:2026` |
 | `guardana.mcp.discovery_target` | HIGH | runtime | `MCP01:2025`, `LLM02:2026`, `ASI03:2026` |
 | `guardana.mcp.issuer_identification` | MEDIUM | runtime | `MCP01:2025`, `MCP07:2025`, `ASI03:2026` |
+| `guardana.mcp.registry_entry` | MEDIUM | runtime | `MCP09:2025`, `MCP04:2025`, `ASI04:2026` |
 | `guardana.mcp.scope_breadth` | MEDIUM | runtime | `MCP02:2025`, `LLM03:2026`, `ASI03:2026` |
 | `guardana.mcp.session_binding` | HIGH | runtime | `MCP07:2025`, `ASI03:2026` |
+| `guardana.mcp.task_identity` | HIGH | runtime | `MCP07:2025`, `MCP10:2025`, `ASI03:2026` |
 | `guardana.mcp.token_audience` | CRITICAL | runtime | `MCP01:2025`, `MCP07:2025`, `ASI03:2026` |
 | `guardana.mcp.unauthenticated_access` | HIGH | runtime | `MCP07:2025`, `ASI03:2026`, `AML.T0084.001` |
 | `guardana.output.secrets` | HIGH | runtime | `LLM02:2025`, `LLM02:2026` |

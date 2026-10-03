@@ -1,5 +1,4 @@
 from collections.abc import Iterator, Sequence
-from itertools import pairwise
 from os.path import commonprefix
 
 from guardana.core.report import Finding
@@ -9,11 +8,7 @@ from guardana.core.severity import Severity
 from guardana.core.target import Capability, McpAuthorizationView, TargetKind
 from guardana.core.taxonomy import OWASP_ASI03_2026, OWASP_MCP07_2025
 from guardana.rules.mcp._base import McpAuthorizationRule
-
-# A UUID is 36 characters and a 128-bit random token base64s to 22. Below this a
-# session id is short enough that guessing becomes a matter of patience rather than
-# of luck; it is a structural observation, not a claim about entropy.
-_SHORT_ID = 16
+from guardana.rules.mcp._ids import SHORT_ID, counts_up, shortest
 
 
 class McpSessionBindingRule(McpAuthorizationRule):
@@ -122,35 +117,17 @@ class McpSessionBindingRule(McpAuthorizationRule):
                 severity=Severity.CRITICAL,
             )
             return
-        shortest = min(len(value) for value in ids)
-        if shortest < _SHORT_ID:
+        length = shortest(ids)
+        if length < SHORT_ID:
             yield self.finding(
                 view,
-                f"session ids are as short as {shortest} characters, which is short enough "
+                f"session ids are as short as {length} characters, which is short enough "
                 f"to enumerate rather than to guess",
             )
-        if _counts_up(ids):
+        if counts_up(ids, ordered=True):
             yield self.finding(
                 view,
                 f"session ids differ only by an increasing number after the shared prefix "
                 f"{commonprefix(list(ids))!r}, so the next one is predictable",
                 severity=Severity.CRITICAL,
             )
-
-
-def _counts_up(ids: Sequence[str]) -> bool:
-    """Report whether the ids are one counter wearing a prefix.
-
-    Compares the varying tail rather than the whole string, so a server that names
-    sessions `sess-1`, `sess-2` is caught while one issuing unrelated random ids is
-    not. Requires at least two samples and a strictly increasing sequence: equal
-    values are the duplicate case, which is reported separately and more severely.
-    """
-    if len(ids) < 2:  # noqa: PLR2004 — one sample cannot show a sequence
-        return False
-    shared = len(commonprefix(list(ids)))
-    tails = [value[shared:] for value in ids]
-    if not all(tail.isdigit() for tail in tails):
-        return False
-    numbers = [int(tail) for tail in tails]
-    return all(later > earlier for earlier, later in pairwise(numbers))

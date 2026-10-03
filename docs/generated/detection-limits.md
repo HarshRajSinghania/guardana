@@ -80,6 +80,11 @@ A framework mapping says a rule is relevant to that entry, not that the entry is
 
 ## mcp
 
+### Tested invariant
+
+- `guardana.mcp.registry_entry`: MCP server is not the one its registry entry publishes
+- `guardana.mcp.task_identity`: MCP server shows tasks to a caller who presented no credential
+
 ### Invariant, not sampled
 
 - `guardana.mcp.authorization_discovery`: Protected MCP server publishes no usable authorization surface
@@ -98,11 +103,14 @@ A framework mapping says a rule is relevant to that entry, not that the entry is
 
 - `AML.T0084.001`: Discover AI Agent Configuration: Tool Definitions
 - `ASI03:2026`: Identity and Privilege Abuse
+- `ASI04:2026`: Agentic Supply Chain Vulnerabilities
 - `LLM02:2026`: Sensitive Information Disclosure
 - `LLM03:2026`: Excessive Agency
 - `MCP01:2025`: Token Mismanagement & Secret Exposure
 - `MCP02:2025`: Privilege Escalation via Scope Creep
+- `MCP04:2025`: Software Supply Chain Attacks & Dependency Tampering
 - `MCP07:2025`: Insufficient Authentication & Authorization
+- `MCP09:2025`: Shadow MCP Servers
 - `MCP10:2025`: Context Injection & Over-Sharing
 
 ## output

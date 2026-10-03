@@ -21,6 +21,7 @@ from guardana.core.target._mcp_client import (
     open_era,
 )
 from guardana.core.target._mcp_http import DiscoverySender, HttpSender, McpError, RawReply, Sender
+from guardana.core.target._mcp_registry import RegistryEntry, ReportedServer
 from guardana.core.target._mcp_wire import Era
 from guardana.core.target._url import display_url
 from guardana.core.target.base import Capability, Target, TargetKind
@@ -76,6 +77,9 @@ class McpServerTarget(Target):
     pinned client; a `sender` without a `discovery_sender` is refused, so a supplied
     transport can neither skip the pin nor send a test suite's discovery to the network.
 
+    `registry_entry` is the operator's copy of the server's registry `server.json`;
+    `REGISTRY_ENTRY` is declared only when one was given, over HTTP or stdio.
+
     Kind is `endpoint` — this is a live service, not files. It advertises
     `LIST_TOOLS` always, so every chat rule is skipped against it by capability
     rather than by a type check that could quietly return nothing, and
@@ -97,6 +101,7 @@ class McpServerTarget(Target):
         transport: McpTransport | None = None,
         sender: Sender | None = None,
         discovery_sender: DiscoverySender | None = None,
+        registry_entry: RegistryEntry | None = None,
     ) -> None:
         if sender is not None and discovery_sender is None:
             raise ValueError(_LONE_SENDER)
@@ -109,6 +114,7 @@ class McpServerTarget(Target):
             discovery_sender if discovery_sender is not None else built_in
         )
         self._sender_supplied = sender is not None
+        self._registry_entry = registry_entry
         self._lock = threading.RLock()
         self._learned: list[str] = []
         raw = self._connect(url, command, allow_exec, transport)
@@ -155,11 +161,41 @@ class McpServerTarget(Target):
         raise McpError("an MCP target needs a URL or a command")
 
     def capabilities(self) -> set[Capability]:
-        """Declare tool listing always, and authorization inspection only over real HTTP."""
+        """Declare tool listing always, authorization inspection only over real HTTP.
+
+        `REGISTRY_ENTRY` only when the operator supplied an entry to compare with.
+        """
         declared = {Capability.LIST_TOOLS}
         if self._url is not None:
             declared.add(Capability.INSPECT_AUTHORIZATION)
+        if self._registry_entry is not None:
+            declared.add(Capability.REGISTRY_ENTRY)
         return declared
+
+    def registry_entry(self) -> RegistryEntry:
+        """Return the registry entry the operator supplied; raise when there is none."""
+        if self._registry_entry is None:
+            raise McpError(
+                "no registry entry was supplied; this target does not declare "
+                "REGISTRY_ENTRY, so a rule needing it is skipped"
+            )
+        return self._registry_entry
+
+    def reported_server(self) -> ReportedServer | None:
+        """Return what the server reported about itself, from discovery or the opening.
+
+        None when it reported no version. Read from what the run already asked; over the
+        handshake era that is the conversation's opening.
+        """
+        info = self.negotiation().server_info
+        if info is None:
+            opening = self.opening()
+            info = opening.server_info if opening is not None else None
+        return ReportedServer.from_info(info)
+
+    def server_url(self) -> str | None:
+        """Return the URL the server is reached at, or None when it was started over stdio."""
+        return self._url
 
     @property
     def ref(self) -> str:
@@ -172,10 +208,11 @@ class McpServerTarget(Target):
         return self._credential is not None
 
     def sent_secrets(self) -> tuple[str, ...]:
-        """Return the bearer token and every session id this run learned, all withheld from records.
+        """Return the bearer token and every session and task id this run learned.
 
-        A session id is learned during the run, so the run asks again after it ends,
-        before it writes anything: an id a server echoed into an error stays out.
+        All are withheld from records. They are learned during the run, so the run asks
+        again after it ends, before it writes anything: an id a server echoed into an
+        error stays out.
         """
         with self._lock:
             learned = tuple(self._learned)

@@ -18,12 +18,13 @@ from contextlib import suppress
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import pytest
 from guardana.core.evaluator import Evaluator, Expectation, Verdict
 from guardana.core.exchange import Exchange
 from guardana.core.fixtures import DOCUMENTS_CHANNEL, parse_fixtures
 from guardana.core.plugins import PluginMode, PluginTrust
 from guardana.core.registry import Registry
-from guardana.core.rule import Rule, RuleContext, RuleError
+from guardana.core.rule import NotOffered, Rule, RuleContext, RuleError
 from guardana.core.rule.trajectory_rule import TrajectoryRule
 from guardana.core.target import Capability, EndpointTarget, SeededTarget, TargetKind
 from guardana.core.target.endpoint import ChatMessage, ToolCall, ToolCallReply, ToolSpec
@@ -31,7 +32,8 @@ from guardana.core.testing.seeded import SeededApplication, seeded_target
 from guardana.core.trajectory import MAX_STEPS_CEILING
 
 if TYPE_CHECKING:
-    from guardana.core.target import A2aAgentTarget
+    from guardana.core.target import A2aAgentTarget, McpServerTarget
+    from guardana.core.testing import ScriptedMcpServer
 from guardana.rules import provide_evaluators, provide_rules
 
 _CTX = RuleContext(evaluators={e.id: e for e in provide_evaluators()})
@@ -298,9 +300,14 @@ def _mcp_rules() -> list[Rule]:
     Split from the chat rules because the two sets never run together: an MCP
     target declares neither `chat` nor `plant_system_prompt`, and a chat endpoint
     declares neither `list_tools` nor `inspect_authorization`. Summing both into
-    one ceiling would price a run nobody can execute.
+    one ceiling would price a run nobody can execute. `registry_entry` belongs here:
+    an MCP target declares it whenever the operator supplies an entry.
     """
-    reachable = {Capability.LIST_TOOLS, Capability.INSPECT_AUTHORIZATION}
+    reachable = {
+        Capability.LIST_TOOLS,
+        Capability.INSPECT_AUTHORIZATION,
+        Capability.REGISTRY_ENTRY,
+    }
     return [r for r in _endpoint_rules() if not r.meta.required_capabilities - reachable]
 
 
@@ -345,30 +352,75 @@ def test_an_mcp_probe_has_a_knowable_ceiling_and_actually_spends_far_less() -> N
     # followed by a metered `notifications/initialized`, which every rule that may
     # open a session counts once more.
     ceiling = sum(r.estimated_requests or 0 for r in _mcp_rules())
-    assert ceiling <= 72, (
+    assert ceiling <= 79, (
         f"a full MCP probe can cost {ceiling} requests, which is too many to default to"
     )
 
-    from guardana.core.target import McpServerTarget  # noqa: PLC0415
-    from guardana.core.testing import ScriptedMcpServer  # noqa: PLC0415
-
-    url = "https://93.184.215.14/mcp"
-    server = ScriptedMcpServer(
-        url,
-        tools=[{"name": "read", "description": "reads"}],
-        credential="t",
-        challenge=f'Bearer resource_metadata="{url[:24]}/.well-known/oauth-protected-resource"',
-        resource_metadata={"resource": url[:24], "authorization_servers": [url[:24]]},
-        authorization_metadata={"code_challenge_methods_supported": ["S256"]},
-        session_ids=["a" * 32, "b" * 32, "c" * 32],
-    )
-    target = McpServerTarget(url, credential="t", sender=server, discovery_sender=server)
+    target = _mcp_target(_mcp_server())
     for rule in _mcp_rules():
-        list(rule.run(target, _CTX))
+        with suppress(NotOffered):
+            list(rule.run(target, _CTX))
 
     spent = target.usage().requests
     assert spent < ceiling, "the observation is not being shared between rules"
     assert spent <= 20, f"a whole MCP probe spent {spent} requests"
+
+
+_MCP_URL = "https://93.184.215.14/mcp"
+_MODERN = "2026-07-28"
+_LEGACY = "2025-11-25"
+
+
+def _mcp_server(**era: object) -> "ScriptedMcpServer":
+    """A server answering every request a rule may send, so each rule spends all it would."""
+    from guardana.core.testing import ScriptedMcpServer  # noqa: PLC0415
+
+    origin = _MCP_URL[:24]
+    settings: dict[str, object] = {
+        "tools": [{"name": "read", "description": "reads"}],
+        "credential": "t",
+        "challenge": f'Bearer resource_metadata="{origin}/.well-known/oauth-protected-resource"',
+        "resource_metadata": {"resource": origin, "authorization_servers": [origin]},
+        "authorization_metadata": {
+            "issuer": origin,
+            "code_challenge_methods_supported": ["S256"],
+        },
+        "session_ids": ["a" * 32, "b" * 32, "c" * 32],
+        "tasks": ["d" * 32],
+        "tasks_unguarded": True,
+        "task_declaration": "listing",
+        **era,
+    }
+    return ScriptedMcpServer(_MCP_URL, **settings)  # type: ignore[arg-type]
+
+
+def _mcp_target(server: "ScriptedMcpServer") -> "McpServerTarget":
+    from guardana.core.target import McpServerTarget, RegistryEntry  # noqa: PLC0415
+
+    entry = RegistryEntry("io.example/read", "0", (_MCP_URL,))
+    return McpServerTarget(
+        _MCP_URL, credential="t", sender=server, discovery_sender=server, registry_entry=entry
+    )
+
+
+@pytest.mark.parametrize(
+    "era",
+    [
+        {},
+        {"protocol_versions": [_MODERN]},
+        {"protocol_versions": [_MODERN, _LEGACY]},
+        {"protocol_versions": [_MODERN, _LEGACY], "discovers": [_MODERN]},
+    ],
+    ids=["legacy", "modern-only", "dual-era", "dual-era-listing-only-modern"],
+)
+def test_no_mcp_rule_spends_more_than_it_declared(era: dict[str, object]) -> None:
+    for rule in _mcp_rules():
+        target = _mcp_target(_mcp_server(**era))
+        with suppress(NotOffered):
+            list(rule.run(target, _CTX))
+        declared = rule.estimated_requests
+        assert declared is not None
+        assert target.usage().requests <= declared, rule.meta.id
 
 
 def _a2a_target() -> "A2aAgentTarget":
@@ -605,15 +657,16 @@ def test_no_seeded_rule_grades_with_an_evaluator_it_did_not_declare() -> None:
 
 
 def test_no_mcp_rule_grades_with_an_evaluator_it_did_not_declare() -> None:
-    from guardana.core.target import McpServerTarget  # noqa: PLC0415
+    from guardana.core.target import McpServerTarget, RegistryEntry  # noqa: PLC0415
     from guardana.core.testing import ScriptedMcpServer  # noqa: PLC0415
 
     url = "https://93.184.215.14/mcp"
     server = ScriptedMcpServer(url, tools=[{"name": "read", "description": "reads"}])
+    entry = RegistryEntry("io.example/read", "0", (url,))
     for rule in _mcp_rules():
         tally: Counter[str] = Counter()
-        target = McpServerTarget(url, sender=server, discovery_sender=server)
-        with suppress(RuleError):
+        target = McpServerTarget(url, sender=server, discovery_sender=server, registry_entry=entry)
+        with suppress(RuleError, NotOffered):
             list(rule.run(target, _counting_context(tally)))
         assert not _over(rule.graded_verdicts, tally), rule.meta.id
 

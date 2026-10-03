@@ -349,6 +349,11 @@
 <li><code>MCP10:2025</code>: Context Injection &amp; Over-Sharing</li>
 </ul>
 <h2 id="mcp">mcp</h2>
+<h3 id="tested-invariant-2">Tested invariant</h3>
+<ul>
+<li><code>guardana.mcp.registry_entry</code>: MCP server is not the one its registry entry publishes</li>
+<li><code>guardana.mcp.task_identity</code>: MCP server shows tasks to a caller who presented no credential</li>
+</ul>
 <h3 id="invariant-not-sampled-1">Invariant, not sampled</h3>
 <ul>
 <li><code>guardana.mcp.authorization_discovery</code>: Protected MCP server publishes no usable authorization surface</li>
@@ -367,11 +372,14 @@
 <ul>
 <li><code>AML.T0084.001</code>: Discover AI Agent Configuration: Tool Definitions</li>
 <li><code>ASI03:2026</code>: Identity and Privilege Abuse</li>
+<li><code>ASI04:2026</code>: Agentic Supply Chain Vulnerabilities</li>
 <li><code>LLM02:2026</code>: Sensitive Information Disclosure</li>
 <li><code>LLM03:2026</code>: Excessive Agency</li>
 <li><code>MCP01:2025</code>: Token Mismanagement &amp; Secret Exposure</li>
 <li><code>MCP02:2025</code>: Privilege Escalation via Scope Creep</li>
+<li><code>MCP04:2025</code>: Software Supply Chain Attacks &amp; Dependency Tampering</li>
 <li><code>MCP07:2025</code>: Insufficient Authentication &amp; Authorization</li>
+<li><code>MCP09:2025</code>: Shadow MCP Servers</li>
 <li><code>MCP10:2025</code>: Context Injection &amp; Over-Sharing</li>
 </ul>
 <h2 id="output">output</h2>
@@ -385,7 +393,7 @@
 <li><code>LLM02:2026</code>: Sensitive Information Disclosure</li>
 </ul>
 <h2 id="prompt">prompt</h2>
-<h3 id="tested-invariant-2">Tested invariant</h3>
+<h3 id="tested-invariant-3">Tested invariant</h3>
 <ul>
 <li><code>guardana.prompt.system_prompt_leak.canary</code>: System prompt leakage via canary marker</li>
 </ul>
@@ -420,7 +428,7 @@
 <li><code>MCP10:2025</code>: Context Injection &amp; Over-Sharing</li>
 </ul>
 <h2 id="retrieval">retrieval</h2>
-<h3 id="tested-invariant-3">Tested invariant</h3>
+<h3 id="tested-invariant-4">Tested invariant</h3>
 <ul>
 <li><code>guardana.retrieval.poisoned_document</code>: The application followed an instruction planted in a retrieved document</li>
 </ul>
@@ -435,7 +443,7 @@
 <li><code>LLM09:2026</code>: Vector and Embedding Weaknesses</li>
 </ul>
 <h2 id="scenario">scenario</h2>
-<h3 id="tested-invariant-4">Tested invariant</h3>
+<h3 id="tested-invariant-5">Tested invariant</h3>
 <ul>
 <li><code>guardana.scenario.indirect_injection</code>: Indirect prompt injection via a retrieved document</li>
 </ul>
@@ -490,7 +498,7 @@
 <li><code>supply-chain</code>: GenAI Supply Chain Attack</li>
 </ul>
 <h2 id="tenancy">tenancy</h2>
-<h3 id="tested-invariant-5">Tested invariant</h3>
+<h3 id="tested-invariant-6">Tested invariant</h3>
 <ul>
 <li><code>guardana.tenancy.cross_tenant_answer</code>: Another tenant's seeded data reached a reply</li>
 </ul>

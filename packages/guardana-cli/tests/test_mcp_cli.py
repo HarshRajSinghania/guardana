@@ -448,3 +448,131 @@ def test_an_stdio_server_that_cannot_be_started_exits_4_before_any_rule(
     assert stopped.value.exit_code == 4
     said = _normalised(capsys.readouterr().err)
     assert "error: could not start MCP server '/nonexistent/guardana-test-server'" in said
+
+
+def _plain(output: str) -> str:
+    return " ".join(re.sub(r"\x1b\[[0-9;]*m", "", output).replace("│", " ").split())
+
+
+@pytest.mark.parametrize("pin", [False, True], ids=["probe", "write-pin"])
+def test_an_stdio_command_without_allow_exec_is_a_usage_error_and_starts_nothing(
+    tmp_path: Path, pin: bool
+) -> None:
+    from guardana.cli.main import app  # noqa: PLC0415
+    from typer.testing import CliRunner  # noqa: PLC0415
+
+    marker = tmp_path / "started"
+    command = f"touch {marker}"
+    extra = ["--write-mcp-pin", str(tmp_path / "pin.json")] if pin else []
+
+    result = CliRunner().invoke(app, ["probe", "--mcp", command, *extra])
+
+    assert result.exit_code == 3, result.output
+    assert "--allow-exec" in _plain(result.output)
+    assert not marker.exists()
+
+
+def _registry_entry(tmp_path: Path, document: object) -> Path:
+    path = tmp_path / "server.json"
+    path.write_text(json.dumps(document), encoding="utf-8")
+    return path
+
+
+def test_a_registry_entry_reaches_the_target_and_the_run_grades_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from guardana.cli.main import app  # noqa: PLC0415
+    from typer.testing import CliRunner  # noqa: PLC0415
+
+    url = "https://93.184.215.14/mcp"
+    server = ScriptedMcpServer(url, tools=[], server_info={"name": "lookup", "version": "1.0"})
+    built: list[McpConnection] = []
+
+    def build(connection: McpConnection) -> McpServerTarget:
+        built.append(connection)
+        return McpServerTarget(
+            url,
+            sender=server,
+            discovery_sender=server,
+            registry_entry=connection.registry_entry,
+        )
+
+    monkeypatch.setattr("guardana.cli._mcp_run.build_mcp_target", build)
+    entry = _registry_entry(
+        tmp_path,
+        {
+            "name": "io.example/lookup",
+            "version": "2.0",
+            "remotes": [{"type": "streamable-http", "url": url}],
+        },
+    )
+    written = tmp_path / "run.json"
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "probe",
+            "--mcp",
+            url,
+            "--mcp-registry-entry",
+            str(entry),
+            "--format",
+            "json",
+            "--output",
+            str(written),
+        ],
+    )
+
+    assert built[0].registry_entry is not None
+    assert built[0].registry_entry.name == "io.example/lookup"
+    document = json.loads(written.read_text(encoding="utf-8"))
+    graded = [f for f in document["findings"] if f["rule_id"] == "guardana.mcp.registry_entry"]
+    assert [f["severity"] for f in graded] == ["LOW"], result.output
+
+
+@pytest.mark.parametrize("command", ["probe", "plan"])
+def test_an_unreadable_registry_entry_is_a_usage_error_before_anything_is_sent(
+    tmp_path: Path, command: str
+) -> None:
+    from guardana.cli.main import app  # noqa: PLC0415
+    from typer.testing import CliRunner  # noqa: PLC0415
+
+    entry = _registry_entry(tmp_path, {"name": "not-namespaced", "version": "1"})
+    args = ["probe"] if command == "probe" else ["plan", "probe"]
+
+    result = CliRunner().invoke(
+        app, [*args, "--mcp", "https://192.0.2.1/mcp", "--mcp-registry-entry", str(entry)]
+    )
+
+    assert result.exit_code == 3, result.output
+    assert "'name'" in _plain(result.output)
+
+
+def test_a_registry_entry_without_mcp_is_a_usage_error(tmp_path: Path) -> None:
+    from guardana.cli.main import app  # noqa: PLC0415
+    from typer.testing import CliRunner  # noqa: PLC0415
+
+    entry = _registry_entry(tmp_path, {"name": "io.example/lookup", "version": "1"})
+
+    result = CliRunner().invoke(
+        app,
+        ["probe", "--url", "http://192.0.2.1", "--model", "m", "--mcp-registry-entry", str(entry)],
+    )
+
+    assert result.exit_code == 3, result.output
+    assert "--mcp-registry-entry" in _plain(result.output)
+
+
+def test_plan_prices_the_registry_comparison_only_when_an_entry_is_given(tmp_path: Path) -> None:
+    from guardana.cli.main import app  # noqa: PLC0415
+    from typer.testing import CliRunner  # noqa: PLC0415
+
+    entry = _registry_entry(tmp_path, {"name": "io.example/lookup", "version": "1"})
+    base = ["plan", "probe", "--mcp", "https://192.0.2.1/mcp", "--format", "json"]
+
+    with_entry = CliRunner().invoke(app, [*base, "--mcp-registry-entry", str(entry)])
+    without = CliRunner().invoke(app, base)
+
+    assert with_entry.exit_code == 0, with_entry.output
+    assert "guardana.mcp.registry_entry" in json.loads(with_entry.stdout)["rules"]
+    assert "guardana.mcp.registry_entry" in json.loads(without.stdout)["skipped"]

@@ -91,3 +91,39 @@ def test_an_authorization_server_nobody_could_reach_leaves_pkce_unsettled() -> N
     assert outcomes(reported) == ["inconclusive"]
     assert "PKCE" in reported[0].evidence.summary
     assert "169.254.169.254" in reported[0].evidence.summary
+
+
+def test_authorization_server_metadata_naming_no_issuer_is_a_finding() -> None:
+    document = {key: value for key, value in CONFORMING_AUTHORIZATION.items() if key != "issuer"}
+
+    reported = findings(RULE, guarded(authorization_metadata=document), credential=CREDENTIAL)
+
+    assert [f.severity for f in reported] == [RULE.meta.severity]
+    assert "names no issuer" in summaries(reported)[0]
+    assert outcomes(reported) == [None]
+
+
+def test_an_issuer_that_is_not_a_string_names_no_issuer() -> None:
+    document = {**CONFORMING_AUTHORIZATION, "issuer": 42}
+
+    reported = findings(RULE, guarded(authorization_metadata=document), credential=CREDENTIAL)
+
+    assert ["names no issuer" in line for line in summaries(reported)] == [True]
+
+
+def test_an_issuer_other_than_the_one_the_document_was_fetched_for_is_a_finding() -> None:
+    document = {**CONFORMING_AUTHORIZATION, "issuer": ELSEWHERE}
+
+    reported = findings(RULE, guarded(authorization_metadata=document), credential=CREDENTIAL)
+
+    assert len(reported) == 1
+    assert f"{ELSEWHERE!r}" in summaries(reported)[0]
+    assert "'https://93.184.215.14'" in summaries(reported)[0]
+
+
+def test_issuers_are_compared_as_strings_so_a_trailing_slash_is_a_mismatch() -> None:
+    document = {**CONFORMING_AUTHORIZATION, "issuer": "https://93.184.215.14/"}
+
+    reported = findings(RULE, guarded(authorization_metadata=document), credential=CREDENTIAL)
+
+    assert ["must not use" in line for line in summaries(reported)] == [True]

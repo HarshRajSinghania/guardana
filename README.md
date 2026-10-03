@@ -19,7 +19,7 @@ Guardana is an open-source AI security verification tool for security and platfo
 
 ---
 
-**56 built-in security checks; add checks for your application.** The count comes from the [generated rule summary](docs/generated/rule-summary.md). Built-in artifact checks need no network. `scan --reporter server://<url>` sends results to a collector; active checks contact the target you choose. Guardana needs no account and has no automatic telemetry or phone-home.
+**58 built-in security checks; add checks for your application.** The count comes from the [generated rule summary](docs/generated/rule-summary.md). Built-in artifact checks need no network. `scan --reporter server://<url>` sends results to a collector; active checks contact the target you choose. Guardana needs no account and has no automatic telemetry or phone-home.
 
 ## Quickstart
 
@@ -74,14 +74,14 @@ Every published distribution has signed, keyless build provenance verifiable wit
 
 ## What it checks
 
-The [generated rule summary](docs/generated/rule-summary.md) counts 56 built-in rules: 19 artifact rules and 37 runtime rules. The runtime rules span live endpoints, live MCP servers, live A2A agents, seeded applications, and recorded traces. A single endpoint does not exercise all 37. Rules map to both editions of the OWASP LLM Top 10, the OWASP Top 10 for Agentic Applications, the OWASP MCP Top 10, OWASP ML Top 10, MITRE ATLAS v5.6.0, and NIST AI 100-2e2025. References include their edition.
+The [generated rule summary](docs/generated/rule-summary.md) counts 58 built-in rules: 19 artifact rules and 39 runtime rules. The runtime rules span live endpoints, live MCP servers, live A2A agents, seeded applications, and recorded traces. A single endpoint does not exercise all 39. Rules map to both editions of the OWASP LLM Top 10, the OWASP Top 10 for Agentic Applications, the OWASP MCP Top 10, OWASP ML Top 10, MITRE ATLAS v5.6.0, and NIST AI 100-2e2025. References include their edition.
 
 | Family | Rules | Surface | What it covers |
 |---|---|---|---|
 | `guardana.supply_chain.*` | 16 | build | unsafe loading, remote code, model formats, dependencies, transport, secrets, and provenance |
 | `guardana.prompt.*` | 7 | build + runtime | hidden instructions, tool poisoning, injection, jailbreaks, prompt leakage, and resource consumption |
 | `guardana.agent.*` | 7 | runtime | tool-result injection, credential exfiltration, broad arguments, excessive use, memory poisoning, tool schemas, and MCP server manifests |
-| `guardana.mcp.*` | 8 | runtime | authentication, discovery, audience, session, scope, issuer, and cache handling |
+| `guardana.mcp.*` | 10 | runtime | authentication, discovery, audience, session, scope, issuer, cache handling, task listings, and registry entries |
 | `guardana.a2a.*` | 3 | runtime | agent cards, callers without a credential, and one caller's view of another's tasks |
 | `guardana.trace.*` | 9 | runtime | recorded credential, identity, consent, policy, approval, retrieval, effect, and handoff boundaries |
 | `guardana.scenario.*` | 2 | runtime | multi-turn jailbreak and indirect-injection scenarios |
@@ -166,7 +166,7 @@ Probes send real requests and can cost money or trigger provider abuse detection
 
 ## Extend it for your application
 
-The 56 built-ins cover shared risks. Add rules for your data, tools, permissions, and business rules. Guardana has five extension points: **Target, Rule, Evaluator, Report/Finding, and Profile**. A shared registry discovers extensions from Guardana and private packages.
+The 58 built-ins cover shared risks. Add rules for your data, tools, permissions, and business rules. Guardana has five extension points: **Target, Rule, Evaluator, Report/Finding, and Profile**. A shared registry discovers extensions from Guardana and private packages.
 
 By default, Guardana loads only its own distributions. It refuses an installed third-party pack before importing it and records the refusal as an error. Under the default gate, a run with a refused pack is `indeterminate`, even if that run did not select its rules. Admit a reviewed pack by distribution name with `--plugins allowlist --allow-plugin`, or configure `plugins:` in a profile. `guardana doctor` shows what would load. Admitted Python packs run with your privileges; see [`SECURITY.md`](SECURITY.md).
 

@@ -27,7 +27,14 @@ from guardana.core.profile.digest import profile_digest
 from guardana.core.redaction import MessageQuoting, RedactionPolicy
 from guardana.core.registry import Registry
 from guardana.core.runner import DEFAULT_ENDPOINT_CONCURRENCY
-from guardana.core.target import EndpointError, McpError, McpServerTarget, private_url_parts
+from guardana.core.target import (
+    EndpointError,
+    McpError,
+    McpServerTarget,
+    RegistryEntry,
+    RegistryEntryError,
+    private_url_parts,
+)
 from guardana.core.target.failure import describe_failure
 from guardana.core.verify import Verification, Verifier
 from guardana.rules.agent.mcp_server_manifest import pin_document
@@ -52,6 +59,8 @@ class McpConnection:
     session authenticates on its own — report `inconclusive` and name the flag,
     rather than staying quiet about a question nobody asked.
     """
+    registry_entry: RegistryEntry | None = None
+    """The registry `server.json` the operator says this server is, read before anything is sent."""
 
 
 def require_chat_endpoint(url: str | None, model: str | None) -> tuple[str, str]:
@@ -97,6 +106,20 @@ def credential_from(variable: str | None) -> str | None:
     return value
 
 
+def registry_entry_from(path: Path | None) -> RegistryEntry | None:
+    """Read `--mcp-registry-entry` before anything is sent, refusing a file that is not an entry.
+
+    A usage error rather than a run: the operator named the file, and a run without it
+    would skip the comparison they asked for.
+    """
+    if path is None:
+        return None
+    try:
+        return RegistryEntry.load(path)
+    except RegistryEntryError as exc:
+        raise typer.BadParameter(str(exc), param_hint="'--mcp-registry-entry'") from exc
+
+
 def refuse_userinfo(address: str) -> None:
     """Refuse an MCP server URL that carries userinfo, before anything is sent.
 
@@ -112,7 +135,7 @@ def refuse_userinfo(address: str) -> None:
         )
 
 
-def plan_target(address: str) -> McpServerTarget:
+def plan_target(address: str, registry_entry: RegistryEntry | None = None) -> McpServerTarget:
     """Build a target for *pricing* an MCP server, which must not start one.
 
     An stdio server is priced by refusing: working out what it would cost means
@@ -127,7 +150,7 @@ def plan_target(address: str) -> McpServerTarget:
             "`guardana probe --mcp … --allow-exec` when you mean to execute it."
         )
     refuse_userinfo(address)
-    return McpServerTarget(address)
+    return McpServerTarget(address, registry_entry=registry_entry)
 
 
 def build_mcp_target(connection: McpConnection) -> McpServerTarget:
@@ -138,22 +161,32 @@ def build_mcp_target(connection: McpConnection) -> McpServerTarget:
     place the engine ever does, so it takes an explicit flag.
     """
     if connection.address.startswith(_HTTP_PREFIXES):
-        return McpServerTarget(connection.address, credential=connection.credential)
+        return McpServerTarget(
+            connection.address,
+            credential=connection.credential,
+            registry_entry=connection.registry_entry,
+        )
     return McpServerTarget(
-        command=shlex.split(connection.address), allow_exec=connection.allow_exec
+        command=shlex.split(connection.address),
+        allow_exec=connection.allow_exec,
+        registry_entry=connection.registry_entry,
     )
 
 
 def started(connection: McpConnection) -> McpServerTarget:
-    """Build the target, ending the command with exit `4` when its server cannot be started.
+    """Build the target, ending the command before any rule when it cannot be built.
 
-    Before any rule: a command that does not run has no manifest to read and no run to keep.
+    A command that does not run exits `4`: it has no manifest to read and no run to keep.
+    A command given without `--allow-exec`, or an empty one, is the operator's
+    configuration and exits `3`, having started nothing.
     """
     try:
         return build_mcp_target(connection)
     except EndpointError as exc:
         typer.echo(f"error: {exc}", err=True)
         raise typer.Exit(code=ExitCode.TARGET_UNAVAILABLE) from exc
+    except McpError as exc:
+        raise typer.BadParameter(str(exc), param_hint="'--mcp'") from exc
 
 
 def write_pin(connection: McpConnection, path: Path) -> int:
@@ -251,6 +284,7 @@ __all__ = [
     "credential_from",
     "plan_target",
     "refuse_userinfo",
+    "registry_entry_from",
     "require_chat_endpoint",
     "run_mcp_probe",
     "started",

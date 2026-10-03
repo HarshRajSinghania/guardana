@@ -22,8 +22,8 @@ _PKCE_METHOD = "S256"
 class McpAuthorizationDiscoveryRule(McpAuthorizationRule):
     """A protected MCP server whose authorization surface no conforming client can use.
 
-    Four requirements, each a `MUST` in the MCP authorization specification and each
-    checkable without a credential:
+    Five requirements, each a `MUST` in the MCP authorization specification or the
+    RFCs it cites, and each checkable without a credential:
 
     - the server implements OAuth 2.0 Protected Resource Metadata (RFC 9728) and
       publishes it through the `WWW-Authenticate` challenge or a well-known URI;
@@ -33,7 +33,11 @@ class McpAuthorizationDiscoveryRule(McpAuthorizationRule):
       tokens for the wrong audience;
     - the authorization server advertises `code_challenge_methods_supported`, which
       a client **must refuse to proceed** without, since that field is the only way
-      PKCE support can be discovered.
+      PKCE support can be discovered;
+    - the authorization server's metadata names, as its `issuer`, exactly the entry
+      its well-known address was built from (RFC 8414 §2 and §3.3): a client must not
+      use a document that names no issuer or another one. Compared as strings, with no
+      normalization, as the RFC compares them.
 
     It says nothing about a server that answered an anonymous caller: there is no
     protected resource there, and `guardana.mcp.unauthenticated_access` is the rule
@@ -128,6 +132,7 @@ class McpAuthorizationDiscoveryRule(McpAuthorizationRule):
         if not document.readable:
             yield from self._unreadable(view, document, "authorization server metadata")
             return
+        yield from self._issuer(view, document)
         methods = _methods(document.content)
         if not methods:
             yield self.finding(
@@ -141,6 +146,33 @@ class McpAuthorizationDiscoveryRule(McpAuthorizationRule):
                 view,
                 f"the authorization server advertises PKCE methods {sorted(methods)} without "
                 f"{_PKCE_METHOD!r}, which OAuth 2.1 requires of a client that can do it",
+            )
+
+    def _issuer(self, view: McpAuthorizationView, document: Document) -> Iterator[Finding]:
+        """Report a metadata document whose `issuer` is not the entry it was fetched for."""
+        address = display_url(document.url)
+        named = _named_issuer(view.protected_resource)
+        if named is None:
+            yield self.unverified(
+                view,
+                f"the authorization server metadata at {address} was read without an issuer "
+                f"named to fetch it for, so its issuer could not be compared",
+            )
+            return
+        issuer = (document.content or {}).get("issuer")
+        if not isinstance(issuer, str):
+            yield self.finding(
+                view,
+                f"the authorization server metadata at {address} names no issuer, which "
+                f"RFC 8414 requires; a client must not use it",
+            )
+            return
+        if issuer != named:
+            yield self.finding(
+                view,
+                f"the authorization server metadata at {address} names issuer "
+                f"{display_url(issuer)!r}, not {display_url(named)!r} it was fetched for; "
+                f"RFC 8414 says a client must not use it",
             )
 
     def _refused_issuer(self, view: McpAuthorizationView) -> Iterator[Finding]:

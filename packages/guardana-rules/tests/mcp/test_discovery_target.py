@@ -71,7 +71,10 @@ def test_a_local_server_may_point_at_a_local_authorization_server() -> None:
         tools=[],
         credential=CREDENTIAL,
         resource_metadata=document,
-        authorization_metadata={"code_challenge_methods_supported": ["S256"]},
+        authorization_metadata={
+            "issuer": "http://127.0.0.1:9000",
+            "code_challenge_methods_supported": ["S256"],
+        },
     )
 
     assert findings(RULE, server, credential=CREDENTIAL) == []

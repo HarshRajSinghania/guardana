@@ -31,7 +31,7 @@ from guardana.cli._connection import (
 from guardana.cli._evaluators import wire_config_evaluators
 from guardana.cli._exit import refuse_invalid_profile, refuse_unenforceable_budget
 from guardana.cli._formats import OutputFormat
-from guardana.cli._mcp_run import plan_target, require_chat_endpoint
+from guardana.cli._mcp_run import plan_target, registry_entry_from, require_chat_endpoint
 from guardana.cli._plugins import (
     AllowPluginOption,
     NoPluginsOption,
@@ -63,6 +63,7 @@ from guardana.core.target import (
     ArtifactTarget,
     EndpointTarget,
     McpServerTarget,
+    RegistryEntry,
     SeededTarget,
     Target,
     TargetKind,
@@ -434,6 +435,13 @@ def plan_probe(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; thi
         str | None,
         typer.Option(help="MCP server to price instead of a model endpoint: an http(s) URL"),
     ] = None,
+    mcp_registry_entry: Annotated[
+        Path | None,
+        typer.Option(
+            "--mcp-registry-entry",
+            help="The server's registry server.json; prices the comparison a probe would make.",
+        ),
+    ] = None,
     a2a: Annotated[
         str | None,
         typer.Option(
@@ -550,6 +558,10 @@ def plan_probe(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; thi
         ),
         trials=prof.trials if trials is None else trials,
     )
+    if mcp_registry_entry is not None and mcp is None:
+        raise typer.BadParameter(
+            "--mcp-registry-entry describes the MCP server --mcp names; pass --mcp too"
+        )
     legacy_target_options = (url, model, mcp, a2a, provider, adapter, system_prompt_file, fixtures)
     if target is not None and any(value is not None for value in legacy_target_options):
         raise typer.BadParameter(
@@ -593,6 +605,7 @@ def plan_probe(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; thi
             model,
             mcp,
             a2a=a2a,
+            registry_entry=registry_entry_from(mcp_registry_entry),
             provider=provider,
             adapter=adapter,
             system_prompt_file=system_prompt_file,
@@ -744,6 +757,7 @@ def _plan_probe_target(  # noqa: PLR0913 — one argument per connection flag
     mcp: str | None,
     *,
     a2a: str | None = None,
+    registry_entry: RegistryEntry | None = None,
     provider: str | None,
     adapter: Path | None,
     system_prompt_file: Path | None,
@@ -753,7 +767,7 @@ def _plan_probe_target(  # noqa: PLR0913 — one argument per connection flag
     if a2a is not None:
         return plan_a2a_target(a2a)
     if mcp is not None:
-        return plan_target(mcp)
+        return plan_target(mcp, registry_entry)
     endpoint_url, model_name = require_chat_endpoint(url, model)
     connection = resolve_flags(
         endpoint_url, model_name, provider=provider, adapter=adapter, sending=False

@@ -34,6 +34,7 @@ from guardana.cli._formats import OutputFormat
 from guardana.cli._mcp_run import (
     McpConnection,
     credential_from,
+    registry_entry_from,
     require_chat_endpoint,
     run_mcp_probe,
 )
@@ -152,6 +153,13 @@ def probe(  # noqa: C901, PLR0913, PLR0915, PLR0917 — Typer surface, target mo
     mcp_pin: Annotated[
         Path | None, typer.Option("--mcp-pin", help="Approved MCP manifest to compare against")
     ] = None,
+    mcp_registry_entry: Annotated[
+        Path | None,
+        typer.Option(
+            "--mcp-registry-entry",
+            help="The server's registry server.json, to compare its URL and version against.",
+        ),
+    ] = None,
     a2a: Annotated[
         str | None,
         typer.Option("--a2a", help="A2A agent to examine instead of a model: an http(s) URL"),
@@ -242,6 +250,10 @@ def probe(  # noqa: C901, PLR0913, PLR0915, PLR0917 — Typer surface, target mo
     check_reporter_url(reporter)
     refuse_incomparable_output(output, format.value)
     _refuse_lone_a2a_flags(a2a, a2a_token_env, a2a_other_token_env)
+    if mcp_registry_entry is not None and mcp is None:
+        raise typer.BadParameter(
+            "--mcp-registry-entry describes the MCP server --mcp names; pass --mcp too"
+        )
     seeded = _fixtures(fixtures, elsewhere=target is not None or mcp is not None or a2a is not None)
     deployment = detect_deployment(ai_system, environment, deployment_id)
     prof = resolve_profile(profile, preset)
@@ -308,6 +320,7 @@ def probe(  # noqa: C901, PLR0913, PLR0915, PLR0917 — Typer surface, target mo
             "--mcp": mcp,
             "--mcp-token-env": mcp_token_env,
             "--mcp-pin": mcp_pin,
+            "--mcp-registry-entry": mcp_registry_entry,
             "--write-mcp-pin": write_mcp_pin,
             "--a2a": a2a,
             "--a2a-token-env": a2a_token_env,
@@ -365,6 +378,7 @@ def probe(  # noqa: C901, PLR0913, PLR0915, PLR0917 — Typer surface, target mo
                 "--mcp": mcp,
                 "--mcp-token-env": mcp_token_env,
                 "--mcp-pin": mcp_pin,
+                "--mcp-registry-entry": mcp_registry_entry,
                 "--write-mcp-pin": write_mcp_pin,
                 "--allow-exec": True if allow_exec else None,
             }
@@ -418,6 +432,7 @@ def probe(  # noqa: C901, PLR0913, PLR0915, PLR0917 — Typer surface, target mo
                         allow_exec=allow_exec,
                         pin=mcp_pin,
                         credential=credential_from(mcp_token_env),
+                        registry_entry=registry_entry_from(mcp_registry_entry),
                     ),
                     write_mcp_pin,
                     concurrency=concurrency,

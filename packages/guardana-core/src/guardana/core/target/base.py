@@ -43,6 +43,8 @@ class Capability(StrEnum):
     INSPECT_AUTHORIZATION = "inspect_authorization"
     INSPECT_A2A = "inspect_a2a"
     """The target is an A2A agent whose card and task reads can be observed."""
+    REGISTRY_ENTRY = "registry_entry"
+    """The operator supplied the registry entry an MCP server is compared with."""
     # A trace answers each of these only if its producer recorded that dimension, so
     # they are one capability per dimension rather than one for "a trace is present".
     # A single `READ_TRACE` would let the approval rule run against a trace with no

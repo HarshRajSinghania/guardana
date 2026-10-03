@@ -6,6 +6,9 @@ from guardana.core.target._mcp_authorization import (
     LegacyOffer,
     McpAuthorizationView,
     Sessions,
+    TaskAnswer,
+    TaskOffer,
+    Tasks,
     challenge_parameters,
     forged_token,
     scopes_in,
@@ -18,6 +21,7 @@ from guardana.core.target._mcp_http import (
     same_origin,
     send,
 )
+from guardana.core.target._mcp_registry import RegistryEntry, RegistryEntryError, ReportedServer
 from guardana.core.target._url import display_url, private_url_parts
 from guardana.core.target.a2a import (
     A2aAgentTarget,
@@ -69,6 +73,7 @@ from guardana.core.target.protocols import (
     ChatEndpoint,
     ChatWithMetadata,
     FileReader,
+    RegistryEntryInspector,
     SeededData,
     SystemPromptPlanter,
     ToolListing,
@@ -124,7 +129,11 @@ __all__ = [
     "MetadataReportingTransport",
     "Opening",
     "RecordedTarget",
+    "RegistryEntry",
+    "RegistryEntryError",
+    "RegistryEntryInspector",
     "ReplyUnavailable",
+    "ReportedServer",
     "RequestDeclined",
     "SeededData",
     "SeededTarget",
@@ -135,6 +144,9 @@ __all__ = [
     "Target",
     "TargetChanged",
     "TargetKind",
+    "TaskAnswer",
+    "TaskOffer",
+    "Tasks",
     "ToolCall",
     "ToolCallReply",
     "ToolCallingTransport",

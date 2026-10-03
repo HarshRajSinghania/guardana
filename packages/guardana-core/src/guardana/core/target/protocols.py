@@ -23,6 +23,7 @@ if TYPE_CHECKING:
     from guardana.core.source import PythonSource, UnreadSource
     from guardana.core.target._a2a_view import A2aView
     from guardana.core.target._mcp_authorization import McpAuthorizationView
+    from guardana.core.target._mcp_registry import RegistryEntry, ReportedServer
     from guardana.core.target.endpoint import ChatMessage, ChatReply, ToolCallReply, ToolSpec
     from guardana.core.target.mcp import McpConversation, McpTool
     from guardana.core.trace import Trace
@@ -166,6 +167,27 @@ class A2aInspector(Protocol):
 
 
 @runtime_checkable
+class RegistryEntryInspector(Protocol):
+    """The surface `Capability.REGISTRY_ENTRY` promises: an entry, and what the server reported.
+
+    The entry is the operator's input, never fetched; the reported identity is what the
+    server said about itself, which nothing verifies.
+    """
+
+    def registry_entry(self) -> "RegistryEntry":
+        """Return the registry entry the operator supplied for this server."""
+        raise NotImplementedError
+
+    def reported_server(self) -> "ReportedServer | None":
+        """Return the name and version the server reported, or None when it reported no version."""
+        raise NotImplementedError
+
+    def server_url(self) -> str | None:
+        """Return the URL the server was reached at, or None when it was started over stdio."""
+        raise NotImplementedError
+
+
+@runtime_checkable
 class SeededData(Protocol):
     """The surface `Capability.SEEDED_DATA` promises: seeded items, and a way to ask as a tenant.
 
@@ -195,6 +217,7 @@ __all__ = [
     "ChatEndpoint",
     "ChatWithMetadata",
     "FileReader",
+    "RegistryEntryInspector",
     "SeededData",
     "SystemPromptPlanter",
     "ToolListing",
@@ -211,6 +234,7 @@ CAPABILITY_SURFACE: Mapping[Capability, type] = {
     Capability.LIST_TOOLS: ToolListing,
     Capability.INSPECT_AUTHORIZATION: AuthorizationInspector,
     Capability.INSPECT_A2A: A2aInspector,
+    Capability.REGISTRY_ENTRY: RegistryEntryInspector,
     Capability.READ_TRACE: TraceReader,
     Capability.SEEDED_DATA: SeededData,
 }

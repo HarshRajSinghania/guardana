@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Rule summary — Guardana documentation</title>
-<meta name="description" content="Counts by surface, target kind and severity — the totals every other page quotes.">
-<link rel="canonical" href="https://guardana.dev/docs/generated/rule-summary">
+<title>guardana.mcp.registry_entry — Guardana documentation</title>
+<meta name="description" content="MCP server is not the one its registry entry publishes">
+<link rel="canonical" href="https://guardana.dev/docs/rules/guardana.mcp.registry_entry">
 <link rel="icon" href="../../favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="../../assets/brand/v1/tokens.css">
 <link rel="stylesheet" href="../docs.css">
@@ -86,7 +86,7 @@
 </ul>
 <h2>Reference</h2><ul>
 <li><a href="../rules/index.html">Rule explorer</a></li>
-<li><a href="../generated/rule-summary.html" aria-current="page">Rule summary</a></li>
+<li><a href="../generated/rule-summary.html">Rule summary</a></li>
 <li><a href="../generated/rule-catalog.html">Rule catalog</a></li>
 <li><a href="../generated/evaluator-catalog.html">Evaluator catalog</a></li>
 <li><a href="../generated/taxonomy-coverage.html">Taxonomy coverage</a></li>
@@ -149,7 +149,7 @@
 </ul>
 </nav>
 <details class="mnav">
-<summary>Menu · <b>Rule summary</b></summary>
+<summary>Menu · <b>Overview</b></summary>
 <nav class="inner" aria-label="Documentation">
 <ul class="home"><li><a href="../index.html">Overview</a></li></ul>
 <h2>First run</h2><ul>
@@ -216,7 +216,7 @@
 </ul>
 <h2>Reference</h2><ul>
 <li><a href="../rules/index.html">Rule explorer</a></li>
-<li><a href="../generated/rule-summary.html" aria-current="page">Rule summary</a></li>
+<li><a href="../generated/rule-summary.html">Rule summary</a></li>
 <li><a href="../generated/rule-catalog.html">Rule catalog</a></li>
 <li><a href="../generated/evaluator-catalog.html">Evaluator catalog</a></li>
 <li><a href="../generated/taxonomy-coverage.html">Taxonomy coverage</a></li>
@@ -280,52 +280,13 @@
 </nav>
 </details>
 <main>
-<h1>Rule summary</h1><p class="lede">Counts by surface, target kind and severity — the totals every other page quotes.</p><p><strong>58 built-in rules</strong> ship with <code>guardana-rules</code> 0.38.0.</p>
-<div class="table-wrap"><table>
-<thead>
-<tr>
-<th>Facet</th>
-<th style="text-align:right">Count</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Build-time (<code>scan</code>)</td>
-<td style="text-align:right">19</td>
-</tr>
-<tr>
-<td>Runtime (<code>probe</code>, <code>monitor</code>)</td>
-<td style="text-align:right">39</td>
-</tr>
-<tr>
-<td>Against artifacts</td>
-<td style="text-align:right">19</td>
-</tr>
-<tr>
-<td>Against endpoints</td>
-<td style="text-align:right">30</td>
-</tr>
-<tr>
-<td>Severity CRITICAL</td>
-<td style="text-align:right">9</td>
-</tr>
-<tr>
-<td>Severity HIGH</td>
-<td style="text-align:right">38</td>
-</tr>
-<tr>
-<td>Severity MEDIUM</td>
-<td style="text-align:right">11</td>
-</tr>
-</tbody>
-</table></div>
-
+<p class="crumb"><a href="../rules/index.html">Rule explorer</a></p><h1>MCP server is not the one its registry entry publishes</h1><p class="lede"><span class="rid">guardana.mcp.registry_entry</span></p><ul class="props"><li><b>Severity</b><a class="sev MEDIUM" href="../rules/by/severity-MEDIUM.html">MEDIUM</a></li><li><b>Surface</b><a href="../rules/by/surface-runtime.html">runtime</a></li><li><b>Family</b><a href="../rules/by/family-mcp.html">mcp</a></li><li><b>Impact</b><a href="../rules/by/impact-active.html">active</a></li><li><b>Target</b>endpoint</li><li><b>Requests</b>at most 2</li><li><b>Evaluator</b>graded in code</li><li><b>Maturity</b>stable</li><li><b>Detection</b>invariant</li><li><b>Destructive</b>no</li><li><b>Needs</b>registry_entry</li></ul><h2>What a secure system does</h2><p>This rule grades in code rather than against a declared expectation, so it states no goal here. Its behaviour is its fixtures, which <code>guardana rule test</code> runs.</p><h2>Maps to</h2><div class="table-wrap"><table><thead><tr><th>Reference</th><th>Control</th><th>Catalogue</th></tr></thead><tbody><tr><td><a class="rid" href="../rules/by/reference-MCP09-2025.html">MCP09:2025</a></td><td>Shadow MCP Servers</td><td><a href="../rules/by/framework-OWASP-MCP-2025.html">OWASP-MCP-2025</a></td></tr><tr><td><a class="rid" href="../rules/by/reference-MCP04-2025.html">MCP04:2025</a></td><td>Software Supply Chain Attacks &amp; Dependency Tampering</td><td><a href="../rules/by/framework-OWASP-MCP-2025.html">OWASP-MCP-2025</a></td></tr><tr><td><a class="rid" href="../rules/by/reference-ASI04-2026.html">ASI04:2026</a></td><td>Agentic Supply Chain Vulnerabilities</td><td><a href="../rules/by/framework-OWASP-ASI-2026.html">OWASP-ASI-2026</a></td></tr></tbody></table></div><p><a href="../writing-rules.html">How a rule is written</a> · <a href="../profiles.html">Selecting it in a profile</a></p>
 </main>
 </div>
 <footer class="foot"><div class="bar">
 <span class="who">Guardana 0.38.0 · Apache-2.0 ·
 maintained by Konrad Karauda</span>
-<a href="https://github.com/guardana/guardana/blob/main/docs/generated/rule-summary.md">Edit this page on GitHub</a>
+<a href="https://github.com/guardana/guardana">Source on GitHub</a>
 <a href="https://github.com/guardana/guardana">github.com/guardana</a>
 <a href="../../llms.txt">llms.txt</a>
 </div></footer>

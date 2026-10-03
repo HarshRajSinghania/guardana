@@ -105,7 +105,10 @@ def test_a_default_port_written_out_is_the_same_origin() -> None:
             '"https://93.184.215.14/.well-known/oauth-protected-resource", scope="s"'
         ),
         resource_metadata=CONFORMING_RESOURCE,
-        authorization_metadata={"code_challenge_methods_supported": ["S256"]},
+        authorization_metadata={
+            "issuer": "https://93.184.215.14",
+            "code_challenge_methods_supported": ["S256"],
+        },
     )
 
     reported = findings(McpAuthorizationDiscoveryRule(), server, credential=CREDENTIAL)

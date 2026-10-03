@@ -16,7 +16,8 @@ import json
 import re
 import threading
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
+from enum import StrEnum
 from urllib.parse import SplitResult, urlsplit, urlunsplit
 
 from guardana.core.target._mcp_client import (
@@ -39,6 +40,7 @@ from guardana.core.target._mcp_http import (
     server_is_local,
 )
 from guardana.core.target._mcp_wire import (
+    COMPLETE,
     INITIALIZED,
     LEGACY_WIRE,
     UNSUPPORTED_PROTOCOL_VERSION,
@@ -60,6 +62,8 @@ _HTTP_ERROR = 400
 _SUCCESS = range(200, 300)
 _NOT_THE_ERA = frozenset({400, 404, 405})
 """Statuses a server gives a handshake it does not implement at all."""
+_METHOD_NOT_FOUND = -32601
+_TASKS_EXTENSION = "io.modelcontextprotocol/tasks"
 
 # A token nobody could mistake for a credential, and nobody could mistake for
 # valid: `alg: none`, an audience naming a domain reserved never to resolve, and a
@@ -83,11 +87,58 @@ class Anonymous:
     listed_tools: bool = False
     challenge: str | None = None
     error: str | None = None
+    session: str | None = None
+    """The session the anonymous handshake was issued, when the handshake era was spoken."""
+    opening: Opening | None = None
+    """What the anonymous handshake was answered with, when it was answered in `2025-11-25`."""
 
     @property
     def open_to_anyone(self) -> bool:
         """Whether an anonymous caller actually received the tool manifest."""
         return self.listed_tools
+
+
+class TaskAnswer(StrEnum):
+    """How the server answered one anonymous `tasks/list`."""
+
+    ANSWERED = "answered"
+    """A result holding a `tasks` list."""
+    REFUSED = "refused"
+    """HTTP `401` or `403`."""
+    UNKNOWN_METHOD = "unknown_method"
+    """JSON-RPC `-32601`, whatever the status."""
+    OTHER = "other"
+    """Anything else; `Tasks.detail` names the status."""
+
+
+class TaskOffer(StrEnum):
+    """What the server declares about tasks, `LISTING` over `UNLISTED` over `NONE`."""
+
+    LISTING = "listing"
+    """The `2025-11-25` capabilities hold `tasks.list`."""
+    UNLISTED = "unlisted"
+    """Tasks without a listing: legacy `tasks` without `list`, or the modern extension."""
+    NONE = "none"
+
+
+@dataclass(frozen=True, slots=True)
+class Tasks:
+    """What a caller presenting no credential was shown by one `tasks/list`.
+
+    `ids` stay in memory for a rule to read the structure of; nothing that records a
+    run holds them, and the target withholds every one it learned from what is written.
+    `offer` is read only for an `UNKNOWN_METHOD` answer, the one answer the declarations
+    change the meaning of, and is None otherwise.
+    """
+
+    answer: TaskAnswer | None = None
+    status: int | None = None
+    count: int = 0
+    ids: tuple[str, ...] = field(default=(), repr=False)
+    offer: TaskOffer | None = None
+    detail: str | None = None
+    error: str | None = None
+    """Why no listing was asked for or no reply arrived; None when `answer` is set."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -208,6 +259,7 @@ class McpAuthorizationView:
         self._discovery: Discovery | None = None
         self._foreign_token: ForeignToken | None = None
         self._sessions: Sessions | None = None
+        self._tasks: Tasks | None = None
         self._legacy_offer: LegacyOffer | None = None
 
     @property
@@ -270,6 +322,15 @@ class McpAuthorizationView:
             if self._sessions is None:
                 self._sessions = self._probe.sessions(anonymous, lambda: self.legacy_offer)
             return self._sessions
+
+    @property
+    def tasks(self) -> Tasks:
+        """What one `tasks/list` showed a caller presenting no credential."""
+        anonymous = self.anonymous
+        with self._lock:
+            if self._tasks is None:
+                self._tasks = self._probe.tasks(anonymous, lambda: self.legacy_offer)
+            return self._tasks
 
     @property
     def legacy_offer(self) -> LegacyOffer:
@@ -395,6 +456,7 @@ class _Probe:
             return Anonymous(error=negotiation.unsupported)
         challenge: str | None = None
         session: str | None = None
+        opening: Opening | None = None
         if negotiation.era is Era.LEGACY:
             try:
                 handshake = self._call("initialize", self._opening(), credential=None)
@@ -409,11 +471,12 @@ class _Probe:
             refusal = _answered_revision(handshake)
             if refusal is not None:
                 return Anonymous(status=handshake.status, challenge=challenge, error=refusal)
+            opening = _opening_of(handshake)
             self._announce(credential=None, session=session)
         try:
             listing = self._call("tools/list", {}, credential=None, session=session)
         except McpError as exc:
-            return Anonymous(challenge=challenge, error=str(exc))
+            return Anonymous(challenge=challenge, error=str(exc), session=session, opening=opening)
         listed = carries_tools(listing)
         challenge = challenge or listing.header("WWW-Authenticate")
         if listed is None:
@@ -424,8 +487,16 @@ class _Probe:
                     f"the reply to tools/list (HTTP {listing.status}) could not be read as a "
                     f"manifest or as a refusal"
                 ),
+                session=session,
+                opening=opening,
             )
-        return Anonymous(status=listing.status, listed_tools=listed, challenge=challenge)
+        return Anonymous(
+            status=listing.status,
+            listed_tools=listed,
+            challenge=challenge,
+            session=session,
+            opening=opening,
+        )
 
     def discovery(self, anonymous: Anonymous) -> "Discovery":
         """Follow the authorization discovery chain, refusing addresses a client must not.
@@ -520,6 +591,84 @@ class _Probe:
         if declined is not None:
             return Sessions(ids=ids, not_stripped_because=declined)
         return self._without_the_credential(ids, legacy)
+
+    def tasks(self, anonymous: Anonymous, offer: Callable[[], "LegacyOffer"]) -> Tasks:
+        """Ask once for the task list presenting no credential, and record what came back.
+
+        `tasks/list` is a `2025-11-25` method, so it goes over the handshake era whenever
+        the server still serves it: in the anonymous probe's session, or, when the run
+        settled on the modern era of a dual-era server, in a session opened here without
+        a credential. Over the modern wire otherwise. One page; a cursor is never followed.
+        Every task id seen is handed to the target, which withholds it from the record.
+        """
+        if anonymous.error is not None:
+            return Tasks(error=f"the server could not be reached: {anonymous.error}")
+        negotiation = self._negotiation()
+        wire, session, handshake = negotiation.wire, anonymous.session, None
+        if negotiation.era is not Era.LEGACY:
+            offered = offer()
+            if offered.wire is not None:
+                wire = offered.wire
+                session, handshake = self._anonymous_session(offered.wire)
+        try:
+            reply = self._call("tasks/list", {}, wire=wire, credential=None, session=session)
+        except McpError as exc:
+            return Tasks(error=f"the listing could not be sent: {exc}")
+        observed = _task_listing(reply)
+        for task_id in observed.ids:
+            self._learn(task_id)
+        if observed.answer is not TaskAnswer.UNKNOWN_METHOD:
+            return observed
+        return replace(observed, offer=self._task_offer(anonymous, handshake, offer))
+
+    def _anonymous_session(self, wire: Wire) -> tuple[str | None, Opening | None]:
+        """Open a handshake-era session presenting nothing; return its id and what it answered.
+
+        Neither when the handshake was not a `2025-11-25` result: the listing is then
+        sent without a session, and its answer says what the server makes of that.
+        """
+        try:
+            handshake = self._call("initialize", self._opening(wire), wire=wire, credential=None)
+        except McpError:
+            return None, None
+        opening = _opening_of(handshake)
+        if opening is None or handshake_refusal(opening.version) is not None:
+            return None, None
+        session = self._session_id_of(handshake)
+        self._announce(wire=wire, credential=None, session=session)
+        return session, opening
+
+    def _task_offer(
+        self,
+        anonymous: Anonymous,
+        handshake: Opening | None,
+        offer: Callable[[], "LegacyOffer"],
+    ) -> TaskOffer:
+        """Read what the server declares about tasks, from the cheapest answer that holds it.
+
+        Handshake-era declarations come from an anonymous handshake when one was answered,
+        else from the conversation's opening, else from the legacy probe; modern ones from
+        `server/discover`.
+        """
+        legacy = next(
+            (
+                opened.capabilities
+                for opened in (anonymous.opening, handshake)
+                if opened is not None and opened.capabilities is not None
+            ),
+            None,
+        )
+        if legacy is None:
+            try:
+                opened = self._opening_of()
+            except McpError:
+                opened = None
+            legacy = opened.capabilities if opened is not None else None
+        if legacy is None:
+            offered = offer()
+            if offered.wire is not None and offered.opening is not None:
+                legacy = offered.opening.capabilities
+        return _offer_in(legacy, self._negotiation().capabilities)
 
     def legacy_offer(self) -> LegacyOffer:  # noqa: PLR0911 — one return per answer class
         """Settle whether the server still answers `initialize`, asking when discovery did not say.
@@ -820,6 +969,60 @@ def _answered_revision(reply: RawReply) -> str | None:
     return handshake_refusal(result.get("protocolVersion"))
 
 
+def _opening_of(reply: RawReply) -> Opening | None:
+    """Read a handshake's result into an opening, or None when the reply carries no result."""
+    if reply.status not in _SUCCESS:
+        return None
+    payload = reply.json_object()
+    result = payload.get("result") if payload is not None else None
+    return opening_in(result) if isinstance(result, dict) else None
+
+
+def _task_listing(reply: RawReply) -> Tasks:
+    """Class one reply to `tasks/list`; ids are read only from a result holding a list."""
+    payload = reply.json_object()
+    error = error_member(payload)
+    if error is not None and error.get("code") == _METHOD_NOT_FOUND:
+        return Tasks(answer=TaskAnswer.UNKNOWN_METHOD, status=reply.status)
+    if reply.status in REFUSAL_STATUSES:
+        return Tasks(answer=TaskAnswer.REFUSED, status=reply.status)
+    result = payload.get("result") if payload is not None and error is None else None
+    if (
+        reply.status in _SUCCESS
+        and isinstance(result, dict)
+        and result.get("resultType", COMPLETE) == COMPLETE
+        and isinstance(result.get("tasks"), list)
+    ):
+        listed = result["tasks"]
+        ids = tuple(
+            task_id
+            for entry in listed
+            if isinstance(entry, Mapping)
+            and isinstance(task_id := entry.get("taskId"), str)
+            and task_id
+        )
+        return Tasks(answer=TaskAnswer.ANSWERED, status=reply.status, count=len(listed), ids=ids)
+    detail = f"HTTP {reply.status}"
+    if error is not None:
+        detail = f"{detail} carrying JSON-RPC error {error.get('code')}"
+    return Tasks(answer=TaskAnswer.OTHER, status=reply.status, detail=detail)
+
+
+def _offer_in(
+    legacy: Mapping[str, object] | None, modern: Mapping[str, object] | None
+) -> TaskOffer:
+    """Say what the declarations offer: a legacy listing, tasks without one, or none."""
+    declared = legacy.get("tasks") if legacy is not None else None
+    if isinstance(declared, Mapping) and "list" in declared:
+        return TaskOffer.LISTING
+    if legacy is not None and "tasks" in legacy:
+        return TaskOffer.UNLISTED
+    extensions = modern.get("extensions") if modern is not None else None
+    if isinstance(extensions, Mapping) and _TASKS_EXTENSION in extensions:
+        return TaskOffer.UNLISTED
+    return TaskOffer.NONE
+
+
 def _sampling_problem(reply: RawReply) -> str | None:
     """Say why a sampling handshake was not a result, or None when it was one in `2025-11-25`."""
     payload = reply.json_object()
@@ -954,6 +1157,9 @@ __all__ = [
     "McpAuthorizationView",
     "Sender",
     "Sessions",
+    "TaskAnswer",
+    "TaskOffer",
+    "Tasks",
     "challenge_parameters",
     "forged_token",
     "observe",
