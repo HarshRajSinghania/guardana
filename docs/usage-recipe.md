@@ -149,8 +149,10 @@ imports it is.
   `REQUESTED`, `direct_url.json`, an installer's cache file — records the install, not the
   code that runs. A file installed outside the install root (`../../../bin/…`,
   `../../../share/…`) or under `*.data/scripts/` is pinned by its path and the SHA-256 of the
-  installed file past a first `#!` line, which an installer rewrites to the environment's
-  interpreter. A console or GUI script the installer generated from `entry_points.txt` is left
+  installed file, with one exception: where its first line names the running environment's
+  interpreter after `#!` (or in the `/bin/sh` launcher an installer writes for a long path),
+  that path is hashed as a placeholder and any arguments after it as written. Any other first
+  line is hashed as written. A console or GUI script the installer generated from `entry_points.txt` is left
   out, since that file already pins what it calls. Installing the same code again, into any
   environment, pins the same.
 

@@ -13,9 +13,11 @@ import ast
 import csv
 import hashlib
 import importlib.metadata
+import io
 import json
 import os
 import re
+import sys
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
@@ -61,6 +63,15 @@ _LAUNCHER_SUFFIXES = (".exe", "-script.pyw", "-script.py")
 """What an installer appends to a declared script's name on a platform without `#!`."""
 _CONTENT_TAG = "content-sha256="
 _READ_CHUNK = 1024 * 1024
+_SHEBANG = re.compile(rb"#![ \t]*(?P<exe>\S+)(?P<rest>.*)", re.DOTALL)
+_TRAMPOLINE_EXEC = re.compile(
+    rb"'''exec' (?:'(?P<single>[^']+)'|\"(?P<double>[^\"]+)\"|(?P<bare>[^\s'\"]+))"
+    rb' "\$0" "\$@"\r?\n'
+)
+"""The line of the `/bin/sh` launcher an installer writes when a path cannot follow `#!`."""
+_TRAMPOLINE_END = re.compile(rb"' '''\r?\n")
+_INTERPRETER = b"<interpreter>"
+_INTERPRETER_NAME = re.compile(r"python(?:\d+(?:\.\d+)?)?w?(?:\.exe)?")
 _REQUIREMENT_NAME = re.compile(r"\s*([A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)")
 _FINDER_TABLES = frozenset({"MAPPING", "NAMESPACES"})
 _PTH_IMPORT = ("import ", "import\t")
@@ -407,8 +418,8 @@ def record_pin(
     other entry inside the install root without a hash leaves the distribution unpinned.
 
     A file installed outside the install root or under `*.data/scripts/` is pinned by
-    what `installed` reads for it, its content past a `#!` line, since an installer
-    writes the interpreter into that line; None from it leaves the distribution
+    what `installed` reads for it, all of it but the path to this environment's
+    interpreter an installer writes after `#!`; None from it leaves the distribution
     unpinned. A console script named in `generated` is left out: `entry_points.txt`
     says what it calls.
     """
@@ -442,19 +453,63 @@ def record_pin(
 
 
 def _installed_content(found: importlib.metadata.Distribution, path: str) -> str | None:
-    """Digest the file a `RECORD` entry names, past a `#!` line; None when it cannot be read."""
+    """Digest the file a `RECORD` entry names, but its interpreter path; None if unreadable."""
     digest = hashlib.sha256()
     try:
         with Path(str(found.locate_file(path))).open("rb") as handle:
-            if handle.peek(2)[:2] == b"#!":
-                while line := handle.readline(_READ_CHUNK):
-                    if line.endswith(b"\n"):
-                        break
+            digest.update(_interpreter_line(handle))
             while chunk := handle.read(_READ_CHUNK):
                 digest.update(chunk)
     except OSError:
         return None
     return f"{_CONTENT_TAG}{digest.hexdigest()}"
+
+
+def _interpreter_line(handle: io.BufferedReader) -> bytes:
+    """Read the `#!` opening of `handle`, with this environment's interpreter path made generic.
+
+    An installer writes the interpreter's path after `#!`, or into a `/bin/sh` launcher
+    when that path cannot follow `#!`; either becomes one placeholder, any arguments
+    kept. Every other opening is returned as written.
+    """
+    if handle.peek(2)[:2] != b"#!":
+        return b""
+    first = handle.readline(_READ_CHUNK)
+    shebang = _SHEBANG.fullmatch(first)
+    if shebang is None:
+        return first
+    if shebang["exe"] == b"/bin/sh" and not shebang["rest"].strip():
+        return _trampoline(first, handle)
+    if not _this_interpreter(shebang["exe"]):
+        return first
+    return first[: shebang.start("exe")] + _INTERPRETER + shebang["rest"]
+
+
+def _trampoline(first: bytes, handle: io.BufferedReader) -> bytes:
+    """Read the rest of a `/bin/sh` launcher opened by `first`; a placeholder if it runs this one.
+
+    Collapsed to what a plain `#!` line becomes, so an environment whose path needs the
+    launcher pins as one whose path does not.
+    """
+    launch = handle.readline(_READ_CHUNK)
+    found = _TRAMPOLINE_EXEC.fullmatch(launch)
+    if found is None or not _this_interpreter(found["single"] or found["double"] or found["bare"]):
+        return first + launch
+    end = handle.readline(_READ_CHUNK)
+    if _TRAMPOLINE_END.fullmatch(end) is None:
+        return first + launch + end
+    return b"#!" + _INTERPRETER + b"\n"
+
+
+def _this_interpreter(named: bytes) -> bool:
+    """Whether `named` is this environment's interpreter, under a name an installer writes."""
+    executable = sys.executable
+    if not executable:
+        return False
+    path = Path(os.fsdecode(named))
+    if path == Path(executable):
+        return True
+    return path.parent == Path(executable).parent and bool(_INTERPRETER_NAME.fullmatch(path.name))
 
 
 def _generated_scripts(found: importlib.metadata.Distribution) -> frozenset[str]:

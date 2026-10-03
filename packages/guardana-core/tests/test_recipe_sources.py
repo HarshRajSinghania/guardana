@@ -7,6 +7,7 @@ Each test installs a fake distribution into a directory of its own on `sys.path`
 
 import importlib
 import json
+import sys
 from collections.abc import Iterator, Mapping
 from pathlib import Path
 
@@ -447,28 +448,82 @@ def _with_installed_files(site: Path, files: Mapping[str, str]) -> None:
     )
 
 
+_ENV_ONE = "/venv-one/bin/python3"
+_ENV_TWO = "/venv two/bin/python3"
+_TRAMPOLINE = "#!/bin/sh\n'''exec' {exe} \"$0\" \"$@\"\n' '''\n"
+
+
 @pytest.mark.parametrize(
-    ("path", "text", "moves"),
+    ("path", "text", "pinned_in", "moves"),
     [
-        ("../bin/acme-tool", "#!/venv-two/bin/python3\nprint('tool')\n", False),
-        ("../bin/acme-tool", "#!/venv-one/bin/python\nprint('other')\n", True),
-        ("../share/acme/table.txt", "other rows\n", True),
-        ("acme_pack-1.0.data/scripts/acme-setup", "#!python\nprint('other')\n", True),
-        ("../bin/acme", "#!/venv-two/bin/python\nfrom elsewhere import main\nmain()\n", False),
+        (
+            "../bin/acme-tool",
+            "#!/venv-two/bin/python\nprint('tool')\n",
+            "/venv-two/bin/python3",
+            False,
+        ),
+        (
+            "../bin/acme-tool",
+            _TRAMPOLINE.format(exe="'/venv two/bin/python'") + "print('tool')\n",
+            _ENV_TWO,
+            False,
+        ),
+        ("../bin/acme-tool", "#!/venv-one/bin/python\nprint('other')\n", _ENV_ONE, True),
+        ("../bin/acme-tool", "#!/venv-one/bin/python -E\nprint('tool')\n", _ENV_ONE, True),
+        (
+            "../bin/acme-tool",
+            "#!/usr/bin/env -S python3 -c \"import os; os.system('id')\"\nprint('tool')\n",
+            _ENV_ONE,
+            True,
+        ),
+        ("../bin/acme-tool", "#!/venv-two/bin/python\nprint('tool')\n", _ENV_ONE, True),
+        (
+            "../bin/acme-tool",
+            _TRAMPOLINE.format(exe="'/elsewhere/bin/python'") + "print('tool')\n",
+            _ENV_ONE,
+            True,
+        ),
+        ("../share/acme/table.txt", "other rows\n", _ENV_ONE, True),
+        ("acme_pack-1.0.data/scripts/acme-setup", "#!python\nprint('other')\n", _ENV_ONE, True),
+        (
+            "../bin/acme",
+            "#!/venv-two/bin/python\nfrom elsewhere import main\nmain()\n",
+            _ENV_ONE,
+            False,
+        ),
     ],
-    ids=["shebang", "script", "data", "data-scripts", "generated"],
+    ids=[
+        "another-environment",
+        "trampoline-in-another-environment",
+        "script",
+        "interpreter-arguments",
+        "foreign-first-line",
+        "interpreter-of-another-environment",
+        "trampoline-to-another-interpreter",
+        "data",
+        "data-scripts",
+        "generated",
+    ],
 )
-def test_files_installed_outside_the_package_are_pinned_by_content_past_the_shebang(
-    site: Path, path: str, text: str, *, moves: bool
+def test_files_installed_outside_the_package_are_pinned_by_content_but_the_interpreter_path(  # noqa: PLR0913 — the fixtures and one case
+    site: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    path: str,
+    text: str,
+    pinned_in: str,
+    *,
+    moves: bool,
 ) -> None:
-    """A `scripts=` file and data move the pin; an interpreter path and a generated script do not.
+    """Only the path an installer writes for this environment's interpreter is left out.
 
     A console script is what `entry_points.txt` declares, and that file is pinned.
     """
+    monkeypatch.setattr(sys, "executable", _ENV_ONE)
     _with_installed_files(site, _OUTSIDE)
     first = pin_distribution_source("acme-pack")
 
     (site / path).write_text(text, encoding="utf-8")
+    monkeypatch.setattr(sys, "executable", pinned_in)
     second = pin_distribution_source("acme-pack")
 
     assert isinstance(first, SourcePin)

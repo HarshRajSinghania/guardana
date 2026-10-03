@@ -40,6 +40,8 @@ from urllib.request import (
     ProxyHandler,
     Request,
     build_opener,
+    getproxies,
+    proxy_bypass,
 )
 
 from guardana.core.target._url import display_url
@@ -287,9 +289,10 @@ def send(  # noqa: PLR0913 — the keywords the `Sender` protocol publishes
     HTTP proxy is used, because a proxy would resolve the name again on its own.
 
     The first hop of any other request is the operator's: it connects by name and
-    honours the proxy settings, and so does a redirect hop to the same origin. A hop to
-    any other origin was chosen by the server, so it is pinned the way a discovery hop
-    is and bypasses the proxy.
+    honours the proxy settings, and so does a redirect hop to the same origin that the
+    proxy carries. Any other hop is pinned the way a discovery hop is and bypasses the
+    proxy: a name looked up again may answer differently, and another origin was chosen
+    by the server.
     """
     return _send(
         url,
@@ -436,6 +439,7 @@ class _Route:
         self._reads_peer = alongside is None
         self._record = record
         self._peer: _Address | None = None
+        self.proxies: dict[str, str] = getproxies()
 
     def handlers(self) -> tuple[BaseHandler, ...]:
         """Build the handlers that carry this request: proxy, redirect guard, connections."""
@@ -444,14 +448,23 @@ class _Route:
     def pinned(self, request: Request) -> bool:
         """Whether this hop may connect only to an address the guard accepted.
 
-        A hop to the operator's own origin names nothing the server chose, so it
-        travels as the operator's hop does: through the proxy, connecting by name.
+        A hop to the operator's own origin names nothing the server chose, so it keeps
+        the operator's proxy when one carries it; without a proxy it is pinned, since a
+        name looked up again can answer with an address the guard never saw.
         """
         if self._discovery is not None:
             return True
-        return request is not self._first and not same_origin(
-            request.full_url, self._first.full_url
+        if request is self._first:
+            return False
+        return not same_origin(request.full_url, self._first.full_url) or not self._proxied(
+            request.full_url
         )
+
+    def _proxied(self, url: str) -> bool:
+        """Whether the environment's proxy carries a request to `url`."""
+        parts = urlsplit(url)
+        host = unquote(parts.netloc)
+        return parts.scheme in self.proxies and not (host and proxy_bypass(host))
 
     def local_target(self) -> bool:
         """Whether the server under test is local, as far as this request can tell."""
@@ -471,7 +484,7 @@ class _FirstHopProxy(ProxyHandler):
     """The environment's proxy, for the operator's hop only: a pinned hop is never re-resolved."""
 
     def __init__(self, route: _Route) -> None:
-        super().__init__()
+        super().__init__(route.proxies)
         self._route = route
 
     def proxy_open(

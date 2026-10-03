@@ -184,18 +184,25 @@ class SendsSecrets(Protocol):
 def secrets_sent_by(sender: object) -> tuple[str, ...]:
     """Return the text `sender` declares it sends to authenticate; nothing when it declares none.
 
-    The declaration may come from a plugin, so an item that is not text is left out and a
-    single text returned whole is one value. A declaration that is no collection raises
-    `TypeError`, and whatever the call itself raises propagates.
+    The declaration may come from a plugin, so bytes are read as UTF-8 text, any other item
+    that is not text is left out, and a single value returned whole is one value. A
+    declaration that is no collection raises `TypeError`, and whatever the call itself
+    raises propagates.
     """
     if not isinstance(sender, SendsSecrets):
         return ()
     declared: object = sender.sent_secrets()
-    if isinstance(declared, str):
-        return (declared,)
+    if isinstance(declared, str | bytes | bytearray):
+        declared = (declared,)
     if not isinstance(declared, Iterable):
         raise TypeError(f"sent_secrets() returned {type(declared).__name__}, not a tuple")
-    return tuple(value for value in declared if isinstance(value, str))
+    values: list[str] = []
+    for value in declared:
+        if isinstance(value, bytes | bytearray):
+            values.append(bytes(value).decode("utf-8", errors="replace"))
+        elif isinstance(value, str):
+            values.append(value)
+    return tuple(values)
 
 
 @dataclass(frozen=True, slots=True)

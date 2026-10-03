@@ -40,7 +40,7 @@ from guardana.core.target import (
     TargetKind,
 )
 from guardana.core.target.adapter import FetchedReply
-from guardana.core.target.endpoint import UrllibTransport
+from guardana.core.target.endpoint import UrllibTransport, secrets_sent_by
 from guardana.core.target.failure import FailureRemedies
 from guardana.core.testing._fake_provider import FakeProvider, delayed, openai_reply
 from guardana.core.verify import TargetUnavailableError, UnsupportedTargetError, Verifier
@@ -450,6 +450,21 @@ def test_a_declaration_holding_other_than_text_keeps_its_text_and_the_run_goes_o
     )
 
     assert "bad body for key [redacted:credential]" in result.errors[0].reason
+
+
+@pytest.mark.parametrize(
+    "declared",
+    [(_UNPATTERNED_KEY.encode(),), _UNPATTERNED_KEY.encode()],
+    ids=["bytes-item", "bytes-whole"],
+)
+def test_a_key_declared_as_bytes_is_withheld_as_its_text(declared: object) -> None:
+    assert secrets_sent_by(_DeclaresBadly(400, declared)) == (_UNPATTERNED_KEY,)
+
+
+def test_a_key_declared_as_undecodable_bytes_is_still_withheld() -> None:
+    declared = (b"gw-\xffkey",)
+
+    assert secrets_sent_by(_DeclaresBadly(400, declared)) == ("gw-\ufffdkey",)
 
 
 def test_a_declaration_that_raises_gives_the_status_and_size_and_no_body() -> None:

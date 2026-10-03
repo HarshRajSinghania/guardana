@@ -22,6 +22,7 @@ from guardana.core.manifest import DeploymentRef, RunSource
 from guardana.core.plugins import PluginMode, PluginTrust
 from guardana.core.profile import Profile
 from guardana.core.profile.digest import profile_digest
+from guardana.core.redaction import MessageQuoting, RedactionPolicy
 from guardana.core.registry import Registry
 from guardana.core.runner import DEFAULT_ENDPOINT_CONCURRENCY
 from guardana.core.target import McpError, McpServerTarget, private_url_parts
@@ -141,15 +142,18 @@ def build_mcp_target(connection: McpConnection) -> McpServerTarget:
 def write_pin(connection: McpConnection, path: Path) -> int:
     """Write the server's current manifest as the approved one; return how many tools.
 
-    A server that cannot be read exits `TARGET_UNAVAILABLE` with one line, and no
-    pin is written: an approval of a manifest nobody received is not an approval.
+    A server that cannot be read exits `TARGET_UNAVAILABLE` with one line that withholds
+    the token sent to it, and no pin is written: an approval of a manifest nobody
+    received is not an approval.
     """
     target = build_mcp_target(connection)
     try:
         try:
             tools = target.list_tools()
         except McpError as exc:
-            typer.echo(f"error: could not read the manifest of {target.ref}: {exc}", err=True)
+            quoting = MessageQuoting.of(RedactionPolicy(), target.sent_secrets())
+            said = quoting.spans(str(exc))
+            typer.echo(f"error: could not read the manifest of {target.ref}: {said}", err=True)
             raise typer.Exit(code=ExitCode.TARGET_UNAVAILABLE) from exc
         path.write_text(
             json.dumps(pin_document(target.ref, tools), indent=2) + "\n", encoding="utf-8"

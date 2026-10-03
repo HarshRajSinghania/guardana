@@ -14,6 +14,8 @@ if TYPE_CHECKING:
     from psycopg.rows import TupleRow
 
 _KEYWORD_PASSWORD = re.compile(r"\bpassword\s*=\s*('(?:[^'\\]|\\.)*'?|\S+)")
+# A query-string password ends where the next parameter or the fragment begins.
+_QUERY_PASSWORD = re.compile(r"\bpassword=([^\s&#\"']+)")
 _REDACTED = "***"
 
 
@@ -34,6 +36,7 @@ def without_password(message: str, url: str) -> str:
     for match in _KEYWORD_PASSWORD.finditer(url):
         value = match.group(1)
         secrets.update({value, value.strip("'")})
+    secrets.update(match.group(1) for match in _QUERY_PASSWORD.finditer(url))
     secrets.update({unquote(secret) for secret in secrets})
     for secret in sorted(filter(None, secrets), key=len, reverse=True):
         message = message.replace(secret, _REDACTED)

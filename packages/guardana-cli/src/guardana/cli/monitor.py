@@ -52,6 +52,7 @@ from guardana.core.registry import Registry
 from guardana.core.report import ScanResult
 from guardana.core.runner import DEFAULT_ENDPOINT_CONCURRENCY
 from guardana.core.target import Target, TargetKind, display_url
+from guardana.core.target.connection import ResolvedConnection
 from guardana.core.target.endpoint import secrets_sent_by
 from guardana.core.target.failure import describe_failure
 from guardana.report import get_renderer
@@ -94,13 +95,20 @@ def alert_handler(
     return handle
 
 
-def _quoting(privacy: RedactionPolicy, secrets: Callable[[], Iterable[str]]) -> MessageQuoting:
-    """Quote under `privacy` without `secrets`; when they cannot be read, quote nothing at all."""
+def _withholding(
+    privacy: RedactionPolicy, secrets: Callable[[], Iterable[str]]
+) -> EvidenceRedactor:
+    """Redact under `privacy` without `secrets`; when they cannot be read, keep no text at all."""
     try:
-        return MessageQuoting.of(privacy, secrets())
+        return EvidenceRedactor(privacy, secrets=tuple(secrets()))
     except Exception:  # a target's declaration is plugin code
         withheld = replace(privacy, mode=EvidenceMode.METADATA_ONLY, keep_exchanges=False)
-        return MessageQuoting.of(withheld)
+        return EvidenceRedactor(withheld)
+
+
+def _sent_over(reached: ResolvedConnection) -> tuple[str, ...]:
+    """Return what an endpoint built from `reached` sends: its secrets and its transport's."""
+    return (*reached.secret_values, *secrets_sent_by(reached.transport))
 
 
 def _cycle_failure_warning(
@@ -115,7 +123,8 @@ def _cycle_failure_warning(
         if isinstance(exc, TargetStoppedError):
             said = str(exc)
         else:
-            said = describe_failure(exc, ref, _quoting(privacy, secrets), _REMEDIES)
+            quoting = MessageQuoting(_withholding(privacy, secrets))
+            said = describe_failure(exc, ref, quoting, _REMEDIES)
         typer.echo(f"warning: monitor cycle {cycle} failed, continuing: {said}", err=True)
 
     return warn
@@ -138,7 +147,8 @@ def run_monitor(  # noqa: PLR0913 — the test seam needs every hook injectable
 
     A transient failure mid-run, or a cycle its target stopped, is logged and the loop
     continues; a never-reachable endpoint surfaces (via `run_against_endpoint`, exit 4)
-    instead of spinning.
+    instead of spinning. Each cycle's result is redacted under the profile without
+    what the connection sends before anything compares, prints or forwards it.
 
     `on_alert` defaults to printing under *this profile's* privacy policy. It is
     resolved here rather than in the signature, because a default argument would
@@ -146,29 +156,25 @@ def run_monitor(  # noqa: PLR0913 — the test seam needs every hook injectable
     unredacted default got in.
     """
     shown = display_url(connection.reached.url)
-    handler = (
-        on_alert
-        if on_alert is not None
-        else alert_handler(EvidenceRedactor(profile.privacy), None, shown)
-    )
+    redactor = _withholding(profile.privacy, lambda: _sent_over(connection.reached))
+    handler = on_alert if on_alert is not None else alert_handler(redactor, None, shown)
     warn = (
         on_error
         if on_error is not None
-        else _cycle_failure_warning(
-            shown, profile.privacy, lambda: connection.reached.secret_values
-        )
+        else _cycle_failure_warning(shown, profile.privacy, lambda: _sent_over(connection.reached))
     )
 
     def scan() -> ScanResult:
         _rearm_judges(registry, profile)
-        return run_probe(
+        probed = run_probe(
             registry,
             profile,
             connection,
             concurrency=concurrency,
             calibrations=calibrations,
             remedies=_REMEDIES,
-        ).result
+        )
+        return redactor.redact_result(probed.result)
 
     monitor = Monitor(
         scan=scan,
@@ -192,32 +198,37 @@ def run_target_monitor(  # noqa: PLR0913 — mirrors the tested monitor seam
     sleep: Callable[[float], None] = time.sleep,
     calibrations: Mapping[str, CalibrationRecord] | None = None,
 ) -> MonitorSummary:
-    """Sample a freshly built custom endpoint target on every monitor cycle."""
+    """Sample a freshly built custom endpoint target on every monitor cycle.
+
+    Each cycle's result is redacted under the profile without what that cycle's target
+    declares sending; a target that cannot say keeps no text in it.
+    """
     handler = (
         on_alert
         if on_alert is not None
         else alert_handler(EvidenceRedactor(profile.privacy), None, source)
     )
     built: list[Target] = []
+
+    def sent() -> tuple[str, ...]:
+        return secrets_sent_by(built[-1]) if built else ()
+
     warn = (
-        on_error
-        if on_error is not None
-        else _cycle_failure_warning(
-            source, profile.privacy, lambda: secrets_sent_by(built[-1]) if built else ()
-        )
+        on_error if on_error is not None else _cycle_failure_warning(source, profile.privacy, sent)
     )
 
     def scan() -> ScanResult:
         _rearm_judges(registry, profile)
         built[:] = [target_factory()]
-        return run_target_probe(
+        probed = run_target_probe(
             registry,
             profile,
             built[-1],
             concurrency=concurrency,
             calibrations=calibrations,
             remedies=_REMEDIES,
-        ).result
+        )
+        return _withholding(profile.privacy, sent).redact_result(probed.result)
 
     monitor = Monitor(
         scan=scan,
@@ -351,7 +362,10 @@ def monitor(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; this i
             fallback=_missing_target,
         )
         on_alert = alert_handler(
-            EvidenceRedactor(prof.privacy), reporter, source=selected.ref, deployment=deployment
+            _withholding(prof.privacy, lambda: secrets_sent_by(selected)),
+            reporter,
+            source=selected.ref,
+            deployment=deployment,
         )
         summary = run_against_endpoint(
             selected.ref,
@@ -388,7 +402,7 @@ def monitor(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; this i
     )
     connection = Connection(reached, system_prompt=read_system_prompt(system_prompt_file))
     on_alert = alert_handler(
-        EvidenceRedactor(prof.privacy),
+        _withholding(prof.privacy, lambda: _sent_over(reached)),
         reporter,
         source=f"{display_url(url)}#{model}",
         deployment=deployment,

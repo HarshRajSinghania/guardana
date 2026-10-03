@@ -470,10 +470,11 @@ class AcmeGatewayTarget(Target):
 ```
 
 `EndpointTarget` and every target built on it already declare their API key and
-whatever their transport declares; a transport declares its own the same way. A run
-replaces each declared value of four characters or more with `[redacted:credential]`
-in its findings, the failures it records and the exchanges it keeps, in every evidence
-mode, before its own patterns run. An item that is not a string is ignored. `Verifier`
+whatever their transport declares; a transport declares its own the same way.
+`McpServerTarget` declares the bearer token it sends. A run replaces each declared value
+of four characters or more with `[redacted:credential]` in its findings, the failures it
+records and the exchanges it keeps, in every evidence mode, before its own patterns run.
+Bytes are read as UTF-8; any other item that is not a string is ignored. `Verifier`
 refuses a target whose `sent_secrets()` raises before anything is sent, and a failure the
 runner records for such a target gives only the status and the size of the reply.
 

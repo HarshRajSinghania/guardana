@@ -17,11 +17,12 @@ _URLS = [
     "postgresql://nobody:hunter2@[::1/nothing",
     "postgresql://nobody:hunter%32@[::1/nothing",
     "host=127.0.0.1 password=hunter2 port=1 dbname='nothing",
+    "postgresql://nobody@127.0.0.1:1/nothing?password=hunter2%zz&connect_timeout=1",
 ]
 
 
 def _leaks(text: str) -> bool:
-    return "hunter2" in text or "hunter%32" in text
+    return "hunter" in text
 
 
 @pytest.mark.parametrize("url", _URLS)
@@ -30,6 +31,19 @@ def test_a_connection_that_cannot_open_names_no_password_even_in_its_traceback(u
         connect(url)
 
     assert not _leaks("".join(traceback.format_exception(raised.value)))
+
+
+@pytest.mark.parametrize(
+    ("url", "message"),
+    [
+        ("postgresql://u@h/db?password=hunter2&next=1", 'bad option: "hunter2"'),
+        ("postgresql://u@h/db?password=hunter2%zz&next=1", 'bad token: "hunter2%zz"'),
+        ("postgresql://u@h/db?password=hunter2#frag", 'bad value: "hunter2"'),
+        ("host=h password=hunter2&more port=1", 'bad value: "hunter2&more"'),
+    ],
+)
+def test_a_query_password_is_withheld_up_to_the_next_parameter(url: str, message: str) -> None:
+    assert not _leaks(without_password(message, url))
 
 
 def test_a_message_that_never_quoted_the_password_is_left_as_it_was() -> None:

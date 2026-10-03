@@ -141,6 +141,10 @@ class McpServerTarget(Target):
         """Whether the operator gave a credential for this server."""
         return self._credential is not None
 
+    def sent_secrets(self) -> tuple[str, ...]:
+        """Return the bearer token this sends, which the run withholds from what it records."""
+        return () if self._credential is None else (self._credential,)
+
     def usage(self) -> TargetUsage:
         """Return what this server has been asked for. Tokens never apply: there is no model.
 

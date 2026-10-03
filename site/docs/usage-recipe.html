@@ -454,8 +454,10 @@ requirements) and <code>entry_points.txt</code> (what it registers). The rest �
 <code>REQUESTED</code>, <code>direct_url.json</code>, an installer's cache file — records the install, not the
 code that runs. A file installed outside the install root (<code>../../../bin/…</code>,
 <code>../../../share/…</code>) or under <code>*.data/scripts/</code> is pinned by its path and the SHA-256 of the
-installed file past a first <code>#!</code> line, which an installer rewrites to the environment's
-interpreter. A console or GUI script the installer generated from <code>entry_points.txt</code> is left
+installed file, with one exception: where its first line names the running environment's
+interpreter after <code>#!</code> (or in the <code>/bin/sh</code> launcher an installer writes for a long path),
+that path is hashed as a placeholder and any arguments after it as written. Any other first
+line is hashed as written. A console or GUI script the installer generated from <code>entry_points.txt</code> is left
 out, since that file already pins what it calls. Installing the same code again, into any
 environment, pins the same.</li>
 </ul>

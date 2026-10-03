@@ -491,6 +491,23 @@ def test_a_same_origin_redirect_of_the_servers_own_request_keeps_the_operators_p
     assert _Origin.hosts == []
 
 
+def test_a_same_origin_redirect_no_proxy_carries_connects_to_the_address_it_checked(
+    monkeypatch: pytest.MonkeyPatch, origin: int
+) -> None:
+    # The operator's hop and the redirect check both see loopback; a hop that
+    # connected by name would look the host up once more and dial the metadata endpoint.
+    monkeypatch.setattr(_mcp_http, "getproxies", dict)
+    resolver = _resolving(monkeypatch, {"rebind.test": ["127.0.0.1", "127.0.0.1", _METADATA]})
+    monkeypatch.setattr(_Origin, "bounce_to", "/latest/meta-data/")
+
+    with pytest.raises(AddressRefusedError) as refused:
+        send(f"http://rebind.test:{origin}/bounce", method="GET")
+
+    assert _METADATA in refused.value.reason
+    assert _Origin.hosts == [f"rebind.test:{origin}"]
+    assert len(resolver.asked) == 3
+
+
 def _through_the_proxy(monkeypatch: pytest.MonkeyPatch, proxy: int) -> None:
     for name in ("http_proxy", "HTTP_PROXY", "https_proxy", "HTTPS_PROXY"):
         monkeypatch.setenv(name, f"http://127.0.0.1:{proxy}")

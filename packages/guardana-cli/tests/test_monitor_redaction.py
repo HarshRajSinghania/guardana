@@ -10,17 +10,26 @@ Asserted at both exits, because they are separate code paths and only one of the
 is visible to whoever is watching the terminal.
 """
 
+from collections.abc import Sequence
+
+import guardana.cli._endpoint as endpoint_module
 import guardana.cli.monitor as monitor_module
 import pytest
-from guardana.cli.monitor import alert_handler
+from guardana.cli.main import app
+from guardana.cli.monitor import alert_handler, run_target_monitor
 from guardana.core.gate import GateOutcome
 from guardana.core.manifest.settings import EvidenceMode
 from guardana.core.monitor import Alert
+from guardana.core.plugins import PluginMode, PluginTrust
+from guardana.core.profile import default_profile
 from guardana.core.redaction import EvidenceRedactor, RedactionPolicy
+from guardana.core.registry import Registry
 from guardana.core.report import Evidence, Finding, ScanResult
 from guardana.core.report.skipped import SkippedRule, SkipReason
 from guardana.core.severity import Severity
+from guardana.core.target import ChatMessage, EndpointTarget
 from guardana.core.testing import fake_aws_key
+from typer.testing import CliRunner
 
 _FAKE_KEY = fake_aws_key()
 _PRIVATE_EMAIL = "oncall@example.com"
@@ -155,3 +164,86 @@ def test_an_alert_over_a_refused_skip_is_not_printed_as_an_all_clear(
     printed = capsys.readouterr().out
     assert "✓" not in printed
     assert "1 rule(s) were skipped and the gate refused the run" in printed
+
+
+_UNPATTERNED_KEY = "gw-live-7Q2mZp9XvR4tL8kN3bW6"
+
+
+class _EchoesItsKey:
+    """A model that discloses its system prompt and the key it was called with."""
+
+    def send(
+        self,
+        base_url: str,
+        model: str,
+        messages: Sequence[ChatMessage],
+        api_key: str | None,
+    ) -> str:
+        """Disclose the planted prompt, then the key."""
+        planted = [m.content for m in messages if m.role == "system"]
+        return f"Sure, my system prompt: {planted[0] if planted else ''}; my key: {api_key}"
+
+
+class _CannotSay(_EchoesItsKey):
+    """The same model behind a transport whose declaration of what it sends fails."""
+
+    def sent_secrets(self) -> tuple[str, ...]:
+        """Fail to say."""
+        raise RuntimeError("cannot list")
+
+
+def test_a_key_the_model_echoes_is_withheld_from_the_alert_and_the_collector(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    submissions = _collect_submissions(monkeypatch)
+    monkeypatch.setattr(endpoint_module, "transport_factory", _EchoesItsKey)
+    monkeypatch.setenv("ACME_GATEWAY_KEY", _UNPATTERNED_KEY)
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "monitor",
+            "--url",
+            "http://fake",
+            "--model",
+            "m",
+            "--api-key-env",
+            "ACME_GATEWAY_KEY",
+            "--reporter",
+            "http://collector.example:8000",
+            "--max-cycles",
+            "1",
+            "--interval",
+            "0",
+        ],
+    )
+
+    assert "ALERT" in result.output, result.output
+    assert "[redacted:credential]" in repr(submissions)
+    assert _UNPATTERNED_KEY not in result.output
+    assert _UNPATTERNED_KEY not in repr(submissions)
+
+
+@pytest.mark.parametrize(
+    ("transport", "withheld"),
+    [(_EchoesItsKey, "[redacted:credential]"), (_CannotSay, "withheld")],
+    ids=["declared", "declaration-fails"],
+)
+def test_a_key_a_monitored_target_sends_is_withheld_from_each_cycle(
+    transport: type[_EchoesItsKey], withheld: str
+) -> None:
+    alerts: list[Alert] = []
+
+    run_target_monitor(
+        Registry.discover(PluginTrust(mode=PluginMode.BUILTINS)),
+        default_profile(),
+        lambda: EndpointTarget("http://fake", "m", api_key=_UNPATTERNED_KEY, transport=transport()),
+        source="acme://gateway",
+        max_cycles=1,
+        on_alert=alerts.append,
+        sleep=lambda _s: None,
+    )
+
+    assert alerts
+    assert withheld in repr(alerts[0].result.findings)
+    assert _UNPATTERNED_KEY not in repr(alerts[0].result)
