@@ -926,3 +926,35 @@ def test_a_clean_or_malicious_pickle_reports_no_shortfall(tmp_path: Path) -> Non
 
     assert [f.severity for f in findings] == [Severity.CRITICAL]
     assert ctx.shortfalls() == ()
+
+
+@pytest.mark.parametrize("probe", [64 * 1024, 1024])
+def test_a_headerless_bin_still_a_pickle_at_the_cut_is_reported_unscanned(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, probe: int
+) -> None:
+    """A `.bin` read up to the bound while still parsing as a pickle is not left out."""
+    monkeypatch.setattr(pickle_opcode, "_MAX_PICKLE_BYTES", 4096)
+    monkeypatch.setattr(pickle_opcode, "_BIN_PROBE_BYTES", probe)
+    path = tmp_path / "pytorch_model.bin"
+    path.write_bytes(_pickle_padded_past(4096)[2:] + b"cos\nsystem\n(S'id'\ntR.")
+    ctx = RuleContext()
+
+    findings = list(PickleOpcodeRule().run(ArtifactTarget(tmp_path), ctx))
+
+    assert [(f.title, f.evidence.summary) for f in findings] == [
+        ("Unscanned model file", "raw pickle larger than 4096 bytes; not scanned in full")
+    ]
+    assert _unread(ctx) == [str(path)]
+    assert ctx.examined_paths() == frozenset({str(path)})
+
+
+def test_a_bin_of_bytes_that_are_no_pickle_past_the_bound_is_left_alone(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(pickle_opcode, "_MAX_PICKLE_BYTES", 4096)
+    (tmp_path / "vocab.bin").write_bytes(b"\xff" * 8192)
+    ctx = RuleContext()
+
+    assert list(PickleOpcodeRule().run(ArtifactTarget(tmp_path), ctx)) == []
+    assert ctx.shortfalls() == ()
+    assert ctx.examined_paths() == frozenset()

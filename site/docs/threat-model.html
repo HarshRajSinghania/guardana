@@ -375,8 +375,8 @@ primary use while stopping nobody who can already edit the command line. The
 boundary that matters is who chose the address, and Guardana enforces it there.</li>
 </ul>
 <p><strong>DNS rebinding.</strong> Every connection to an address the server chose — each discovery
-request, and each redirect hop after the first on the server's own requests —
-connects only to an address it checked. Its connection resolves the host once,
+request, and each redirect hop on the server's own requests to an origin other than
+the operator's — connects only to an address it checked. Its connection resolves the host once,
 holds every address in the answer to the rules above (one refused address refuses
 the host), and dials one of the accepted addresses; the host name still travels as
 the <code>Host</code> header and as TLS SNI, and the certificate is verified against the name.

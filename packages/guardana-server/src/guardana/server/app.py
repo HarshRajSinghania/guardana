@@ -10,6 +10,7 @@ from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse
 from guardana.server.auth import Authenticated, AuthError, Scope, authenticate
 from guardana.server.dashboard import render_dashboard
+from guardana.server.db.connection import connect
 from guardana.server.db.migrations import MigrationState, apply_pending, read_state
 from guardana.server.db.settings import StorageChoice, migrate_on_start, resolve_storage
 from guardana.server.deployment import EnvironmentMismatchError
@@ -61,8 +62,6 @@ def _store_from_environment() -> tuple[Store, StorageChoice]:
 
 def _migrate_now(database_url: str) -> None:
     """Bring the schema up to date before serving. Only when explicitly asked."""
-    from psycopg import connect  # noqa: PLC0415 — the engine never imports a database driver
-
     with connect(database_url) as connection:
         apply_pending(connection)
 
@@ -257,8 +256,6 @@ def _mount_health(app: FastAPI, database_url: str | None) -> None:
 
 
 def _migration_state(database_url: str) -> MigrationState:
-    from psycopg import connect  # noqa: PLC0415 — the engine never imports a database driver
-
     with connect(database_url) as connection:
         return read_state(connection)
 
@@ -435,8 +432,6 @@ def _mount_sessions(app: FastAPI, database_url: str | None) -> None:
 
 def _authenticate_for_session(database_url: str, token: str) -> Authenticated:
     """Check a key presented for a browser session, refusing without saying which way it failed."""
-    from psycopg import connect  # noqa: PLC0415 — the engine never imports a driver
-
     try:
         with connect(database_url) as connection:
             return authenticate(connection, token, now=datetime.now(UTC))

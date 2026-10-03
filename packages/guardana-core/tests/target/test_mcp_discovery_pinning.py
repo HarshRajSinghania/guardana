@@ -94,6 +94,7 @@ class _Origin(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
     hosts: ClassVar[list[str | None]] = []
     bounce_to: ClassVar[str] = ""
+    bounce_status: ClassVar[int] = 302
     answer: ClassVar[bytes] = b'{"served_by": "origin"}'
 
     def log_message(self, fmt: str, *args: object) -> None:
@@ -104,7 +105,7 @@ class _Origin(BaseHTTPRequestHandler):
         type(self).hosts.append(self.headers.get("Host"))
         # A proxy is sent the absolute URL, so the path is matched by its end.
         if self.path.endswith("/bounce"):
-            self.send_response(302)
+            self.send_response(type(self).bounce_status)
             self.send_header("Location", type(self).bounce_to)
             self.send_header("Content-Length", "0")
             self.end_headers()
@@ -472,6 +473,22 @@ def test_only_the_first_hop_of_the_servers_own_request_goes_through_the_proxy(
     assert reply.json_object() == {"served_by": "origin"}
     assert len(_Proxy.hosts) == 1
     assert _Origin.hosts == [f"elsewhere.test:{origin}"]
+
+
+def test_a_same_origin_redirect_of_the_servers_own_request_keeps_the_operators_proxy(
+    monkeypatch: pytest.MonkeyPatch, origin: int, proxy: int
+) -> None:
+    # A trailing-slash redirect names the address the operator chose, so it travels
+    # the way the operator's own hop does.
+    _through_the_proxy(monkeypatch, proxy)
+    monkeypatch.setattr(_Origin, "bounce_status", 307)
+    monkeypatch.setattr(_Origin, "bounce_to", f"http://127.0.0.1:{origin}/mcp/")
+
+    reply = send(f"http://127.0.0.1:{origin}/bounce", method="GET")
+
+    assert reply.json_object() == {"served_by": "proxy"}
+    assert len(_Proxy.hosts) == 2
+    assert _Origin.hosts == []
 
 
 def _through_the_proxy(monkeypatch: pytest.MonkeyPatch, proxy: int) -> None:

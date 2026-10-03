@@ -336,6 +336,32 @@ def test_only_a_direct_url_install_moves_under_one_version(site: Path) -> None:
     assert moves_under_one_version("acme-absent") is False
 
 
+def test_a_legacy_checkout_on_the_path_moves_and_stays_unpinned_with_its_reason(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`setup.py develop` and an `.egg-info` checkout write no `direct_url.json`."""
+    checkout = tmp_path / "acme-legacy"
+    info = checkout / "acme_legacy.egg-info"
+    info.mkdir(parents=True)
+    (info / "PKG-INFO").write_text(
+        "Metadata-Version: 2.1\nName: acme-legacy\nVersion: 1.0\n", encoding="utf-8"
+    )
+    monkeypatch.syspath_prepend(str(checkout))
+    importlib.invalidate_caches()
+
+    assert moves_under_one_version("acme-legacy") is True
+    assert pin_distribution_source("acme-legacy") == "it names no direct URL to pin by its files"
+
+
+def test_an_installed_distribution_without_a_record_moves_under_one_version(site: Path) -> None:
+    _install(site, "acme-unrecorded", record=None)
+
+    assert moves_under_one_version("acme-unrecorded") is True
+    assert pin_distribution_source("acme-unrecorded") == (
+        "it names no direct URL to pin by its files"
+    )
+
+
 def test_requirements_are_followed_by_their_normalised_name_markers_and_extras_ignored(
     site: Path,
 ) -> None:
@@ -393,18 +419,70 @@ def test_what_a_recipe_run_writes_inside_the_editable_directory_is_left_out(
     assert counted.files == first.files + 2
 
 
-def test_console_scripts_outside_the_install_root_are_left_out_of_a_record_pin() -> None:
-    def installed(interpreter: str) -> str:
-        return _RECORD + _record(
-            f"../../../bin/acme,sha256={interpreter},250",
-            f"acme_pack-1.0.data/scripts/acme-tool,sha256={interpreter},250",
-        )
+_OUTSIDE = {
+    "../bin/acme": "#!/venv-one/bin/python\nfrom acme_pack import main\nmain()\n",
+    "../bin/acme-tool": "#!/venv-one/bin/python\nprint('tool')\n",
+    "../share/acme/table.txt": "rows\n",
+    "acme_pack-1.0.data/scripts/acme-setup": "#!python\nprint('setup')\n",
+}
 
-    here = record_pin(installed("1111"))
-    elsewhere = record_pin(installed("2222"))
 
-    assert here == record_pin(_RECORD)
-    assert elsewhere == here
+def _with_installed_files(site: Path, files: Mapping[str, str]) -> None:
+    """Install `acme-pack` from a directory, with `files` written where its RECORD says."""
+    for path, text in files.items():
+        (site / path).parent.mkdir(parents=True, exist_ok=True)
+        (site / path).write_text(text, encoding="utf-8")
+    info = _install(
+        site,
+        "acme-pack",
+        direct_url={"url": "file:///src/acme-pack", "dir_info": {}},
+        record=_RECORD
+        + _record(
+            "acme_pack-1.0.dist-info/entry_points.txt,sha256=FFFF,40",
+            *(f"{path},sha256=ZZZZ,1" for path in _OUTSIDE),
+        ),
+    )
+    (info / "entry_points.txt").write_text(
+        "[console_scripts]\nacme = acme_pack:main\n", encoding="utf-8"
+    )
+
+
+@pytest.mark.parametrize(
+    ("path", "text", "moves"),
+    [
+        ("../bin/acme-tool", "#!/venv-two/bin/python3\nprint('tool')\n", False),
+        ("../bin/acme-tool", "#!/venv-one/bin/python\nprint('other')\n", True),
+        ("../share/acme/table.txt", "other rows\n", True),
+        ("acme_pack-1.0.data/scripts/acme-setup", "#!python\nprint('other')\n", True),
+        ("../bin/acme", "#!/venv-two/bin/python\nfrom elsewhere import main\nmain()\n", False),
+    ],
+    ids=["shebang", "script", "data", "data-scripts", "generated"],
+)
+def test_files_installed_outside_the_package_are_pinned_by_content_past_the_shebang(
+    site: Path, path: str, text: str, *, moves: bool
+) -> None:
+    """A `scripts=` file and data move the pin; an interpreter path and a generated script do not.
+
+    A console script is what `entry_points.txt` declares, and that file is pinned.
+    """
+    _with_installed_files(site, _OUTSIDE)
+    first = pin_distribution_source("acme-pack")
+
+    (site / path).write_text(text, encoding="utf-8")
+    second = pin_distribution_source("acme-pack")
+
+    assert isinstance(first, SourcePin)
+    assert first.files == 7
+    assert (second != first) is moves
+
+
+def test_a_file_installed_outside_the_package_that_cannot_be_read_leaves_it_unpinned(
+    site: Path,
+) -> None:
+    _with_installed_files(site, _OUTSIDE)
+    (site / "../share/acme/table.txt").unlink()
+
+    assert pin_distribution_source("acme-pack") == "its ../share/acme/table.txt cannot be read"
 
 
 def test_bytecode_a_record_lists_outside_a_cache_directory_is_pinned() -> None:

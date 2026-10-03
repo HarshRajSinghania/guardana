@@ -1080,7 +1080,7 @@ def test_a_target_that_connects_while_it_is_built_and_fails_is_unavailable(
     ran = _invoke("run", str(recipe))
 
     assert locked.exit_code == ExitCode.TARGET_UNAVAILABLE
-    assert "could not reach target acme-down://x" in normalised(locked.output)
+    assert "could not reach endpoint acme-down://x: connection refused" in normalised(locked.output)
     assert not (tmp_path / "guardana-recipe.lock.yaml").exists()
     assert ran.exit_code == ExitCode.TARGET_UNAVAILABLE
     assert _status(recipe) == "refused"

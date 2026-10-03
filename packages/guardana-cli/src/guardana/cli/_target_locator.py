@@ -1,12 +1,15 @@
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from typing import TypeVar
 from urllib.error import URLError
+from urllib.parse import parse_qsl, urlsplit
 
 import typer
 from guardana.cli._plugins import admission_forms, refused_distributions
 from guardana.cli.exit_codes import ExitCode
+from guardana.core.redaction import EvidenceMode, MessageQuoting, RedactionPolicy
 from guardana.core.registry import Registry
 from guardana.core.target import EndpointError, LocatorError, Target, TargetKind, display_url
+from guardana.core.target.failure import FailureRemedies, describe_failure
 
 
 def target_options(values: Sequence[str]) -> dict[str, str]:
@@ -59,12 +62,16 @@ def resolve_target(
         raise typer.BadParameter(
             f"unknown target scheme {scheme!r}; loaded schemes: {available}{trust}"
         )
+    named = target_options(options)
     try:
-        target = target_type.from_locator(rest, options=target_options(options))
+        target = target_type.from_locator(rest, options=named)
     except LocatorError as exc:
         raise typer.BadParameter(f"invalid {scheme} target: {exc}") from exc
     except (URLError, OSError, EndpointError) as exc:
-        typer.echo(f"error: could not reach target {_shown(locator)}: {exc}", err=True)
+        said = describe_failure(
+            exc, _shown(locator), _unbuilt_quoting(rest, named), FailureRemedies()
+        )
+        typer.echo(f"error: {said}", err=True)
         raise typer.Exit(code=ExitCode.TARGET_UNAVAILABLE) from exc
     if target.kind is not kind:
         raise typer.BadParameter(
@@ -72,6 +79,20 @@ def resolve_target(
             f"only {kind} targets"
         )
     return target
+
+
+def _unbuilt_quoting(rest: str, options: Mapping[str, str]) -> MessageQuoting:
+    """How to quote a failure of a target that was never built, so declared no secret.
+
+    Every option value and every part of the locator that is not shown is withheld,
+    since any of them may be a credential, and the rest is redacted.
+    """
+    parts = urlsplit(f"https://{rest}")
+    hidden = [parts.password or "", parts.query, parts.fragment]
+    hidden.extend(value for _name, value in parse_qsl(parts.query, keep_blank_values=True))
+    return MessageQuoting.of(
+        RedactionPolicy(mode=EvidenceMode.REDACTED), (*options.values(), *hidden)
+    )
 
 
 def _shown(locator: str) -> str:

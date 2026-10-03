@@ -13,6 +13,7 @@ from datetime import UTC, datetime
 
 from fastapi import HTTPException, Request
 from guardana.server.auth import Authenticated, AuthError, Scope, authenticate
+from guardana.server.db.connection import connect
 
 UNAUTHENTICATED_VARIABLE = "GUARDANA_ALLOW_UNAUTHENTICATED"
 _TRUTHY = frozenset({"1", "true", "yes", "on"})
@@ -95,8 +96,6 @@ def guard(database_url: str | None, scope: Scope) -> Callable[[Request], Authent
         if database_url is None:
             return None
         token = _presented_token(request, accept_cookie=scope is Scope.READ)
-        from psycopg import connect  # noqa: PLC0415 — the engine never imports a driver
-
         try:
             with connect(database_url) as connection:
                 identity = authenticate(connection, token, now=datetime.now(UTC))

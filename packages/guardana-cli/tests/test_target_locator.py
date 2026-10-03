@@ -283,6 +283,40 @@ def test_an_unreachable_target_error_never_prints_its_credentials(
     assert "connection refused" in printed
 
 
+class _EchoesItsOptions(_Located):
+    """A target whose connection error repeats what it was built with, at length."""
+
+    scheme = "echoes"
+
+    @classmethod
+    def from_locator(cls, locator: str, *, options: Mapping[str, str]) -> Self:
+        raise OSError(f"connection refused for {locator} with {dict(options)} " + "x" * 2000)
+
+
+def test_an_unreachable_target_error_withholds_its_options_and_is_bounded(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    registry = Registry()
+    registry.register_target(_EchoesItsOptions)
+
+    with pytest.raises(typer.Exit) as stopped:
+        resolve_target(
+            registry,
+            locator="echoes://operator:hunter2pw@host.invalid/models?token=s3cret-value",
+            options=["api_key=opt-secret-9431", "region=eu-west"],
+            kind=TargetKind.ARTIFACT,
+            fallback=_fallback,
+        )
+
+    printed = capsys.readouterr().err
+    assert stopped.value.exit_code == 4
+    assert "connection refused" in printed
+    for secret in ("opt-secret-9431", "eu-west", "hunter2pw", "s3cret-value"):
+        assert secret not in printed
+    assert "[cut from" in printed
+    assert len(printed.strip()) <= len("error: ") + 500
+
+
 def test_a_wrong_kind_target_error_never_prints_its_credentials() -> None:
     registry = Registry()
     registry.register_target(_Located)

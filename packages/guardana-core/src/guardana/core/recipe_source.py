@@ -56,6 +56,11 @@ _COVERAGE_PART = ".coverage."
 
 _DIST_INFO_KEPT = frozenset({"METADATA", "entry_points.txt"})
 """What in a `.dist-info` says what runs: the version and requirements, and what it registers."""
+_SCRIPT_GROUPS = frozenset({"console_scripts", "gui_scripts"})
+_LAUNCHER_SUFFIXES = (".exe", "-script.pyw", "-script.py")
+"""What an installer appends to a declared script's name on a platform without `#!`."""
+_CONTENT_TAG = "content-sha256="
+_READ_CHUNK = 1024 * 1024
 _REQUIREMENT_NAME = re.compile(r"\s*([A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)")
 _FINDER_TABLES = frozenset({"MAPPING", "NAMESPACES"})
 _PTH_IMPORT = ("import ", "import\t")
@@ -143,7 +148,11 @@ def pin_distribution_source(
     info = direct.get("dir_info")
     if isinstance(info, dict) and info.get("editable") is True:
         return _editable_pin(found, direct.get("url"), leave_out)
-    return record_pin(found.read_text("RECORD"))
+    return record_pin(
+        found.read_text("RECORD"),
+        installed=lambda path: _installed_content(found, path),
+        generated=_generated_scripts(found),
+    )
 
 
 def _editable_pin(
@@ -384,14 +393,24 @@ def _excluded_file(name: str, *, top: bool) -> bool:
     )
 
 
-def record_pin(record: str | None) -> SourcePin | str:
+def record_pin(
+    record: str | None,
+    *,
+    installed: Callable[[str], str | None] = lambda _path: None,
+    generated: frozenset[str] = frozenset(),
+) -> SourcePin | str:
     """Pin a distribution by its installed `RECORD`: every entry's path and recorded hash.
 
-    Bytecode under `__pycache__/`, the installer's bookkeeping — every file of the
-    distribution's own `.dist-info` but `METADATA` and `entry_points.txt` — and the
-    scripts it generated outside the install root are left out, so installing the same
-    code again, into any environment, pins the same; any other entry without a hash
-    leaves the distribution unpinned.
+    Bytecode under `__pycache__/` and the installer's bookkeeping — every file of the
+    distribution's own `.dist-info` but `METADATA` and `entry_points.txt` — are left
+    out, so installing the same code again, into any environment, pins the same; any
+    other entry inside the install root without a hash leaves the distribution unpinned.
+
+    A file installed outside the install root or under `*.data/scripts/` is pinned by
+    what `installed` reads for it, its content past a `#!` line, since an installer
+    writes the interpreter into that line; None from it leaves the distribution
+    unpinned. A console script named in `generated` is left out: `entry_points.txt`
+    says what it calls.
     """
     if record is None:
         return "it has no RECORD to read"
@@ -403,29 +422,85 @@ def record_pin(record: str | None) -> SourcePin | str:
         path, recorded, size = (*row, "", "")[:3]
         if _installer_own(path):
             continue
-        if not recorded:
+        outside = _installed_outside(path)
+        if outside and _generated_script(path, generated):
+            continue
+        if not outside and not recorded:
             return f"its RECORD lists {path} without a hash"
         total += int(size) if size.isdigit() else 0
-        entries.append((path.encode("utf-8"), recorded))
-        above = _above_bounds(len(entries), total)
+        above = _above_bounds(len(entries) + 1, total)
         if above is not None:
             return above
+        if outside:
+            content = installed(path)
+            if content is None:
+                return f"its {path} cannot be read"
+            entries.append((_outside_key(path).encode("utf-8"), content))
+        else:
+            entries.append((path.encode("utf-8"), recorded))
     return _pin(_RECORD_TAG, entries)
 
 
-def _installer_own(path: str) -> bool:
-    """Whether a `RECORD` entry records the install rather than the code it installed.
+def _installed_content(found: importlib.metadata.Distribution, path: str) -> str | None:
+    """Digest the file a `RECORD` entry names, past a `#!` line; None when it cannot be read."""
+    digest = hashlib.sha256()
+    try:
+        with Path(str(found.locate_file(path))).open("rb") as handle:
+            if handle.peek(2)[:2] == b"#!":
+                while line := handle.readline(_READ_CHUNK):
+                    if line.endswith(b"\n"):
+                        break
+            while chunk := handle.read(_READ_CHUNK):
+                digest.update(chunk)
+    except OSError:
+        return None
+    return f"{_CONTENT_TAG}{digest.hexdigest()}"
 
-    A generated console script embeds the interpreter of the environment it was installed
-    into; `entry_points.txt`, which is pinned, says what it calls.
-    """
+
+def _generated_scripts(found: importlib.metadata.Distribution) -> frozenset[str]:
+    """Return the names of the console and GUI scripts an installer generates for `found`."""
+    return frozenset(entry.name for entry in found.entry_points if entry.group in _SCRIPT_GROUPS)
+
+
+def _installed_outside(path: str) -> bool:
+    """Whether a `RECORD` entry is a file the installer placed outside the package tree."""
     entry = PurePosixPath(path)
     parts = entry.parts
-    if not parts or entry.is_absolute() or parts[0] == "..":
+    return (
+        entry.is_absolute()
+        or parts[0] == ".."
+        or (parts[0].endswith(".data") and parts[1:2] == ("scripts",))
+    )
+
+
+def _generated_script(path: str, generated: frozenset[str]) -> bool:
+    """Whether an entry is the wrapper an installer writes for a declared script."""
+    name = PurePosixPath(path).name
+    for suffix in _LAUNCHER_SUFFIXES:
+        if name.endswith(suffix):
+            name = name[: -len(suffix)]
+            break
+    return name in generated
+
+
+def _outside_key(path: str) -> str:
+    """Return the path an outside entry is pinned by: one `..` however deep the root sits."""
+    parts = PurePosixPath(path).parts
+    if parts[0] != "..":
+        return path
+    rest = list(parts)
+    while rest and rest[0] == "..":
+        rest.pop(0)
+    return PurePosixPath("..", *rest).as_posix()
+
+
+def _installer_own(path: str) -> bool:
+    """Whether a `RECORD` entry records the install rather than the code it installed."""
+    entry = PurePosixPath(path)
+    parts = entry.parts
+    if not parts:
         return True
     if entry.suffix == ".pyc" and "__pycache__" in parts:
-        return True
-    if parts[0].endswith(".data") and parts[1:2] == ("scripts",):
         return True
     if not parts[0].endswith(".dist-info"):
         return False

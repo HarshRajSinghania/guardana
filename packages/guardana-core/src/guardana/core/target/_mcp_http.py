@@ -14,11 +14,11 @@ resolving `http://169.254.169.254/` because a server asked it to would be the
 confused deputy it is here to look for.
 
 Every connection to an address the server chose — each discovery request, and each
-redirect hop after the operator's own — connects only to an address it checked. Its
-host is resolved once at connect time, every address is held to the guard, and the
-socket is opened to one of those addresses while the name still travels as `Host`
-and as TLS SNI, so a name that answers differently between two lookups has nothing
-to switch.
+redirect hop to an origin other than the operator's — connects only to an address it
+checked. Its host is resolved once at connect time, every address is held to the
+guard, and the socket is opened to one of those addresses while the name still
+travels as `Host` and as TLS SNI, so a name that answers differently between two
+lookups has nothing to switch.
 """
 
 import ipaddress
@@ -287,8 +287,9 @@ def send(  # noqa: PLR0913 — the keywords the `Sender` protocol publishes
     HTTP proxy is used, because a proxy would resolve the name again on its own.
 
     The first hop of any other request is the operator's: it connects by name and
-    honours the proxy settings. Every hop after it was chosen by the server, so it
-    is pinned the way a discovery hop is and bypasses the proxy.
+    honours the proxy settings, and so does a redirect hop to the same origin. A hop to
+    any other origin was chosen by the server, so it is pinned the way a discovery hop
+    is and bypasses the proxy.
     """
     return _send(
         url,
@@ -441,8 +442,16 @@ class _Route:
         return (_FirstHopProxy(self), _GuardedRedirect(self), _HopHTTP(self), _HopHTTPS(self))
 
     def pinned(self, request: Request) -> bool:
-        """Whether this hop may connect only to an address the guard accepted."""
-        return self._discovery is not None or request is not self._first
+        """Whether this hop may connect only to an address the guard accepted.
+
+        A hop to the operator's own origin names nothing the server chose, so it
+        travels as the operator's hop does: through the proxy, connecting by name.
+        """
+        if self._discovery is not None:
+            return True
+        return request is not self._first and not same_origin(
+            request.full_url, self._first.full_url
+        )
 
     def local_target(self) -> bool:
         """Whether the server under test is local, as far as this request can tell."""

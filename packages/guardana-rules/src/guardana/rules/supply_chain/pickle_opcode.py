@@ -691,7 +691,7 @@ class PickleOpcodeRule(ArtifactRule):
             return True
         data, oversized = prefix
         scan = _scan_opcodes(data)
-        if by_content and not _bin_verdict(data, scan, cut=oversized):
+        if by_content and _bin_verdict(data, scan, cut=oversized) is False:
             return False
         report.found(scan.refs)
         # Callables found first do not clear what comes after them: an unpickler runs

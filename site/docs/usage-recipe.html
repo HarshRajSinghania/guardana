@@ -423,7 +423,10 @@ that register it (<code>target</code>);</li>
 configuration.</p>
 <h3 id="distributions-installed-from-a-directory-or-a-url">Distributions installed from a directory or a URL</h3>
 <p>A distribution installed in editable mode or from a direct URL (PEP 610 <code>direct_url.json</code>) can
-change its code under one version, so a version pin says nothing about it. The lock pins each
+change its code under one version, so a version pin says nothing about it. Neither does it about
+one whose metadata lives outside every <code>site-packages</code> directory, such as a <code>setup.py develop</code>
+install or an <code>.egg-info</code> checkout on the path, or one installed with no <code>RECORD</code>; with no
+<code>direct_url.json</code> to say where its files are, each of these stays unpinned. The lock pins each
 such distribution by its files, under <code>sources</code> (<code>digest</code>, <code>files</code>), when plugin trust let the
 run import any of its Guardana entry points (importing one runs its code, whether or not the
 recipe selects what it registers), when it registers a selected rule, an evaluator a selected
@@ -449,15 +452,18 @@ is pinned by its installed <code>RECORD</code>: each entry's path and recorded h
 under <code>__pycache__/</code> and every file of its own <code>.dist-info</code> but <code>METADATA</code> (its version and
 requirements) and <code>entry_points.txt</code> (what it registers). The rest — <code>RECORD</code>, <code>INSTALLER</code>,
 <code>REQUESTED</code>, <code>direct_url.json</code>, an installer's cache file — records the install, not the
-code that runs. Entries outside the install root (<code>../../../bin/…</code>) and under
-<code>*.data/scripts/</code> are left out too: they are the console scripts an installer generates, each
-embedding the path of the environment's interpreter, and <code>entry_points.txt</code> already pins what
-they call. Installing the same code again, into any environment, pins the same.</li>
+code that runs. A file installed outside the install root (<code>../../../bin/…</code>,
+<code>../../../share/…</code>) or under <code>*.data/scripts/</code> is pinned by its path and the SHA-256 of the
+installed file past a first <code>#!</code> line, which an installer rewrites to the environment's
+interpreter. A console or GUI script the installer generated from <code>entry_points.txt</code> is left
+out, since that file already pins what it calls. Installing the same code again, into any
+environment, pins the same.</li>
 </ul>
 <p>A distribution stays under <code>unpinned</code>, with the reason, when it holds more than 20,000 files or
 256 MiB, when a symlink leads outside its directory, when its editable install loads code from
 outside its directory or maps its packages in a way Guardana cannot read, when it has no
-<code>RECORD</code> to read, or when its <code>RECORD</code> lists an entry without a hash. <code>unpinned</code> maps each
+<code>RECORD</code> to read, when its <code>RECORD</code> lists an entry inside the install root without a hash, or
+when a file it installed outside the install root cannot be read. <code>unpinned</code> maps each
 <code>rule:&lt;id&gt;</code>, <code>evaluator:&lt;id&gt;</code> and <code>target:&lt;scheme&gt;</code> it registers — or <code>distribution:&lt;name&gt;</code>
 when it registers none of them — to that reason. <code>recipe run</code> computes the lock again on every
 run, so it hashes each editable tree again, within the same bounds.</p>

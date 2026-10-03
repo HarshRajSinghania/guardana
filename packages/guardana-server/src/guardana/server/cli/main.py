@@ -5,15 +5,14 @@ means editing a dispatch chain that somebody has to remember to extend.
 """
 
 import argparse
-import re
 import sys
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
-from urllib.parse import unquote
 
 from guardana.server.cli import audit, inventory, keys, retention, schema, serve, tenants
 from guardana.server.cli.codes import EXIT_FAILED, EXIT_INVALID_USAGE, EXIT_OK, EXIT_UNAVAILABLE
 from guardana.server.cli.serve import ServerNotInstalledError
+from guardana.server.db.connection import DatabaseUnreachableError, connect
 from guardana.server.db.settings import StorageNotConfiguredError, resolve_storage
 from guardana.server.lifecycle import LifecycleError
 from guardana.server.security import UnauthenticatedCollectorError
@@ -38,33 +37,6 @@ def _connection_url() -> str:
             "has no schema to migrate"
         )
     return choice.database_url
-
-
-_KEYWORD_PASSWORD = re.compile(r"\bpassword\s*=\s*('(?:[^'\\]|\\.)*'?|\S+)")
-_REDACTED = "***"
-
-
-def _without_password(message: str, url: str) -> str:
-    """Remove every form of the connection string's password from an error message.
-
-    libpq quotes a connection string it cannot parse back in its error, password
-    included, so the message is cleaned before anything prints it.
-    """
-    secrets: set[str] = set()
-    _, scheme, rest = url.partition("://")
-    if scheme:
-        authority = re.split(r"[/?#]", rest, maxsplit=1)[0]
-        userinfo, at, _ = authority.rpartition("@")
-        _, colon, password = userinfo.partition(":")
-        if at and colon and password:
-            secrets.add(password)
-    for match in _KEYWORD_PASSWORD.finditer(url):
-        value = match.group(1)
-        secrets.update({value, value.strip("'")})
-    secrets.update({unquote(secret) for secret in secrets})
-    for secret in sorted(filter(None, secrets), key=len, reverse=True):
-        message = message.replace(secret, _REDACTED)
-    return message
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -147,13 +119,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return EXIT_INVALID_USAGE
 
-    from psycopg import connect  # noqa: PLC0415 — imported here so --help needs no database
-
     try:
         connection = connect(url)
-    except Exception as exc:  # whatever stops a connection opening, the database is unavailable
-        reason = _without_password(str(exc), url)
-        print(f"error: could not reach the database: {reason}", file=sys.stderr)
+    except DatabaseUnreachableError as exc:
+        print(f"error: could not reach the database: {exc}", file=sys.stderr)
         return EXIT_UNAVAILABLE
     return _with_connection(arguments, connection)
 

@@ -13,6 +13,7 @@ from datetime import UTC, datetime
 from time import time
 from typing import Any
 
+from guardana.server.db.connection import connect
 from guardana.server.deployment import labelled_for
 from guardana.server.envelope import (
     CheckErrorIn,
@@ -28,8 +29,7 @@ from guardana.server.envelope import (
 from guardana.server.lifecycle import record_sighting
 from guardana.server.store import StoredSubmission
 from guardana.server.tenancy import TenantScope
-from psycopg import Connection, Cursor, connect
-from psycopg.rows import tuple_row
+from psycopg import Connection, Cursor
 
 _FINDINGS = "findings"
 _UNVERIFIED = "unverified"
@@ -160,7 +160,7 @@ class PostgresStore:
 
     @contextmanager
     def _connection(self) -> Iterator[Connection[tuple[Any, ...]]]:
-        with connect(self._url, row_factory=tuple_row) as connection:
+        with connect(self._url) as connection:
             yield connection
 
     def add(self, scope: TenantScope, submission: Submission) -> bool:

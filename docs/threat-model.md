@@ -119,8 +119,8 @@ operator *types*, and they are answered differently.
   boundary that matters is who chose the address, and Guardana enforces it there.
 
 **DNS rebinding.** Every connection to an address the server chose — each discovery
-request, and each redirect hop after the first on the server's own requests —
-connects only to an address it checked. Its connection resolves the host once,
+request, and each redirect hop on the server's own requests to an origin other than
+the operator's — connects only to an address it checked. Its connection resolves the host once,
 holds every address in the answer to the rules above (one refused address refuses
 the host), and dials one of the accepted addresses; the host name still travels as
 the `Host` header and as TLS SNI, and the certificate is verified against the name.

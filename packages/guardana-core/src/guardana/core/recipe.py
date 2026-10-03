@@ -11,6 +11,8 @@ directory or a URL. Design: `docs/design/team-recipes.md`,
 
 import importlib.metadata
 import json
+import site
+import sysconfig
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import asdict, dataclass, field
 from enum import StrEnum
@@ -1032,14 +1034,34 @@ def _strings(raw: object, where: str) -> list[str]:
 
 
 def moves_under_one_version(distribution: str) -> bool:
-    """Whether `distribution` came from a direct URL, so its code can move under one version.
+    """Whether the code of `distribution` can change while its version stays put.
 
     PEP 610: an install from a local directory (editable or not), a VCS checkout or an
-    archive URL writes `direct_url.json`; an install from an index does not. A version pin
-    says nothing about the first three, so the lock lists what they register as unpinned.
+    archive URL writes `direct_url.json`; an install from an index does not. A legacy
+    `setup.py develop` install or an `.egg-info` checkout on the path writes none, and
+    is told by its metadata living outside every site-packages directory or by having
+    no `RECORD`. A version pin says nothing about any of these, so the lock pins them
+    by their files or lists them as unpinned.
     """
     try:
         found = importlib.metadata.distribution(distribution)
     except importlib.metadata.PackageNotFoundError:
         return False
-    return found.read_text("direct_url.json") is not None
+    if found.read_text("direct_url.json") is not None or found.read_text("RECORD") is None:
+        return True
+    return not _in_site_directory(Path(str(found.locate_file(""))))
+
+
+_SITE_DIRECTORY_NAMES = frozenset({"site-packages", "dist-packages"})
+
+
+def _in_site_directory(location: Path) -> bool:
+    """Whether `location` is a directory an installer puts distributions into."""
+    known = {*site.getsitepackages(), site.getusersitepackages()}
+    known.update(sysconfig.get_paths()[key] for key in ("purelib", "platlib"))
+    try:
+        resolved = location.resolve()
+        directories = {Path(path).resolve() for path in known}
+    except OSError:
+        return False
+    return resolved.name in _SITE_DIRECTORY_NAMES or resolved in directories
