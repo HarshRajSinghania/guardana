@@ -12,11 +12,11 @@ sides, and the gate concludes only when both bounds agree. Why, and what was rej
 
 import math
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from guardana.core.assessment import Assessment, AssessmentStatus
 from guardana.core.evaluator.base import Evaluator
-from guardana.core.judge_error import correct_pass_rate, grading_of
+from guardana.core.judge_error import Grading, correct_pass_rate, grading_of
 from guardana.core.manifest.records import (
     CalibrationRecord,
     CorrectionStatus,
@@ -24,6 +24,7 @@ from guardana.core.manifest.records import (
     SuiteOutcome,
     SuiteSummary,
 )
+from guardana.core.target.decline import DECLINED_TAG_PREFIX
 from guardana.core.trials import check_trials, wilson_at
 
 DEFAULT_MIN_SAMPLE = 30
@@ -99,6 +100,7 @@ def measure_suite(  # noqa: PLR0913 — one keyword per fact the assessments can
         high = max(wilson_at(best, len(cases))[1], best)
     correction = _correction(
         rule_id,
+        [_split(by_case.get(case_id, []), trials_per_case) for case_id in case_ids],
         recorded,
         evaluators=evaluators,
         calibrations=calibrations,
@@ -145,8 +147,48 @@ def _reduce(trials: Sequence[Assessment], planned: int) -> _Case:
     )
 
 
+@dataclass(frozen=True, slots=True)
+class _Split:
+    """One case's trials, split into those a grader read and those read from a decline.
+
+    A planned trial with no record counts as one a grader would have read, ungraded.
+    """
+
+    trials: int
+    judged: int
+    judged_passed: int
+    judged_ungraded: int
+    declined_passed: int
+    declined_ungraded: int
+
+
+def _from_decline(assessment: Assessment) -> bool:
+    """Whether the verdict was read from the application's decline rather than from a reply."""
+    return any(tag.startswith(DECLINED_TAG_PREFIX) for tag in assessment.tags)
+
+
+def _graded(assessment: Assessment) -> bool:
+    return assessment.status is AssessmentStatus.MEASURED and assessment.passed is not None
+
+
+def _split(trials: Sequence[Assessment], planned: int) -> _Split:
+    """Split one case's trials by whether each verdict came from a decline."""
+    total = max(planned, len(trials))
+    declined = [a for a in trials if _from_decline(a)]
+    judged = [a for a in trials if not _from_decline(a) and _graded(a)]
+    return _Split(
+        trials=total,
+        judged=total - len(declined),
+        judged_passed=sum(1 for a in judged if a.passed is True),
+        judged_ungraded=total - len(declined) - len(judged),
+        declined_passed=sum(1 for a in declined if _graded(a) and a.passed is True),
+        declined_ungraded=sum(1 for a in declined if not _graded(a)),
+    )
+
+
 def _correction(  # noqa: PLR0913 — the grading inputs and the four observed rates
     rule_id: str,
+    split: Sequence[_Split],
     recorded: Sequence[Assessment],
     *,
     evaluators: Mapping[str, Evaluator],
@@ -154,20 +196,86 @@ def _correction(  # noqa: PLR0913 — the grading inputs and the four observed r
     rates: tuple[float | None, float | None, float | None, float | None],
     starter_digest: str | None,
 ) -> SuiteCorrection:
-    grading = grading_of(rule_id, False, {a.assessor for a in recorded}, evaluators)
+    """Correct the rates for the judge's error over the trials a judge read.
+
+    A verdict read from a decline is a fact about what the application did, not a
+    judge's reading of a reply, so it is left out of the correction and added back as
+    observed.
+    """
+    judged = [a for a in recorded if not _from_decline(a)]
+    grading = grading_of(rule_id, False, {a.assessor for a in judged}, evaluators)
     worst, best, low, high = rates
     if not grading.judges or worst is None or best is None or low is None or high is None:
         return SuiteCorrection(status=CorrectionStatus.DETERMINISTIC)
-    return correct_pass_rate(
+    if len(judged) == len(recorded):
+        return correct_pass_rate(
+            grading,
+            evaluators,
+            calibrations,
+            worst=worst,
+            best=best,
+            low=low,
+            high=high,
+            starter_digest=starter_digest,
+        )
+    return _with_declines(grading, split, evaluators, calibrations, starter_digest=starter_digest)
+
+
+def _with_declines(
+    grading: Grading,
+    split: Sequence[_Split],
+    evaluators: Mapping[str, Evaluator],
+    calibrations: Mapping[str, CalibrationRecord],
+    *,
+    starter_digest: str | None,
+) -> SuiteCorrection:
+    """Correct the judged trials' rates, then weigh the declined trials back in as observed.
+
+    Corrected rate = judged share x corrected judged rate + declined share that passed;
+    each limit likewise from the judged limit. The judged rates are over the judged share
+    of the cases, rounded down to whole cases for their interval, so the interval is
+    never narrower than the cases behind it.
+    """
+    cases = len(split)
+    share = math.fsum(c.judged / c.trials for c in split) / cases
+    if share <= 0.0:
+        return SuiteCorrection(status=CorrectionStatus.DETERMINISTIC)
+    judged_cases = max(1, math.floor(share * cases + 1e-9))
+    worst = _share(math.fsum(c.judged_passed / c.trials for c in split) / cases / share)
+    best = _share(
+        math.fsum((c.judged_passed + c.judged_ungraded) / c.trials for c in split) / cases / share
+    )
+    corrected = correct_pass_rate(
         grading,
         evaluators,
         calibrations,
         worst=worst,
         best=best,
-        low=low,
-        high=high,
+        low=min(wilson_at(worst, judged_cases)[0], worst),
+        high=max(wilson_at(best, judged_cases)[1], best),
         starter_digest=starter_digest,
     )
+    if (
+        corrected.status is not CorrectionStatus.CORRECTED
+        or corrected.worst is None
+        or corrected.best is None
+        or corrected.low is None
+        or corrected.high is None
+    ):
+        return corrected
+    passed = math.fsum(c.declined_passed / c.trials for c in split) / cases
+    open_ = math.fsum((c.declined_passed + c.declined_ungraded) / c.trials for c in split) / cases
+    return replace(
+        corrected,
+        worst=_share(share * corrected.worst + passed),
+        best=_share(share * corrected.best + open_),
+        low=_share(share * corrected.low + passed),
+        high=_share(share * corrected.high + open_),
+    )
+
+
+def _share(value: float) -> float:
+    return min(1.0, max(0.0, value))
 
 
 def _conclude(  # noqa: PLR0913 — every count the conclusion is allowed to read

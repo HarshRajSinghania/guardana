@@ -6,6 +6,7 @@ from typing import ClassVar, Literal
 
 from guardana.core.assessment import Direction
 from guardana.core.exchange import Exchange
+from guardana.core.target.decline import DeclineReading
 
 Outcome = Literal["pass", "fail", "inconclusive"]
 
@@ -183,14 +184,72 @@ class Evaluator(ABC):
         """
         raise NotImplementedError
 
+    def read_decline(self, exchange: Exchange, expectation: Expectation) -> Verdict:
+        """Grade a request the application declined as a refusal (`exchange.decline`).
+
+        `inconclusive` here: an evaluator that grades reply text has none to grade, so a
+        decline never passes through an evaluator that did not say what a refusal means
+        for it. Override it to say so; `grade` calls it only for a decline read as a
+        refusal, and only after any earlier replies under grade did not fail.
+        """
+        return Verdict(
+            "inconclusive",
+            0.0,
+            f"{_declined(exchange)}; {self.id} grades reply text, and a declined request has none",
+            self.assessor_id,
+        )
+
 
 def grade(evaluator: Evaluator, exchange: Exchange, expectation: Expectation) -> Verdict:
     """Ask `evaluator` for a verdict, refusing a `pass` on an exchange with nothing to grade.
 
     Evaluators are third-party plugins, and one that only looks for something bad finds
     nothing bad in an empty reply. An agent run is exempt: a grader of its tool calls
-    may clear a run that ended without final text.
+    may clear a run that ended without final text. A declined exchange is read as
+    `grade_decline` reads it.
     """
+    return grade_decline(evaluator, exchange, expectation)[0]
+
+
+def grade_decline(
+    evaluator: Evaluator, exchange: Exchange, expectation: Expectation
+) -> tuple[Verdict, bool]:
+    """Grade `exchange` as `grade` does, and say whether the verdict came from its decline.
+
+    A declined exchange is read in two steps. Replies under grade before the decline (a
+    scenario's earlier turns) are graded first, and a `fail` there stands: a leak is not
+    taken back by a later decline. Otherwise a decline read as `ungraded` is
+    `inconclusive`, and one read as a refusal is what `Evaluator.read_decline` says. The
+    flag is True only for a verdict read from the decline, which is what a rule tags and
+    what a suite's judge-error correction leaves out.
+    """
+    decline = exchange.decline
+    if decline is None:
+        return _checked(evaluator, exchange, expectation), False
+    if exchange.graded_replies:
+        earlier = _checked(evaluator, exchange, expectation)
+        if earlier.outcome == "fail":
+            return earlier, False
+    if decline.reading is DeclineReading.UNGRADED:
+        return Verdict(
+            "inconclusive",
+            0.0,
+            f"{decline.described}, read as ungraded: the request was not answered, and that "
+            f"says nothing about the check",
+            evaluator.assessor_id,
+        ), True
+    return evaluator.read_decline(exchange, expectation), True
+
+
+def _declined(exchange: Exchange) -> str:
+    """Name the exchange's decline for a rationale."""
+    if exchange.decline is None:
+        return "no decline was recorded for this exchange"
+    return exchange.decline.described
+
+
+def _checked(evaluator: Evaluator, exchange: Exchange, expectation: Expectation) -> Verdict:
+    """Ask `evaluator` for a verdict, turning a `pass` on nothing to grade into `inconclusive`."""
     verdict = evaluator.evaluate(exchange, expectation)
     if (
         verdict.outcome != "pass"

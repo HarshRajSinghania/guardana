@@ -142,7 +142,7 @@ def test_a_kept_probe_declares_no_subject_kind(
 
     header = json.loads(sidecar.read_text("utf-8").splitlines()[0])
 
-    assert header["guardana_recording"] == 2
+    assert header["guardana_recording"] == 3
     assert "subject_kind" not in header
 
 

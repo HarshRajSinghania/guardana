@@ -6,7 +6,9 @@ messages a rule sent and the reply it got. A team writes one by hand, or `probe`
 beside a run. The dataset is the grading side; a recording is only the answers.
 
 Format 2 adds the header's optional `subject_kind`; a format-1 file is still read, as a
-recording that declares no kind.
+recording that declares no kind. Format 3 lets a line hold `declined` in place of `reply`,
+for a request the application declined, and an optional `meta`, what the reply carried
+beside its text; formats 1 and 2 are still read.
 
 This module reads, bounds, renders and digests the file and nothing more. Matching an
 exchange to the rule that asks for it belongs to the target that replays it.
@@ -15,7 +17,7 @@ exchange to the rule that asks for it belongs to the target that replays it.
 import json
 import re
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from types import MappingProxyType
 from typing import Literal
@@ -24,12 +26,19 @@ from guardana.core.fingerprint import DigestKind, DocumentDigest, digest_of
 from guardana.core.redaction import holds_redaction_marker
 from guardana.core.subject import SubjectKind
 from guardana.core.target import ChatMessage
+from guardana.core.target.adapter import MAX_METADATA_CHARS, MAX_METADATA_NAMES
+from guardana.core.target.decline import (
+    NEVER_A_DECLINE,
+    Decline,
+    DeclineReading,
+    is_valid_decline_name,
+)
 from guardana.core.trace.limits import MAX_RECORD_BYTES, MAX_TRACE_BYTES
 
-RECORDING_FORMAT = 2
+RECORDING_FORMAT = 3
 """The header's `guardana_recording` value this build writes."""
 
-READ_FORMATS = (1, 2)
+READ_FORMATS = (1, 2, 3)
 """Every `guardana_recording` value this build reads."""
 
 MAX_EXCHANGES = 1_000_000
@@ -39,11 +48,18 @@ _FORMAT_KEY = "guardana_recording"
 _V1_HEADER_KEYS = frozenset(
     {_FORMAT_KEY, "name", "version", "verbatim", "subject", "rule", "origin"}
 )
-_HEADER_KEYS = {1: _V1_HEADER_KEYS, 2: _V1_HEADER_KEYS | {"subject_kind"}}
+_HEADER_KEYS = {
+    1: _V1_HEADER_KEYS,
+    2: _V1_HEADER_KEYS | {"subject_kind"},
+    3: _V1_HEADER_KEYS | {"subject_kind"},
+}
 _ORIGIN_KEYS = frozenset(
     {"run_id", "target", "started_at", "stopped_by", "gate", "trials", "rules"}
 )
-_LINE_KEYS = frozenset({"rule", "input", "reply", "key", "altered"})
+_V1_LINE_KEYS = frozenset({"rule", "input", "reply", "key", "altered"})
+_LINE_KEYS = {1: _V1_LINE_KEYS, 2: _V1_LINE_KEYS, 3: _V1_LINE_KEYS | {"declined", "meta"}}
+_DECLINED_KEYS = frozenset({"name", "reading", "status"})
+_META_NAME = re.compile(r"[a-z][a-z0-9_]*")
 _MESSAGE_KEYS = frozenset({"role", "content"})
 _ROLES: tuple[Literal["system", "user", "assistant"], ...] = ("system", "user", "assistant")
 _KEY = re.compile(r"sha256:[0-9a-f]{64}")
@@ -73,19 +89,30 @@ class RecordingOrigin:
 
 @dataclass(frozen=True, slots=True)
 class RecordedExchange:
-    """One exchange: the messages a rule sent, and the application's reply.
+    """One exchange: the messages a rule sent, and the application's reply or its decline.
 
     `key` is `messages_key` of the messages as the rule sent them, taken before anything
     redacted them, so it can match when `input` no longer does. `line` is the source line
-    when read and is not written.
+    when read and is not written. Exactly one of `reply` and `declined` is set; a declined
+    exchange has no reply to alter, so it is never `altered`. `meta` is what the reply
+    carried beside its text, by the names an adapter's `metadata_paths:` give.
     """
 
     rule: str
     input: tuple[ChatMessage, ...]
-    reply: str
+    reply: str | None
     key: str | None = None
     altered: bool = False
     line: int = 0
+    declined: Decline | None = None
+    meta: Mapping[str, str] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        """Refuse both a reply and a decline, neither of them, and an altered decline."""
+        if (self.reply is None) == (self.declined is None):
+            raise ValueError("a recorded exchange holds exactly one of a reply and a decline")
+        if self.declined is not None and self.altered:
+            raise ValueError("a declined exchange has no reply to alter")
 
 
 @dataclass(frozen=True, slots=True)
@@ -118,7 +145,13 @@ class Recording:
         return frozenset(exchange.rule for exchange in self.exchanges) | frozenset(planned)
 
     def reply_altered(self, exchange: RecordedExchange) -> bool:
-        """Tell whether `exchange`'s reply may differ from what the application said."""
+        """Tell whether `exchange`'s reply may differ from what the application said.
+
+        Never for a declined exchange: the decline is what the application did, and it
+        carries no text a redactor could have changed.
+        """
+        if exchange.reply is None:
+            return False
         return not self.verbatim or exchange.altered or holds_redaction_marker(exchange.reply)
 
 
@@ -139,7 +172,7 @@ def messages_key(messages: Sequence[ChatMessage]) -> str:
 def read_recording(path: Path) -> Recording:
     """Read and validate the recording at `path`, refusing the whole file on any bad line.
 
-    Formats 1 and 2 are read; a format-1 file reads with `subject_kind` None.
+    Formats 1 to 3 are read; a format-1 file reads with `subject_kind` None.
     """
     try:
         with path.open("rb") as handle:
@@ -163,7 +196,7 @@ def read_recording(path: Path) -> Recording:
 def render_recording(recording: Recording) -> str:
     """Render `recording` as JSONL text that `read_recording` reads back field for field.
 
-    The output is deterministic and always format 2: header first, then one compact object
+    The output is deterministic and always format 3: header first, then one compact object
     per exchange in order, keys in a fixed order, absent optional keys left out. A recording
     the reader would refuse is refused here instead of written.
     """
@@ -216,7 +249,17 @@ def _exchange_record(exchange: RecordedExchange) -> dict[str, object]:
                 f"recording holds plain chat messages only"
             )
         messages.append({"role": message.role, "content": message.content})
-    record: dict[str, object] = {"rule": exchange.rule, "input": messages, "reply": exchange.reply}
+    record: dict[str, object] = {"rule": exchange.rule, "input": messages}
+    if exchange.declined is not None:
+        record["declined"] = {
+            "name": exchange.declined.name,
+            "reading": exchange.declined.reading.value,
+            "status": exchange.declined.status,
+        }
+    else:
+        record["reply"] = exchange.reply
+    if exchange.meta:
+        record["meta"] = {name: exchange.meta[name] for name in sorted(exchange.meta)}
     if exchange.key is not None:
         record["key"] = exchange.key
     if exchange.altered:
@@ -243,6 +286,7 @@ def _dump(record: dict[str, object]) -> str:
 class _Header:
     """The header line, validated."""
 
+    format: int
     name: str
     version: str
     verbatim: bool
@@ -277,7 +321,7 @@ def _parse_text(text: str, where: str) -> Recording:
             raise RecordingError(
                 f"{where}:{number}: the recording has more than {MAX_EXCHANGES} exchanges; split it"
             )
-        exchanges.append(_exchange(record, header.rule, where, number))
+        exchanges.append(_exchange(record, header, where, number))
     if header is None:
         raise RecordingError(
             f"{where} has no header; its first line must be "
@@ -339,14 +383,13 @@ def _header(record: dict[str, object], where: str, number: int) -> _Header:
     fmt = record[_FORMAT_KEY]
     if not isinstance(fmt, int) or isinstance(fmt, bool):
         raise RecordingError(
-            f"{where}:{number}: `{_FORMAT_KEY}` must be the integer "
-            f"{' or '.join(map(str, READ_FORMATS))}, not {fmt!r}"
+            f"{where}:{number}: `{_FORMAT_KEY}` must be the integer {_listed('or')}, not {fmt!r}"
         )
     allowed = _HEADER_KEYS.get(fmt)
     if allowed is None:
         raise RecordingError(
             f"{where}:{number}: recording format {fmt} was written by another Guardana "
-            f"version; this build reads formats {' and '.join(map(str, READ_FORMATS))}"
+            f"version; this build reads formats {_listed('and')}"
         )
     _refuse_unknown(record, allowed, "header", where, number)
     verbatim = record.get("verbatim")
@@ -356,6 +399,7 @@ def _header(record: dict[str, object], where: str, number: int) -> _Header:
             f"whether every reply is exactly what the application said; it has no default"
         )
     return _Header(
+        format=fmt,
         name=_non_blank(record.get("name"), "the header's `name`", where, number),
         version=_non_blank(record.get("version"), "the header's `version`", where, number),
         verbatim=verbatim,
@@ -364,6 +408,12 @@ def _header(record: dict[str, object], where: str, number: int) -> _Header:
         rule=_optional(record, "rule", "the header's `rule`", where, number),
         origin=_origin(record["origin"], where, number) if "origin" in record else None,
     )
+
+
+def _listed(joiner: str) -> str:
+    """Name every format this build reads: `1, 2 and 3`."""
+    *first, last = map(str, READ_FORMATS)
+    return f"{', '.join(first)} {joiner} {last}" if first else last
 
 
 def _subject_kind(record: Mapping[str, object], where: str, number: int) -> SubjectKind | None:
@@ -431,19 +481,25 @@ def _planned_rules(value: object, where: str, number: int) -> tuple[str, ...]:
 
 
 def _exchange(
-    record: dict[str, object], default_rule: str | None, where: str, number: int
+    record: dict[str, object], header: _Header, where: str, number: int
 ) -> RecordedExchange:
     """Validate one exchange line."""
-    _refuse_unknown(record, _LINE_KEYS, "line", where, number)
-    rule = _optional(record, "rule", "`rule`", where, number) or default_rule
+    _refuse_unknown(record, _LINE_KEYS[header.format], "line", where, number)
+    rule = _optional(record, "rule", "`rule`", where, number) or header.rule
     if rule is None:
         raise RecordingError(
             f"{where}:{number}: the line names no `rule` and the header names no default `rule`"
         )
     if "input" not in record:
         raise RecordingError(f"{where}:{number}: the line has no `input`")
+    declined = _declined(record["declined"], where, number) if "declined" in record else None
     reply = record.get("reply")
-    if not isinstance(reply, str):
+    if declined is not None and "reply" in record:
+        raise RecordingError(
+            f"{where}:{number}: the line holds both `reply` and `declined`; a request was "
+            f"either answered or declined"
+        )
+    if declined is None and not isinstance(reply, str):
         raise RecordingError(f"{where}:{number}: the line's `reply` must be a string")
     key = record.get("key")
     if "key" in record and not (isinstance(key, str) and _KEY.fullmatch(key)):
@@ -453,14 +509,75 @@ def _exchange(
     altered = record.get("altered", False)
     if not isinstance(altered, bool):
         raise RecordingError(f"{where}:{number}: `altered` must be true or false")
+    if declined is not None and altered:
+        raise RecordingError(
+            f"{where}:{number}: a declined line is never `altered`; it holds no reply"
+        )
     return RecordedExchange(
         rule=rule,
         input=_input(record["input"], where, number),
-        reply=reply,
+        reply=reply if isinstance(reply, str) else None,
         key=key if isinstance(key, str) else None,
         altered=altered,
         line=number,
+        declined=declined,
+        meta=_meta(record["meta"], where, number) if "meta" in record else {},
     )
+
+
+def _declined(value: object, where: str, number: int) -> Decline:
+    """Read a line's `declined`: the decline entry's name, its reading and the status."""
+    if not isinstance(value, dict):
+        raise RecordingError(
+            f"{where}:{number}: `declined` must be an object of `name`, `reading` and `status`"
+        )
+    _refuse_unknown(value, _DECLINED_KEYS, "`declined`", where, number)
+    name = value.get("name")
+    if not isinstance(name, str) or not is_valid_decline_name(name):
+        raise RecordingError(
+            f"{where}:{number}: `declined.name` must match [a-z0-9][a-z0-9_.-]*, not {name!r}"
+        )
+    reading = next((r for r in DeclineReading if value.get("reading") == r.value), None)
+    if reading is None:
+        choices = ", ".join(r.value for r in DeclineReading)
+        raise RecordingError(
+            f"{where}:{number}: `declined.reading` must be one of {choices}, not "
+            f"{value.get('reading')!r}"
+        )
+    status = value.get("status")
+    if (
+        not isinstance(status, int)
+        or isinstance(status, bool)
+        or not (200 <= status <= 299 or 400 <= status <= 499)  # noqa: PLR2004 — HTTP classes
+        or status in NEVER_A_DECLINE
+    ):
+        refused = ", ".join(map(str, sorted(NEVER_A_DECLINE)))
+        raise RecordingError(
+            f"{where}:{number}: `declined.status` must be 200-299 or 400-499 and none of "
+            f"{refused}, not {status!r}"
+        )
+    return Decline(name=name, reading=reading, status=status)
+
+
+def _meta(value: object, where: str, number: int) -> Mapping[str, str]:
+    """Read a line's `meta`: named strings, as an adapter's `metadata_paths:` keeps them."""
+    if not isinstance(value, dict):
+        raise RecordingError(f"{where}:{number}: `meta` must be an object of names to strings")
+    if len(value) > MAX_METADATA_NAMES:
+        raise RecordingError(f"{where}:{number}: `meta` holds more than {MAX_METADATA_NAMES} names")
+    meta: dict[str, str] = {}
+    for name, text in value.items():
+        if not _META_NAME.fullmatch(name):
+            raise RecordingError(
+                f"{where}:{number}: `meta` name {name!r} must match [a-z][a-z0-9_]*"
+            )
+        if not isinstance(text, str) or len(text) > MAX_METADATA_CHARS:
+            raise RecordingError(
+                f"{where}:{number}: `meta.{name}` must be a string of at most "
+                f"{MAX_METADATA_CHARS} characters"
+            )
+        meta[name] = text
+    return meta
 
 
 def _input(value: object, where: str, number: int) -> tuple[ChatMessage, ...]:

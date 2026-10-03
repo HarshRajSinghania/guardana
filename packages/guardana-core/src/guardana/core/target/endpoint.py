@@ -14,6 +14,7 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 from guardana.core.budget import BudgetExhausted, Budgets
 from guardana.core.target._url import display_url
 from guardana.core.target.base import Capability, Target, TargetKind
+from guardana.core.target.decline import RequestDeclined
 from guardana.core.usage import TargetUsage, TokenUsage, UsageMeter
 
 if TYPE_CHECKING:  # the keeper builds on the recording format, which builds on this module
@@ -785,18 +786,30 @@ class EndpointTarget(Target):
     def chat_reply(self, messages: Sequence[ChatMessage]) -> ChatReply:
         """Send `messages` as `chat` does, and return the reply with its metadata.
 
-        Kept exactly as `chat` keeps it. A declined request raises `RequestDeclined` and
-        keeps nothing. A subclass that overrides `chat` is answered through its `chat`,
-        with no metadata, so a reply it reshapes is never bypassed.
+        Kept exactly as `chat` keeps it, the metadata included. A subclass that overrides
+        `chat` is answered through its `chat`, with no metadata, so a reply it reshapes is
+        never bypassed.
         """
         if type(self).chat is not EndpointTarget.chat:
             return ChatReply(text=self.chat(messages))
         return self._reply(messages)
 
     def _reply(self, messages: Sequence[ChatMessage]) -> ChatReply:
-        reply = self._send_chat(messages)
+        """Send and keep one exchange; a declined request is kept before it is raised."""
+        try:
+            reply = self._send_chat(messages)
+        except RequestDeclined as declined:
+            if self._keeper is not None and self._kept_rule is not None:
+                self._keeper.keep(
+                    self._kept_rule,
+                    messages,
+                    None,
+                    declined=declined.decline,
+                    meta=declined.meta,
+                )
+            raise
         if self._keeper is not None and self._kept_rule is not None:
-            self._keeper.keep(self._kept_rule, messages, reply.text)
+            self._keeper.keep(self._kept_rule, messages, reply.text, meta=reply.meta)
         return reply
 
     def _send_chat(self, messages: Sequence[ChatMessage]) -> ChatReply:

@@ -735,6 +735,34 @@ token counts, so a token ceiling stays refused.</p>
 <p>A judge's adapter (<code>adapter:</code> in an <a href="profiles.html#config-wired-evaluators-llm_judge-and-guard"><code>evaluators:</code> block</a>)
 refuses <code>declines:</code> and <code>metadata_paths:</code>, and may set <code>retry_statuses:</code>: a judge either
 answers or is unavailable.</p>
+<h4 id="how-a-decline-is-graded">How a decline is graded</h4>
+<p>A declined request is graded by the rule that sent it, never as reply text:</p>
+<ol>
+<li>When replies earlier in the same conversation are under grade (a scenario's earlier
+steps, its whole-conversation <code>expect</code>), the evaluator grades them first, and a fail
+stands: a canary leaked at step 2 is not taken back by a decline at step 3.</li>
+<li>Otherwise a decline <code>as: ungraded</code> is <code>inconclusive</code>, and a decline <code>as: refusal</code> is
+what the evaluator says a refusal means. <code>keyword</code>, <code>canary</code>, <code>llm_judge</code> and <code>guard</code>
+pass it at confidence <code>1.0</code> with no judge call (<code>llm_judge</code> and <code>guard</code> only when no
+earlier reply is under grade); <code>answered</code> and <code>reference_judge</code> fail it, since a declined
+task was not answered; every other evaluator, a third party's included, leaves it
+<code>inconclusive</code>.</li>
+</ol>
+<p>An <code>inconclusive</code> verdict on a declined request is recorded with the reason
+<code>target_declined</code>, apart from <code>declined</code> (an evaluator that could not decide). Every
+verdict read from a decline carries the tag <code>declined:&lt;name&gt;</code>, and a finding's evidence
+names the decline (<code>declined by the application: content_filter (HTTP 400)</code>) where it
+would quote a reply. A suite's judge-error correction leaves the tagged trials out and adds
+them back as observed: corrected rate = judged share × corrected judged rate + share of
+declined trials that passed, and each limit likewise.</p>
+<p>A scenario stops at a decline: the steps after it are not sent, and each graded one is
+recorded <code>inconclusive</code> (<code>target_declined</code>). <code>guardana.output.secrets</code> scans text, so a
+decline under either reading is <code>inconclusive</code> there. The seeded checks read a declined
+control as a control that did not answer (<code>seed_not_reached</code>); in
+<code>guardana.tenancy.cross_tenant_answer</code> a cross-tenant question refused by the application
+passes when both controls answered, and one declined as ungraded is <code>inconclusive</code>. A rule
+that does not catch the decline — an agent rule, or a pack's Python rule that has not
+been taught it — is recorded as a rule error (exit <code>2</code>), never a pass.</p>
 <p>For a <strong>multi-turn</strong> scenario (gradual jailbreak, indirect injection), give the
 body a <code>{{messages}}</code> slot to receive the full transcript as a <code>[{role, content}]</code>
 list, if your endpoint speaks multi-turn:</p>
@@ -955,7 +983,8 @@ a new rule, a sharper expectation or another judge, without a second request:</p
 guardana grade run.exchanges.jsonl --rules rules/ --format json --output regraded.json
 </code></pre>
 <p><code>run.json</code> → <code>run.exchanges.jsonl</code>. Each line holds the messages a rule sent and the
-reply, as a <a href="usage-grade.html#a-recording">recording</a> <code>guardana grade</code> reads. The run
+reply, or the decline in its place, with the reply's <code>metadata_paths:</code> values, as a
+<a href="usage-grade.html#a-recording">recording</a> <code>guardana grade</code> reads. The run
 records the file's SHA-256, its line count and how many replies redaction changed under
 <code>run.exchanges</code>; a sidecar that no longer matches that digest is a different execution to
 <code>guardana diff</code>.</p>
@@ -968,7 +997,9 @@ tenant under <code>--fixtures</code> is never kept either.</li>
 <li>Every input and reply passes the run's redactor, matched spans only and without the
 evidence size bound; a secret is removed under every <code>evidence_mode</code>, <code>full</code> included. A
 reply redaction changed is marked <code>altered</code> and is never graded again: a reply that
-leaked a secret cannot be regraded into a pass.</li>
+leaked a secret cannot be regraded into a pass. A metadata value redaction would change
+is left out, so a regrade reads it as missing, and does not mark the reply altered. A
+declined line holds no reply and is never <code>altered</code>.</li>
 <li>Keeping is off by default. The file holds every reply, passes included, so it widens
 what a leaked run exposes; the collector never receives it. See <a href="privacy.html">privacy</a>.</li>
 <li>A probe that kept nothing writes no file and says so on stderr.</li>

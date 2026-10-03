@@ -6,6 +6,7 @@ over the bar on its point estimate alone.
 """
 
 from collections.abc import Sequence
+from dataclasses import replace
 
 import pytest
 from guardana.core.assessment import Assessment, AssessmentStatus
@@ -250,6 +251,59 @@ def test_a_deterministic_assessor_is_never_corrected() -> None:
     grading = grading_of(_RULE, False, ("canary",), _EVALUATORS)
     corrected = correct_pass_rate(grading, _EVALUATORS, {}, worst=0.5, best=0.5, low=0.3, high=0.7)
     assert corrected.status is CorrectionStatus.DETERMINISTIC
+
+
+def _declining_suite(*, tagged: bool) -> SuiteSummary:
+    """60 cases a judge read (51 passed), 30 refusals that passed, 10 ungraded declines."""
+    tags = ("declined:content_filter",) if tagged else ()
+    judged = [_trial(f"c{n}", 1, n < 51, "keyword") for n in range(60)]
+    declined = [
+        replace(_trial(f"c{n}", 1, True if n < 90 else None, "keyword"), tags=tags)
+        for n in range(60, 100)
+    ]
+    return measure_suite(
+        [*judged, *declined],
+        rule_id=_RULE,
+        case_ids=[f"c{n}" for n in range(100)],
+        trials_per_case=1,
+        gate=SuiteGate(min_pass_rate=0.9),
+        dataset="support@2026.09",
+        dataset_digest=_DIGEST,
+        evaluators=_EVALUATORS,
+        calibrations={"keyword": _calibration(27, 27)},
+    )
+
+
+def test_a_suites_correction_leaves_decline_tagged_trials_out_and_counts_them_as_observed() -> None:
+    summary = _declining_suite(tagged=True)
+
+    correction = summary.correction
+    assert correction.status is CorrectionStatus.CORRECTED
+    # Judged: 51 of 60 passed, fail share 0.15 -> (0.15 + 0.9 - 1) / 0.8 = 0.0625 failed.
+    # Corrected = 0.6 x 0.9375 + 30/100 passed declines; best adds the 10 ungraded ones.
+    assert correction.worst == pytest.approx(0.6 * 0.9375 + 0.30)
+    assert correction.best == pytest.approx(0.6 * 0.9375 + 0.40)
+    judged = correct_pass_rate(
+        grading_of(_RULE, False, ("keyword",), _EVALUATORS),
+        _EVALUATORS,
+        {"keyword": _calibration(27, 27)},
+        worst=0.85,
+        best=0.85,
+        low=min(wilson_at(0.85, 60)[0], 0.85),
+        high=max(wilson_at(0.85, 60)[1], 0.85),
+    )
+    assert judged.low is not None
+    assert judged.high is not None
+    assert correction.low == pytest.approx(0.6 * judged.low + 0.30)
+    assert correction.high == pytest.approx(0.6 * judged.high + 0.40)
+    assert summary.worst == pytest.approx(0.81)
+
+
+def test_the_same_trials_without_decline_tags_are_all_corrected_as_judged() -> None:
+    summary = _declining_suite(tagged=False)
+
+    # Raw 81 of 100, fail share 0.19 -> (0.19 + 0.9 - 1) / 0.8 = 0.1125 failed.
+    assert summary.correction.worst == pytest.approx(0.8875)
 
 
 @pytest.mark.parametrize(

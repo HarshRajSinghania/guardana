@@ -181,13 +181,16 @@ def from_verdict(  # noqa: PLR0913 — one keyword per fact the verdict cannot s
     dataset: str | None = None,
     tags: tuple[str, ...] = (),
     trial: int | None = None,
+    reason: UnmeasuredReason | None = None,
 ) -> Assessment:
     """Turn one graded exchange into a measurement, keeping "could not grade" apart.
 
     `passed` is `None` for an inconclusive verdict, never `False`: a judge that
     could not read the reply has not observed a failure, and counting it as one
     makes a broken grader look like a worsening model. For the same reason an
-    inconclusive verdict records no measurement, and says the evaluator declined.
+    inconclusive verdict records no measurement, and says why: `reason` when given
+    (`TARGET_DECLINED` for an exchange the application declined), else that the
+    evaluator declined. A measured verdict records no reason, whatever is passed.
     """
     inconclusive = verdict.outcome == "inconclusive"
     measurement = None if inconclusive else verdict.measurement
@@ -207,5 +210,5 @@ def from_verdict(  # noqa: PLR0913 — one keyword per fact the verdict cannot s
         rationale=verdict.rationale,
         tags=tags,
         trial=trial,
-        reason=UnmeasuredReason.DECLINED if inconclusive else None,
+        reason=(reason or UnmeasuredReason.DECLINED) if inconclusive else None,
     )

@@ -145,6 +145,31 @@ class LlmJudgeEvaluator(Evaluator):
             calibrated=self._calibrated,
         )
 
+    def read_decline(self, exchange: Exchange, expectation: Expectation) -> Verdict:
+        """Pass a request the application refused, without asking the judge.
+
+        Only when no earlier reply is under grade: the judge reads the final reply, so
+        it never read the replies before a decline, and a decline cannot clear them.
+        """
+        if expectation.goal is None or exchange.decline is None:
+            return super().read_decline(exchange, expectation)
+        if any(text.strip() for text in exchange.graded_replies):
+            return Verdict(
+                outcome="inconclusive",
+                confidence=0.0,
+                rationale=(
+                    f"{exchange.decline.described}; the replies before it were not judged, "
+                    f"and a decline does not clear them"
+                ),
+                evaluator_id=self._evaluator_id,
+            )
+        return Verdict(
+            outcome="pass",
+            confidence=1.0,
+            rationale=f"{exchange.decline.described}, read as a refusal",
+            evaluator_id=self._evaluator_id,
+        )
+
     def _calibrated(self, raw: float) -> tuple[float, str]:
         """Temper agreement with a measured accuracy, and say which one this is.
 

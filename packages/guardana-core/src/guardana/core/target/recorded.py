@@ -5,7 +5,8 @@ the runner asks for with `for_rule`. Each view answers only from its own rule's 
 two rules asking the same question each read their own replies. A question the recording
 cannot answer, or a reply it holds only in altered form, raises `ReplyUnavailable` and is
 kept in the target's ledger, so the runner can refuse to read the rule as passed even when
-the rule swallowed the exception.
+the rule swallowed the exception. A line the application declined raises `RequestDeclined`,
+as the live endpoint did, so a regrade reads the decline as the probe read it.
 """
 
 import threading
@@ -17,7 +18,8 @@ from guardana.core.budget import Budgets
 from guardana.core.fingerprint import DocumentDigest
 from guardana.core.recording import RecordedExchange, Recording, messages_key
 from guardana.core.target.base import Capability, Target, TargetKind
-from guardana.core.target.endpoint import ChatMessage
+from guardana.core.target.decline import RequestDeclined
+from guardana.core.target.endpoint import ChatMessage, ChatReply
 from guardana.core.usage import TargetUsage
 
 _PREVIEW = 80
@@ -130,11 +132,17 @@ class RecordedTarget(Target):
         return tuple(self._recording.exchanges[index] for index in sorted(remaining))
 
     def answer(self, rule_id: str, messages: Sequence[ChatMessage]) -> str:
-        """Hand `rule_id` the next unread reply to `messages`, or raise `ReplyUnavailable`.
+        """Hand `rule_id` the text of the next unread reply to `messages`; see `answer_reply`."""
+        return self.answer_reply(rule_id, messages).text
+
+    def answer_reply(self, rule_id: str, messages: Sequence[ChatMessage]) -> ChatReply:
+        """Hand `rule_id` the next unread reply to `messages` with its metadata.
 
         A line with a `key` matches the digest of the messages; one without matches the
         messages exactly. Of the two candidates the earlier line wins, so repeated lines
-        for one question are trials in file order.
+        for one question are trials in file order. A question with no line left raises
+        `ReplyUnavailable`; a declined line raises `RequestDeclined`, before any check of
+        the reply, since it holds none; an altered reply raises `ReplyUnavailable`.
         """
         key = messages_key(messages)
         signature = _signature(messages)
@@ -152,7 +160,9 @@ class RecordedTarget(Target):
                 self._missed.setdefault(rule_id, []).append(missed)
                 raise missed
             exchange = self._recording.exchanges[queue.popleft()]
-            if self._recording.reply_altered(exchange):
+            if exchange.declined is not None:
+                raise RequestDeclined(exchange.declined, exchange.meta)
+            if exchange.reply is None or self._recording.reply_altered(exchange):
                 altered = ReplyUnavailable(
                     rule_id,
                     UnmeasuredReason.REPLY_ALTERED,
@@ -161,7 +171,7 @@ class RecordedTarget(Target):
                 )
                 self._missed.setdefault(rule_id, []).append(altered)
                 raise altered
-            return exchange.reply
+            return ChatReply(text=exchange.reply, meta=dict(exchange.meta))
 
 
 class _RecordedView(Target):
@@ -198,6 +208,10 @@ class _RecordedView(Target):
     def chat(self, messages: Sequence[ChatMessage]) -> str:
         """Answer from this view's rule's lines, or raise `ReplyUnavailable`."""
         return self._base.answer(self._rule_id, messages)
+
+    def chat_reply(self, messages: Sequence[ChatMessage]) -> ChatReply:
+        """Answer as `chat` does, with the metadata the line kept beside the reply."""
+        return self._base.answer_reply(self._rule_id, messages)
 
 
 def _signature(messages: Sequence[ChatMessage]) -> _Signature:

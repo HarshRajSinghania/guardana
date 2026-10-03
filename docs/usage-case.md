@@ -28,8 +28,9 @@ case; Guardana never promotes one by itself.
 
 `guardana case list RECORDING` prints every kept exchange: its line, its rule, its key and
 whether its reply is altered (redacted, marked `altered`, or from a recording that is not
-verbatim). The input and the reply, shortened and with control characters escaped, are
-printed only to a terminal or with `--show`.
+verbatim), or `declined` for a request the application declined. The input and the reply,
+shortened and with control characters escaped, are printed only to a terminal or with
+`--show`; a declined line's reply is shown as `[declined: <name> (HTTP <status>)]`.
 
 ## `case add`
 
@@ -98,6 +99,7 @@ the evaluator's reasons, which may quote a reply, are printed only to a terminal
 | `--key` and `--line` both or neither; a key on several lines (pick one with `--line`); a line with no key, which only `--line` names; a line or key the recording does not hold | `3` |
 | an input that was altered — it holds a redaction placeholder, it no longer matches the key taken before redaction, or the line has no key and the recording is not verbatim — without `--input-file` | `3` |
 | an altered reply without `--observed-file` | `3` |
+| a line the application declined: it holds no reply to pair with a correct one, whatever `--observed-file` says | `3` |
 | a file for `--input-file`, `--observed-file` or `--accepted-file` that holds a redaction placeholder | `3` |
 | with `--write`: the dataset's lock file exists, or the suite or the dataset changed while the case was being proven | `3`, nothing written |
 | a `RULE` that is not one YAML suite, that does not load, that lies in an installed distribution, or whose dataset or its directory is not writable | `3` |

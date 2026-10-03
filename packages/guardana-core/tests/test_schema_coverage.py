@@ -156,6 +156,15 @@ def test_the_superseded_recording_schema_stays_pinned_to_format_1() -> None:
     assert "subject_kind" not in header
 
 
+def test_the_format_2_recording_schema_stays_pinned_to_a_reply_on_every_line() -> None:
+    """A format-2 recording is still read, and none of its lines holds a decline."""
+    defs: Any = _schema("recording-v2.schema.json")["$defs"]
+
+    assert defs["header"]["properties"]["guardana_recording"]["const"] == 2
+    assert "declined" not in defs["exchange"]["properties"]
+    assert "reply" in defs["exchange"]["required"]
+
+
 def test_the_dataset_schemas_name_the_formats_the_reader_reads() -> None:
     """The newest schema is the format this build writes; format 1 keeps its own contract."""
     from guardana.core.dataset import DATASET_FORMAT, READ_FORMATS  # noqa: PLC0415

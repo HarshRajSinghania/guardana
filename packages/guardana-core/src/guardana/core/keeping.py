@@ -6,8 +6,8 @@ actually sent.
 """
 
 import threading
-from collections.abc import Sequence
-from dataclasses import dataclass, replace
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, field, replace
 
 from guardana.core.recording import (
     RecordedExchange,
@@ -16,17 +16,19 @@ from guardana.core.recording import (
     messages_key,
 )
 from guardana.core.redaction import EvidenceRedactor, without_lone_surrogates
-from guardana.core.target import ChatMessage
+from guardana.core.target import ChatMessage, Decline
 from guardana.core.trace.limits import MAX_RECORD_BYTES, MAX_TRACE_BYTES
 
 
 @dataclass(frozen=True, slots=True)
 class _Kept:
-    """One exchange as it happened, before any redaction."""
+    """One exchange as it happened, before any redaction: a reply, or the decline."""
 
     rule: str
     messages: tuple[ChatMessage, ...]
-    reply: str
+    reply: str | None
+    declined: Decline | None = None
+    meta: Mapping[str, str] = field(default_factory=dict)
 
 
 class ExchangeKeeper:
@@ -40,9 +42,28 @@ class ExchangeKeeper:
         self._lock = threading.Lock()
         self._kept: list[_Kept] = []
 
-    def keep(self, rule_id: str, messages: Sequence[ChatMessage], reply: str) -> None:
-        """Keep one exchange: the messages `rule_id` passed to `chat`, and the reply text."""
-        kept = _Kept(rule=rule_id, messages=tuple(messages), reply=reply)
+    def keep(
+        self,
+        rule_id: str,
+        messages: Sequence[ChatMessage],
+        reply: str | None,
+        *,
+        declined: Decline | None = None,
+        meta: Mapping[str, str] | None = None,
+    ) -> None:
+        """Keep one exchange: the messages `rule_id` sent, and the reply text or the decline.
+
+        `meta` is what the reply carried beside its text, a declined reply's included.
+        """
+        if (reply is None) == (declined is None):
+            raise ValueError("an exchange is kept with exactly one of a reply and a decline")
+        kept = _Kept(
+            rule=rule_id,
+            messages=tuple(messages),
+            reply=reply,
+            declined=declined,
+            meta=dict(meta or {}),
+        )
         with self._lock:
             self._kept.append(kept)
 
@@ -57,7 +78,8 @@ class ExchangeKeeper:
 
         `key` is taken from the messages as the rule sent them, before redaction. `altered`
         says the reply text is no longer what the target said: a span was redacted or a lone
-        surrogate replaced.
+        surrogate replaced. A metadata value redaction would change is left out of `meta`,
+        so a regrade reads it as missing evidence, and does not mark the reply altered.
         """
         with self._lock:
             kept = tuple(self._kept)
@@ -94,13 +116,15 @@ def _within_a_readable_file(
 
 
 def _omit(exchange: RecordedExchange) -> RecordedExchange:
-    """Keep an exchange's rule and key, its text omitted and the reply marked altered."""
-    return replace(
-        exchange,
-        input=tuple(replace(message, content=_OMITTED) for message in exchange.input),
-        reply=_OMITTED,
-        altered=True,
-    )
+    """Keep an exchange's rule and key, its text omitted and the reply marked altered.
+
+    A declined exchange keeps its decline and drops only its input: it holds no reply to
+    omit, and the decline is still what the application did.
+    """
+    omitted = tuple(replace(message, content=_OMITTED) for message in exchange.input)
+    if exchange.declined is not None:
+        return replace(exchange, input=omitted)
+    return replace(exchange, input=omitted, reply=_OMITTED, altered=True)
 
 
 def _recorded(kept: _Kept, redactor: EvidenceRedactor) -> RecordedExchange:
@@ -108,7 +132,7 @@ def _recorded(kept: _Kept, redactor: EvidenceRedactor) -> RecordedExchange:
 
     An exchange no reader would accept on one line is omitted the way an oversize file is.
     """
-    reply = redactor.redact_spans(kept.reply)
+    reply = None if kept.reply is None else redactor.redact_spans(kept.reply)
     recorded = RecordedExchange(
         rule=kept.rule,
         input=tuple(
@@ -118,6 +142,12 @@ def _recorded(kept: _Kept, redactor: EvidenceRedactor) -> RecordedExchange:
         reply=reply,
         key=messages_key(_encodable(kept.messages)),
         altered=reply != kept.reply,
+        declined=kept.declined,
+        meta={
+            name: value
+            for name, value in kept.meta.items()
+            if redactor.redact_spans(value) == value
+        },
     )
     return recorded if exchange_fits(recorded) else _omit(recorded)
 

@@ -116,13 +116,14 @@ def select_exchange(recording: Recording, *, key: str | None, line: int | None) 
     """Pick the one kept exchange `key` or `line` names, refusing an ambiguous choice.
 
     A line with no key can be picked only by `line`, and a key on several lines only
-    by `line` too.
+    by `line` too. A line the application declined is refused: it holds no reply to pair.
     """
     if (key is None) == (line is None):
         raise PromotionRefusedError("name the exchange with exactly one of --key and --line")
     if line is not None:
         for exchange in recording.exchanges:
             if exchange.line == line:
+                _reply_of(recording, exchange)
                 return exchange
         lines = ", ".join(str(e.line) for e in recording.exchanges)
         raise PromotionRefusedError(
@@ -137,7 +138,19 @@ def select_exchange(recording: Recording, *, key: str | None, line: int | None) 
         raise PromotionRefusedError(
             f"key {key} is on lines {lines} of {recording.identity}; pick one with --line"
         )
+    _reply_of(recording, matches[0])
     return matches[0]
+
+
+def _reply_of(recording: Recording, exchange: RecordedExchange) -> str:
+    """Return the reply `exchange` holds, refusing one the application declined."""
+    if exchange.reply is None:
+        declined = "declined" if exchange.declined is None else exchange.declined.described
+        raise PromotionRefusedError(
+            f"line {exchange.line} of {recording.identity} was {declined}; it holds no reply "
+            f"to pair with a correct one"
+        )
+    return exchange.reply
 
 
 def input_altered(recording: Recording, exchange: RecordedExchange) -> str | None:
@@ -158,8 +171,10 @@ def promoted_case(
 
     An altered input is refused unless the reviewer rewrote it; an altered reply is
     refused unless the reviewer reconstructed it. Each replacement is tagged, and no text
-    the reviewer wrote may hold a redaction placeholder.
+    the reviewer wrote may hold a redaction placeholder. A declined exchange is refused
+    whatever the reviewer supplies: the application gave no failing reply to pair.
     """
+    recorded_reply = _reply_of(recording, exchange)
     tags = [REGRESSION_TAG]
     if reviewed.label is not None:
         if not reviewed.label.strip():
@@ -198,7 +213,7 @@ def promoted_case(
             f"the removed data and pass it with --observed-file"
         )
     else:
-        observed = exchange.reply
+        observed = recorded_reply
     return DatasetCase(
         line=0,
         input=case_input,

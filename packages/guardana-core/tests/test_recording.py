@@ -19,12 +19,13 @@ from guardana.core.recording import (
     render_recording,
 )
 from guardana.core.redaction import holds_redaction_marker
-from guardana.core.target import ChatMessage, Target
+from guardana.core.target import ChatMessage, Decline, DeclineReading, Target
 from guardana.core.target._scoped import RuleScoped
 from jsonschema import Draft202012Validator
 
 _SCHEMAS = Path(__file__).resolve().parents[3] / "schemas"
-_SCHEMA = _SCHEMAS / "recording-v2.schema.json"
+_SCHEMA = _SCHEMAS / "recording-v3.schema.json"
+_V2_SCHEMA = _SCHEMAS / "recording-v2.schema.json"
 _V1_SCHEMA = _SCHEMAS / "recording-v1.schema.json"
 RULE = "acme.support.refund_policy"
 OTHER_RULE = "acme.support.tone"
@@ -40,6 +41,13 @@ LINE: dict[str, Any] = {
     "input": "Can I return a gift?",
     "reply": "Yes, within 30 days.",
 }
+DECLINED_LINE: dict[str, Any] = {
+    "rule": RULE,
+    "input": "How do I pick a lock?",
+    "declined": {"name": "content_filter", "reading": "refusal", "status": 400},
+    "meta": {"guard_category": "weapons", "request_id": "req-7"},
+}
+CONTENT_FILTER = Decline("content_filter", DeclineReading.REFUSAL, 400)
 
 
 def _write(path: Path, *records: object, raw_lines: tuple[str, ...] = ()) -> Path:
@@ -100,6 +108,15 @@ def _full_recording() -> Recording:
                     ChatMessage(role="user", content="thanks"),
                 ),
                 reply="You are welcome.",
+                meta={"request_id": "req-1", "guard_category": "none"},
+            ),
+            RecordedExchange(
+                rule=RULE,
+                input=(ChatMessage(role="user", content="How do I pick a lock?"),),
+                reply=None,
+                key=KEY,
+                declined=CONTENT_FILTER,
+                meta={"guard_category": "weapons"},
             ),
         ),
         digest=None,
@@ -123,7 +140,7 @@ def test_a_rendered_recording_reads_back_as_the_recording_it_was(tmp_path: Path)
     loaded = read_recording(path)
 
     assert _as_written(loaded) == original
-    assert [exchange.line for exchange in loaded.exchanges] == [2, 3, 4]
+    assert [exchange.line for exchange in loaded.exchanges] == [2, 3, 4, 5]
     assert loaded.identity == "support-replies@2026.10"
     assert loaded.rules == frozenset({RULE, OTHER_RULE, "acme.support.unreached"})
 
@@ -161,7 +178,7 @@ def test_rendering_is_deterministic_and_omits_what_is_absent() -> None:
 
     assert text == render_recording(minimal)
     assert text == (
-        '{"guardana_recording":2,"name":"n","version":"1","verbatim":true}\n'
+        '{"guardana_recording":3,"name":"n","version":"1","verbatim":true}\n'
         '{"rule":"acme.support.refund_policy","input":[{"role":"user","content":"żółw"}],'
         '"reply":"a"}\n'
     )
@@ -181,6 +198,16 @@ def test_the_schema_describes_the_format_this_build_writes() -> None:
     )
 
 
+def test_a_format_2_recording_still_validates_against_the_v2_schema() -> None:
+    validator = _validator(_V2_SCHEMA)
+    header = {**HEADER, "guardana_recording": 2, "subject_kind": "application"}
+
+    for record in (header, LINE):
+        assert not list(validator.iter_errors(record)), record
+    assert list(validator.iter_errors(DECLINED_LINE))
+    assert list(validator.iter_errors(HEADER))
+
+
 def test_a_format_1_recording_still_validates_against_the_v1_schema() -> None:
     validator = _validator(_V1_SCHEMA)
     header = {**HEADER, "guardana_recording": 1, "subject": "bot"}
@@ -195,7 +222,8 @@ def test_a_format_1_recording_still_validates_against_the_v1_schema() -> None:
     "record",
     [
         {"guardana_recording": 1, "name": "n", "version": "1", "verbatim": True},
-        {"guardana_recording": 3, "name": "n", "version": "1", "verbatim": True},
+        {"guardana_recording": 2, "name": "n", "version": "1", "verbatim": True},
+        {"guardana_recording": 4, "name": "n", "version": "1", "verbatim": True},
         {"guardana_recording": 2, "name": "n", "version": "1"},
         {"guardana_recording": 2, "name": "n", "version": "1", "verbatim": "true"},
         {"guardana_recording": 2, "name": "", "version": "1", "verbatim": True},
@@ -208,6 +236,15 @@ def test_a_format_1_recording_still_validates_against_the_v1_schema() -> None:
         {"rule": RULE, "input": "q", "reply": "a", "key": "sha256:abc"},
         {"rule": RULE, "input": "q", "reply": "a", "altered": "yes"},
         {"rule": RULE, "input": "q", "reply": "a", "answer": "a"},
+        {**DECLINED_LINE, "reply": "blocked"},
+        {**DECLINED_LINE, "altered": True},
+        {**DECLINED_LINE, "declined": {"name": "f", "reading": "refusal", "status": 429}},
+        {**DECLINED_LINE, "declined": {"name": "f", "reading": "refusal", "status": 503}},
+        {**DECLINED_LINE, "declined": {"name": "f", "reading": "blocked", "status": 400}},
+        {**DECLINED_LINE, "declined": {"name": "F!", "reading": "refusal", "status": 400}},
+        {**DECLINED_LINE, "declined": {"name": "f", "reading": "refusal"}},
+        {**DECLINED_LINE, "meta": {"Guard": "x"}},
+        {**DECLINED_LINE, "meta": {"guard": 1}},
     ],
 )
 def test_the_schema_refuses_the_shapes_the_reader_refuses(record: dict[str, Any]) -> None:
@@ -266,16 +303,98 @@ def test_a_verbatim_written_as_a_string_is_refused(tmp_path: Path) -> None:
 
 
 def test_another_format_is_refused_naming_the_formats_this_build_reads(tmp_path: Path) -> None:
-    path = _write(tmp_path / "r.jsonl", {**HEADER, "guardana_recording": 3}, LINE)
+    path = _write(tmp_path / "r.jsonl", {**HEADER, "guardana_recording": 4}, LINE)
 
     message = _refusal(path)
 
     assert f"{path}:1:" in message
-    assert "recording format 3" in message
-    assert "reads formats 1 and 2" in message
+    assert "recording format 4" in message
+    assert "reads formats 1, 2 and 3" in message
 
 
-def test_a_recording_with_a_subject_kind_is_written_as_format_2_and_reads_back(
+def test_a_declined_line_reads_as_the_decline_with_its_metadata(tmp_path: Path) -> None:
+    path = _write(tmp_path / "r.jsonl", HEADER, DECLINED_LINE)
+
+    (exchange,) = read_recording(path).exchanges
+
+    assert exchange.reply is None
+    assert exchange.declined == CONTENT_FILTER
+    assert exchange.meta == {"guard_category": "weapons", "request_id": "req-7"}
+    assert not exchange.altered
+
+
+def test_a_declined_line_is_never_altered(tmp_path: Path) -> None:
+    recording = read_recording(
+        _write(tmp_path / "r.jsonl", {**HEADER, "verbatim": False}, DECLINED_LINE)
+    )
+
+    assert not recording.reply_altered(recording.exchanges[0])
+
+
+@pytest.mark.parametrize(
+    ("line", "names"),
+    [
+        ({**DECLINED_LINE, "reply": "blocked"}, "both `reply` and `declined`"),
+        ({**DECLINED_LINE, "altered": True}, "never `altered`"),
+        ({"rule": RULE, "input": "q"}, "`reply` must be a string"),
+        (
+            {**DECLINED_LINE, "declined": {"name": "f", "reading": "refusal", "status": 429}},
+            "`declined.status`",
+        ),
+        (
+            {**DECLINED_LINE, "declined": {"name": "f", "reading": "blocked", "status": 400}},
+            "`declined.reading`",
+        ),
+        (
+            {**DECLINED_LINE, "declined": {"name": "F", "reading": "refusal", "status": 400}},
+            "`declined.name`",
+        ),
+        (
+            {
+                **DECLINED_LINE,
+                "declined": {"name": "f", "reading": "refusal", "status": 400, "x": 1},
+            },
+            "unknown `declined` key",
+        ),
+        ({**DECLINED_LINE, "meta": {"Guard": "x"}}, "`meta` name"),
+        ({**DECLINED_LINE, "meta": {"guard": 1}}, "`meta.guard`"),
+        ({**DECLINED_LINE, "meta": {f"n{i}": "x" for i in range(17)}}, "more than 16"),
+    ],
+)
+def test_a_malformed_decline_or_metadata_is_refused_by_its_line(
+    tmp_path: Path, line: dict[str, Any], names: str
+) -> None:
+    path = _write(tmp_path / "r.jsonl", HEADER, line)
+
+    message = _refusal(path)
+
+    assert f"{path}:2:" in message
+    assert names in message
+
+
+@pytest.mark.parametrize("key", ["declined", "meta"])
+def test_a_format_2_line_carrying_a_format_3_key_is_refused(tmp_path: Path, key: str) -> None:
+    line = {"rule": RULE, "input": "q", key: DECLINED_LINE[key]}
+    if key == "meta":
+        line["reply"] = "a"
+    path = _write(tmp_path / "r.jsonl", {**HEADER, "guardana_recording": 2}, line)
+
+    message = _refusal(path)
+
+    assert f"{path}:2: unknown line key(s) {key};" in message
+
+
+def test_an_exchange_holds_exactly_one_of_a_reply_and_a_decline() -> None:
+    asked = (ChatMessage("user", "q"),)
+    with pytest.raises(ValueError, match="exactly one"):
+        RecordedExchange(rule=RULE, input=asked, reply="a", declined=CONTENT_FILTER)
+    with pytest.raises(ValueError, match="exactly one"):
+        RecordedExchange(rule=RULE, input=asked, reply=None)
+    with pytest.raises(ValueError, match="no reply to alter"):
+        RecordedExchange(rule=RULE, input=asked, reply=None, declined=CONTENT_FILTER, altered=True)
+
+
+def test_a_recording_with_a_subject_kind_is_written_in_the_current_format_and_reads_back(
     tmp_path: Path,
 ) -> None:
     original = replace(_full_recording(), subject_kind=SubjectKind.APPLICATION)
@@ -285,7 +404,7 @@ def test_a_recording_with_a_subject_kind_is_written_as_format_2_and_reads_back(
     header = json.loads(path.read_text(encoding="utf-8").splitlines()[0])
     loaded = read_recording(path)
 
-    assert header["guardana_recording"] == 2
+    assert header["guardana_recording"] == RECORDING_FORMAT == 3
     assert header["subject_kind"] == "application"
     assert loaded.subject_kind is SubjectKind.APPLICATION
     assert _as_written(loaded) == original

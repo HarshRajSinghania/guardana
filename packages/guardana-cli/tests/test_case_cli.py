@@ -587,3 +587,44 @@ def test_case_list_refuses_an_unreadable_recording(tmp_path: Path) -> None:
     missing = runner.invoke(app, ["case", "list", str(tmp_path / "absent.jsonl")])
 
     assert missing.exit_code == ExitCode.INVALID_USAGE
+
+
+def _declined_recording(tmp_path: Path) -> Path:
+    header = {"guardana_recording": 3, "name": "support-replies", "version": "r1", "verbatim": True}
+    declined = {
+        "rule": "acme.quality.support",
+        "input": _QUESTION,
+        "declined": {"name": "content_filter", "reading": "refusal", "status": 400},
+        "key": _key(_QUESTION),
+    }
+    path = tmp_path / "run.exchanges.jsonl"
+    path.write_text(
+        "\n".join(json.dumps(record) for record in (header, declined)) + "\n", encoding="utf-8"
+    )
+    return path
+
+
+@pytest.mark.parametrize("pick", [("--line", "2"), ("--key", _key(_QUESTION))])
+def test_a_declined_line_is_refused_as_holding_no_reply_to_pair(
+    tmp_path: Path, pick: tuple[str, str]
+) -> None:
+    suite = _suite(tmp_path)
+    _file(tmp_path, "accepted.txt", _GOOD)
+    before = _dataset(suite).read_bytes()
+
+    refused = _add(suite, _declined_recording(tmp_path), *pick, "--write", line=None)
+
+    assert refused.exit_code == ExitCode.INVALID_USAGE, refused.output
+    text = normalised(refused.output)
+    assert "declined by the application: content_filter (HTTP 400)" in text
+    assert "no reply to pair" in text
+    assert _dataset(suite).read_bytes() == before
+
+
+def test_case_list_previews_a_declined_line_as_its_decline(tmp_path: Path) -> None:
+    listed = runner.invoke(app, ["case", "list", str(_declined_recording(tmp_path)), "--show"])
+
+    assert listed.exit_code == ExitCode.OK, listed.output
+    text = normalised(listed.output)
+    assert f"line 2 rule acme.quality.support key {_key(_QUESTION)} reply declined" in text
+    assert "reply: [declined: content_filter (HTTP 400)]" in text

@@ -137,6 +137,16 @@ instead of being dropped; only a real `"pass"` yields nothing. An evaluator
 id that resolves to nothing is a loud error (a visible skip), never a rule
 that silently passes everything.
 
+When the target reports reply metadata (an adapter's `metadata_paths:`), the rule asks
+through `chat_reply` and the `Exchange` carries it in `meta`. A request the application
+declines (an adapter's `declines:`) is graded rather than raised: the exchange ends on the
+declined prompt with `exchange.decline` set, and the evaluator reads it as
+[`read_decline`](extending.md#reading-a-declined-request-read_decline) says. A verdict read
+from a decline is recorded with the tag `declined:<name>`; an `inconclusive` one on a
+declined exchange is recorded with the reason `target_declined`; a finding's evidence names
+the decline (`declined by the application: content_filter (HTTP 400)`) where it would quote
+a reply. A scenario and a suite do the same per step and per case.
+
 ### Multi-turn scenarios: `steps:` instead of `prompts:`
 
 A rule whose YAML carries `steps:` is a **scenario** — a whole scripted
@@ -195,6 +205,13 @@ answer reads the final reply: `contains_all`, `contains_any`, `regex` with
 agent run, where every reply answers the same task, it passes a final refusal only
 when every earlier reply refuses too, and is `inconclusive` otherwise. Replies after
 the last graded step are read only by a top-level `expect`.
+
+A scenario stops at a step the application declines. That step, if it has an `expect`,
+and the top-level `expect` are graded over the turns that were sent, with the decline: a
+fail in an earlier reply stands, and only then is the decline read. The steps after it are
+not sent, and each graded one is recorded `inconclusive` with the reason
+`target_declined` and the tag `declined:<name>`, so a trial never loses a case. The
+conversation's exchange carries the metadata of the last reply, the declined one included.
 
 ### Agent runs: `task:` and `tools:` instead of `prompts:`
 
@@ -537,6 +554,14 @@ Recording is optional, and staying silent is not a failure. A rule that reads a
 file and finds nothing has not *measured* anything; inventing an assessment for it
 would put hundreds of empty passes into the denominator of every rate. See
 [`design/assessment-channel.md`](design/assessment-channel.md).
+
+A Python rule that sends to a guarded application catches `RequestDeclined`
+(`guardana.core.target`) around the send only, never around grading, builds the declined
+`Exchange` (`decline=exc.decline`, ending on the declined user turn) and grades it with
+`grade_decline`, which also says whether the verdict came from the decline. Pass
+`reason=UnmeasuredReason.TARGET_DECLINED` to `from_verdict` for a declined exchange and
+`tags=(decline.tag,)` when the verdict came from it. A rule that does not catch it is
+recorded as a rule error, never a pass.
 
 ## Namespacing rule ids
 

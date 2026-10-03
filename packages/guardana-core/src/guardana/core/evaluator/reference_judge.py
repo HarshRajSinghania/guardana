@@ -115,3 +115,20 @@ class ReferenceJudgeEvaluator(Evaluator):
             evaluator_id=self._evaluator_id,
             calibrated=raw_agreement,
         )
+
+    def read_decline(self, exchange: Exchange, expectation: Expectation) -> Verdict:
+        """Fail a request the application declined as a refusal, without asking the judge.
+
+        A declined task was not answered, so it cannot agree with the reference.
+        """
+        problem = self.check_fields(expectation)
+        if problem is not None:
+            return Verdict("inconclusive", 0.0, problem, self._evaluator_id)
+        if exchange.decline is None:
+            return super().read_decline(exchange, expectation)
+        return Verdict(
+            "fail",
+            1.0,
+            f"{exchange.decline.described}: the task was not answered",
+            self._evaluator_id,
+        )

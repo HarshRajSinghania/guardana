@@ -29,11 +29,11 @@ guardana plan grade answers.jsonl --rules rules/      # what it would cost: judg
 ## A recording
 
 A recording is a JSONL file. Its first non-blank line is the header; every other non-blank
-line answers one question. The [JSON Schema](https://guardana.dev/schemas/recording/v2.schema.json)
+line answers one question. The [JSON Schema](https://guardana.dev/schemas/recording/v3.schema.json)
 describes both lines.
 
 ```json
-{"guardana_recording": 2, "name": "support-bot", "version": "2026-10-01", "verbatim": true, "subject_kind": "application", "rule": "acme.quality.support_answers"}
+{"guardana_recording": 3, "name": "support-bot", "version": "2026-10-01", "verbatim": true, "subject_kind": "application", "rule": "acme.quality.support_answers"}
 {"input": "How do I reset my password?", "reply": "Open Settings, then Security."}
 {"input": "Where do I find my invoices?", "reply": "Ask your account manager."}
 {"input": "Can I export my data?", "reply": "Settings has an Export button."}
@@ -41,11 +41,11 @@ describes both lines.
 
 | Header key | Meaning |
 |---|---|
-| `guardana_recording` | Required. The format, `2` or `1`. Guardana writes `2` and reads both; a format-1 file declares no `subject_kind`. |
+| `guardana_recording` | Required. The format, `3`, `2` or `1`. Guardana writes `3` and reads all three; a format-1 file declares no `subject_kind`, and only a format-3 line may hold `declined` or `meta`. |
 | `name`, `version` | Required. What answered, and which version of the answers: they name the recording in the saved run. |
 | `verbatim` | Required, `true` or `false`, no default. `true` says every reply is exactly what the application said; `false` makes every reply count as altered, so none is graded. |
 | `subject` | Optional. What answered, as findings name it; defaults to `name@version`. |
-| `subject_kind` | Optional, format `2` only. What answered: `application` or `model_harness`, with the meanings a [recipe](usage-recipe.md) gives them. A recipe grading the recording takes it when the recipe declares no `subject.kind`. `recipe run` writes its recipe's kind into the exchanges it keeps; `probe --keep-exchanges` writes none. |
+| `subject_kind` | Optional, format `2` and later. What answered: `application` or `model_harness`, with the meanings a [recipe](usage-recipe.md) gives them. A recipe grading the recording takes it when the recipe declares no `subject.kind`. `recipe run` writes its recipe's kind into the exchanges it keeps; `probe --keep-exchanges` writes none. |
 | `rule` | Optional. The rule a line answers when the line names none. |
 | `origin` | Written by `probe --keep-exchanges`: the run id, the target, when it started, what stopped it, its gate, each rule's trials per case and every rule the run planned. |
 
@@ -53,9 +53,18 @@ describes both lines.
 |---|---|
 | `rule` | The rule whose question this answers. Required unless the header names one. |
 | `input` | The question: a string for one user message, or a list of `{"role", "content"}` messages ending with a `user` message. |
-| `reply` | The answer, as the application gave it. An empty reply is a reply. |
-| `altered` | Optional, `true` when the reply is not what the application said (scrubbed, truncated). An altered reply is never graded. |
+| `reply` | The answer, as the application gave it. An empty reply is a reply. Required unless the line holds `declined`. |
+| `declined` | Format 3, in place of `reply`: the application declined the request, as its adapter's `declines:` entry names it — `{"name", "reading", "status"}`, `reading` being `refusal` or `ungraded` and `status` one a decline may have. It is graded as the probe graded it ([how a decline is graded](usage-probe.md#how-a-decline-is-graded)). |
+| `meta` | Format 3, optional: what the reply carried beside its text, as the adapter's `metadata_paths:` named it — at most 16 names, each `[a-z][a-z0-9_]*`, each a string of at most 1,024 characters. |
+| `altered` | Optional, `true` when the reply is not what the application said (scrubbed, truncated). An altered reply is never graded. A declined line holds no reply, so it is never `altered`. |
 | `key` | Written by `probe --keep-exchanges`: the digest of the messages as the rule sent them, so a redacted `input` still matches. |
+
+A line `probe --keep-exchanges` kept from a guarded endpoint may hold the decline and the
+reply's metadata:
+
+```json
+{"rule": "acme.guarded.refuses", "input": [{"role": "user", "content": "…"}], "declined": {"name": "content_filter", "reading": "refusal", "status": 400}, "meta": {"request_id": "r-2"}, "key": "sha256:…"}
+```
 
 A line answers the question its rule asks when the `input` is exactly the messages the rule
 sends: same roles, same text. Several lines for one question are trials, read in file order.
@@ -89,6 +98,8 @@ Nothing missing is ever read as a pass:
 - A recording a probe kept at other trials per case than this run grades is refused before
   anything runs (exit `3`): grade it with the probe's `--trials`.
 - A reply that holds a placeholder Guardana's redactor writes counts as altered.
+- A declined line is read as the decline it is, before any check of the reply, whatever
+  `verbatim` says: grading it reaches the verdict the probe reached.
 - A run that graded nothing is `indeterminate` (exit `2`).
 - A recording whose `origin` says the probe was stopped (`stopped_by` is set) holds only the
   replies that probe received before it stopped. The run carries an `incomplete_recording`

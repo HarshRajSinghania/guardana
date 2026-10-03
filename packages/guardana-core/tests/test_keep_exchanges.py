@@ -13,7 +13,11 @@ from guardana.core.redaction import EvidenceMode, EvidenceRedactor, RedactionPol
 from guardana.core.target import (
     ChatEndpoint,
     ChatMessage,
+    ChatReply,
+    Decline,
+    DeclineReading,
     EndpointTarget,
+    RequestDeclined,
     SystemPromptPlanter,
     ToolOfferingEndpoint,
 )
@@ -113,8 +117,8 @@ def test_a_reply_holding_a_secret_is_redacted_and_marked_altered() -> None:
     target.for_rule("acme.one").chat(sent)
 
     (kept,) = keeper.recorded(_redacted())
-    assert token not in kept.reply
-    assert kept.reply.startswith("sure, the token is [redacted:github-pat")
+    assert token not in (kept.reply or "")
+    assert (kept.reply or "").startswith("sure, the token is [redacted:github-pat")
     assert kept.altered is True
     assert kept.key == messages_key(sent)
 
@@ -165,7 +169,7 @@ def test_full_mode_still_removes_a_secret() -> None:
     target.for_rule("acme.one").chat(_ask("token?"))
 
     (kept,) = keeper.recorded(EvidenceRedactor(RedactionPolicy(mode=EvidenceMode.FULL)))
-    assert token not in kept.reply
+    assert token not in (kept.reply or "")
     assert kept.altered is True
 
 
@@ -310,7 +314,7 @@ def test_an_exchange_too_long_for_one_line_is_kept_omitted_and_altered() -> None
     recorded = keeper.recorded(_redacted())
 
     assert recorded[0].altered
-    assert huge not in recorded[0].reply
+    assert huge not in (recorded[0].reply or "")
     assert recorded[0].key == messages_key(_ask("Tell me everything"))
     render_recording(
         Recording(
@@ -402,3 +406,88 @@ def test_a_subclass_answers_through_its_own_tool_offer_in_a_kept_and_a_planted_v
         reply = view.offer_tools(_ask("use a tool"), tools)
         assert reply.text == "PACK"
         assert [call.name for call in reply.tool_calls] == ["read"]
+
+
+_FILTER = Decline("content_filter", DeclineReading.REFUSAL, 400)
+
+
+class _Guarded:
+    """A guarded application: it declines a question holding `weapons`, and answers the rest."""
+
+    def __init__(self, meta: dict[str, str]) -> None:
+        self._meta = meta
+
+    def send(
+        self, base_url: str, model: str, messages: Sequence[ChatMessage], api_key: str | None
+    ) -> str:
+        return self.send_with_metadata(base_url, model, messages, api_key).text
+
+    def send_with_metadata(
+        self, base_url: str, model: str, messages: Sequence[ChatMessage], api_key: str | None
+    ) -> ChatReply:
+        if "weapons" in messages[-1].content:
+            raise RequestDeclined(_FILTER, self._meta)
+        return ChatReply(text="An answer.", meta=self._meta)
+
+
+def test_a_declined_exchange_is_kept_and_reads_back_as_the_same_decline(tmp_path: Path) -> None:
+    target = EndpointTarget(
+        "http://model.test", "m", transport=_Guarded({"guard_category": "weapons"})
+    )
+    keeper = ExchangeKeeper()
+    target.keep_exchanges(keeper)
+
+    with pytest.raises(RequestDeclined):
+        target.for_rule("acme.one").chat_reply(_ask("about weapons"))
+    target.for_rule("acme.one").chat_reply(_ask("about cake"))
+
+    recorded = keeper.recorded(_redacted())
+    recording = Recording(
+        "n", "1", verbatim=True, subject=None, origin=None, exchanges=recorded, digest=None
+    )
+    path = tmp_path / "kept.jsonl"
+    path.write_text(render_recording(recording), encoding="utf-8")
+    declined, answered = read_recording(path).exchanges
+    assert (declined.reply, declined.declined, declined.altered) == (None, _FILTER, False)
+    assert declined.meta == {"guard_category": "weapons"}
+    assert declined.key == messages_key(_ask("about weapons"))
+    assert (answered.reply, answered.meta) == ("An answer.", {"guard_category": "weapons"})
+
+
+def test_a_metadata_value_redaction_would_change_is_left_out_and_the_reply_stays_verbatim() -> None:
+    token = fake_github_pat()
+    target = EndpointTarget(
+        "http://model.test",
+        "m",
+        transport=_Guarded({"request_id": "req-1", "echo": f"token {token}"}),
+    )
+    keeper = ExchangeKeeper()
+    target.keep_exchanges(keeper)
+
+    target.for_rule("acme.one").chat_reply(_ask("about cake"))
+
+    (kept,) = keeper.recorded(_redacted())
+    assert kept.meta == {"request_id": "req-1"}
+    assert kept.altered is False
+
+
+def test_an_oversize_declined_exchange_keeps_its_decline_and_drops_only_its_input() -> None:
+    asked = _ask("w" * (1024 * 1024 + 10))
+    keeper = ExchangeKeeper()
+    keeper.keep("acme.rule", asked, None, declined=_FILTER)
+
+    (kept,) = keeper.recorded(_redacted())
+
+    assert kept.declined == _FILTER
+    assert kept.reply is None
+    assert kept.altered is False
+    assert kept.input[0].content.startswith("[omitted")
+    assert kept.key == messages_key(asked)
+
+
+def test_an_exchange_is_kept_with_exactly_one_of_a_reply_and_a_decline() -> None:
+    keeper = ExchangeKeeper()
+    with pytest.raises(ValueError, match="exactly one"):
+        keeper.keep("acme.rule", _ask("q"), "a", declined=_FILTER)
+    with pytest.raises(ValueError, match="exactly one"):
+        keeper.keep("acme.rule", _ask("q"), None)

@@ -446,6 +446,15 @@ grade — say, an empty reply) is routed to the result's <code>unverified</code>
 instead of being dropped; only a real <code>&quot;pass&quot;</code> yields nothing. An evaluator
 id that resolves to nothing is a loud error (a visible skip), never a rule
 that silently passes everything.</p>
+<p>When the target reports reply metadata (an adapter's <code>metadata_paths:</code>), the rule asks
+through <code>chat_reply</code> and the <code>Exchange</code> carries it in <code>meta</code>. A request the application
+declines (an adapter's <code>declines:</code>) is graded rather than raised: the exchange ends on the
+declined prompt with <code>exchange.decline</code> set, and the evaluator reads it as
+<a href="extending.html#reading-a-declined-request-read_decline"><code>read_decline</code></a> says. A verdict read
+from a decline is recorded with the tag <code>declined:&lt;name&gt;</code>; an <code>inconclusive</code> one on a
+declined exchange is recorded with the reason <code>target_declined</code>; a finding's evidence names
+the decline (<code>declined by the application: content_filter (HTTP 400)</code>) where it would quote
+a reply. A scenario and a suite do the same per step and per case.</p>
 <h3 id="multi-turn-scenarios-steps-instead-of-prompts">Multi-turn scenarios: <code>steps:</code> instead of <code>prompts:</code></h3>
 <p>A rule whose YAML carries <code>steps:</code> is a <strong>scenario</strong> — a whole scripted
 conversation instead of independent one-shot prompts. This is how you express
@@ -521,6 +530,12 @@ answer reads the final reply: <code>contains_all</code>, <code>contains_any</cod
 agent run, where every reply answers the same task, it passes a final refusal only
 when every earlier reply refuses too, and is <code>inconclusive</code> otherwise. Replies after
 the last graded step are read only by a top-level <code>expect</code>.</p>
+<p>A scenario stops at a step the application declines. That step, if it has an <code>expect</code>,
+and the top-level <code>expect</code> are graded over the turns that were sent, with the decline: a
+fail in an earlier reply stands, and only then is the decline read. The steps after it are
+not sent, and each graded one is recorded <code>inconclusive</code> with the reason
+<code>target_declined</code> and the tag <code>declined:&lt;name&gt;</code>, so a trial never loses a case. The
+conversation's exchange carries the metadata of the last reply, the declined one included.</p>
 <h3 id="agent-runs-task-and-tools-instead-of-prompts">Agent runs: <code>task:</code> and <code>tools:</code> instead of <code>prompts:</code></h3>
 <p>A rule with a <code>task:</code> key is a <strong>trajectory rule</strong>: Guardana plays the agent
 harness, offers the model a set of tools, hands back a result for every call it
@@ -868,6 +883,13 @@ changed.</p>
 file and finds nothing has not <em>measured</em> anything; inventing an assessment for it
 would put hundreds of empty passes into the denominator of every rate. See
 <a href="design/assessment-channel.html"><code>design/assessment-channel.md</code></a>.</p>
+<p>A Python rule that sends to a guarded application catches <code>RequestDeclined</code>
+(<code>guardana.core.target</code>) around the send only, never around grading, builds the declined
+<code>Exchange</code> (<code>decline=exc.decline</code>, ending on the declined user turn) and grades it with
+<code>grade_decline</code>, which also says whether the verdict came from the decline. Pass
+<code>reason=UnmeasuredReason.TARGET_DECLINED</code> to <code>from_verdict</code> for a declined exchange and
+<code>tags=(decline.tag,)</code> when the verdict came from it. A rule that does not catch it is
+recorded as a rule error, never a pass.</p>
 <h2 id="namespacing-rule-ids">Namespacing rule ids</h2>
 <p><code>guardana.*</code> is reserved for this repository's built-ins, and since 0.22.0 that is
 <strong>enforced</strong>: an installed distribution registering a <code>guardana.*</code> id is refused at

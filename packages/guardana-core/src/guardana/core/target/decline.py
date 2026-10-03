@@ -16,6 +16,9 @@ JsonScalar = str | int | float | bool
 """A value `equals:` may hold, compared with what the reply carries at `path:`."""
 
 _NAME = re.compile(r"[a-z0-9][a-z0-9_.-]*")
+DECLINED_TAG_PREFIX = "declined:"
+"""Opens the tag every assessment graded from a decline carries, `declined:<name>`."""
+
 _SUCCESS = range(200, 300)
 _CLIENT_ERROR = range(400, 500)
 
@@ -41,6 +44,21 @@ class Decline:
     reading: DeclineReading
     status: int
 
+    @property
+    def described(self) -> str:
+        """The decline as evidence states it, in place of a reply the application never gave."""
+        return f"declined by the application: {self.name} (HTTP {self.status})"
+
+    @property
+    def tag(self) -> str:
+        """The tag an assessment graded from this decline carries."""
+        return f"{DECLINED_TAG_PREFIX}{self.name}"
+
+
+def is_valid_decline_name(name: object) -> bool:
+    """Whether `name` may name a decline: `[a-z0-9][a-z0-9_.-]*`."""
+    return isinstance(name, str) and _NAME.fullmatch(name) is not None
+
 
 class RequestDeclined(Exception):  # noqa: N818 — a decline is an answer, not an error
     """The application declined the request as a `declines:` entry describes.
@@ -52,7 +70,7 @@ class RequestDeclined(Exception):  # noqa: N818 — a decline is an answer, not 
     def __init__(self, decline: Decline, meta: Mapping[str, str] | None = None) -> None:
         self.decline = decline
         self.meta: Mapping[str, str] = dict(meta or {})
-        super().__init__(f"declined by the application: {decline.name} (HTTP {decline.status})")
+        super().__init__(decline.described)
 
 
 @dataclass(frozen=True, slots=True)
@@ -172,6 +190,7 @@ def _same_json_value(found: object, expected: object) -> bool:
 
 
 __all__ = [
+    "DECLINED_TAG_PREFIX",
     "NEVER_A_DECLINE",
     "NOT_JSON",
     "DeclaredDecline",
@@ -180,5 +199,6 @@ __all__ = [
     "JsonScalar",
     "RequestDeclined",
     "is_absent",
+    "is_valid_decline_name",
     "value_at",
 ]

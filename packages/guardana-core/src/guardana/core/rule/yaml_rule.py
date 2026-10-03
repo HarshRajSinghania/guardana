@@ -4,12 +4,12 @@ from pathlib import Path
 
 import yaml
 from guardana.core.assessment import case_id_for, from_verdict
-from guardana.core.evaluator.base import Expectation, Verdict, grade
-from guardana.core.exchange import Exchange
+from guardana.core.evaluator.base import Expectation, Verdict, grade_decline
 from guardana.core.report import Evidence, Finding
 from guardana.core.rule._digest import declaration_digest
 from guardana.core.rule._fixture_schema import parse_fixtures
 from guardana.core.rule._scenario_schema import is_scenario, parse_scenario
+from guardana.core.rule._send import answered, decline_reason, decline_tags, send
 from guardana.core.rule._suite_schema import is_suite, parse_suite
 from guardana.core.rule._trajectory_schema import is_trajectory, parse_trajectory
 from guardana.core.rule._yaml_schema import (
@@ -105,7 +105,8 @@ class YamlRule(Rule):
         """Send each prompt once per trial, grade each reply, and yield a finding per failed case.
 
         Every trial is a fresh request with no history, so K replies to one prompt are K
-        attempts at the same case rather than one longer conversation.
+        attempts at the same case rather than one longer conversation. A request the
+        application declines is graded as the evaluator reads a decline.
         """
         if not isinstance(target, ChatEndpoint):
             # Unreachable while the capability contract holds: the runner only
@@ -125,14 +126,10 @@ class YamlRule(Rule):
             replies: list[str] = []
             try:
                 for trial in range(1, self.trials_per_case + 1):
-                    reply = target.chat([ChatMessage(role="user", content=prompt)])
-                    exchange = Exchange(
-                        (
-                            ChatMessage(role="user", content=prompt),
-                            ChatMessage(role="assistant", content=reply),
-                        )
-                    )
-                    verdict = grade(evaluator, exchange, self.expectation)
+                    asked = (ChatMessage(role="user", content=prompt),)
+                    sent = send(target, asked)
+                    exchange = answered(asked, sent)
+                    verdict, from_decline = grade_decline(evaluator, exchange, self.expectation)
                     # `pass` included: without the passes there is no denominator. The
                     # `dataset` is this rule's declaration digest — the same hash `diff`
                     # uses for "rule definition changed", so a sharpened corpus makes two
@@ -144,11 +141,13 @@ class YamlRule(Rule):
                             subject_ref=target.ref,
                             rule_id=self.meta.id,
                             dataset=self.digest(),
+                            tags=decline_tags(exchange, from_decline),
                             trial=trial,
+                            reason=decline_reason(exchange),
                         )
                     )
                     verdicts.append(verdict)
-                    replies.append(reply)
+                    replies.append(sent.evidence)
             except Exception:
                 # A failure already seen is kept when a later trial stops the rule: a
                 # spent budget or a grader that raised must not take it back.
@@ -164,7 +163,7 @@ class YamlRule(Rule):
                 yield self._finding(outcome, replies, target.ref)
 
     def _finding(self, outcome: CaseOutcome, replies: list[str], target_ref: str) -> Finding:
-        """One case's finding, with the reply of the trial its verdict came from."""
+        """One case's finding, with the reply or the decline of the trial its verdict came from."""
         return Finding(
             rule_id=self.meta.id,
             severity=self.meta.severity,

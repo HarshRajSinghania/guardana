@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
-from guardana.core.target import ChatMessage
+from guardana.core.target import ChatMessage, Decline
 
 if TYPE_CHECKING:  # `trajectory` imports `target`, which `exchange` also imports
     from guardana.core.trajectory.model import Trajectory
@@ -51,8 +51,15 @@ class Exchange:
     an agent run do.
     """
 
+    decline: Decline | None = None
+    """How the application declined the last request, when it did.
+
+    A declined exchange ends on the user turn the application declined, so it has no
+    `reply_text`; `evaluator.base.grade` reads the decline instead.
+    """
+
     def __post_init__(self) -> None:
-        """Refuse a `graded_from` that points outside the conversation."""
+        """Refuse a `graded_from` outside the conversation, and a decline after a reply."""
         start = self.graded_from
         if isinstance(start, bool) or not isinstance(start, int):
             raise TypeError(f"graded_from must be an int, got {start!r}")
@@ -61,6 +68,8 @@ class Exchange:
                 f"graded_from must lie in [0, {len(self.messages)}] for this conversation, "
                 f"got {start}"
             )
+        if self.decline is not None and (not self.messages or self.messages[-1].role != "user"):
+            raise ValueError("a declined exchange ends on the user turn the application declined")
 
     @property
     def graded_replies(self) -> tuple[str, ...]:
@@ -101,11 +110,14 @@ class Exchange:
         A tool-calling turn carries its calls in a field, not in `content`, so a
         transcript built from content alone renders it as an empty `assistant:`
         line and hides the half a reader needs. When the exchange came from an
-        agent run, the run itself is rendered.
+        agent run, the run itself is rendered. A declined exchange ends with the decline.
         """
         if self.trajectory is not None:
             return self.trajectory.render()
-        return "\n".join(_line(m) for m in self.messages)
+        lines = [_line(m) for m in self.messages]
+        if self.decline is not None:
+            lines.append(f"[{self.decline.described}]")
+        return "\n".join(lines)
 
     @classmethod
     def single_reply(cls, reply: str) -> "Exchange":

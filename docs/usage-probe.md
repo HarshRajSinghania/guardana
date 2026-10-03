@@ -352,6 +352,37 @@ A judge's adapter (`adapter:` in an [`evaluators:` block](profiles.md#config-wir
 refuses `declines:` and `metadata_paths:`, and may set `retry_statuses:`: a judge either
 answers or is unavailable.
 
+#### How a decline is graded
+
+A declined request is graded by the rule that sent it, never as reply text:
+
+1. When replies earlier in the same conversation are under grade (a scenario's earlier
+   steps, its whole-conversation `expect`), the evaluator grades them first, and a fail
+   stands: a canary leaked at step 2 is not taken back by a decline at step 3.
+2. Otherwise a decline `as: ungraded` is `inconclusive`, and a decline `as: refusal` is
+   what the evaluator says a refusal means. `keyword`, `canary`, `llm_judge` and `guard`
+   pass it at confidence `1.0` with no judge call (`llm_judge` and `guard` only when no
+   earlier reply is under grade); `answered` and `reference_judge` fail it, since a declined
+   task was not answered; every other evaluator, a third party's included, leaves it
+   `inconclusive`.
+
+An `inconclusive` verdict on a declined request is recorded with the reason
+`target_declined`, apart from `declined` (an evaluator that could not decide). Every
+verdict read from a decline carries the tag `declined:<name>`, and a finding's evidence
+names the decline (`declined by the application: content_filter (HTTP 400)`) where it
+would quote a reply. A suite's judge-error correction leaves the tagged trials out and adds
+them back as observed: corrected rate = judged share × corrected judged rate + share of
+declined trials that passed, and each limit likewise.
+
+A scenario stops at a decline: the steps after it are not sent, and each graded one is
+recorded `inconclusive` (`target_declined`). `guardana.output.secrets` scans text, so a
+decline under either reading is `inconclusive` there. The seeded checks read a declined
+control as a control that did not answer (`seed_not_reached`); in
+`guardana.tenancy.cross_tenant_answer` a cross-tenant question refused by the application
+passes when both controls answered, and one declined as ungraded is `inconclusive`. A rule
+that does not catch the decline — an agent rule, or a pack's Python rule that has not
+been taught it — is recorded as a rule error (exit `2`), never a pass.
+
 For a **multi-turn** scenario (gradual jailbreak, indirect injection), give the
 body a `{{messages}}` slot to receive the full transcript as a `[{role, content}]`
 list, if your endpoint speaks multi-turn:
@@ -599,7 +630,8 @@ guardana grade run.exchanges.jsonl --rules rules/ --format json --output regrade
 ```
 
 `run.json` → `run.exchanges.jsonl`. Each line holds the messages a rule sent and the
-reply, as a [recording](usage-grade.md#a-recording) `guardana grade` reads. The run
+reply, or the decline in its place, with the reply's `metadata_paths:` values, as a
+[recording](usage-grade.md#a-recording) `guardana grade` reads. The run
 records the file's SHA-256, its line count and how many replies redaction changed under
 `run.exchanges`; a sidecar that no longer matches that digest is a different execution to
 `guardana diff`.
@@ -612,7 +644,9 @@ records the file's SHA-256, its line count and how many replies redaction change
 - Every input and reply passes the run's redactor, matched spans only and without the
   evidence size bound; a secret is removed under every `evidence_mode`, `full` included. A
   reply redaction changed is marked `altered` and is never graded again: a reply that
-  leaked a secret cannot be regraded into a pass.
+  leaked a secret cannot be regraded into a pass. A metadata value redaction would change
+  is left out, so a regrade reads it as missing, and does not mark the reply altered. A
+  declined line holds no reply and is never `altered`.
 - Keeping is off by default. The file holds every reply, passes included, so it widens
   what a leaked run exposes; the collector never receives it. See [privacy](privacy.md).
 - A probe that kept nothing writes no file and says so on stderr.

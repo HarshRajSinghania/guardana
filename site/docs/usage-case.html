@@ -294,8 +294,9 @@ case; Guardana never promotes one by itself.</p>
 <h2 id="case-list"><code>case list</code></h2>
 <p><code>guardana case list RECORDING</code> prints every kept exchange: its line, its rule, its key and
 whether its reply is altered (redacted, marked <code>altered</code>, or from a recording that is not
-verbatim). The input and the reply, shortened and with control characters escaped, are
-printed only to a terminal or with <code>--show</code>.</p>
+verbatim), or <code>declined</code> for a request the application declined. The input and the reply,
+shortened and with control characters escaped, are printed only to a terminal or with
+<code>--show</code>; a declined line's reply is shown as <code>[declined: &lt;name&gt; (HTTP &lt;status&gt;)]</code>.</p>
 <h2 id="case-add"><code>case add</code></h2>
 <p><code>RULE</code> is the YAML file of one suite — a rule with <code>dataset:</code> — in your own source tree. The
 case is appended to that suite's dataset:</p>
@@ -399,6 +400,10 @@ the evaluator's reasons, which may quote a reply, are printed only to a terminal
 </tr>
 <tr>
 <td>an altered reply without <code>--observed-file</code></td>
+<td><code>3</code></td>
+</tr>
+<tr>
+<td>a line the application declined: it holds no reply to pair with a correct one, whatever <code>--observed-file</code> says</td>
 <td><code>3</code></td>
 </tr>
 <tr>

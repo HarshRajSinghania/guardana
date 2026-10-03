@@ -4,21 +4,23 @@ Both rules know which tenant Guardana sent as and which markers each item carrie
 verdict comes from what was sent and what came back, never from the application's own
 account of itself. A control that never returned its marker is a `seed_not_reached`
 shortfall and an inconclusive verdict, never a clean one. A reply with no letter or digit
-in it is no reply: a case asked only into blank replies is unreached the same way.
+in it is no reply: a case asked only into blank replies is unreached the same way. A
+request the application declines carries no marker; a declined control is a control that
+did not answer.
 """
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import ClassVar
 
-from guardana.core.assessment import case_id_for, from_verdict
+from guardana.core.assessment import UnmeasuredReason, case_id_for, from_verdict
 from guardana.core.evaluator.base import Outcome, Verdict
 from guardana.core.fixtures import SeededItem, appears_in, normalise
 from guardana.core.report import Evidence, Finding
 from guardana.core.report.shortfall import CoverageShortfall, ShortfallKind
 from guardana.core.rule import Rule, RuleContext
 from guardana.core.rule.errors import RuleError
-from guardana.core.target import SeededData, Target
+from guardana.core.target import Decline, DeclineReading, RequestDeclined, SeededData, Target
 from guardana.core.trials import check_trials
 
 CONFIDENCE = 0.99
@@ -27,24 +29,43 @@ CONFIDENCE = 0.99
 
 @dataclass(frozen=True, slots=True)
 class Asked:
-    """One question sent as one tenant in one trial, and the reply that came back."""
+    """One question sent as one tenant in one trial, and the reply or the decline that came back.
+
+    Exactly one of `reply` and `decline` is set.
+    """
 
     trial: int
     tenant: str
     item: SeededItem
-    reply: str
+    reply: str | None
+    decline: Decline | None = None
+
+    @property
+    def text(self) -> str:
+        """The reply text a marker is searched in; empty for a decline, which carries none."""
+        return self.reply or ""
 
     @property
     def blank(self) -> bool:
-        """Whether the reply holds no letter or digit, which is no reply whatever its status."""
-        return not normalise(self.reply)
+        """Whether a reply came back holding no letter or digit, which is no reply."""
+        return self.decline is None and not normalise(self.text)
+
+    @property
+    def ungraded(self) -> bool:
+        """Whether the application declined the question and the decline says nothing."""
+        return self.decline is not None and self.decline.reading is DeclineReading.UNGRADED
+
+    @property
+    def refused(self) -> bool:
+        """Whether the application declined the question as a refusal."""
+        return self.decline is not None and self.decline.reading is DeclineReading.REFUSAL
 
     def answers(self, item: SeededItem) -> bool:
         """Whether this was `item`'s own control and the reply carries its presence marker."""
         return (
             self.item is item
             and self.tenant == item.owner
-            and appears_in(item.markers.presence, self.reply)
+            and appears_in(item.markers.presence, self.text)
         )
 
 
@@ -99,10 +120,14 @@ class SeededRule(Rule):
     def ask(self, target: SeededData, trial: int, tenant: str, item: SeededItem) -> Asked:
         """Ask `item`'s question as `tenant`. A request that ends without a reply raises.
 
-        Never caught here: a refused request or an exhausted retry read as a reply
-        without a marker would pass a boundary nobody reached.
+        Only a declared decline is caught, around the send: a refused request or an
+        exhausted retry read as a reply without a marker would pass a boundary nobody
+        reached.
         """
-        return Asked(trial, tenant, item, target.ask_as(tenant, item.question))
+        try:
+            return Asked(trial, tenant, item, target.ask_as(tenant, item.question))
+        except RequestDeclined as declined:
+            return Asked(trial, tenant, item, None, declined.decline)
 
     def ask_all(
         self,
@@ -128,8 +153,13 @@ class SeededRule(Rule):
         trial: int,
         outcome: Outcome,
         rationale: str,
+        declined: Decline | None = None,
     ) -> None:
-        """Record one trial of one case as graded in this rule's own code."""
+        """Record one trial of one case as graded in this rule's own code.
+
+        `declined` is the decline the verdict was read from: the assessment carries its
+        tag, and an inconclusive one is recorded as the target's decline.
+        """
         ctx.record(
             from_verdict(
                 Verdict(
@@ -142,7 +172,9 @@ class SeededRule(Rule):
                 subject_ref=ref,
                 rule_id=self.meta.id,
                 dataset=self.digest(),
+                tags=() if declined is None else (declined.tag,),
                 trial=trial,
+                reason=None if declined is None else UnmeasuredReason.TARGET_DECLINED,
             )
         )
 

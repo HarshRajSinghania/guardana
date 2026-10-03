@@ -21,10 +21,10 @@ from guardana.core.budget import BudgetExhausted
 from guardana.core.calibration.corpus import bundled_corpus
 from guardana.core.calibration.store import corpus_digest
 from guardana.core.dataset import RegressionPair
-from guardana.core.evaluator.base import Expectation, Verdict, grade
-from guardana.core.exchange import Exchange
+from guardana.core.evaluator.base import Expectation, Verdict, grade_decline
 from guardana.core.manifest.records import SuiteOutcome, SuiteSummary
 from guardana.core.report import Evidence, Finding
+from guardana.core.rule._send import answered, decline_reason, decline_tags, send
 from guardana.core.rule.base import Rule, RuleContext, RuleMeta
 from guardana.core.rule.errors import RuleError, RuleLoadError
 from guardana.core.rule.fixture import DeclaredFixture, RuleFixture, materialise
@@ -162,7 +162,7 @@ class SuiteRule(Rule):
         for case in self.cases:
             for trial in range(1, self.trials_per_case + 1):
                 try:
-                    reply = target.chat(list(case.messages))
+                    sent = send(target, case.messages)
                 except ReplyUnavailable as exc:
                     # Kept in the denominator as ungraded, under the assessor the graded
                     # trials carry, so one missing reply never splits the suite's grading.
@@ -179,11 +179,8 @@ class SuiteRule(Rule):
                     )
                     continue
                 # A case may script assistant turns; only the model's reply is graded.
-                exchange = Exchange(
-                    (*case.messages, ChatMessage(role="assistant", content=reply)),
-                    graded_from=len(case.messages),
-                )
-                verdict = grade(evaluator, exchange, case.expectation)
+                exchange = answered(case.messages, sent, graded_from=len(case.messages))
+                verdict, from_decline = grade_decline(evaluator, exchange, case.expectation)
                 ctx.record(
                     from_verdict(
                         verdict,
@@ -191,12 +188,13 @@ class SuiteRule(Rule):
                         subject_ref=target.ref,
                         rule_id=self.meta.id,
                         dataset=self.dataset,
-                        tags=case.tags,
+                        tags=(*case.tags, *decline_tags(exchange, from_decline)),
                         trial=trial,
+                        reason=decline_reason(exchange),
                     )
                 )
                 if verdict.outcome == "fail" and len(failing) < _EVIDENCE_CASES:
-                    failing.setdefault(case.case_id, reply)
+                    failing.setdefault(case.case_id, sent.evidence)
         recorded = ctx.recorded()[start:]
         summary = self._summary(ctx, recorded)
         ctx.conclude(summary)

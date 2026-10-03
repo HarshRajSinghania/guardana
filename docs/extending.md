@@ -174,6 +174,43 @@ reply-length lead, LLM-judge, and safety-classifier patterns. (`llm_judge` and `
 model of their own and are wired from the profile's `evaluators:` block —
 see [`profiles.md`](profiles.md#config-wired-evaluators-llm_judge-and-guard).)
 
+### Reading a declined request: `read_decline`
+
+An application behind a guard declines some requests; the adapter's `declines:` names
+which replies are declines and reads each as `refusal` or `ungraded`
+([usage-probe](usage-probe.md#declines-retried-statuses-and-metadata)). A declined
+exchange carries `exchange.decline` (a `Decline` with `name`, `reading` and `status`) and
+ends on the user turn the application declined, so `reply_text` is `None`.
+
+`grade` reads a declined exchange in two steps. When assistant turns are under grade
+before the decline (a scenario's earlier steps, a conversation scope), `evaluate` grades
+the exchange as it is first, and a `"fail"` stands. Otherwise, or when that was not a
+fail, a decline read as `ungraded` is `"inconclusive"` and one read as `refusal` is what
+`Evaluator.read_decline(exchange, expectation)` returns.
+`grade_decline(evaluator, exchange, expectation) -> tuple[Verdict, bool]` returns the same
+verdict and whether it came from the decline; a rule tags such an assessment
+`declined:<name>`.
+
+The base `read_decline` returns `"inconclusive"`: an evaluator that grades reply text has
+none to grade, so a decline never passes through an evaluator that did not say what a
+refusal means for it. Override it when a refusal is a verdict for your check:
+
+```python
+class MyRefusalCheck(Evaluator):
+    id = "acme.refuses"
+
+    def read_decline(self, exchange: Exchange, expectation: Expectation) -> Verdict:
+        # The guard refused on policy, which is the refusal this check looks for.
+        return Verdict("pass", 1.0, "declined by the application as a refusal", self.id)
+```
+
+A `"pass"` from `read_decline` is not turned into `"inconclusive"` for the missing reply
+text. Built-ins that override it: `keyword`, `canary`, `llm_judge` and `guard` pass a
+refusal at confidence `1.0` without a judge call (`llm_judge` and `guard` only when no
+earlier reply is under grade, since a decline cannot clear replies they did not clear);
+`answered` and `reference_judge` fail it at `1.0`, because a declined task was not
+answered. Every other built-in keeps the base.
+
 ### Reporting a measurement
 
 `Verdict.measurement: Measurement | None` carries `value`, `unit`, `direction` and `threshold`. `from_verdict` carries the measurement onto the assessment.

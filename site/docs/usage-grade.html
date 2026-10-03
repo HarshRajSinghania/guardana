@@ -296,9 +296,9 @@ guardana plan grade answers.jsonl --rules rules/      # what it would cost: judg
 </code></pre>
 <h2 id="a-recording">A recording</h2>
 <p>A recording is a JSONL file. Its first non-blank line is the header; every other non-blank
-line answers one question. The <a href="https://guardana.dev/schemas/recording/v2.schema.json">JSON Schema</a>
+line answers one question. The <a href="https://guardana.dev/schemas/recording/v3.schema.json">JSON Schema</a>
 describes both lines.</p>
-<pre><code class="language-json">{&quot;guardana_recording&quot;: 2, &quot;name&quot;: &quot;support-bot&quot;, &quot;version&quot;: &quot;2026-10-01&quot;, &quot;verbatim&quot;: true, &quot;subject_kind&quot;: &quot;application&quot;, &quot;rule&quot;: &quot;acme.quality.support_answers&quot;}
+<pre><code class="language-json">{&quot;guardana_recording&quot;: 3, &quot;name&quot;: &quot;support-bot&quot;, &quot;version&quot;: &quot;2026-10-01&quot;, &quot;verbatim&quot;: true, &quot;subject_kind&quot;: &quot;application&quot;, &quot;rule&quot;: &quot;acme.quality.support_answers&quot;}
 {&quot;input&quot;: &quot;How do I reset my password?&quot;, &quot;reply&quot;: &quot;Open Settings, then Security.&quot;}
 {&quot;input&quot;: &quot;Where do I find my invoices?&quot;, &quot;reply&quot;: &quot;Ask your account manager.&quot;}
 {&quot;input&quot;: &quot;Can I export my data?&quot;, &quot;reply&quot;: &quot;Settings has an Export button.&quot;}
@@ -313,7 +313,7 @@ describes both lines.</p>
 <tbody>
 <tr>
 <td><code>guardana_recording</code></td>
-<td>Required. The format, <code>2</code> or <code>1</code>. Guardana writes <code>2</code> and reads both; a format-1 file declares no <code>subject_kind</code>.</td>
+<td>Required. The format, <code>3</code>, <code>2</code> or <code>1</code>. Guardana writes <code>3</code> and reads all three; a format-1 file declares no <code>subject_kind</code>, and only a format-3 line may hold <code>declined</code> or <code>meta</code>.</td>
 </tr>
 <tr>
 <td><code>name</code>, <code>version</code></td>
@@ -329,7 +329,7 @@ describes both lines.</p>
 </tr>
 <tr>
 <td><code>subject_kind</code></td>
-<td>Optional, format <code>2</code> only. What answered: <code>application</code> or <code>model_harness</code>, with the meanings a <a href="usage-recipe.html">recipe</a> gives them. A recipe grading the recording takes it when the recipe declares no <code>subject.kind</code>. <code>recipe run</code> writes its recipe's kind into the exchanges it keeps; <code>probe --keep-exchanges</code> writes none.</td>
+<td>Optional, format <code>2</code> and later. What answered: <code>application</code> or <code>model_harness</code>, with the meanings a <a href="usage-recipe.html">recipe</a> gives them. A recipe grading the recording takes it when the recipe declares no <code>subject.kind</code>. <code>recipe run</code> writes its recipe's kind into the exchanges it keeps; <code>probe --keep-exchanges</code> writes none.</td>
 </tr>
 <tr>
 <td><code>rule</code></td>
@@ -359,11 +359,19 @@ describes both lines.</p>
 </tr>
 <tr>
 <td><code>reply</code></td>
-<td>The answer, as the application gave it. An empty reply is a reply.</td>
+<td>The answer, as the application gave it. An empty reply is a reply. Required unless the line holds <code>declined</code>.</td>
+</tr>
+<tr>
+<td><code>declined</code></td>
+<td>Format 3, in place of <code>reply</code>: the application declined the request, as its adapter's <code>declines:</code> entry names it — <code>{&quot;name&quot;, &quot;reading&quot;, &quot;status&quot;}</code>, <code>reading</code> being <code>refusal</code> or <code>ungraded</code> and <code>status</code> one a decline may have. It is graded as the probe graded it (<a href="usage-probe.html#how-a-decline-is-graded">how a decline is graded</a>).</td>
+</tr>
+<tr>
+<td><code>meta</code></td>
+<td>Format 3, optional: what the reply carried beside its text, as the adapter's <code>metadata_paths:</code> named it — at most 16 names, each <code>[a-z][a-z0-9_]*</code>, each a string of at most 1,024 characters.</td>
 </tr>
 <tr>
 <td><code>altered</code></td>
-<td>Optional, <code>true</code> when the reply is not what the application said (scrubbed, truncated). An altered reply is never graded.</td>
+<td>Optional, <code>true</code> when the reply is not what the application said (scrubbed, truncated). An altered reply is never graded. A declined line holds no reply, so it is never <code>altered</code>.</td>
 </tr>
 <tr>
 <td><code>key</code></td>
@@ -371,6 +379,10 @@ describes both lines.</p>
 </tr>
 </tbody>
 </table></div>
+<p>A line <code>probe --keep-exchanges</code> kept from a guarded endpoint may hold the decline and the
+reply's metadata:</p>
+<pre><code class="language-json">{&quot;rule&quot;: &quot;acme.guarded.refuses&quot;, &quot;input&quot;: [{&quot;role&quot;: &quot;user&quot;, &quot;content&quot;: &quot;…&quot;}], &quot;declined&quot;: {&quot;name&quot;: &quot;content_filter&quot;, &quot;reading&quot;: &quot;refusal&quot;, &quot;status&quot;: 400}, &quot;meta&quot;: {&quot;request_id&quot;: &quot;r-2&quot;}, &quot;key&quot;: &quot;sha256:…&quot;}
+</code></pre>
 <p>A line answers the question its rule asks when the <code>input</code> is exactly the messages the rule
 sends: same roles, same text. Several lines for one question are trials, read in file order.
 Two rules asking the same question each need their own lines. Unknown or repeated keys, a line
@@ -416,6 +428,8 @@ are errors: an unread reply may be the failing one.</li>
 <li>A recording a probe kept at other trials per case than this run grades is refused before
 anything runs (exit <code>3</code>): grade it with the probe's <code>--trials</code>.</li>
 <li>A reply that holds a placeholder Guardana's redactor writes counts as altered.</li>
+<li>A declined line is read as the decline it is, before any check of the reply, whatever
+<code>verbatim</code> says: grading it reaches the verdict the probe reached.</li>
 <li>A run that graded nothing is <code>indeterminate</code> (exit <code>2</code>).</li>
 <li>A recording whose <code>origin</code> says the probe was stopped (<code>stopped_by</code> is set) holds only the
 replies that probe received before it stopped. The run carries an <code>incomplete_recording</code>

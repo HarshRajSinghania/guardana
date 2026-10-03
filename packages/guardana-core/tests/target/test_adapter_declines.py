@@ -381,15 +381,27 @@ def test_chat_reply_keeps_the_exchange_as_chat_does(provider: FakeProvider) -> N
     assert (kept.rule, kept.input[-1].content, kept.reply) == ("acme.one", "hello", "kept answer")
 
 
-def test_a_declined_request_propagates_and_keeps_nothing(provider: FakeProvider) -> None:
-    provider.script(adapter_reply(None, fields={"error": {"code": "content_policy"}}, status=400))
-    target = _target(provider)
+def test_a_declined_request_is_kept_as_the_decline_with_its_metadata_and_propagates(
+    provider: FakeProvider,
+) -> None:
+    provider.script(
+        adapter_reply(
+            None,
+            fields={"error": {"code": "content_policy"}, "meta": {"text": "weapons"}},
+            status=400,
+        )
+    )
+    target = _target(provider, metadata_paths={"category": "meta.text"})
     keeper = ExchangeKeeper()
     target.keep_exchanges(keeper)
 
     _declined(target.for_rule("acme.one"))
 
-    assert keeper.count == 0
+    (kept,) = keeper.recorded(_redacted())
+    assert kept.reply is None
+    assert kept.declined == Decline("content_filter", DeclineReading.REFUSAL, 400)
+    assert kept.meta == {"category": "weapons"}
+    assert not kept.altered
 
 
 class _Reshaping(EndpointTarget):

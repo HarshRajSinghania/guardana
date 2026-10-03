@@ -165,14 +165,17 @@ def list_cases(
         raise typer.Exit(code=ExitCode.INVALID_USAGE) from None
     full = show or _terminal()
     for exchange in recording.exchanges:
-        reply = "altered" if recording.reply_altered(exchange) else "verbatim"
+        if exchange.declined is not None:
+            reply = "declined"
+        else:
+            reply = "altered" if recording.reply_altered(exchange) else "verbatim"
         typer.echo(
             f"line {exchange.line}  rule {_escaped(exchange.rule)}  "
             f"key {_escaped(exchange.key or '-')}  reply {reply}"
         )
         if full:
             typer.echo(f"    input: {_preview(_joined(exchange))}")
-            typer.echo(f"    reply: {_preview(exchange.reply)}")
+            typer.echo(f"    reply: {_reply_preview(exchange)}")
     if not full:
         typer.echo("input and reply text are not printed off a terminal; pass --show to print them")
 
@@ -310,6 +313,14 @@ def _joined(exchange: RecordedExchange) -> str:
     if len(exchange.input) == 1:
         return exchange.input[0].content
     return " | ".join(f"{m.role}: {m.content}" for m in exchange.input)
+
+
+def _reply_preview(exchange: RecordedExchange) -> str:
+    """Quote the reply, or name the decline the line holds in its place."""
+    declined = exchange.declined
+    if declined is not None:
+        return f"[declined: {_escaped(declined.name)} (HTTP {declined.status})]"
+    return _preview(exchange.reply or "")
 
 
 def _preview(text: str) -> str:

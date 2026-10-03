@@ -393,7 +393,9 @@ of the command:</p>
 <li><strong>unsupported</strong> — a probe showed it is not there.</li>
 <li><strong>unknown</strong> — the probe ran and settled nothing. Never folded into
 &quot;unsupported&quot;: &quot;it does not do this&quot; and &quot;we could not find out&quot; call for
-different decisions.</li>
+different decisions. A probe the application declined (an adapter's <code>declines:</code>) is
+reported here as <code>declined by the application: &lt;name&gt; (HTTP &lt;status&gt;)</code>: the guard
+answered, and the capability is not established.</li>
 </ul>
 <p>Anything declared and not confirmed is listed under <em>declared but not confirmed</em>,
 including the unknowns. A capability nobody could demonstrate is one no rule

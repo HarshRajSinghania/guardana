@@ -450,6 +450,36 @@ five small one-file examples spanning cheap heuristic, exact marker match,
 reply-length lead, LLM-judge, and safety-classifier patterns. (<code>llm_judge</code> and <code>guard</code> need a
 model of their own and are wired from the profile's <code>evaluators:</code> block —
 see <a href="profiles.html#config-wired-evaluators-llm_judge-and-guard"><code>profiles.md</code></a>.)</p>
+<h3 id="reading-a-declined-request-read_decline">Reading a declined request: <code>read_decline</code></h3>
+<p>An application behind a guard declines some requests; the adapter's <code>declines:</code> names
+which replies are declines and reads each as <code>refusal</code> or <code>ungraded</code>
+(<a href="usage-probe.html#declines-retried-statuses-and-metadata">usage-probe</a>). A declined
+exchange carries <code>exchange.decline</code> (a <code>Decline</code> with <code>name</code>, <code>reading</code> and <code>status</code>) and
+ends on the user turn the application declined, so <code>reply_text</code> is <code>None</code>.</p>
+<p><code>grade</code> reads a declined exchange in two steps. When assistant turns are under grade
+before the decline (a scenario's earlier steps, a conversation scope), <code>evaluate</code> grades
+the exchange as it is first, and a <code>&quot;fail&quot;</code> stands. Otherwise, or when that was not a
+fail, a decline read as <code>ungraded</code> is <code>&quot;inconclusive&quot;</code> and one read as <code>refusal</code> is what
+<code>Evaluator.read_decline(exchange, expectation)</code> returns.
+<code>grade_decline(evaluator, exchange, expectation) -&gt; tuple[Verdict, bool]</code> returns the same
+verdict and whether it came from the decline; a rule tags such an assessment
+<code>declined:&lt;name&gt;</code>.</p>
+<p>The base <code>read_decline</code> returns <code>&quot;inconclusive&quot;</code>: an evaluator that grades reply text has
+none to grade, so a decline never passes through an evaluator that did not say what a
+refusal means for it. Override it when a refusal is a verdict for your check:</p>
+<pre><code class="language-python">class MyRefusalCheck(Evaluator):
+    id = &quot;acme.refuses&quot;
+
+    def read_decline(self, exchange: Exchange, expectation: Expectation) -&gt; Verdict:
+        # The guard refused on policy, which is the refusal this check looks for.
+        return Verdict(&quot;pass&quot;, 1.0, &quot;declined by the application as a refusal&quot;, self.id)
+</code></pre>
+<p>A <code>&quot;pass&quot;</code> from <code>read_decline</code> is not turned into <code>&quot;inconclusive&quot;</code> for the missing reply
+text. Built-ins that override it: <code>keyword</code>, <code>canary</code>, <code>llm_judge</code> and <code>guard</code> pass a
+refusal at confidence <code>1.0</code> without a judge call (<code>llm_judge</code> and <code>guard</code> only when no
+earlier reply is under grade, since a decline cannot clear replies they did not clear);
+<code>answered</code> and <code>reference_judge</code> fail it at <code>1.0</code>, because a declined task was not
+answered. Every other built-in keeps the base.</p>
 <h3 id="reporting-a-measurement">Reporting a measurement</h3>
 <p><code>Verdict.measurement: Measurement | None</code> carries <code>value</code>, <code>unit</code>, <code>direction</code> and <code>threshold</code>. <code>from_verdict</code> carries the measurement onto the assessment.</p>
 <p>An evaluator reports one by passing it with its verdict:</p>

@@ -77,7 +77,9 @@ of the command:
 - **unsupported** — a probe showed it is not there.
 - **unknown** — the probe ran and settled nothing. Never folded into
   "unsupported": "it does not do this" and "we could not find out" call for
-  different decisions.
+  different decisions. A probe the application declined (an adapter's `declines:`) is
+  reported here as `declined by the application: <name> (HTTP <status>)`: the guard
+  answered, and the capability is not established.
 
 Anything declared and not confirmed is listed under *declared but not confirmed*,
 including the unknowns. A capability nobody could demonstrate is one no rule
