@@ -119,6 +119,7 @@ NOT_A_DOCUMENT: dict[str, str] = {
     "guardana.core.target._mcp_wire.LEGACY_VERSION": "an MCP protocol revision the other end names",
     "guardana.core.target._mcp_wire.META_PROTOCOL_VERSION": "the name of an MCP metadata key",
     "guardana.core.target._mcp_wire.UNSUPPORTED_PROTOCOL_VERSION": "a JSON-RPC error code",
+    "guardana.core.target._a2a_wire.A2A_VERSION": "an A2A protocol version the other end names",
     "guardana.core.formats.gguf._MIN_VERSION": (
         "the oldest GGUF container this reader parses — somebody else's format, which "
         "Guardana reads and never writes"

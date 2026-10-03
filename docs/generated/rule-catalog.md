@@ -13,6 +13,9 @@ frameworks it maps to. A rule without a mapping does not ship.
 
 | Rule | Severity | Surface | Maps to |
 |---|---|---|---|
+| `guardana.a2a.agent_card` | MEDIUM | runtime | `ASI07:2026`, `ASI04:2026` |
+| `guardana.a2a.caller_identity` | HIGH | runtime | `ASI03:2026`, `ASI07:2026` |
+| `guardana.a2a.task_visibility` | HIGH | runtime | `ASI03:2026`, `ASI07:2026` |
 | `guardana.agent.credential_exfiltration` | CRITICAL | runtime | `LLM02:2025`, `LLM02:2026`, `ASI03:2026`, `AML.T0086`, `AML.T0098` |
 | `guardana.agent.excessive_tool_use` | HIGH | runtime | `LLM06:2025`, `LLM03:2026`, `ASI02:2026`, `AML.T0053` |
 | `guardana.agent.hidden_context.tool_schema` | HIGH | runtime | `LLM02:2025`, `LLM02:2026`, `LLM08:2026`, `AML.T0084.001` |

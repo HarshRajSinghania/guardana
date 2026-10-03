@@ -26,7 +26,9 @@ from guardana.core.rule import Rule
 from guardana.core.surface import Surface
 from guardana.rules import provide_rules
 
-_FAMILY_ROW = re.compile(r"^\| `guardana\.([a-z_]+)\.\*` \| (\d+) \| ([a-z +]+) \| ", re.MULTILINE)
+_FAMILY_ROW = re.compile(
+    r"^\| `guardana\.([a-z0-9_]+)\.\*` \| (\d+) \| ([a-z +]+) \| ", re.MULTILINE
+)
 _TOTAL = re.compile(r"counts (\d+) built-in rules:")
 _SPLIT = re.compile(r"built-in rules: (\d+) artifact rules and (\d+) runtime rules")
 _STATIC = re.compile(r"The (\d+) static rules need no model or network")

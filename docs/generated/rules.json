@@ -4,6 +4,111 @@
   "guardana_version": "0.38.0",
   "rules": [
     {
+      "id": "guardana.a2a.agent_card",
+      "namespace": "guardana",
+      "family": "a2a",
+      "title": "A2A agent card is incomplete, or declares what no caller can satisfy",
+      "severity": "MEDIUM",
+      "surface": "runtime",
+      "target_kind": "endpoint",
+      "evaluator": null,
+      "impact": "active",
+      "destructive": false,
+      "maturity": "stable",
+      "detection": "invariant",
+      "requires": [
+        "inspect_a2a"
+      ],
+      "estimated_requests": 1,
+      "goal": null,
+      "taxonomy": [
+        {
+          "reference": "ASI07:2026",
+          "framework": "OWASP-ASI-2026",
+          "id": "ASI07",
+          "title": "Insecure Inter-Agent Communication",
+          "rank": 7
+        },
+        {
+          "reference": "ASI04:2026",
+          "framework": "OWASP-ASI-2026",
+          "id": "ASI04",
+          "title": "Agentic Supply Chain Vulnerabilities",
+          "rank": 4
+        }
+      ]
+    },
+    {
+      "id": "guardana.a2a.caller_identity",
+      "namespace": "guardana",
+      "family": "a2a",
+      "title": "A2A agent answers a caller presenting no credential",
+      "severity": "HIGH",
+      "surface": "runtime",
+      "target_kind": "endpoint",
+      "evaluator": null,
+      "impact": "active",
+      "destructive": false,
+      "maturity": "stable",
+      "detection": "invariant",
+      "requires": [
+        "inspect_a2a"
+      ],
+      "estimated_requests": 4,
+      "goal": null,
+      "taxonomy": [
+        {
+          "reference": "ASI03:2026",
+          "framework": "OWASP-ASI-2026",
+          "id": "ASI03",
+          "title": "Identity and Privilege Abuse",
+          "rank": 3
+        },
+        {
+          "reference": "ASI07:2026",
+          "framework": "OWASP-ASI-2026",
+          "id": "ASI07",
+          "title": "Insecure Inter-Agent Communication",
+          "rank": 7
+        }
+      ]
+    },
+    {
+      "id": "guardana.a2a.task_visibility",
+      "namespace": "guardana",
+      "family": "a2a",
+      "title": "A2A agent shows a task to a caller who does not own it",
+      "severity": "HIGH",
+      "surface": "runtime",
+      "target_kind": "endpoint",
+      "evaluator": null,
+      "impact": "active",
+      "destructive": false,
+      "maturity": "stable",
+      "detection": "invariant",
+      "requires": [
+        "inspect_a2a"
+      ],
+      "estimated_requests": 8,
+      "goal": null,
+      "taxonomy": [
+        {
+          "reference": "ASI03:2026",
+          "framework": "OWASP-ASI-2026",
+          "id": "ASI03",
+          "title": "Identity and Privilege Abuse",
+          "rank": 3
+        },
+        {
+          "reference": "ASI07:2026",
+          "framework": "OWASP-ASI-2026",
+          "id": "ASI07",
+          "title": "Insecure Inter-Agent Communication",
+          "rank": 7
+        }
+      ]
+    },
+    {
       "id": "guardana.agent.credential_exfiltration",
       "namespace": "guardana",
       "family": "agent",

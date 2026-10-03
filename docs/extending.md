@@ -597,6 +597,11 @@ configurable for authorization, session handling, caching headers, and both
 eras of the protocol — so an authorization rule gets a positive and a
 negative server with no network.
 
+**A scripted A2A agent**, `ScriptedA2aAgent`, stands in for a live A2A v1 agent
+the same way: it serves a card, answers the task reads per caller, keeps tasks
+per owner and refuses a caller it does not know, so an A2A rule gets an agent
+that tells its callers apart and one that does not.
+
 **A seeded application**, `SeededApplication`, stands in for a team's own
 retrieval pipeline over a [fixtures file](usage-fixtures.md): it answers an
 item's question with its marker when the asking tenant's key may read it, and

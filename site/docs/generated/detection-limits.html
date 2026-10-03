@@ -288,8 +288,21 @@
 <li><strong>Not declared</strong>: the rule does not say which of the two its findings are.</li>
 </ul>
 <p>A framework mapping says a rule is relevant to that entry, not that the entry is covered.</p>
-<h2 id="agent">agent</h2>
+<h2 id="a2a">a2a</h2>
 <h3 id="tested-invariant">Tested invariant</h3>
+<ul>
+<li><code>guardana.a2a.agent_card</code>: A2A agent card is incomplete, or declares what no caller can satisfy</li>
+<li><code>guardana.a2a.caller_identity</code>: A2A agent answers a caller presenting no credential</li>
+<li><code>guardana.a2a.task_visibility</code>: A2A agent shows a task to a caller who does not own it</li>
+</ul>
+<h3 id="framework-entries-these-rules-are-relevant-to-not-coverage-of-them">Framework entries these rules are relevant to, not coverage of them</h3>
+<ul>
+<li><code>ASI03:2026</code>: Identity and Privilege Abuse</li>
+<li><code>ASI04:2026</code>: Agentic Supply Chain Vulnerabilities</li>
+<li><code>ASI07:2026</code>: Insecure Inter-Agent Communication</li>
+</ul>
+<h2 id="agent">agent</h2>
+<h3 id="tested-invariant-1">Tested invariant</h3>
 <ul>
 <li><code>guardana.agent.credential_exfiltration</code>: Agent leaks a planted secret through a tool argument</li>
 <li><code>guardana.agent.hidden_context.tool_schema</code>: Hidden context in a tool schema disclosed on request</li>
@@ -305,7 +318,7 @@
 <ul>
 <li><code>guardana.agent.mcp_server_manifest</code>: Live MCP tool manifest carries a hidden instruction or has drifted</li>
 </ul>
-<h3 id="framework-entries-these-rules-are-relevant-to-not-coverage-of-them">Framework entries these rules are relevant to, not coverage of them</h3>
+<h3 id="framework-entries-these-rules-are-relevant-to-not-coverage-of-them-1">Framework entries these rules are relevant to, not coverage of them</h3>
 <ul>
 <li><code>AML.T0053</code>: AI Agent Tool Invocation</li>
 <li><code>AML.T0080</code>: AI Agent Context Poisoning</li>
@@ -350,7 +363,7 @@
 <li><code>guardana.mcp.scope_breadth</code>: MCP server advertises scopes that cannot express least privilege</li>
 <li><code>guardana.mcp.session_binding</code>: MCP session id is guessable, or stands in for authentication</li>
 </ul>
-<h3 id="framework-entries-these-rules-are-relevant-to-not-coverage-of-them-1">Framework entries these rules are relevant to, not coverage of them</h3>
+<h3 id="framework-entries-these-rules-are-relevant-to-not-coverage-of-them-2">Framework entries these rules are relevant to, not coverage of them</h3>
 <ul>
 <li><code>AML.T0084.001</code>: Discover AI Agent Configuration: Tool Definitions</li>
 <li><code>ASI03:2026</code>: Identity and Privilege Abuse</li>
@@ -366,13 +379,13 @@
 <ul>
 <li><code>guardana.output.secrets</code>: Secret leaked in model output</li>
 </ul>
-<h3 id="framework-entries-these-rules-are-relevant-to-not-coverage-of-them-2">Framework entries these rules are relevant to, not coverage of them</h3>
+<h3 id="framework-entries-these-rules-are-relevant-to-not-coverage-of-them-3">Framework entries these rules are relevant to, not coverage of them</h3>
 <ul>
 <li><code>LLM02:2025</code>: Sensitive Information Disclosure</li>
 <li><code>LLM02:2026</code>: Sensitive Information Disclosure</li>
 </ul>
 <h2 id="prompt">prompt</h2>
-<h3 id="tested-invariant-1">Tested invariant</h3>
+<h3 id="tested-invariant-2">Tested invariant</h3>
 <ul>
 <li><code>guardana.prompt.system_prompt_leak.canary</code>: System prompt leakage via canary marker</li>
 </ul>
@@ -385,7 +398,7 @@
 <li><code>guardana.prompt.mcp_tool_poisoning</code>: MCP tool description carries a hidden instruction (tool poisoning)</li>
 <li><code>guardana.prompt.unbounded_consumption</code>: Unbounded output generation (denial-of-wallet)</li>
 </ul>
-<h3 id="framework-entries-these-rules-are-relevant-to-not-coverage-of-them-3">Framework entries these rules are relevant to, not coverage of them</h3>
+<h3 id="framework-entries-these-rules-are-relevant-to-not-coverage-of-them-4">Framework entries these rules are relevant to, not coverage of them</h3>
 <ul>
 <li><code>AML.T0011.002</code>: User Execution: Poisoned AI Agent Tool</li>
 <li><code>AML.T0034.002</code>: Cost Harvesting: Agentic Resource Consumption</li>
@@ -407,11 +420,11 @@
 <li><code>MCP10:2025</code>: Context Injection &amp; Over-Sharing</li>
 </ul>
 <h2 id="retrieval">retrieval</h2>
-<h3 id="tested-invariant-2">Tested invariant</h3>
+<h3 id="tested-invariant-3">Tested invariant</h3>
 <ul>
 <li><code>guardana.retrieval.poisoned_document</code>: The application followed an instruction planted in a retrieved document</li>
 </ul>
-<h3 id="framework-entries-these-rules-are-relevant-to-not-coverage-of-them-4">Framework entries these rules are relevant to, not coverage of them</h3>
+<h3 id="framework-entries-these-rules-are-relevant-to-not-coverage-of-them-5">Framework entries these rules are relevant to, not coverage of them</h3>
 <ul>
 <li><code>AML.T0051</code>: LLM Prompt Injection</li>
 <li><code>AML.T0080</code>: AI Agent Context Poisoning</li>
@@ -422,7 +435,7 @@
 <li><code>LLM09:2026</code>: Vector and Embedding Weaknesses</li>
 </ul>
 <h2 id="scenario">scenario</h2>
-<h3 id="tested-invariant-3">Tested invariant</h3>
+<h3 id="tested-invariant-4">Tested invariant</h3>
 <ul>
 <li><code>guardana.scenario.indirect_injection</code>: Indirect prompt injection via a retrieved document</li>
 </ul>
@@ -430,7 +443,7 @@
 <ul>
 <li><code>guardana.scenario.gradual_jailbreak</code>: Gradual multi-turn jailbreak</li>
 </ul>
-<h3 id="framework-entries-these-rules-are-relevant-to-not-coverage-of-them-5">Framework entries these rules are relevant to, not coverage of them</h3>
+<h3 id="framework-entries-these-rules-are-relevant-to-not-coverage-of-them-6">Framework entries these rules are relevant to, not coverage of them</h3>
 <ul>
 <li><code>AML.T0051</code>: LLM Prompt Injection</li>
 <li><code>AML.T0080</code>: AI Agent Context Poisoning</li>
@@ -463,7 +476,7 @@
 <li><code>guardana.supply_chain.remote_code_config</code>: Model config requests custom-code execution on load</li>
 <li><code>guardana.supply_chain.saved_model_ops</code>: TensorFlow SavedModel filesystem operator</li>
 </ul>
-<h3 id="framework-entries-these-rules-are-relevant-to-not-coverage-of-them-6">Framework entries these rules are relevant to, not coverage of them</h3>
+<h3 id="framework-entries-these-rules-are-relevant-to-not-coverage-of-them-7">Framework entries these rules are relevant to, not coverage of them</h3>
 <ul>
 <li><code>AML.T0018</code>: Manipulate AI Model</li>
 <li><code>ASI05:2026</code>: Unexpected Code Execution</li>
@@ -477,11 +490,11 @@
 <li><code>supply-chain</code>: GenAI Supply Chain Attack</li>
 </ul>
 <h2 id="tenancy">tenancy</h2>
-<h3 id="tested-invariant-4">Tested invariant</h3>
+<h3 id="tested-invariant-5">Tested invariant</h3>
 <ul>
 <li><code>guardana.tenancy.cross_tenant_answer</code>: Another tenant's seeded data reached a reply</li>
 </ul>
-<h3 id="framework-entries-these-rules-are-relevant-to-not-coverage-of-them-7">Framework entries these rules are relevant to, not coverage of them</h3>
+<h3 id="framework-entries-these-rules-are-relevant-to-not-coverage-of-them-8">Framework entries these rules are relevant to, not coverage of them</h3>
 <ul>
 <li><code>AML.T0057</code>: LLM Data Leakage</li>
 <li><code>LLM02:2025</code>: Sensitive Information Disclosure</li>
@@ -505,7 +518,7 @@
 <ul>
 <li><code>guardana.trace.secret_in_tool_argument</code>: A credential appeared in a recorded tool argument</li>
 </ul>
-<h3 id="framework-entries-these-rules-are-relevant-to-not-coverage-of-them-8">Framework entries these rules are relevant to, not coverage of them</h3>
+<h3 id="framework-entries-these-rules-are-relevant-to-not-coverage-of-them-9">Framework entries these rules are relevant to, not coverage of them</h3>
 <ul>
 <li><code>AML.T0057</code>: LLM Data Leakage</li>
 <li><code>ASI02:2026</code>: Tool Misuse</li>
@@ -525,7 +538,7 @@
 <ul>
 <li><code>guardana.training.dataset_integrity</code>: Training-data integrity gap (loader script or unpinned dataset)</li>
 </ul>
-<h3 id="framework-entries-these-rules-are-relevant-to-not-coverage-of-them-9">Framework entries these rules are relevant to, not coverage of them</h3>
+<h3 id="framework-entries-these-rules-are-relevant-to-not-coverage-of-them-10">Framework entries these rules are relevant to, not coverage of them</h3>
 <ul>
 <li><code>LLM04:2025</code>: Data and Model Poisoning</li>
 <li><code>LLM05:2026</code>: Data and Model Poisoning</li>

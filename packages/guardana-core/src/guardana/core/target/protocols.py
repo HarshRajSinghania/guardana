@@ -21,6 +21,7 @@ from guardana.core.target.base import Capability, Target
 if TYPE_CHECKING:
     from guardana.core.fixtures import Fixtures
     from guardana.core.source import PythonSource, UnreadSource
+    from guardana.core.target._a2a_view import A2aView
     from guardana.core.target._mcp_authorization import McpAuthorizationView
     from guardana.core.target.endpoint import ChatMessage, ChatReply, ToolCallReply, ToolSpec
     from guardana.core.target.mcp import McpConversation, McpTool
@@ -156,6 +157,15 @@ class AuthorizationInspector(Protocol):
 
 
 @runtime_checkable
+class A2aInspector(Protocol):
+    """The surface `Capability.INSPECT_A2A` promises: an agent's card and whom it answers."""
+
+    def a2a(self) -> "A2aView":
+        """Return what the run observed about the agent, each part bought on first read."""
+        raise NotImplementedError
+
+
+@runtime_checkable
 class SeededData(Protocol):
     """The surface `Capability.SEEDED_DATA` promises: seeded items, and a way to ask as a tenant.
 
@@ -180,6 +190,7 @@ class SeededData(Protocol):
 
 __all__ = [
     "CAPABILITY_SURFACE",
+    "A2aInspector",
     "AuthorizationInspector",
     "ChatEndpoint",
     "ChatWithMetadata",
@@ -199,6 +210,7 @@ CAPABILITY_SURFACE: Mapping[Capability, type] = {
     Capability.CALL_TOOLS: ToolOfferingEndpoint,
     Capability.LIST_TOOLS: ToolListing,
     Capability.INSPECT_AUTHORIZATION: AuthorizationInspector,
+    Capability.INSPECT_A2A: A2aInspector,
     Capability.READ_TRACE: TraceReader,
     Capability.SEEDED_DATA: SeededData,
 }

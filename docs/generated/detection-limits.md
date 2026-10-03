@@ -16,6 +16,20 @@ What a finding from each built-in rule states about the target, grouped by rule 
 
 A framework mapping says a rule is relevant to that entry, not that the entry is covered.
 
+## a2a
+
+### Tested invariant
+
+- `guardana.a2a.agent_card`: A2A agent card is incomplete, or declares what no caller can satisfy
+- `guardana.a2a.caller_identity`: A2A agent answers a caller presenting no credential
+- `guardana.a2a.task_visibility`: A2A agent shows a task to a caller who does not own it
+
+### Framework entries these rules are relevant to, not coverage of them
+
+- `ASI03:2026`: Identity and Privilege Abuse
+- `ASI04:2026`: Agentic Supply Chain Vulnerabilities
+- `ASI07:2026`: Insecure Inter-Agent Communication
+
 ## agent
 
 ### Tested invariant

@@ -79,6 +79,7 @@ from guardana.core.runner import (
 )
 from guardana.core.subject import SubjectKind
 from guardana.core.target import (
+    A2aAgentTarget,
     ArtifactTarget,
     Capability,
     EndpointError,
@@ -214,6 +215,10 @@ def exchanges_path(run: Path) -> Path:
     """Where the exchanges a run kept are written beside it: `run.json` → `run.exchanges.jsonl`."""
     stem = run.stem if run.suffix == ".json" else run.name
     return run.with_name(f"{stem}.exchanges.jsonl")
+
+
+_RULES_ONLY = (McpServerTarget, A2aAgentTarget)
+"""Protocol servers a run examines with its rules alone: nothing to plant, no probe passes."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -442,6 +447,9 @@ class Verifier:
                 keeping.stop_keeping()
             _release(target)
             raise
+        # Read again once the run is over: a target may learn values during it, such as
+        # the task ids an agent revealed, and none of them may reach what the run writes.
+        withheld = tuple(dict.fromkeys((*withheld, *self._withheld(target))))
         return self._finish(
             registry,
             result,
@@ -556,7 +564,7 @@ class Verifier:
     ) -> tuple[ScanResult, TargetIdentity]:
         records = {key: value.as_record() for key, value in calibrations.items()}
         try:
-            if endpoint and not isinstance(target, McpServerTarget):
+            if endpoint and not isinstance(target, _RULES_ONLY):
                 probed = run_target_probe(
                     registry,
                     self.profile,

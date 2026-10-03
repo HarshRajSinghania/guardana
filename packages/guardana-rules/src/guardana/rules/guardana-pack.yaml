@@ -28,6 +28,9 @@ description: >
 
 provides:
   rules:
+    - guardana.a2a.agent_card
+    - guardana.a2a.caller_identity
+    - guardana.a2a.task_visibility
     - guardana.agent.credential_exfiltration
     - guardana.agent.excessive_tool_use
     - guardana.agent.hidden_context.tool_schema

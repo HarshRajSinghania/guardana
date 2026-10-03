@@ -16,6 +16,7 @@ from collections import Counter
 from collections.abc import Mapping, Sequence
 from contextlib import suppress
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from guardana.core.evaluator import Evaluator, Expectation, Verdict
 from guardana.core.exchange import Exchange
@@ -28,6 +29,9 @@ from guardana.core.target import Capability, EndpointTarget, SeededTarget, Targe
 from guardana.core.target.endpoint import ChatMessage, ToolCall, ToolCallReply, ToolSpec
 from guardana.core.testing.seeded import SeededApplication, seeded_target
 from guardana.core.trajectory import MAX_STEPS_CEILING
+
+if TYPE_CHECKING:
+    from guardana.core.target import A2aAgentTarget
 from guardana.rules import provide_evaluators, provide_rules
 
 _CTX = RuleContext(evaluators={e.id: e for e in provide_evaluators()})
@@ -300,7 +304,17 @@ def _mcp_rules() -> list[Rule]:
     return [r for r in _endpoint_rules() if not r.meta.required_capabilities - reachable]
 
 
-def test_every_endpoint_rule_belongs_to_one_of_the_three_run_shapes() -> None:
+def _a2a_rules() -> list[Rule]:
+    """Endpoint rules an A2A agent can satisfy: the run shape `probe --a2a` has."""
+    return [
+        r
+        for r in _endpoint_rules()
+        if r.meta.required_capabilities
+        and not r.meta.required_capabilities - {Capability.INSPECT_A2A}
+    ]
+
+
+def test_every_endpoint_rule_belongs_to_one_of_the_run_shapes() -> None:
     # The split above is only trustworthy while it is exhaustive: a rule needing
     # capabilities from two sets would be priced by no ceiling and skipped by every
     # real target, which is lost coverage nobody would notice.
@@ -308,9 +322,10 @@ def test_every_endpoint_rule_belongs_to_one_of_the_three_run_shapes() -> None:
         {r.meta.id for r in _chat_rules()}
         | {r.meta.id for r in _mcp_rules()}
         | {r.meta.id for r in _seeded_rules()}
+        | {r.meta.id for r in _a2a_rules()}
     )
     orphans = [r.meta.id for r in _endpoint_rules() if r.meta.id not in accounted]
-    assert not orphans, f"these rules can run against no chat, MCP or seeded target: {orphans}"
+    assert not orphans, f"these rules can run against no chat, MCP, seeded or A2A target: {orphans}"
 
 
 def test_a_chat_probe_has_a_knowable_ceiling() -> None:
@@ -352,6 +367,61 @@ def test_an_mcp_probe_has_a_knowable_ceiling_and_actually_spends_far_less() -> N
     spent = target.usage().requests
     assert spent < ceiling, "the observation is not being shared between rules"
     assert spent <= 20, f"a whole MCP probe spent {spent} requests"
+
+
+def _a2a_target() -> "A2aAgentTarget":
+    """An agent that answers every read it may, so each rule spends all it would."""
+    from guardana.core.target import A2aAgentTarget  # noqa: PLC0415
+    from guardana.core.testing import ScriptedA2aAgent  # noqa: PLC0415
+    from guardana.core.testing.a2a import agent_card  # noqa: PLC0415
+
+    url = "https://93.184.215.14/"
+    agent = ScriptedA2aAgent(
+        url,
+        card=agent_card(f"{url}a2a", extended=True),
+        callers={"a": "alice", "b": "bob"},
+        tasks={"alice": ["t-1", "t-2", "t-3", "t-4"]},
+        owner_bound=False,
+    )
+    return A2aAgentTarget(url, credential="a", other_credential="b", sender=agent)
+
+
+def test_the_a2a_rules_are_registered_and_measured() -> None:
+    assert {r.meta.id for r in _a2a_rules()} == {
+        "guardana.a2a.agent_card",
+        "guardana.a2a.caller_identity",
+        "guardana.a2a.task_visibility",
+    }
+
+
+def test_no_a2a_rule_spends_more_than_it_declared() -> None:
+    for rule in _a2a_rules():
+        target = _a2a_target()
+        list(rule.run(target, _CTX))
+        declared = rule.estimated_requests
+        assert declared is not None
+        assert target.usage().requests <= declared, rule.meta.id
+
+
+def test_an_a2a_probe_has_a_knowable_ceiling_and_shares_its_observation() -> None:
+    ceiling = sum(r.estimated_requests or 0 for r in _a2a_rules())
+    assert ceiling <= 20, f"a full A2A probe can cost {ceiling} requests"
+
+    target = _a2a_target()
+    for rule in _a2a_rules():
+        list(rule.run(target, _CTX))
+
+    spent = target.usage().requests
+    assert spent == 8, "the card, three anonymous reads, one listing and three cross reads"
+    assert spent < ceiling, "the observation is not being shared between rules"
+
+
+def test_no_a2a_rule_grades_with_an_evaluator() -> None:
+    for rule in _a2a_rules():
+        tally: Counter[str] = Counter()
+        list(rule.run(_a2a_target(), _counting_context(tally)))
+        assert rule.graded_verdicts == {}
+        assert not tally, rule.meta.id
 
 
 def test_the_mcp_rule_declares_the_one_listing_it_makes() -> None:

@@ -51,6 +51,16 @@ not — without either being real:
     open_to_anyone = ScriptedMcpServer(url, tools=[{"name": "read", "description": "..."}])
     assert list(MyRule().run(McpServerTarget(url, sender=open_to_anyone), RuleContext()))
 
+**A scripted A2A agent** stands in for a live one, so a rule about whom an agent answers
+can be driven against an agent that tells its callers apart — and one that does not:
+
+    from guardana.core.target import A2aAgentTarget
+    from guardana.core.testing import ScriptedA2aAgent
+
+    shared = ScriptedA2aAgent(url, callers={"a": "alice", "b": "bob"},
+                              tasks={"alice": ["t-1"]}, owner_bound=False)
+    target = A2aAgentTarget(url, credential="a", other_credential="b", sender=shared)
+
 **A seeded application** stands in for a team's own retrieval pipeline over a fixtures
 file, so the tenant and poisoned-document checks can be driven against a filter that
 holds — and one that leaks — without either being real:
@@ -67,6 +77,7 @@ a renderer emits does not have to invent a clock, a run id and a tool version:
     document = JsonRenderer(manifest_for(result)).render(result)
 """
 
+from guardana.core.testing.a2a import ScriptedA2aAgent
 from guardana.core.testing.artifacts import build_gguf, build_onnx, build_safetensors
 from guardana.core.testing.manifests import FIXED_RUN_TIME, manifest_for
 from guardana.core.testing.mcp import ScriptedMcpServer
@@ -96,6 +107,7 @@ __all__ = [
     "GullibleAgentTransport",
     "RefusingTransport",
     "ScriptExhaustedError",
+    "ScriptedA2aAgent",
     "ScriptedAgentTransport",
     "ScriptedMcpServer",
     "ScriptedTransport",

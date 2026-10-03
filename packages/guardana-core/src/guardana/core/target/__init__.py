@@ -16,6 +16,15 @@ from guardana.core.target._mcp_http import (
     same_origin,
 )
 from guardana.core.target._url import display_url, private_url_parts
+from guardana.core.target.a2a import (
+    A2aAgentTarget,
+    A2aAnonymous,
+    A2aAnswer,
+    A2aCallers,
+    A2aReply,
+    A2aSecurity,
+    A2aView,
+)
 from guardana.core.target.adapter import AdapterConfig, HttpAdapterTransport
 from guardana.core.target.artifact import ArtifactTarget
 from guardana.core.target.base import Capability, LocatorError, Target, TargetKind
@@ -49,6 +58,7 @@ from guardana.core.target.mcp import (
     McpTool,
 )
 from guardana.core.target.protocols import (
+    A2aInspector,
     AuthorizationInspector,
     ChatEndpoint,
     ChatWithMetadata,
@@ -65,6 +75,14 @@ from guardana.core.target.trace import TraceTarget, capability_for, dimensions_o
 
 __all__ = [
     "REQUEST_TIMEOUT_SECONDS",
+    "A2aAgentTarget",
+    "A2aAnonymous",
+    "A2aAnswer",
+    "A2aCallers",
+    "A2aInspector",
+    "A2aReply",
+    "A2aSecurity",
+    "A2aView",
     "AdapterConfig",
     "Anonymous",
     "ArtifactTarget",

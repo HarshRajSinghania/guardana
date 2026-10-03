@@ -73,6 +73,7 @@
   <url><loc>https://guardana.dev/docs/rules/by/cost-5-plus</loc></url>
   <url><loc>https://guardana.dev/docs/rules/by/cost-undeclared</loc></url>
   <url><loc>https://guardana.dev/docs/rules/by/cost-zero</loc></url>
+  <url><loc>https://guardana.dev/docs/rules/by/family-a2a</loc></url>
   <url><loc>https://guardana.dev/docs/rules/by/family-agent</loc></url>
   <url><loc>https://guardana.dev/docs/rules/by/family-mcp</loc></url>
   <url><loc>https://guardana.dev/docs/rules/by/family-output</loc></url>
@@ -149,6 +150,9 @@
   <url><loc>https://guardana.dev/docs/rules/by/severity-MEDIUM</loc></url>
   <url><loc>https://guardana.dev/docs/rules/by/surface-build</loc></url>
   <url><loc>https://guardana.dev/docs/rules/by/surface-runtime</loc></url>
+  <url><loc>https://guardana.dev/docs/rules/guardana.a2a.agent_card</loc></url>
+  <url><loc>https://guardana.dev/docs/rules/guardana.a2a.caller_identity</loc></url>
+  <url><loc>https://guardana.dev/docs/rules/guardana.a2a.task_visibility</loc></url>
   <url><loc>https://guardana.dev/docs/rules/guardana.agent.credential_exfiltration</loc></url>
   <url><loc>https://guardana.dev/docs/rules/guardana.agent.excessive_tool_use</loc></url>
   <url><loc>https://guardana.dev/docs/rules/guardana.agent.hidden_context.tool_schema</loc></url>

@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Annotated, TypeVar
 
 import typer
+from guardana.cli._a2a_run import connection_from, run_a2a_probe
 from guardana.cli._budget_flags import override
 from guardana.cli._connection import (
     AdapterOption,
@@ -151,6 +152,25 @@ def probe(  # noqa: C901, PLR0913, PLR0915, PLR0917 — Typer surface, target mo
     mcp_pin: Annotated[
         Path | None, typer.Option("--mcp-pin", help="Approved MCP manifest to compare against")
     ] = None,
+    a2a: Annotated[
+        str | None,
+        typer.Option("--a2a", help="A2A agent to examine instead of a model: an http(s) URL"),
+    ] = None,
+    a2a_token_env: Annotated[
+        str | None,
+        typer.Option(
+            "--a2a-token-env",
+            help="Env var holding the first caller's bearer token for the A2A agent.",
+        ),
+    ] = None,
+    a2a_other_token_env: Annotated[
+        str | None,
+        typer.Option(
+            "--a2a-other-token-env",
+            help="Env var holding a second, different caller's bearer token; with "
+            "--a2a-token-env, settles whether one caller can read another's task.",
+        ),
+    ] = None,
     write_mcp_pin: Annotated[
         Path | None,
         typer.Option("--write-mcp-pin", help="Write the server's current manifest and exit"),
@@ -218,10 +238,11 @@ def probe(  # noqa: C901, PLR0913, PLR0915, PLR0917 — Typer surface, target mo
         ),
     ] = False,
 ) -> None:
-    """Run dynamic security checks against a live model endpoint, or an MCP server."""
+    """Run dynamic security checks against a live model endpoint, an MCP server or an A2A agent."""
     check_reporter_url(reporter)
     refuse_incomparable_output(output, format.value)
-    seeded = _fixtures(fixtures, elsewhere=target is not None or mcp is not None)
+    _refuse_lone_a2a_flags(a2a, a2a_token_env, a2a_other_token_env)
+    seeded = _fixtures(fixtures, elsewhere=target is not None or mcp is not None or a2a is not None)
     deployment = detect_deployment(ai_system, environment, deployment_id)
     prof = resolve_profile(profile, preset)
     prof = replace(
@@ -238,7 +259,7 @@ def probe(  # noqa: C901, PLR0913, PLR0915, PLR0917 — Typer surface, target mo
         ),
         trials=prof.trials if trials is None else trials,
     )
-    prof = _keeping(prof, keep_exchanges, mcp=mcp, output=output, format=format)
+    prof = _keeping(prof, keep_exchanges, protocol=mcp or a2a, output=output, format=format)
     resolved = resolve_trust(plugins, allow_plugin, prof)
     registry = Registry.discover(resolved.trust)
     hint_refused_plugins(registry, resolved)
@@ -288,6 +309,9 @@ def probe(  # noqa: C901, PLR0913, PLR0915, PLR0917 — Typer surface, target mo
             "--mcp-token-env": mcp_token_env,
             "--mcp-pin": mcp_pin,
             "--write-mcp-pin": write_mcp_pin,
+            "--a2a": a2a,
+            "--a2a-token-env": a2a_token_env,
+            "--a2a-other-token-env": a2a_other_token_env,
         }
         used = [name for name, value in conflicting.items() if value is not None]
         if allow_exec:
@@ -328,6 +352,46 @@ def probe(  # noqa: C901, PLR0913, PLR0915, PLR0917 — Typer surface, target mo
 
     if target_option:
         raise typer.BadParameter("--target-option needs --target scheme://locator")
+
+    if a2a is not None:
+        _refuse_beside_a2a(
+            {
+                "--url": url,
+                "--model": model,
+                "--api-key-env": api_key_env,
+                "--provider": provider,
+                "--adapter": adapter,
+                "--system-prompt-file": system_prompt_file,
+                "--mcp": mcp,
+                "--mcp-token-env": mcp_token_env,
+                "--mcp-pin": mcp_pin,
+                "--write-mcp-pin": write_mcp_pin,
+                "--allow-exec": True if allow_exec else None,
+            }
+        )
+        agent = connection_from(a2a, a2a_token_env, a2a_other_token_env)
+        examined_agent = run_judged(
+            lambda: _carried_out(
+                lambda: run_a2a_probe(
+                    registry,
+                    prof,
+                    agent,
+                    concurrency=concurrency,
+                    calibrations=calibrations,
+                    source=detect_source(),
+                    deployment=deployment,
+                )
+            )
+        )
+        _finish_probe(
+            examined_agent,
+            display_url(a2a),
+            deployment,
+            format=format,
+            output=output,
+            reporter=reporter,
+        )
+        return
 
     if mcp is not None:
         chat_flags = {
@@ -413,13 +477,39 @@ def probe(  # noqa: C901, PLR0913, PLR0915, PLR0917 — Typer surface, target mo
 
 
 def _fixtures(path: Path | None, *, elsewhere: bool) -> Fixtures | None:
-    """Read `--fixtures`, refusing it beside `--mcp` or `--target`, which hold no seeded items."""
+    """Read `--fixtures`, refusing it beside `--mcp`, `--a2a` or `--target`, which hold none."""
     if path is not None and elsewhere:
         raise typer.BadParameter(
-            "--fixtures asks the seeded items through --url, once per tenant; an MCP server "
-            "or a pack's --target holds none"
+            "--fixtures asks the seeded items through --url, once per tenant; an MCP server, "
+            "an A2A agent or a pack's --target holds none"
         )
     return read_fixtures(path)
+
+
+def _refuse_lone_a2a_flags(
+    a2a: str | None, token_env: str | None, other_token_env: str | None
+) -> None:
+    """Refuse an A2A credential flag given without `--a2a`, which nothing would read."""
+    given = [
+        name
+        for name, value in (
+            ("--a2a-token-env", token_env),
+            ("--a2a-other-token-env", other_token_env),
+        )
+        if value is not None
+    ]
+    if given and a2a is None:
+        raise typer.BadParameter(f"{', '.join(given)} names a credential for --a2a; pass --a2a URL")
+
+
+def _refuse_beside_a2a(flags: dict[str, object]) -> None:
+    """Refuse the flags that configure another target beside `--a2a`; they would be ignored."""
+    used = [name for name, value in flags.items() if value is not None]
+    if used:
+        raise typer.BadParameter(
+            f"--a2a probes an A2A agent; {', '.join(used)} configure another target and "
+            f"would be ignored"
+        )
 
 
 def _seeded(
@@ -459,15 +549,16 @@ def _keeping(
     prof: Profile,
     flag: bool,
     *,
-    mcp: str | None,
+    protocol: str | None,
     output: Path | None,
     format: OutputFormat,
 ) -> Profile:
     """Turn `--keep-exchanges` into the profile switch and refuse what it cannot honour.
 
     Kept exchanges are written beside the saved run, so a run that writes none would keep
-    them nowhere; and an MCP server has no chat exchanges to keep. A `--target` is checked
-    once it is built, since only a target built on the endpoint keeps them.
+    them nowhere; and an MCP server or an A2A agent (`protocol`) has no chat exchanges to
+    keep. A `--target` is checked once it is built, since only a target built on the
+    endpoint keeps them.
     """
     if flag:
         if prof.privacy.mode is EvidenceMode.METADATA_ONLY:
@@ -478,10 +569,11 @@ def _keeping(
         prof = replace(prof, privacy=replace(prof.privacy, keep_exchanges=True))
     if not prof.privacy.keep_exchanges:
         return prof
-    if mcp is not None:
+    if protocol is not None:
         raise typer.BadParameter(
             "keeping exchanges keeps the chat exchanges of --url (with or without --adapter) "
-            "or of a pack's --target built on the endpoint; an MCP server keeps none"
+            "or of a pack's --target built on the endpoint; an MCP server or an A2A agent "
+            "keeps none"
         )
     if output is None or format is not OutputFormat.json:
         raise typer.BadParameter(

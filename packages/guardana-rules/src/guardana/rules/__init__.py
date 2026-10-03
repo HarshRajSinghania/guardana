@@ -17,6 +17,7 @@ from guardana.core.evaluator.json_valid import JsonValidEvaluator
 from guardana.core.evaluator.regex import RegexEvaluator
 from guardana.core.rule import Rule
 from guardana.core.rule.yaml_rule import load_yaml_rules
+from guardana.rules.a2a import A2aAgentCardRule, A2aCallerIdentityRule, A2aTaskVisibilityRule
 from guardana.rules.agent.excessive_agency import ExcessiveAgencyRule
 from guardana.rules.agent.mcp_server_manifest import McpServerManifestRule
 from guardana.rules.mcp import (
@@ -106,6 +107,9 @@ def provide_rules() -> list[Rule]:
         McpDiscoveryTargetRule(),
         McpIssuerIdentificationRule(),
         McpCacheScopeRule(),
+        A2aAgentCardRule(),
+        A2aCallerIdentityRule(),
+        A2aTaskVisibilityRule(),
         CredentialPassthroughRule(),
         IdentityDisagreementRule(),
         SessionAsIdentityRule(),

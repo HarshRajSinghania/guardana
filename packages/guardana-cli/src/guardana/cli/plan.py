@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
+from guardana.cli._a2a_run import plan_target as plan_a2a_target
 from guardana.cli._budget_flags import override
 from guardana.cli._connection import (
     AdapterOption,
@@ -58,6 +59,7 @@ from guardana.core.profile import Profile, ProfileError
 from guardana.core.recording import RecordingError, read_recording
 from guardana.core.registry import Registry
 from guardana.core.target import (
+    A2aAgentTarget,
     ArtifactTarget,
     EndpointTarget,
     McpServerTarget,
@@ -432,6 +434,12 @@ def plan_probe(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; thi
         str | None,
         typer.Option(help="MCP server to price instead of a model endpoint: an http(s) URL"),
     ] = None,
+    a2a: Annotated[
+        str | None,
+        typer.Option(
+            "--a2a", help="A2A agent to price instead of a model endpoint: an http(s) URL"
+        ),
+    ] = None,
     provider: ProviderOption = None,
     adapter: AdapterOption = None,
     system_prompt_file: SystemPromptFileOption = None,
@@ -542,17 +550,32 @@ def plan_probe(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; thi
         ),
         trials=prof.trials if trials is None else trials,
     )
-    legacy_target_options = (url, model, mcp, provider, adapter, system_prompt_file, fixtures)
+    legacy_target_options = (url, model, mcp, a2a, provider, adapter, system_prompt_file, fixtures)
     if target is not None and any(value is not None for value in legacy_target_options):
         raise typer.BadParameter(
-            "--target cannot be combined with --url, --model, --mcp, --provider, --adapter, "
-            "--system-prompt-file or --fixtures"
+            "--target cannot be combined with --url, --model, --mcp, --a2a, --provider, "
+            "--adapter, --system-prompt-file or --fixtures"
         )
-    if fixtures is not None and mcp is not None:
+    if fixtures is not None and (mcp is not None or a2a is not None):
         raise typer.BadParameter(
             "--fixtures asks the seeded items through --url, once per tenant; an MCP server "
-            "holds none"
+            "or an A2A agent holds none"
         )
+    if a2a is not None:
+        beside = {
+            "--url": url,
+            "--model": model,
+            "--mcp": mcp,
+            "--provider": provider,
+            "--adapter": adapter,
+            "--system-prompt-file": system_prompt_file,
+        }
+        used = [name for name, value in beside.items() if value is not None]
+        if used:
+            raise typer.BadParameter(
+                f"--a2a prices an A2A agent; {', '.join(used)} configure another target and "
+                f"would be ignored"
+            )
     seeded = read_fixtures(fixtures)
     registry = Registry.discover(resolved.trust)
     judge_meters = _wire_judges(registry, prof)
@@ -569,6 +592,7 @@ def plan_probe(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; thi
             url,
             model,
             mcp,
+            a2a=a2a,
             provider=provider,
             adapter=adapter,
             system_prompt_file=system_prompt_file,
@@ -579,10 +603,10 @@ def plan_probe(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; thi
         selected.apply_budgets(prof.budgets)
     except BudgetExhausted as exc:
         raise refuse_unenforceable_budget(exc) from exc
-    # An MCP server is probed in one pass; every other target in the passes a probe splits.
+    # A protocol server is probed in one pass; every other target in the passes a probe splits.
     planned = (
         build_plan(registry, prof, selected, judge_meters=judge_meters)
-        if isinstance(selected, McpServerTarget)
+        if isinstance(selected, McpServerTarget | A2aAgentTarget)
         else plan_target_probe(registry, prof, selected, judge_meters=judge_meters)
     )
     _emit(
@@ -719,12 +743,15 @@ def _plan_probe_target(  # noqa: PLR0913 — one argument per connection flag
     model: str | None,
     mcp: str | None,
     *,
+    a2a: str | None = None,
     provider: str | None,
     adapter: Path | None,
     system_prompt_file: Path | None,
     fixtures: Fixtures | None = None,
 ) -> Target:
-    """Build the legacy endpoint or MCP target without contacting it, seeded when given fixtures."""
+    """Build the endpoint, MCP or A2A target without contacting it, seeded when given fixtures."""
+    if a2a is not None:
+        return plan_a2a_target(a2a)
     if mcp is not None:
         return plan_target(mcp)
     endpoint_url, model_name = require_chat_endpoint(url, model)
