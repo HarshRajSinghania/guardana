@@ -16,7 +16,7 @@ from guardana.core.target._mcp_client import (
     negotiate,
     read_manifest,
 )
-from guardana.core.target._mcp_http import McpError, Sender, send
+from guardana.core.target._mcp_http import HttpSender, McpError, Sender, send
 from guardana.core.target._mcp_wire import Era
 from guardana.core.target._url import display_url
 from guardana.core.target.base import Capability, Target, TargetKind
@@ -84,7 +84,8 @@ class McpServerTarget(Target):
         self._url: str | None = None
         self._credential = credential
         self._meter = UsageMeter()
-        self._sender: Sender = sender if sender is not None else send
+        self._sender: Sender = sender if sender is not None else HttpSender()
+        self._sender_supplied = sender is not None and sender is not send
         raw = self._connect(url, command, allow_exec, transport)
         self._transport: McpTransport = MeteredTransport(raw, self._meter)
         self._negotiation: Negotiation | None = None
@@ -105,7 +106,7 @@ class McpServerTarget(Target):
             # has replaced the JSON-RPC half and not the HTTP half, and claiming
             # INSPECT_AUTHORIZATION anyway sent the authorization probe to the real
             # network from tests that thought they had no network at all.
-            self._url = url if self._sender is not send else None
+            self._url = url if self._sender_supplied else None
             return transport
         if command is not None:
             if not allow_exec:

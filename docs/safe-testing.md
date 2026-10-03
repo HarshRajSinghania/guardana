@@ -49,8 +49,9 @@ your users' traffic. If something needs to be stopped in production, Guardana is
 the wrong layer.
 
 **Guardana sends nothing anywhere else.** No telemetry, no account, no phone-home.
-The only network traffic is to the target you configured — plus your judge and your
-collector, if you configured those.
+Traffic goes only to destinations the run names: the target you configured, a judge
+or guard your profile configures, and the authorization metadata the target itself
+advertises — plus your collector, if you configured one.
 
 ## The gap that remains, stated plainly
 

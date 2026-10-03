@@ -113,16 +113,17 @@ class Dataset:
 def resolve_dataset_path(raw: str, rule_file: Path) -> Path:
     """Resolve a rule's `dataset:` value to a file inside the rule file's directory.
 
-    The only traffic Guardana makes is to the target, so a URL is refused; and a rule
-    file must not read outside the directory it ships in, so an absolute path, a `..`
-    that climbs out and a symbolic link that points out are refused too.
+    Guardana sends traffic only to destinations the run names, and a dataset is not
+    one, so a URL is refused; and a rule file must not read outside the directory it
+    ships in, so an absolute path, a `..` that climbs out and a symbolic link that
+    points out are refused too.
     """
     if not raw.strip():
         raise DatasetError(f"{rule_file}: `dataset:` names no file")
     if "://" in raw:
         raise DatasetError(
             f"{rule_file}: dataset {raw!r} is a URL; a dataset is read from a file beside "
-            f"the rule, because the only network traffic is to the target"
+            f"the rule, because a run sends traffic only to destinations it names"
         )
     if Path(raw).is_absolute():
         raise DatasetError(

@@ -27,8 +27,8 @@ from guardana.core.target._mcp_http import (
     RawReply,
     RedirectRefusedError,
     Sender,
-    is_local_address,
     refusal_for,
+    server_is_local,
 )
 from guardana.core.target._mcp_wire import Era, Wire
 from guardana.core.target._url import display_url
@@ -317,12 +317,13 @@ class _Probe:
     def discovery(self, anonymous: Anonymous) -> "Discovery":
         """Follow the authorization discovery chain, refusing addresses a client must not.
 
-        Whether the server under test is local is decided once, here, so a name
-        that answers differently between fetches cannot loosen the guard halfway.
+        Whether the server under test is local is decided once, here, from the
+        operator's URL and the addresses the server's own connections reached —
+        never from a new lookup of its name, which the server itself answers.
         """
         if anonymous.open_to_anyone:
             return Discovery()
-        scope = DiscoveryScope(local_target=is_local_address(self._url))
+        scope = DiscoveryScope(local_target=server_is_local(self._url, self._send))
         resource, refused = self._first_readable(
             _resource_metadata_urls(self._url, anonymous.challenge), scope
         )

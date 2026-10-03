@@ -13,22 +13,25 @@ server-side request forgery primitive aimed at whoever runs the scanner. Guardan
 resolving `http://169.254.169.254/` because a server asked it to would be the
 confused deputy it is here to look for.
 
-A discovery request connects only to an address it checked. Its host is resolved
-once at connect time, every address is held to the guard, and the socket is opened
-to one of those addresses while the name still travels as `Host` and as TLS SNI, so
-a name that answers differently between two lookups has nothing to switch.
+Every connection to an address the server chose — each discovery request, and each
+redirect hop after the operator's own — connects only to an address it checked. Its
+host is resolved once at connect time, every address is held to the guard, and the
+socket is opened to one of those addresses while the name still travels as `Host`
+and as TLS SNI, so a name that answers differently between two lookups has nothing
+to switch.
 """
 
 import ipaddress
 import json
 import socket
 import ssl
-from collections.abc import Mapping, Sequence
+import threading
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from http.client import HTTPConnection, HTTPMessage, HTTPResponse, HTTPSConnection
 from typing import IO, Protocol
 from urllib.error import HTTPError, URLError
-from urllib.parse import SplitResult, urlsplit
+from urllib.parse import SplitResult, unquote, urlsplit
 from urllib.request import (
     BaseHandler,
     HTTPHandler,
@@ -57,6 +60,16 @@ credential often enough that a whole rule exists to grade servers that do.
 """
 
 _Address = ipaddress.IPv4Address | ipaddress.IPv6Address
+
+_CLOUD_METADATA = frozenset(
+    ipaddress.ip_address(address)
+    for address in ("169.254.169.254", "fd00:ec2::254", "100.100.100.200")
+)
+"""Instance metadata services, refused however local the server under test is.
+
+Two of them sit in ranges a local server may legitimately send a client into, so
+the range rules alone would let them through.
+"""
 
 
 class McpError(Exception):
@@ -128,8 +141,8 @@ class DiscoveryScope:
     """Marks a request as authorization discovery, which connects only to an address it checked.
 
     `local_target` is whether the server under test is local, decided once for the
-    whole discovery, so every fetch in it is held to the same rule even when the
-    server's own name answers differently between fetches.
+    whole discovery by `server_is_local`, so every fetch in it is held to the same
+    rule.
     """
 
     local_target: bool
@@ -150,9 +163,9 @@ class _GuardedRedirect(HTTPRedirectHandler):
     it is safe to point at a server nobody controls.
     """
 
-    def __init__(self, *, local_target: bool) -> None:
+    def __init__(self, route: "_Route") -> None:
         super().__init__()
-        self._local_target = local_target
+        self._route = route
 
     def redirect_request(  # noqa: PLR0913, PLR0917 — the signature urllib calls
         self,
@@ -164,7 +177,7 @@ class _GuardedRedirect(HTTPRedirectHandler):
         newurl: str,
     ) -> Request | None:
         """Refuse the hop, strip what it must not carry, or hand it back unchanged."""
-        refusal = refusal_for(newurl, local_target=self._local_target)
+        refusal = refusal_for(newurl, local_target=self._route.local_target())
         if refusal is not None:
             # urllib drains and closes the current response only *after* this
             # returns, so raising past it leaks the socket. Close it ourselves.
@@ -263,20 +276,129 @@ def send(  # noqa: PLR0913 — the keywords the `Sender` protocol publishes
     was than in being handed an exception.
 
     `alongside` is the server under test, and it decides how strict the guard on
-    each **redirect hop** is; it defaults to the address being fetched, so even a
-    direct call to the server cannot be bounced somewhere a client must not go.
+    each **redirect hop** is: local when its URL names an inside address or
+    `localhost`. Without it the address being fetched decides, by that rule or by
+    the address its own first hop reached, so even a direct call to the server
+    cannot be bounced somewhere a client must not go.
 
     `discovery` marks an authorization discovery request and takes the place of
     `alongside` as the source of that strictness. Every hop of it connects only to
     an address the guard accepted, raising `AddressRefusedError` otherwise, and no
     HTTP proxy is used, because a proxy would resolve the name again on its own.
-    The server's own requests keep the ordinary opener.
+
+    The first hop of any other request is the operator's: it connects by name and
+    honours the proxy settings. Every hop after it was chosen by the server, so it
+    is pinned the way a discovery hop is and bypasses the proxy.
     """
+    return _send(
+        url,
+        method=method,
+        body=body,
+        headers=headers,
+        alongside=alongside,
+        discovery=discovery,
+        record=None,
+    )
+
+
+class HttpSender:
+    """The `Sender` that reaches the network, remembering where the server's own requests went.
+
+    A server's own name is the one thing in a discovery that the server controls
+    end to end, so whether it is local is never decided by looking the name up
+    again: a rebinding server answers that lookup with whatever unlocks the guard.
+    What counts is the address the operator's own connection actually reached,
+    recorded as it connected.
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._peers: dict[tuple[str, str, int | None], list[_Address | None]] = {}
+
+    def __call__(  # noqa: PLR0913 — the keywords the `Sender` protocol publishes
+        self,
+        url: str,
+        *,
+        method: str = "POST",
+        body: bytes | None = None,
+        headers: Mapping[str, str] | None = None,
+        alongside: str | None = None,
+        discovery: DiscoveryScope | None = None,
+    ) -> RawReply:
+        """Send one request as `send` does, noting the peer when it is the server's own."""
+        own = discovery is None and alongside is None
+        return _send(
+            url,
+            method=method,
+            body=body,
+            headers=headers,
+            alongside=alongside,
+            discovery=discovery,
+            record=self._record if own else None,
+        )
+
+    def reached_only_inside(self, url: str) -> bool:
+        """Whether every connection made to `url`'s origin reached an address inside the network.
+
+        False before any connection was made, and false once one went through a
+        proxy, whose address says nothing about the server behind it.
+        """
+        with self._lock:
+            peers = list(self._peers.get(_origin(urlsplit(url)), ()))
+        return bool(peers) and all(peer is not None and _inside(peer) for peer in peers)
+
+    def _record(self, url: str, peer: _Address | None) -> None:
+        with self._lock:
+            self._peers.setdefault(_origin(urlsplit(url)), []).append(peer)
+
+
+def server_is_local(url: str, sender: "Sender") -> bool:
+    """Say whether the server under test is local, without a new lookup of its name.
+
+    Local when the operator's URL names it by an inside address or as `localhost`,
+    or when every connection `sender` made to it reached an inside address. A
+    sender that records no connections, such as a test double, leaves only the URL.
+    """
+    if _named_local(url):
+        return True
+    return isinstance(sender, HttpSender) and sender.reached_only_inside(url)
+
+
+def _named_local(url: str) -> bool:
+    """Whether the URL itself names a local host: an inside IP literal or `localhost`."""
+    host = urlsplit(url).hostname
+    if not host:
+        return False
+    if host == "localhost":
+        return True
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return _inside(address)
+
+
+def _inside(address: _Address) -> bool:
+    """Whether an address is inside some network rather than reachable on the internet."""
+    return not _unmapped(address).is_global
+
+
+def _send(  # noqa: PLR0913 — the `Sender` keywords and the peer recorder
+    url: str,
+    *,
+    method: str,
+    body: bytes | None,
+    headers: Mapping[str, str] | None,
+    alongside: str | None,
+    discovery: DiscoveryScope | None,
+    record: Callable[[str, _Address | None], None] | None,
+) -> RawReply:
     scheme = urlsplit(url).scheme
     if scheme not in _SAFE_SCHEMES:
         raise McpError("the MCP URL needs an http or https scheme")
     request = Request(url, data=body, headers=dict(headers or {}), method=method)  # noqa: S310
-    opener = build_opener(*_handlers(url, alongside=alongside, discovery=discovery))
+    route = _Route(request, alongside=alongside, discovery=discovery, record=record)
+    opener = build_opener(*route.handlers())
     try:
         with opener.open(request, timeout=TIMEOUT_SECONDS) as response:
             return RawReply(
@@ -296,19 +418,64 @@ def send(  # noqa: PLR0913 — the keywords the `Sender` protocol publishes
         raise McpError(f"could not reach {display_url(url)}: {exc}") from exc
 
 
-def _handlers(
-    url: str, *, alongside: str | None, discovery: DiscoveryScope | None
-) -> tuple[BaseHandler, ...]:
-    """Choose the handlers for one request: guarded redirects, and for discovery a pinned dial."""
-    if discovery is None:
-        local_target = is_local_address(alongside if alongside is not None else url)
-        return (_GuardedRedirect(local_target=local_target),)
-    return (
-        ProxyHandler({}),
-        _GuardedRedirect(local_target=discovery.local_target),
-        _PinnedHTTPHandler(local_target=discovery.local_target),
-        _PinnedHTTPSHandler(local_target=discovery.local_target),
-    )
+class _Route:
+    """One request and its hops: which hop is the operator's, and how strict the rest are."""
+
+    def __init__(
+        self,
+        first: Request,
+        *,
+        alongside: str | None,
+        discovery: DiscoveryScope | None,
+        record: Callable[[str, _Address | None], None] | None,
+    ) -> None:
+        self._first = first
+        self._discovery = discovery
+        self._named_local = _named_local(alongside if alongside is not None else first.full_url)
+        self._reads_peer = alongside is None
+        self._record = record
+        self._peer: _Address | None = None
+
+    def handlers(self) -> tuple[BaseHandler, ...]:
+        """Build the handlers that carry this request: proxy, redirect guard, connections."""
+        return (_FirstHopProxy(self), _GuardedRedirect(self), _HopHTTP(self), _HopHTTPS(self))
+
+    def pinned(self, request: Request) -> bool:
+        """Whether this hop may connect only to an address the guard accepted."""
+        return self._discovery is not None or request is not self._first
+
+    def local_target(self) -> bool:
+        """Whether the server under test is local, as far as this request can tell."""
+        if self._discovery is not None:
+            return self._discovery.local_target
+        return self._named_local or (self._peer is not None and _inside(self._peer))
+
+    def reached(self, peer: _Address | None) -> None:
+        """Note where the operator's hop connected; None when a proxy stood in between."""
+        if self._reads_peer:
+            self._peer = peer
+        if self._record is not None:
+            self._record(self._first.full_url, peer)
+
+
+class _FirstHopProxy(ProxyHandler):
+    """The environment's proxy, for the operator's hop only: a pinned hop is never re-resolved."""
+
+    def __init__(self, route: _Route) -> None:
+        super().__init__()
+        self._route = route
+
+    def proxy_open(
+        self,
+        req: Request,
+        proxy: str,
+        type: str,  # noqa: A002 — the keyword `ProxyHandler` passes
+    ) -> object:
+        """Send the operator's hop through the proxy, and every pinned hop past it."""
+        if self._route.pinned(req):
+            return None
+        opened: object = super().proxy_open(req, proxy, type)
+        return opened
 
 
 def refusal_for(url: str, *, local_target: bool) -> str | None:
@@ -321,11 +488,13 @@ def refusal_for(url: str, *, local_target: bool) -> str | None:
     server on the public internet is an attempt to make this client reach into the
     network it is running in.
 
-    Link-local is refused either way. `169.254.169.254` is the cloud metadata
-    endpoint, and nothing legitimate asks a client to go there.
+    Link-local and the cloud metadata addresses are refused either way: nothing
+    legitimate asks a client to go there. Beside a server that is not local, any
+    address that is not globally routable is refused, shared and carrier-grade
+    ranges included.
 
-    This lookup is its own, so for a discovery request it only decides early. The
-    connection that request opens resolves the name once more, holds those
+    This lookup is its own, so it only decides early. The connection a discovery
+    request or a redirect hop opens resolves the name once more, holds those
     addresses to the same rule and dials one of them, so the answer that is
     enforced is the answer that is used.
     """
@@ -349,9 +518,9 @@ def _refused_address(host: str, addresses: Sequence[_Address], *, local_target: 
         address = _unmapped(resolved)
         # `::1` sits inside the reserved `::/8`, and loopback is judged by the rule below.
         reserved = address.is_reserved and not address.is_loopback
-        if address.is_link_local or address.is_multicast or reserved:
+        if address in _CLOUD_METADATA or address.is_link_local or address.is_multicast or reserved:
             return f"{host} resolves to {resolved}, an address a client must not be sent to"
-        if (address.is_private or address.is_loopback) and not local_target:
+        if not address.is_global and not local_target:
             return (
                 f"{host} resolves to {resolved}, which is inside the network running this "
                 f"scan while the server under test is not"
@@ -448,55 +617,119 @@ class _PinnedHTTPSConnection(HTTPSConnection):
             raise
 
 
-class _PinnedHTTPHandler(HTTPHandler):
-    """Opens every plain-HTTP hop of a discovery request through a pinned connection."""
+class _ReportingHTTPConnection(HTTPConnection):
+    """The operator's own plain-HTTP hop, connected by name, telling the route where it landed."""
 
-    def __init__(self, *, local_target: bool) -> None:
+    def __init__(
+        self, host: str, *, timeout: float, report: Callable[[socket.socket], None]
+    ) -> None:
+        super().__init__(host, timeout=timeout)
+        self._report = report
+
+    def connect(self) -> None:
+        """Connect as asked, then report the peer."""
+        super().connect()
+        self._report(self.sock)
+
+
+class _ReportingHTTPSConnection(HTTPSConnection):
+    """The operator's own TLS hop, connected by name, telling the route where it landed."""
+
+    def __init__(
+        self,
+        host: str,
+        *,
+        timeout: float,
+        context: ssl.SSLContext,
+        report: Callable[[socket.socket], None],
+    ) -> None:
+        super().__init__(host, timeout=timeout, context=context)
+        self._report = report
+
+    def connect(self) -> None:
+        """Connect and start TLS as asked, then report the peer."""
+        super().connect()
+        self._report(self.sock)
+
+
+class _Connector:
+    """Builds the connection for one hop: pinned to a checked address, or the operator's own."""
+
+    def __init__(self, route: _Route, req: Request, context: ssl.SSLContext | None) -> None:
+        self._route = route
+        self._req = req
+        self._context = context
+
+    def __call__(
+        self,
+        host: str,
+        /,
+        *,
+        port: int | None = None,
+        timeout: float = TIMEOUT_SECONDS,
+        source_address: tuple[str, int] | None = None,
+        blocksize: int = 8192,
+    ) -> HTTPConnection:
+        """Return the connection urllib will send this hop over."""
+        context = self._context
+        if self._route.pinned(self._req):
+            local_target = self._route.local_target()
+            if context is None:
+                return _PinnedHTTPConnection(host, timeout=timeout, local_target=local_target)
+            return _PinnedHTTPSConnection(
+                host, timeout=timeout, context=context, local_target=local_target
+            )
+        if context is None:
+            return _ReportingHTTPConnection(host, timeout=timeout, report=self._report)
+        return _ReportingHTTPSConnection(
+            host, timeout=timeout, context=context, report=self._report
+        )
+
+    def _report(self, sock: socket.socket) -> None:
+        # Through a proxy `req.host` names the proxy, whose address says nothing
+        # about the server behind it.
+        direct = self._req.host == unquote(urlsplit(self._req.full_url).netloc)
+        self._route.reached(_peer_of(sock) if direct else None)
+
+
+def _peer_of(sock: socket.socket) -> _Address | None:
+    """Read the address a connected socket reached, or None when it cannot say."""
+    try:
+        return ipaddress.ip_address(sock.getpeername()[0])
+    except (OSError, ValueError, TypeError, IndexError):
+        return None
+
+
+class _HopHTTP(HTTPHandler):
+    """Opens every plain-HTTP hop of a request through the connection its route chooses."""
+
+    def __init__(self, route: _Route) -> None:
         super().__init__()
-        self._local_target = local_target
+        self._route = route
 
     def http_open(self, req: Request) -> HTTPResponse:
         """Open one hop."""
-        return self.do_open(self._connection, req)
-
-    def _connection(
-        self,
-        host: str,
-        /,
-        *,
-        port: int | None = None,
-        timeout: float = TIMEOUT_SECONDS,
-        source_address: tuple[str, int] | None = None,
-        blocksize: int = 8192,
-    ) -> HTTPConnection:
-        return _PinnedHTTPConnection(host, timeout=timeout, local_target=self._local_target)
+        return self.do_open(_Connector(self._route, req, None), req)
 
 
-class _PinnedHTTPSHandler(HTTPSHandler):
-    """Opens every TLS hop of a discovery request through a pinned, verifying connection."""
+class _HopHTTPS(HTTPSHandler):
+    """Opens every TLS hop of a request through the connection its route chooses, verifying."""
 
-    def __init__(self, *, local_target: bool) -> None:
-        self.verifying = ssl.create_default_context()
+    def __init__(self, route: _Route) -> None:
+        self.verifying = _verifying_context()
         super().__init__(context=self.verifying)
-        self._local_target = local_target
+        self._route = route
 
     def https_open(self, req: Request) -> HTTPResponse:
         """Open one hop."""
-        return self.do_open(self._connection, req)
+        return self.do_open(_Connector(self._route, req, self.verifying), req)
 
-    def _connection(
-        self,
-        host: str,
-        /,
-        *,
-        port: int | None = None,
-        timeout: float = TIMEOUT_SECONDS,
-        source_address: tuple[str, int] | None = None,
-        blocksize: int = 8192,
-    ) -> HTTPConnection:
-        return _PinnedHTTPSConnection(
-            host, timeout=timeout, context=self.verifying, local_target=self._local_target
-        )
+
+def _verifying_context() -> ssl.SSLContext:
+    """Build the context urllib would for HTTPS: verifying, and offering HTTP/1.1."""
+    context = ssl.create_default_context()
+    context.set_alpn_protocols(["http/1.1"])
+    return context
 
 
 def is_local_address(url: str) -> bool:

@@ -19,10 +19,13 @@ from guardana.core.target import McpServerTarget, _mcp_authorization, _mcp_http
 from guardana.core.target._mcp_http import (
     AddressRefusedError,
     DiscoveryScope,
+    HttpSender,
     McpError,
     RawReply,
     RedirectRefusedError,
+    refusal_for,
     send,
+    server_is_local,
 )
 from guardana.core.testing import ScriptedMcpServer
 
@@ -99,7 +102,8 @@ class _Origin(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         """Record, then redirect or answer."""
         type(self).hosts.append(self.headers.get("Host"))
-        if self.path == "/bounce":
+        # A proxy is sent the absolute URL, so the path is matched by its end.
+        if self.path.endswith("/bounce"):
             self.send_response(302)
             self.send_header("Location", type(self).bounce_to)
             self.send_header("Content-Length", "0")
@@ -302,7 +306,7 @@ def test_tls_names_the_host_while_the_socket_reaches_the_checked_address(
 
 
 def test_the_discovery_tls_context_verifies_the_certificate_against_the_name() -> None:
-    context = _mcp_http._PinnedHTTPSHandler(local_target=False).verifying
+    context = _mcp_http._verifying_context()
 
     assert context.check_hostname is True
     assert context.verify_mode is ssl.CERT_REQUIRED
@@ -340,7 +344,7 @@ def test_an_ipv6_link_local_or_mapped_metadata_address_is_refused_at_connect(
         send("http://six.test:9/doc", method="GET", discovery=_LOCAL)
 
 
-@pytest.mark.parametrize("address", ["10.0.0.7", "::1", "fd00::7"])
+@pytest.mark.parametrize("address", ["10.0.0.7", "::1", "fd00::7", "100.64.0.7"])
 def test_a_private_address_is_refused_at_connect_when_the_server_under_test_is_public(
     monkeypatch: pytest.MonkeyPatch, address: str
 ) -> None:
@@ -350,6 +354,152 @@ def test_a_private_address_is_refused_at_connect_when_the_server_under_test_is_p
         send("https://inside.test/doc", method="GET", discovery=DiscoveryScope(local_target=False))
 
     assert "inside the network" in refused.value.reason
+
+
+@pytest.mark.parametrize(
+    "address", ["100.64.0.7", "100.100.100.201", "[fd00::7]", "[::ffff:10.0.0.7]", "[2001:db8::1]"]
+)
+def test_any_address_that_is_not_global_is_refused_when_the_server_under_test_is_public(
+    address: str,
+) -> None:
+    assert refusal_for(f"https://{address}/doc", local_target=False) is not None
+
+
+@pytest.mark.parametrize("address", ["169.254.169.254", "[fd00:ec2::254]", "100.100.100.200"])
+def test_a_cloud_metadata_address_is_refused_even_beside_a_local_server(address: str) -> None:
+    refusal = refusal_for(f"http://{address}/latest/meta-data/", local_target=True)
+
+    assert refusal is not None
+    assert "must not be sent to" in refusal
+
+
+def test_an_address_inside_the_network_is_still_permitted_beside_a_local_server() -> None:
+    assert refusal_for("http://100.64.0.7/doc", local_target=True) is None
+    assert refusal_for("http://[fd00::7]/doc", local_target=True) is None
+
+
+def test_a_server_named_by_an_inside_address_or_localhost_is_local_without_a_lookup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    resolver = _resolving(
+        monkeypatch, {"localhost": ["93.184.215.14"], "mcp.rebind.test": ["127.0.0.1"]}
+    )
+
+    for url in (
+        "http://127.0.0.1:9/mcp",
+        "http://[::1]:9/mcp",
+        "http://10.1.2.3/mcp",
+        "http://100.64.0.7/mcp",
+        "http://localhost:9/mcp",
+    ):
+        assert server_is_local(url, send), url
+    assert not server_is_local("https://93.184.215.14/mcp", send)
+    assert not server_is_local("https://mcp.rebind.test/mcp", send)
+    assert resolver.asked == []
+
+
+def test_the_server_is_local_when_its_own_connection_reached_an_inside_address(
+    monkeypatch: pytest.MonkeyPatch, origin: int
+) -> None:
+    resolver = _resolving(monkeypatch, {"named.test": ["127.0.0.1", "93.184.215.14"]})
+    url = f"http://named.test:{origin}/mcp"
+    sender = HttpSender()
+
+    assert not server_is_local(url, sender), "no connection was made yet"
+    sender(url, method="GET")
+
+    assert server_is_local(url, sender)
+    assert not server_is_local(f"http://other.test:{origin}/mcp", sender)
+    assert resolver.asked == ["named.test"], "locality was decided by a new lookup"
+
+
+def test_a_target_sends_through_a_sender_that_records_where_its_server_is() -> None:
+    target = McpServerTarget("https://mcp.example.test/mcp")
+
+    assert isinstance(target._sender, HttpSender)
+
+
+def test_a_discovery_fetch_says_nothing_about_where_the_server_is(
+    monkeypatch: pytest.MonkeyPatch, origin: int
+) -> None:
+    _resolving(monkeypatch, {"named.test": ["127.0.0.1"]})
+    url = f"http://named.test:{origin}/mcp"
+    sender = HttpSender()
+
+    sender(url, method="GET", discovery=_LOCAL)
+
+    assert not server_is_local(url, sender)
+
+
+def test_a_server_reached_through_a_proxy_is_not_local(
+    monkeypatch: pytest.MonkeyPatch, origin: int, proxy: int
+) -> None:
+    # The peer of a proxied connection is the proxy, which says nothing about the server.
+    _resolving(monkeypatch, {"named.test": ["127.0.0.1"]})
+    _through_the_proxy(monkeypatch, proxy)
+    url = f"http://named.test:{origin}/mcp"
+    sender = HttpSender()
+
+    reply = sender(url, method="GET")
+
+    assert reply.json_object() == {"served_by": "proxy"}
+    assert not server_is_local(url, sender)
+
+
+def test_a_redirect_of_the_servers_own_request_connects_to_the_address_it_checked(
+    monkeypatch: pytest.MonkeyPatch, origin: int
+) -> None:
+    # The hop's check sees loopback; a connection by name would look the host up
+    # again and reach whatever it answered second.
+    _resolving(monkeypatch, {"elsewhere.test": ["127.0.0.1", "fe80::1"]})
+    monkeypatch.setattr(_Origin, "bounce_to", f"http://elsewhere.test:{origin}/doc")
+
+    with pytest.raises(AddressRefusedError):
+        send(f"http://127.0.0.1:{origin}/bounce", method="GET")
+
+    assert _Origin.hosts == [f"127.0.0.1:{origin}"]
+
+
+def test_only_the_first_hop_of_the_servers_own_request_goes_through_the_proxy(
+    monkeypatch: pytest.MonkeyPatch, origin: int, proxy: int
+) -> None:
+    _resolving(monkeypatch, {"elsewhere.test": ["127.0.0.1"]})
+    _through_the_proxy(monkeypatch, proxy)
+    monkeypatch.setattr(_Origin, "bounce_to", f"http://elsewhere.test:{origin}/doc")
+
+    reply = send(f"http://127.0.0.1:{origin}/bounce", method="GET")
+
+    assert reply.json_object() == {"served_by": "origin"}
+    assert len(_Proxy.hosts) == 1
+    assert _Origin.hosts == [f"elsewhere.test:{origin}"]
+
+
+def _through_the_proxy(monkeypatch: pytest.MonkeyPatch, proxy: int) -> None:
+    for name in ("http_proxy", "HTTP_PROXY", "https_proxy", "HTTPS_PROXY"):
+        monkeypatch.setenv(name, f"http://127.0.0.1:{proxy}")
+    for name in ("no_proxy", "NO_PROXY"):
+        monkeypatch.delenv(name, raising=False)
+
+
+def test_discovery_beside_a_server_whose_name_resolves_inside_is_held_to_the_public_rule(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A rebinding server answers a fresh lookup of its own name with loopback, and
+    # nothing its own connection reached says it is local.
+    _resolving(monkeypatch, {"mcp.rebind.test": ["127.0.0.1"], "doc.rebind.test": ["127.0.0.1"]})
+    url = "https://mcp.rebind.test/mcp"
+    advertised = "https://doc.rebind.test/.well-known/oauth-protected-resource"
+    captured = _Recording(
+        ScriptedMcpServer(
+            url, credential="operator", challenge=f'Bearer resource_metadata="{advertised}"'
+        )
+    )
+
+    view = McpServerTarget(url, sender=captured).authorization()
+
+    refused = [document for document in view.refused_addresses if document.url == advertised]
+    assert len(refused) == 1
+    assert "inside the network" in (refused[0].refused or "")
 
 
 class _Wire:
@@ -423,11 +573,11 @@ def test_whether_the_server_is_local_is_decided_once_per_discovery(
 ) -> None:
     decided: list[str] = []
 
-    def counting(url: str) -> bool:
+    def counting(url: str, sender: object) -> bool:
         decided.append(url)
         return True
 
-    monkeypatch.setattr(_mcp_authorization, "is_local_address", counting)
+    monkeypatch.setattr(_mcp_authorization, "server_is_local", counting)
     url = "http://127.0.0.1:9/mcp"
     server = ScriptedMcpServer(
         url,

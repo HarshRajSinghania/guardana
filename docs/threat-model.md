@@ -90,10 +90,12 @@ operator *types*, and they are answered differently.
   is the one place where the server supplies a URL and the client is expected to
   fetch it: `resource_metadata` in a `WWW-Authenticate` challenge, then the
   authorization servers named in that document. Guardana will not follow one that
-  resolves to a link-local, multicast or reserved address (`169.254.169.254`
-  first among them), one that reaches into the network running the scan while the
-  server under test is outside it, one served over plain `http` when the target is
-  not local, or one whose scheme a client must reject. It does not fetch the
+  resolves to a cloud metadata address (`169.254.169.254`, `fd00:ec2::254`,
+  `100.100.100.200`) or to a link-local, multicast or reserved address, whatever
+  the target; one that resolves to any address that is not globally routable —
+  private, loopback, carrier-grade NAT — while the server under test is not local;
+  one served over plain `http` when the target is not local; or one whose scheme a
+  client must reject. It does not fetch the
   address to confirm the address is dangerous — that would be performing the
   attack in order to report it — and `guardana.mcp.discovery_target` reports the
   refusal. Loopback and private addresses are permitted when the server under test
@@ -116,27 +118,36 @@ operator *types*, and they are answered differently.
   primary use while stopping nobody who can already edit the command line. The
   boundary that matters is who chose the address, and Guardana enforces it there.
 
-**DNS rebinding.** A discovery request connects only to an address it checked. Its
-connection resolves the host once, holds every address in the answer to the rules
-above (one refused address refuses the host), and dials one of the accepted
-addresses; the host name still travels as the `Host` header and as TLS SNI, and the
-certificate is verified against the name. A redirect hop opens a new connection
-that is resolved, checked and pinned the same way. A name that answers differently
-between the guard's lookup and the connection's is caught at the connection, and
-`guardana.mcp.discovery_target` reports it as a refused address. Whether the
-server under test is local is decided once per discovery, so its own name cannot
-loosen the rules between one fetch and the next. A discovery host that does not
-resolve is a document that could not be read, never a refused address.
+**DNS rebinding.** Every connection to an address the server chose — each discovery
+request, and each redirect hop after the first on the server's own requests —
+connects only to an address it checked. Its connection resolves the host once,
+holds every address in the answer to the rules above (one refused address refuses
+the host), and dials one of the accepted addresses; the host name still travels as
+the `Host` header and as TLS SNI, and the certificate is verified against the name.
+A name that answers differently between the guard's lookup and the connection's is
+caught at the connection, and `guardana.mcp.discovery_target` reports it as a
+refused address. A discovery host that does not resolve is a document that could
+not be read, never a refused address.
 
-Discovery uses no HTTP proxy: `HTTP_PROXY`, `HTTPS_PROXY` and their lowercase
-forms are ignored for these requests, because a proxy resolves the name again
-where the guard cannot see it. On a network that reaches the internet only
-through a proxy, discovery documents read as unreadable rather than as fetched.
+Whether the server under test is local is decided once per discovery, and never by
+looking its name up again, because the server answers that lookup itself. It is
+local when the `--mcp` URL names it by an address inside the network or as
+`localhost`, or when every connection Guardana made to it reached an address
+inside the network. A connection made through a proxy reached the proxy, so it
+does not count; neither does the absence of any connection.
 
-**Residual risk:** the protection covers discovery only. Requests to the server
-under test itself (`--mcp`) connect by name and honour the proxy settings, because
-the operator chose that address; Guardana fetches whatever the *operator* points it
-at, per the position above.
+These connections use no HTTP proxy: `HTTP_PROXY`, `HTTPS_PROXY` and their
+lowercase forms are ignored for them, because a proxy resolves the name again
+where the guard cannot see it. On a network that reaches the internet only through
+a proxy, discovery documents read as unreadable rather than as fetched, and a
+redirect from the server under test is not followed through it.
+
+**Residual risk:** the first hop of a request to the server under test itself
+(`--mcp`) connects by name and honours the proxy settings, because the operator
+chose that address; Guardana fetches whatever the *operator* points it at, per the
+position above. A server that rebinds its own name between those requests is
+reached at whichever address the name answered; that loosens discovery only when
+every connection to the server landed inside the network.
 
 ### T3 — A malicious plugin or rule pack
 

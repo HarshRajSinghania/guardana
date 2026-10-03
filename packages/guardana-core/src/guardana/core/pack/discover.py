@@ -41,8 +41,9 @@ class Registered:
     """What a build registers, by kind, with the distribution that registered each id.
 
     A distribution of `None` is one the registry cannot name — an id registered in
-    code, or a kind whose origin it does not record — and that id is checked by kind
-    only.
+    code, or a kind whose origin it does not record. Such an id cannot be shown to
+    belong to the pack that claims it, so a pack whose distribution is known fails on
+    it; a manifest given by path is checked by kind only.
     """
 
     rules: Mapping[str, str | None] = field(default_factory=dict)
@@ -216,8 +217,10 @@ def check_pack(
     declared id is looked up under its own kind, and, when `distribution` names the
     one shipping the manifest, it must be that distribution that registers it — for a
     framework, one of the distributions registering into it: an id another pack
-    supplies disappears with that pack while this manifest still promises it.
+    supplies disappears with that pack while this manifest still promises it, and an
+    id no distribution can be named for is not shown to be this pack's either.
     """
+    by_owner = isinstance(registered, Registered)
     registered = _by_kind(registered)
     problems: list[str] = []
     if not manifest.loadable_by():
@@ -236,12 +239,12 @@ def check_pack(
                 f"{_it(missing)} — a team reading this manifest believes a check runs "
                 f"that does not"
             )
-        if distribution is None:
+        if distribution is None or not by_owner:
             continue
         foreign = [
-            f"{i} (registered by {', '.join(sorted(owners))})"
+            f"{i} ({_registered_by(owners)})"
             for i in declared
-            if (owners := _owners(i, present, shared)) and distribution not in owners
+            if i in present and distribution not in (owners := _owners(i, present, shared))
         ]
         if foreign:
             problems.append(
@@ -259,6 +262,12 @@ def _owners(identifier: str, present: Mapping[str, str | None], shared: _Owners)
     """Every distribution the registry names for `identifier`; empty when it can name none."""
     single = present.get(identifier)
     return shared.get(identifier, frozenset()) | ({single} if single is not None else set())
+
+
+def _registered_by(owners: frozenset[str]) -> str:
+    if not owners:
+        return "registered by no distribution this build can name"
+    return f"registered by {', '.join(sorted(owners))}"
 
 
 def _by_kind(registered: Registered | Collection[str]) -> Registered:

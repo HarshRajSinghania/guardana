@@ -314,8 +314,9 @@ engine is built, and it is why a security test can safely offer a destructive to
 your users' traffic. If something needs to be stopped in production, Guardana is
 the wrong layer.</p>
 <p><strong>Guardana sends nothing anywhere else.</strong> No telemetry, no account, no phone-home.
-The only network traffic is to the target you configured — plus your judge and your
-collector, if you configured those.</p>
+Traffic goes only to destinations the run names: the target you configured, a judge
+or guard your profile configures, and the authorization metadata the target itself
+advertises — plus your collector, if you configured one.</p>
 <h2 id="the-gap-that-remains-stated-plainly">The gap that remains, stated plainly</h2>
 <p>Guardana simulates the tool. <strong>Your deployment might not.</strong> If the model under test
 is wired to real tools by its own application — and it is a production agent, so it

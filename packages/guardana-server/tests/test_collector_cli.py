@@ -135,6 +135,27 @@ def test_an_unreachable_database_is_unavailable_not_a_failure(
     assert "hunter2" not in message
 
 
+@pytest.mark.parametrize(
+    "url",
+    [
+        "postgresql://nobody:hunter2@[::1/nothing",
+        "postgresql://nobody:hunter%32@[::1/nothing",
+        "host=127.0.0.1 password=hunter2 port=1 dbname='nothing",
+    ],
+)
+def test_a_connection_string_libpq_cannot_parse_is_never_echoed_with_its_password(
+    url: str, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # libpq quotes a malformed URI back in its error, password included.
+    monkeypatch.setenv("GUARDANA_DATABASE_URL", url)
+
+    assert main(["status"]) == EXIT_UNAVAILABLE
+    message = capsys.readouterr().err
+    assert "could not reach the database" in message
+    assert "hunter2" not in message
+    assert "hunter%32" not in message
+
+
 class _ConnectedButBroken:
     """A connection that opened, and fails at the first thing a command asks of it."""
 

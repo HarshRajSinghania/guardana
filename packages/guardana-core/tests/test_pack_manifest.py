@@ -172,12 +172,6 @@ def test_a_rule_the_shipping_distribution_registers_is_a_kept_promise() -> None:
     assert check_pack(manifest, Registered(rules={"acme.check": "acme-rules"}), "acme-rules").ok
 
 
-def test_an_id_whose_owner_the_registry_cannot_name_is_checked_by_kind_only() -> None:
-    manifest = PackManifest("acme", ApiRange(1, 2), "x", evaluators=("acme.judge",))
-
-    assert check_pack(manifest, Registered(evaluators={"acme.judge": None}), "acme-rules").ok
-
-
 def test_packs_and_their_distributions_must_pair_up() -> None:
     manifest = PackManifest("acme", ApiRange(1, 2), "x", rules=("acme.check",))
 

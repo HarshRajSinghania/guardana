@@ -261,3 +261,41 @@ def test_a_manifest_without_a_distribution_is_checked_by_kind_only() -> None:
     )
 
     assert check_pack(manifest, registered).ok
+
+
+@pytest.mark.parametrize(
+    ("kind", "registered", "manifest"),
+    [
+        (
+            "rule",
+            Registered(rules={"acme.rule": None}),
+            PackManifest("acme", ApiRange(1, 3), "x", rules=("acme.rule",)),
+        ),
+        ("evaluator", Registered(evaluators={"canary": None}), _manifest(evaluators=("canary",))),
+        ("target", Registered(targets={"AcmeTarget": None}), _manifest(targets=("AcmeTarget",))),
+        (
+            "taxonomy",
+            Registered(taxonomies={"ACME-CONTROLS-1": None}),
+            _manifest(taxonomies=("ACME-CONTROLS-1",)),
+        ),
+    ],
+    ids=["rule", "evaluator", "target", "taxonomy"],
+)
+def test_an_id_no_nameable_distribution_registers_is_not_this_packs_promise_kept(
+    kind: str, registered: Registered, manifest: PackManifest
+) -> None:
+    check = check_pack(manifest, registered, "acme-rules")
+
+    assert not check.ok
+    assert any(
+        problem.startswith(f"declares {kind} ")
+        and "registered by no distribution this build can name" in problem
+        for problem in check.problems
+    ), check.problems
+
+
+def test_a_manifest_without_a_distribution_is_not_held_to_an_owner_nobody_can_name() -> None:
+    registered = Registered(evaluators={"canary": None}, taxonomies={"ACME-CONTROLS-1": None})
+    manifest = _manifest(evaluators=("canary",), taxonomies=("ACME-CONTROLS-1",))
+
+    assert check_pack(manifest, registered).ok

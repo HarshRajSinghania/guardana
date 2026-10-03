@@ -363,7 +363,9 @@ through code.</p>
 not a rule your pack provides. For an installed pack, a declared rule, evaluator or
 target must also be registered by <strong>your</strong> distribution. One another pack registers
 runs today and disappears with that pack, while your manifest still promises it; the
-problem names the distribution that does register it. A framework can have several
+problem names the distribution that does register it. An id registered by no
+distribution this build can name (registered in code rather than through an entry
+point) is not shown to be yours either, and fails the same way. A framework can have several
 owners, because a pack may add controls to a built-in one or to another pack's: a
 declared framework passes when your distribution registered at least one reference
 into it. The built-in frameworks are owned by the distribution that ships their
