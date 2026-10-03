@@ -165,8 +165,14 @@ class _ConnectedButBroken:
     def __exit__(self, *_: object) -> None:
         return None
 
-    def __getattr__(self, name: str) -> object:
-        raise RuntimeError(f"server closed the connection during {name}")
+    def execute(self, *_: object, **__: object) -> object:
+        raise RuntimeError("server closed the connection during execute")
+
+    def cursor(self, *_: object, **__: object) -> object:
+        raise RuntimeError("server closed the connection during cursor")
+
+    def transaction(self, *_: object, **__: object) -> object:
+        raise RuntimeError("server closed the connection during transaction")
 
 
 def test_a_failure_after_connecting_is_a_failure_not_unavailable(
