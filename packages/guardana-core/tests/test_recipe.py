@@ -5,14 +5,19 @@ so these tests build a plan, lock it, change one thing a team could change witho
 noticing, and expect exactly that change to come back as drift.
 """
 
+import json
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Self
 
 import pytest
+import yaml
 from guardana.core.calibration.store import RecordedCalibration
 from guardana.core.evaluator.base import Evaluator, Expectation, Verdict
 from guardana.core.exchange import Exchange
+from guardana.core.fingerprint import digest_of
 from guardana.core.manifest import SubjectKind, SubjectSource
 from guardana.core.origin import Origin
 from guardana.core.plan import build_plan
@@ -20,6 +25,8 @@ from guardana.core.plugins import PluginMode, PluginTrust
 from guardana.core.profile import Policy, Profile
 from guardana.core.recipe import (
     LockDriftKind,
+    PinnedOrigin,
+    PinnedTarget,
     Recipe,
     RecipeError,
     RecipeLock,
@@ -27,9 +34,12 @@ from guardana.core.recipe import (
     describe_trust,
     load_recipe,
     lock_of,
+    lock_to_dict,
+    parse_lock,
     read_lock,
     render_lock,
 )
+from guardana.core.recipe_source import SourcePin
 from guardana.core.recording import Recording
 from guardana.core.registry import Registry
 from guardana.core.rule.yaml_rule import load_yaml_rules
@@ -90,7 +100,7 @@ def test_a_comment_or_key_order_does_not_change_the_recipe_digest(tmp_path: Path
         (lambda t: t.replace("directory: artifact", "directory: ."), "own directory"),
         (lambda t: t.replace("directory: artifact", "directory: ../out"), "beside the recipe"),
         (lambda t: t.replace("directory: artifact", "directory: /tmp/out"), "beside the recipe"),
-        (lambda t: t.replace("schema_version: 1", "schema_version: 3"), "upgrade Guardana"),
+        (lambda t: t.replace("schema_version: 1", "schema_version: 4"), "upgrade Guardana"),
         (
             lambda t: t.replace("  connection:\n", "  fixtures: f.yaml\n  connection:\n"),
             "needs `schema_version: 2`",
@@ -244,9 +254,13 @@ def _lock(  # noqa: PLR0913 — each is a thing a team can change
     calibrations: dict[str, RecordedCalibration] | None = None,
     files: dict[str, str] | None = None,
     movable: frozenset[str] = frozenset(),
+    sources: Mapping[str, SourcePin | str] | None = None,
+    requires: Mapping[str, Sequence[str]] | None = None,
 ) -> RecipeLock:
     prof = profile or Profile("t", Policy())
     plan = build_plan(registry, prof, target or _endpoint())
+    pins = sources or {}
+    required = requires or {}
     return lock_of(
         recipe,
         plan=plan,
@@ -256,6 +270,8 @@ def _lock(  # noqa: PLR0913 — each is a thing a team can change
         guardana_version="0.36.0",
         subject_files=files or {},
         movable=lambda distribution: distribution in movable,
+        pin_source=lambda distribution: pins.get(distribution, "it has no RECORD to read"),
+        requires=lambda distribution: required.get(distribution, ()),
     )
 
 
@@ -332,7 +348,8 @@ def test_a_distribution_that_can_change_under_one_version_is_unpinned(tmp_path: 
 
     locked = _lock(recipe, _registry(tmp_path, "acme.a"), movable=frozenset({"acme-judges"}))
 
-    assert locked.unpinned == ("evaluator:acme.judge",)
+    assert locked.unpinned == {"evaluator:acme.judge": "acme-judges: it has no RECORD to read"}
+    assert locked.sources == {}
 
 
 def test_a_recording_subject_pins_the_rules_its_configuration_selects(tmp_path: Path) -> None:
@@ -374,7 +391,7 @@ def test_a_lock_written_by_a_newer_guardana_is_refused_not_relocked(tmp_path: Pa
     recipe = load_recipe(_write(tmp_path))
     text = render_lock(_lock(recipe, _registry(tmp_path, "acme.a")))
     path = tmp_path / "lock.yaml"
-    path.write_text(text.replace("schema_version: 1", "schema_version: 2"), encoding="utf-8")
+    path.write_text(text.replace("schema_version: 2", "schema_version: 3"), encoding="utf-8")
 
     with pytest.raises(RecipeError, match="upgrade Guardana"):
         read_lock(path)
@@ -401,3 +418,250 @@ def test_a_calibration_re_measured_on_more_samples_is_drift(tmp_path: Path) -> N
     current = _lock(recipe, registry, calibrations={"acme.judge": replace(measured, samples=300)})
 
     assert _kinds(locked, current) == [LockDriftKind.CALIBRATION_CHANGED]
+
+
+# Schema 3: an installed target names the subject
+
+_TARGET_RECIPE = _RECIPE.replace("schema_version: 1", "schema_version: 3").replace(
+    _CONNECTION,
+    "  target:\n    locator: acme-chat://support\n    options:\n      region: eu\n",
+)
+
+
+class _InstalledChat(EndpointTarget):
+    """A pack's endpoint target, as an entry point would register it."""
+
+    scheme = "acme-chat"
+
+    @classmethod
+    def from_locator(cls, locator: str, *, options: Mapping[str, str]) -> Self:
+        """Build the endpoint the locator names, sending nothing."""
+        return cls("http://chat.test", locator, transport=ScriptedTransport("x"))
+
+
+def _with_target(registry: Registry, version: str = "2.0") -> Registry:
+    registry.register_target(_InstalledChat, Origin(distribution="acme-targets", version=version))
+    return registry
+
+
+def test_a_schema_3_recipe_names_an_installed_target_by_locator(tmp_path: Path) -> None:
+    recipe = load_recipe(_write(tmp_path, _TARGET_RECIPE))
+
+    assert recipe.source is SubjectSource.TARGET
+    assert recipe.target is not None
+    assert recipe.target.scheme == "acme-chat"
+    assert recipe.target.option_flags() == ("region=eu",)
+    assert recipe.connection is None
+    assert recipe.recording is None
+    assert recipe.kind is SubjectKind.APPLICATION
+
+
+@pytest.mark.parametrize(
+    ("edit", "says"),
+    [
+        (
+            lambda t: t.replace("schema_version: 3", "schema_version: 2"),
+            "needs `schema_version: 3`",
+        ),
+        (lambda t: t.replace("  kind: application\n", ""), "subject.kind"),
+        (
+            lambda t: t.replace("  target:", "  recording: a.jsonl\n  target:"),
+            "exactly one of `connection`, `recording` or",
+        ),
+        (
+            lambda t: t.replace("  target:", "  fixtures: f.yaml\n  target:"),
+            "cannot be combined with subject.target",
+        ),
+        (lambda t: t.replace("region: eu", "region: 3"), "must be a string"),
+        (lambda t: t.replace("region: eu", "'a=b': eu"), "is not an option name"),
+        (lambda t: t.replace("    locator: acme-chat://support\n", ""), "`locator`"),
+        (lambda t: t.replace("    options:", "    ref: x\n    options:"), "unknown key"),
+    ],
+)
+def test_a_target_recipe_that_cannot_be_trusted_as_written_is_refused(
+    tmp_path: Path, edit: Callable[[str], str], says: str
+) -> None:
+    with pytest.raises(RecipeError, match=says):
+        load_recipe(_write(tmp_path, edit(_TARGET_RECIPE)))
+
+
+@pytest.mark.parametrize(
+    ("text", "digest"),
+    [
+        (_RECIPE, "sha256:924dba85c7802ad133e8368ffedb78da1f727a598e0843edbe5c29c77da3205c"),
+        (
+            _RECIPE.replace("schema_version: 1", "schema_version: 2").replace(
+                "  connection:\n", "  fixtures: guardana-fixtures.yaml\n  connection:\n"
+            ),
+            "sha256:e551f05b43dcf0d87f010e3d86c04118b0ad04cdb4c7fdfdda1016cdd2047620",
+        ),
+    ],
+)
+def test_a_schema_1_or_2_recipe_keeps_the_digest_its_lock_holds(
+    tmp_path: Path, text: str, digest: str
+) -> None:
+    assert load_recipe(_write(tmp_path, text)).digest == digest
+
+
+def test_the_lock_pins_the_installed_target_and_who_registered_it(tmp_path: Path) -> None:
+    recipe = load_recipe(_write(tmp_path, _TARGET_RECIPE))
+    target = _InstalledChat.from_locator("support", options={})
+
+    locked = _lock(recipe, _with_target(_registry(tmp_path, "acme.a")), target=target)
+    upgraded = _lock(
+        recipe, _with_target(_registry(tmp_path, "acme.a"), version="2.1"), target=target
+    )
+
+    assert locked.target == PinnedTarget("acme-chat", PinnedOrigin("acme-targets", "2.0"))
+    assert list(locked.rules) == ["acme.a"]
+    assert _kinds(locked, upgraded) == [LockDriftKind.TARGET_CHANGED]
+    assert "acme-targets 2.0" in compare(locked, upgraded)[0].detail
+
+
+def test_a_target_from_a_movable_distribution_is_pinned_by_its_files(tmp_path: Path) -> None:
+    recipe = load_recipe(_write(tmp_path, _TARGET_RECIPE))
+    target = _InstalledChat.from_locator("support", options={})
+    registry = _with_target(_registry(tmp_path, "acme.a"))
+
+    unpinned = _lock(recipe, registry, target=target, movable=frozenset({"acme-targets"}))
+    pinned = _lock(
+        recipe,
+        registry,
+        target=target,
+        movable=frozenset({"acme-targets"}),
+        sources={"acme-targets": _PIN},
+    )
+
+    assert unpinned.unpinned == {"target:acme-chat": "acme-targets: it has no RECORD to read"}
+    assert pinned.unpinned == {}
+    assert pinned.sources == {"acme-targets": _PIN}
+
+
+_PIN = SourcePin("sha256:" + "a" * 64, 12)
+
+
+def test_a_movable_distribution_pinned_by_its_files_is_not_unpinned(tmp_path: Path) -> None:
+    recipe = load_recipe(_write(tmp_path))
+
+    locked = _lock(
+        recipe,
+        _registry(tmp_path, "acme.a"),
+        movable=frozenset({"acme-judges"}),
+        sources={"acme-judges": _PIN},
+    )
+
+    assert locked.sources == {"acme-judges": _PIN}
+    assert locked.unpinned == {}
+
+
+def test_a_source_added_removed_or_changed_is_named_as_such(tmp_path: Path) -> None:
+    recipe = load_recipe(_write(tmp_path))
+    registry = _registry(tmp_path, "acme.a")
+    movable = frozenset({"acme-judges"})
+    locked = _lock(recipe, registry, movable=movable, sources={"acme-judges": _PIN})
+
+    edited = _lock(
+        recipe, registry, movable=movable, sources={"acme-judges": replace(_PIN, files=13)}
+    )
+    from_an_index = _lock(recipe, registry)
+
+    assert _kinds(locked, edited) == [LockDriftKind.SOURCE_CHANGED]
+    assert _kinds(locked, from_an_index) == [LockDriftKind.SOURCE_REMOVED]
+    assert _kinds(from_an_index, locked) == [LockDriftKind.SOURCE_ADDED]
+
+
+def test_a_required_helper_installed_editable_is_pinned_or_named(tmp_path: Path) -> None:
+    recipe = load_recipe(_write(tmp_path))
+    registry = _registry(tmp_path, "acme.a")
+    requires = {"acme-judges": ["Acme_Helpers"], "acme-helpers": ["acme-judges", "acme-deep"]}
+    movable = frozenset({"acme-helpers", "acme-deep"})
+
+    unpinnable = _lock(recipe, registry, movable=movable, requires=requires)
+    pinned = _lock(
+        recipe,
+        registry,
+        movable=movable,
+        requires=requires,
+        sources={"acme-helpers": _PIN, "acme-deep": _PIN},
+    )
+
+    assert unpinnable.unpinned == {
+        "distribution:acme-deep": "acme-deep: it has no RECORD to read",
+        "distribution:acme-helpers": "acme-helpers: it has no RECORD to read",
+    }
+    assert sorted(pinned.sources) == ["acme-deep", "acme-helpers"]
+    assert pinned.unpinned == {}
+
+
+def test_a_lock_with_a_target_and_sources_round_trips_with_a_v2_digest(tmp_path: Path) -> None:
+    recipe = load_recipe(_write(tmp_path, _TARGET_RECIPE))
+    locked = _lock(
+        recipe,
+        _with_target(_registry(tmp_path, "acme.a")),
+        target=_InstalledChat.from_locator("support", options={}),
+        movable=frozenset({"acme-judges", "acme-targets"}),
+        sources={"acme-targets": _PIN},
+    )
+    path = tmp_path / "guardana-recipe.lock.yaml"
+    path.write_text(render_lock(locked), encoding="utf-8")
+
+    read = read_lock(path)
+
+    assert read == locked
+    assert read.unpinned == {"evaluator:acme.judge": "acme-judges: it has no RECORD to read"}
+    assert read.digest == digest_of("recipe-lock-v2", _canonical(lock_to_dict(locked)))
+
+
+def _schema_1_lock(locked: RecipeLock) -> dict[str, object]:
+    """The lock as a schema-1 build wrote it: no target, no sources, unpinned as a list."""
+    document = lock_to_dict(locked)
+    del document["target"], document["sources"]
+    return {**document, "schema_version": 1, "unpinned": sorted(locked.unpinned)}
+
+
+def _canonical(value: object) -> str:
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+
+
+def test_a_schema_1_lock_is_read_with_no_sources_and_keeps_its_digest(tmp_path: Path) -> None:
+    recipe = load_recipe(_write(tmp_path))
+    current = _lock(recipe, _registry(tmp_path, "acme.a"), movable=frozenset({"acme-judges"}))
+    document = _schema_1_lock(current)
+
+    read = parse_lock(yaml.safe_dump(document), tmp_path / "old.lock.yaml")
+
+    assert read.schema_version == 1
+    assert read.sources == {}
+    assert read.target is None
+    assert list(read.unpinned) == ["evaluator:acme.judge"]
+    assert lock_to_dict(read) == document
+    assert read.digest == digest_of("recipe-lock-v1", _canonical(document))
+
+
+def test_a_schema_1_lock_drifts_by_every_source_the_current_one_pins(tmp_path: Path) -> None:
+    recipe = load_recipe(_write(tmp_path))
+    registry = _registry(tmp_path, "acme.a")
+    movable = frozenset({"acme-judges"})
+    old = parse_lock(
+        yaml.safe_dump(_schema_1_lock(_lock(recipe, registry, movable=movable))),
+        tmp_path / "old.lock.yaml",
+    )
+
+    current = _lock(recipe, registry, movable=movable, sources={"acme-judges": _PIN})
+    upgraded = replace(current, guardana="0.38.0")
+
+    assert _kinds(old, current) == [LockDriftKind.SOURCE_ADDED]
+    assert _kinds(old, upgraded) == [LockDriftKind.GUARDANA_CHANGED, LockDriftKind.SOURCE_ADDED]
+
+
+def test_a_lock_carrying_a_key_of_another_schema_is_refused(tmp_path: Path) -> None:
+    recipe = load_recipe(_write(tmp_path))
+    locked = _lock(recipe, _registry(tmp_path, "acme.a"))
+    v1 = {**_schema_1_lock(locked), "sources": {}}
+    v2 = lock_to_dict(locked)
+    del v2["sources"]
+
+    with pytest.raises(RecipeError, match="unknown key"):
+        parse_lock(yaml.safe_dump(v1), tmp_path / "v1.yaml")
+    with pytest.raises(RecipeError, match="missing key"):
+        parse_lock(yaml.safe_dump(v2), tmp_path / "v2.yaml")

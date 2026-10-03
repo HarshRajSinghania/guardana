@@ -410,10 +410,10 @@ def _recorded_checks(venv: Path, workspace: Path) -> list[Check]:
         ),
         Check("grade of a missing recording", [guardana, "grade", "/no/such.jsonl"], 3),
         Check(
-            "recipe lock pins a recording recipe and names a directory install as unpinned",
+            "recipe lock pins a recording recipe and each directory install by its RECORD",
             [guardana, "recipe", "lock", str(_recipe(profile))],
-            2,
-            expect=("wrote", "installed from a directory or a URL"),
+            0,
+            expect=("wrote", "source pin(s)"),
         ),
         Check(
             "recipe run grades the recording and leaves the artifact",

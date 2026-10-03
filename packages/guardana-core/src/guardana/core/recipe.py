@@ -3,13 +3,15 @@
 The recipe is hand-written and reviewed; Guardana never rewrites it. The lock is generated
 from the plan of the recipe's run and pins what a run already records about itself — rule
 digests, the profile digest, judge identities — plus what those records miss: calibration
-contents, the distribution behind every rule and evaluator, plugin trust and the subject's
-own reviewed files. Design: `docs/design/team-recipes.md`.
+contents, the distribution behind every rule, evaluator and installed target, plugin trust,
+the subject's own reviewed files and the files of every distribution installed from a
+directory or a URL. Design: `docs/design/team-recipes.md`,
+`docs/design/guarded-applications.md` (decisions 7 and 8).
 """
 
 import importlib.metadata
 import json
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import asdict, dataclass, field
 from enum import StrEnum
 from pathlib import Path, PurePosixPath
@@ -23,28 +25,40 @@ from guardana.core.plan import RunPlan
 from guardana.core.plugins import PluginTrust
 from guardana.core.profile import Profile
 from guardana.core.profile.digest import profile_digest
+from guardana.core.recipe_source import (
+    SourcePin,
+    installed_requirements,
+    normalized_name,
+    requirement_closure,
+)
 from guardana.core.registry import Registry
 from guardana.core.report.skipped import SkipReason
 
 if TYPE_CHECKING:
     from guardana.core.evaluator.base import Evaluator
 
-RECIPE_SCHEMA_VERSION = 2
-"""The newest `schema_version` of `guardana-recipe.yaml` this build reads; 1 is read too.
+RECIPE_SCHEMA_VERSION = 3
+"""The newest `schema_version` of `guardana-recipe.yaml` this build reads; 1 and 2 are read too.
 
-Version 2 adds `subject.fixtures`. A build that reads only 1 refuses the version, so a
-recipe naming fixtures is never run by a build that would ignore them.
+Version 2 adds `subject.fixtures`, version 3 `subject.target`. A build that reads only an
+older version refuses the newer one, so a recipe is never run by a build that would
+ignore what it names.
 """
 
-RECIPE_LOCK_SCHEMA_VERSION = 1
-"""The `schema_version` of `guardana-recipe.lock.yaml` this build reads and writes."""
+RECIPE_LOCK_SCHEMA_VERSION = 2
+"""The `schema_version` of `guardana-recipe.lock.yaml` this build writes; 1 is read too.
+
+Version 2 adds `target` and `sources`, and gives the reason for every `unpinned` entry.
+"""
 
 RECIPE_NAME = "guardana-recipe.yaml"
 LOCK_NAME = "guardana-recipe.lock.yaml"
 
 _TOP_KEYS = frozenset({"schema_version", "name", "profile", "subject", "deployment", "output"})
-_SUBJECT_KEYS = frozenset({"kind", "connection", "recording", "fixtures"})
+_SUBJECT_KEYS = frozenset({"kind", "connection", "recording", "fixtures", "target"})
 _FIXTURES_SINCE = 2
+_TARGET_SINCE = 3
+_TARGET_KEYS = frozenset({"locator", "options"})
 _CONNECTION_KEYS = frozenset(
     {"url", "model", "provider", "api_key_env", "adapter", "system_prompt_file"}
 )
@@ -58,12 +72,30 @@ class RecipeError(ValueError):
 
 
 @dataclass(frozen=True, slots=True)
+class RecipeTarget:
+    """An installed target a recipe names, as `probe --target` and `--target-option` name it."""
+
+    locator: str
+    options: Mapping[str, str]
+
+    @property
+    def scheme(self) -> str:
+        """The scheme before `://`, which selects the installed target class."""
+        return self.locator.partition("://")[0]
+
+    def option_flags(self) -> tuple[str, ...]:
+        """Return the options as `--target-option` spells them, `key=value`."""
+        return tuple(f"{key}={value}" for key, value in sorted(self.options.items()))
+
+
+@dataclass(frozen=True, slots=True)
 class Recipe:
     """A loaded `guardana-recipe.yaml`, every path resolved beside the file.
 
     `connection` is the mapping as written; the command that sends turns it into a
-    connection and validates it, so a recipe can be locked where no key is set. `kind`
-    is None only for a recording subject that leaves the kind to the recording.
+    connection and validates it, so a recipe can be locked where no key is set. `target`
+    is resolved the same way, by the command, against the installed targets. `kind` is
+    None only for a recording subject that leaves the kind to the recording.
     """
 
     name: str
@@ -75,6 +107,9 @@ class Recipe:
     fixtures: Path | None
     """The fixtures file the application runs with, resolved beside the recipe; None without."""
 
+    target: RecipeTarget | None
+    """The installed target that answers, by locator; None for a connection or a recording."""
+
     deployment: Mapping[str, str]
     output: Path
     keep_exchanges: bool
@@ -84,6 +119,8 @@ class Recipe:
     @property
     def source(self) -> SubjectSource:
         """How this recipe's subject answers."""
+        if self.target is not None:
+            return SubjectSource.TARGET
         return SubjectSource.RECORDING if self.recording is not None else SubjectSource.CONNECTION
 
     @property
@@ -141,7 +178,7 @@ def parse_recipe(text: str, path: Path) -> Recipe:
     _schema(document.get("schema_version"), RECIPE_SCHEMA_VERSION, "recipe", where)
     subject = _mapping(document.get("subject"), f"{where}: subject")
     _refuse_unknown(subject, _SUBJECT_KEYS, f"{where}: subject")
-    connection, recording = _source(subject, path, where)
+    connection, recording, target = _source(subject, document["schema_version"], where)
     fixtures = _fixtures(subject, document["schema_version"], path, where)
     kind = None if recording is not None and "kind" not in subject else _kind(subject, where)
     output = document.get("output", {})
@@ -158,8 +195,9 @@ def parse_recipe(text: str, path: Path) -> Recipe:
         profile=path.parent / _text(document, "profile", where),
         kind=kind,
         connection=connection,
-        recording=recording,
+        recording=None if recording is None else path.parent / recording,
         fixtures=fixtures,
+        target=target,
         deployment={key: _text(deployment, key, f"{where}: deployment") for key in deployment},
         output=_output(output.get("directory", _DEFAULT_OUTPUT), path, where),
         keep_exchanges=keep,
@@ -168,24 +206,52 @@ def parse_recipe(text: str, path: Path) -> Recipe:
 
 
 def _source(
-    subject: Mapping[str, Any], path: Path, where: str
-) -> tuple[Mapping[str, str] | None, Path | None]:
-    has_connection = "connection" in subject
-    if has_connection == ("recording" in subject):
-        raise RecipeError(f"{where}: subject needs exactly one of `connection` or `recording`")
-    if not has_connection:
-        return None, path.parent / _text(subject, "recording", f"{where}: subject")
+    subject: Mapping[str, Any], version: int, where: str
+) -> tuple[Mapping[str, str] | None, str | None, RecipeTarget | None]:
+    """Read the one subject source: a connection, a recording, or an installed target."""
+    if "target" in subject and version < _TARGET_SINCE:
+        raise RecipeError(
+            f"{where}: subject.target needs `schema_version: {_TARGET_SINCE}`, so a build "
+            f"that does not read it refuses the recipe rather than running something else"
+        )
+    named = [key for key in ("connection", "recording", "target") if key in subject]
+    if len(named) != 1:
+        choices = (
+            "`connection`, `recording` or `target`"
+            if version >= _TARGET_SINCE
+            else "`connection` or `recording`"
+        )
+        raise RecipeError(f"{where}: subject needs exactly one of {choices}")
+    if "recording" in subject:
+        return None, _text(subject, "recording", f"{where}: subject"), None
+    if "target" in subject:
+        return None, None, _target(subject["target"], f"{where}: subject.target")
     block = _mapping(subject["connection"], f"{where}: subject.connection")
     _refuse_unknown(block, _CONNECTION_KEYS, f"{where}: subject.connection")
     connection = {key: _text(block, key, f"{where}: subject.connection") for key in block}
     for required in ("url", "model"):
         if required not in connection:
             raise RecipeError(f"{where}: subject.connection needs `{required}`")
-    return connection, None
+    return connection, None, None
+
+
+def _target(raw: object, where: str) -> RecipeTarget:
+    """Read `subject.target`: a locator, and options as `--target-option` would pass them."""
+    block = _mapping(raw, where)
+    _refuse_unknown(block, _TARGET_KEYS, where)
+    options = _mapping(block.get("options", {}), f"{where}.options")
+    for key, value in options.items():
+        if not isinstance(key, str) or not key.strip() or "=" in key:
+            raise RecipeError(f"{where}.options: {key!r} is not an option name")
+        if not isinstance(value, str):
+            raise RecipeError(
+                f"{where}.options.{key} must be a string, as `--target-option` passes it; quote it"
+            )
+    return RecipeTarget(locator=_text(block, "locator", where), options=dict(options))
 
 
 def _fixtures(subject: Mapping[str, Any], version: int, path: Path, where: str) -> Path | None:
-    """Resolve `subject.fixtures`, refused beside a recording and in a schema-1 recipe."""
+    """Resolve `subject.fixtures`, refused beside a recording or a target, and in schema 1."""
     if "fixtures" not in subject:
         return None
     if version < _FIXTURES_SINCE:
@@ -198,6 +264,12 @@ def _fixtures(subject: Mapping[str, Any], version: int, path: Path, where: str) 
             f"{where}: subject.fixtures cannot be combined with subject.recording: a recording "
             f"was answered without asking as any tenant, so nothing in it reached seeded data "
             f"the way the checks need"
+        )
+    if "target" in subject:
+        raise RecipeError(
+            f"{where}: subject.fixtures cannot be combined with subject.target, as `probe "
+            f"--target` refuses `--fixtures`: the seeded checks ask through a connection the "
+            f"recipe resolves, and an installed target is configured by its own options"
         )
     return path.parent / _text(subject, "fixtures", f"{where}: subject")
 
@@ -260,6 +332,10 @@ class LockDriftKind(StrEnum):
     CALIBRATION_CHANGED = "calibration_changed"
     TRIALS_CHANGED = "trials_changed"
     SUBJECT_FILE_CHANGED = "subject_file_changed"
+    TARGET_CHANGED = "target_changed"
+    SOURCE_ADDED = "source_added"
+    SOURCE_REMOVED = "source_removed"
+    SOURCE_CHANGED = "source_changed"
 
 
 @dataclass(frozen=True, slots=True)
@@ -309,6 +385,18 @@ class PinnedEvaluator:
 
 
 @dataclass(frozen=True, slots=True)
+class PinnedTarget:
+    """The installed target a recipe names: its scheme, and who registered it."""
+
+    scheme: str
+    origin: PinnedOrigin = field(default_factory=PinnedOrigin)
+
+    def describe(self) -> str:
+        """Name the target for a drift line."""
+        return f"{self.scheme}:// from {self.origin.describe()}"
+
+
+@dataclass(frozen=True, slots=True)
 class RecipeLock:
     """Everything a recipe's run is pinned to."""
 
@@ -324,15 +412,24 @@ class RecipeLock:
     subject_files: Mapping[str, str]
     """`adapter` to the digest of its file as written; `system_prompt_file` to that of its text."""
 
-    unpinned: tuple[str, ...] = ()
-    """`rule:<id>` and `evaluator:<id>` whose distribution can change under one version."""
+    unpinned: Mapping[str, str] = field(default_factory=dict)
+    """Each pin a lock cannot vouch for, to why: `rule:<id>`, `evaluator:<id>` and
+    `target:<scheme>` from a distribution that can change under one version and could not
+    be pinned by its files, and `distribution:<name>` for such a distribution they require."""
+
+    target: PinnedTarget | None = None
+    """The installed target the recipe names; None for a connection or a recording."""
+
+    sources: Mapping[str, SourcePin] = field(default_factory=dict)
+    """Each distribution installed from a directory or a URL, by its normalised name, to the
+    digest of its files; empty in a schema-1 lock."""
 
     schema_version: int = RECIPE_LOCK_SCHEMA_VERSION
 
     @property
     def digest(self) -> str:
         """Of the lock's content, recorded in the run so the evidence names its pins."""
-        return digest_of("recipe-lock-v1", _canonical(lock_to_dict(self)))
+        return digest_of(f"recipe-lock-v{self.schema_version}", _canonical(lock_to_dict(self)))
 
 
 _CONFIGURED_SKIPS = frozenset(
@@ -351,33 +448,46 @@ def lock_of(  # noqa: PLR0913 — the independent inputs a lock pins, each named
     guardana_version: str,
     subject_files: Mapping[str, str],
     movable: Callable[[str], bool],
+    pin_source: Callable[[str], SourcePin | str],
+    requires: Callable[[str], Iterable[str]] = installed_requirements,
 ) -> RecipeLock:
     """Pin the run `plan` describes.
 
-    `plan` is built against a target that sends nothing: the endpoint as configured, or a
-    recording with no replies, so a rule the recording leaves unanswered is still a rule
-    the configuration selected. `movable` says whether a distribution can change its code
-    under one version (installed editable or from a direct URL).
+    `plan` is built against a target that sends nothing: the endpoint as configured, the
+    installed target the recipe names, or a recording with no replies, so a rule the
+    recording leaves unanswered is still a rule the configuration selected. `movable` says
+    whether a distribution can change its code under one version (installed editable or
+    from a direct URL); `pin_source` pins such a distribution by its files, or says why it
+    cannot; `requires` names the installed distributions one requires, so a helper library
+    the checks import is pinned as the pack that registers them is.
     """
     rules_by_id = {rule.meta.id: rule for rule in registry.rules()}
     selected = [
         *plan.rules,
         *(skip.rule_id for skip in plan.skipped if skip.reason == SkipReason.NOT_RECORDED),
     ]
-    unpinned: list[str] = []
+    registrants: dict[str, list[str]] = {}
     rules: dict[str, PinnedRule] = {}
     for rule_id in sorted(set(selected)):
         rule = rules_by_id[rule_id]
         origin = registry.origin_of(rule_id)
-        if origin.distribution is not None and movable(origin.distribution):
-            unpinned.append(f"rule:{rule_id}")
+        _registers(registrants, origin.distribution, f"rule:{rule_id}")
         rules[rule_id] = PinnedRule(
             digest=rule.digest(),
             origin=PinnedOrigin(origin.distribution, origin.version),
             trials=rule.trials_per_case,
         )
     evaluators = _evaluators(
-        [rules_by_id[rule_id] for rule_id in rules], registry, calibrations, movable, unpinned
+        [rules_by_id[rule_id] for rule_id in rules], registry, calibrations, registrants
+    )
+    target = None
+    if recipe.target is not None:
+        scheme = recipe.target.scheme
+        origin = registry.origin_of(f"target-scheme:{scheme}")
+        _registers(registrants, origin.distribution, f"target:{scheme}")
+        target = PinnedTarget(scheme, PinnedOrigin(origin.distribution, origin.version))
+    sources, unpinned = _sources(
+        registrants, movable=movable, pin_source=pin_source, requires=requires
     )
     return RecipeLock(
         recipe=recipe.digest,
@@ -392,16 +502,49 @@ def lock_of(  # noqa: PLR0913 — the independent inputs a lock pins, each named
             if skip.reason in _CONFIGURED_SKIPS
         },
         subject_files=dict(sorted(subject_files.items())),
-        unpinned=tuple(sorted(unpinned)),
+        unpinned=unpinned,
+        target=target,
+        sources=sources,
     )
+
+
+def _registers(registrants: dict[str, list[str]], distribution: str | None, entry: str) -> None:
+    """Record that `distribution` registers `entry`; nothing when no distribution is named."""
+    if distribution is not None:
+        registrants.setdefault(normalized_name(distribution), []).append(entry)
+
+
+def _sources(
+    registrants: Mapping[str, list[str]],
+    *,
+    movable: Callable[[str], bool],
+    pin_source: Callable[[str], SourcePin | str],
+    requires: Callable[[str], Iterable[str]],
+) -> tuple[dict[str, SourcePin], dict[str, str]]:
+    """Pin every movable distribution that registers a pin or is required by one that does.
+
+    One that cannot be pinned leaves what it registers unpinned, with the reason; one
+    only required leaves itself, as `distribution:<name>`.
+    """
+    sources: dict[str, SourcePin] = {}
+    unpinned: dict[str, str] = {}
+    for name in sorted(requirement_closure(registrants, requires)):
+        if not movable(name):
+            continue
+        pinned = pin_source(name)
+        if isinstance(pinned, SourcePin):
+            sources[name] = pinned
+            continue
+        for entry in registrants.get(name) or [f"distribution:{name}"]:
+            unpinned[entry] = f"{name}: {pinned}"
+    return sources, dict(sorted(unpinned.items()))
 
 
 def _evaluators(
     rules: list[Any],
     registry: Registry,
     calibrations: Mapping[str, RecordedCalibration],
-    movable: Callable[[str], bool],
-    unpinned: list[str],
+    registrants: dict[str, list[str]],
 ) -> dict[str, PinnedEvaluator]:
     declared = sorted(
         {
@@ -415,8 +558,7 @@ def _evaluators(
     pinned: dict[str, PinnedEvaluator] = {}
     for evaluator_id in declared:
         origin = registry.origin_of(f"evaluator:{evaluator_id}")
-        if origin.distribution is not None and movable(origin.distribution):
-            unpinned.append(f"evaluator:{evaluator_id}")
+        _registers(registrants, origin.distribution, f"evaluator:{evaluator_id}")
         evaluator = registered.get(evaluator_id)
         judge = None if evaluator is None else evaluator.judge_identity
         measured = calibrations.get(evaluator_id)
@@ -449,8 +591,17 @@ def compare(locked: RecipeLock, current: RecipeLock) -> tuple[LockDrift, ...]:
     ):
         if before != after:
             drift.append(LockDrift(kind, name, f"locked {before}, now {after}"))
+    if locked.target != current.target:
+        drift.append(
+            LockDrift(
+                LockDriftKind.TARGET_CHANGED,
+                "target",
+                f"locked {_target_named(locked.target)}, now {_target_named(current.target)}",
+            )
+        )
     drift.extend(_rule_drift(locked.rules, current.rules))
     drift.extend(_evaluator_drift(locked.evaluators, current.evaluators))
+    drift.extend(_source_drift(locked.sources, current.sources))
     for rule_id in sorted(set(locked.skipped) | set(current.skipped)):
         was, now = locked.skipped.get(rule_id), current.skipped.get(rule_id)
         if was != now:
@@ -472,6 +623,40 @@ def compare(locked: RecipeLock, current: RecipeLock) -> tuple[LockDrift, ...]:
                 )
             )
     return tuple(drift)
+
+
+def _target_named(target: PinnedTarget | None) -> str:
+    return "no installed target" if target is None else target.describe()
+
+
+def _source_drift(
+    locked: Mapping[str, SourcePin], current: Mapping[str, SourcePin]
+) -> list[LockDrift]:
+    drift: list[LockDrift] = []
+    for name in sorted(set(locked) | set(current)):
+        before, after = locked.get(name), current.get(name)
+        if after is None:
+            drift.append(
+                LockDrift(
+                    LockDriftKind.SOURCE_REMOVED, name, "pinned by its files when locked, not now"
+                )
+            )
+        elif before is None:
+            drift.append(
+                LockDrift(
+                    LockDriftKind.SOURCE_ADDED, name, "pinned by its files now, and was not locked"
+                )
+            )
+        elif before != after:
+            drift.append(
+                LockDrift(
+                    LockDriftKind.SOURCE_CHANGED,
+                    name,
+                    f"{before.files} file(s) at {before.digest} when locked, now "
+                    f"{after.files} file(s) at {after.digest}",
+                )
+            )
+    return drift
 
 
 def _rule_drift(
@@ -559,8 +744,12 @@ def _evaluator_drift(
 
 
 def lock_to_dict(lock: RecipeLock) -> dict[str, Any]:
-    """Return the lock as its file holds it, every digest under a `digest:` key."""
-    return {
+    """Return the lock as its file holds it, every digest under a `digest:` key.
+
+    The keys are those of the lock's own schema, so a schema-1 lock read back has the
+    digest it was written with.
+    """
+    document: dict[str, Any] = {
         "schema_version": lock.schema_version,
         "recipe": {"digest": lock.recipe},
         "guardana": lock.guardana,
@@ -590,7 +779,24 @@ def lock_to_dict(lock: RecipeLock) -> dict[str, Any]:
         "subject_files": {
             name: {"digest": value} for name, value in sorted(lock.subject_files.items())
         },
-        "unpinned": list(lock.unpinned),
+    }
+    if lock.schema_version == 1:
+        return {**document, "unpinned": list(lock.unpinned)}
+    target = lock.target
+    return {
+        **document,
+        "target": None
+        if target is None
+        else {
+            "scheme": target.scheme,
+            "distribution": target.origin.distribution,
+            "version": target.origin.version,
+        },
+        "sources": {
+            name: {"digest": pin.digest, "files": pin.files}
+            for name, pin in sorted(lock.sources.items())
+        },
+        "unpinned": dict(sorted(lock.unpinned.items())),
     }
 
 
@@ -599,7 +805,7 @@ def render_lock(lock: RecipeLock) -> str:
     return yaml.safe_dump(lock_to_dict(lock), sort_keys=False, allow_unicode=True)
 
 
-_LOCK_KEYS = frozenset(
+_LOCK_KEYS_V1 = frozenset(
     {
         "schema_version",
         "recipe",
@@ -613,6 +819,10 @@ _LOCK_KEYS = frozenset(
         "unpinned",
     }
 )
+_LOCK_KEYS = _LOCK_KEYS_V1 | {"target", "sources"}
+_TARGET_PIN_KEYS = frozenset({"scheme", "distribution", "version"})
+_SOURCE_KEYS = frozenset({"digest", "files"})
+_V1_UNPINNED = "its distribution can change under one version; a schema-1 lock gives no reason"
 
 
 def read_lock(path: Path) -> RecipeLock:
@@ -641,9 +851,11 @@ def parse_lock(text: str, path: Path) -> RecipeLock:
         raise RecipeError(f"{path} is not valid YAML: {exc}") from exc
     where = str(path)
     document = _mapping(raw, where)
-    _refuse_unknown(document, _LOCK_KEYS, where)
-    _require(document, _LOCK_KEYS, where)
-    _schema(document["schema_version"], RECIPE_LOCK_SCHEMA_VERSION, "recipe lock", where)
+    _schema(document.get("schema_version"), RECIPE_LOCK_SCHEMA_VERSION, "recipe lock", where)
+    version: int = document["schema_version"]
+    keys = _LOCK_KEYS_V1 if version == 1 else _LOCK_KEYS
+    _refuse_unknown(document, keys, where)
+    _require(document, keys, where)
     return RecipeLock(
         recipe=_digest(document, "recipe", where),
         guardana=_text(document, "guardana", where),
@@ -677,8 +889,41 @@ def parse_lock(text: str, path: Path) -> RecipeLock:
             str(name): _digest(document["subject_files"], str(name), f"{where}: subject_files")
             for name in _mapping(document["subject_files"], f"{where}: subject_files")
         },
-        unpinned=tuple(_strings(document["unpinned"], f"{where}: unpinned")),
+        unpinned=_unpinned(document["unpinned"], version, f"{where}: unpinned"),
+        target=None if version == 1 else _target_pin(document["target"], f"{where}: target"),
+        sources={}
+        if version == 1
+        else {
+            name: SourcePin(
+                digest=_text(entry, "digest", here), files=_files(entry["files"], f"{here}.files")
+            )
+            for name, entry, here in _entries(document, "sources", _SOURCE_KEYS, where)
+        },
+        schema_version=version,
     )
+
+
+def _unpinned(raw: object, version: int, where: str) -> dict[str, str]:
+    """Read `unpinned`: a list in a schema-1 lock, which gave no reasons; a mapping since."""
+    if version == 1:
+        return dict.fromkeys(_strings(raw, where), _V1_UNPINNED)
+    block = _mapping(raw, where)
+    return {str(entry): _text(block, entry, where) for entry in block}
+
+
+def _target_pin(raw: object, where: str) -> PinnedTarget | None:
+    if raw is None:
+        return None
+    block = _mapping(raw, where)
+    _refuse_unknown(block, _TARGET_PIN_KEYS, where)
+    _require(block, _TARGET_PIN_KEYS, where)
+    return PinnedTarget(scheme=_text(block, "scheme", where), origin=_origin(block, where))
+
+
+def _files(raw: object, where: str) -> int:
+    if isinstance(raw, bool) or not isinstance(raw, int) or raw < 0:
+        raise RecipeError(f"{where} must be a whole number")
+    return raw
 
 
 _RULE_KEYS = frozenset({"digest", "distribution", "version", "trials"})

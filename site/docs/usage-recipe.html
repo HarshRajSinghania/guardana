@@ -316,7 +316,7 @@ output:
 <tr>
 <td><code>schema_version</code></td>
 <td>yes</td>
-<td><code>2</code>, or <code>1</code> for a recipe without <code>subject.fixtures</code>. A newer version is refused with &quot;upgrade Guardana&quot;.</td>
+<td><code>3</code>; <code>2</code> for a recipe without <code>subject.target</code>; <code>1</code> for one without <code>subject.fixtures</code> either. A newer version is refused with &quot;upgrade Guardana&quot;. A schema-1 or schema-2 recipe keeps the digest its lock holds.</td>
 </tr>
 <tr>
 <td><code>name</code></td>
@@ -330,23 +330,28 @@ output:
 </tr>
 <tr>
 <td><code>subject.kind</code></td>
-<td>with <code>connection</code></td>
+<td>with <code>connection</code> or <code>target</code></td>
 <td>What answers: <code>application</code> or <code>model_harness</code>. No default. With <code>recording</code> it may be left out when the recording's header declares <code>subject_kind</code>; a run where neither declares one, or the two differ, is refused before anything is graded (exit <code>3</code>).</td>
 </tr>
 <tr>
 <td><code>subject.connection</code></td>
-<td>one of the two</td>
+<td>one of the three</td>
 <td><code>url</code>, <code>model</code>, and optionally <code>provider</code>, <code>api_key_env</code>, <code>adapter</code>, <code>system_prompt_file</code>, with the meanings <code>guardana probe</code> gives the same flags.</td>
 </tr>
 <tr>
 <td><code>subject.recording</code></td>
-<td>one of the two</td>
+<td>one of the three</td>
 <td>A recording to grade, as <code>guardana grade</code> reads it. Nothing is sent to the application.</td>
+</tr>
+<tr>
+<td><code>subject.target</code></td>
+<td>one of the three</td>
+<td>With <code>schema_version: 3</code>: an installed endpoint target, as <code>guardana probe --target</code> names it. <code>locator</code> is <code>scheme://value</code>; <code>options</code> maps each <code>--target-option</code> key to its value, every value a string.</td>
 </tr>
 <tr>
 <td><code>subject.fixtures</code></td>
 <td>no</td>
-<td>With <code>connection</code> and <code>schema_version: 2</code>: the <a href="usage-fixtures.html">fixtures file</a> declaring the synthetic data the application runs with — its tenants, seeded documents, records and tools. Refused with <code>recording</code>, and in a schema-1 recipe.</td>
+<td>With <code>connection</code> and <code>schema_version: 2</code> or later: the <a href="usage-fixtures.html">fixtures file</a> declaring the synthetic data the application runs with — its tenants, seeded documents, records and tools. Refused with <code>recording</code> or <code>target</code>, and in a schema-1 recipe.</td>
 </tr>
 <tr>
 <td><code>deployment</code></td>
@@ -371,6 +376,29 @@ fixtures or test doubles behind it. <code>model_harness</code> is a model reache
 application's prompt, tools and data: a result about the model, not about what your users
 talk to. Guardana cannot tell the two apart from a URL, so it records what the recipe declares
 and shows it in the run, the terminal report, the JUnit suite name, <code>run inspect</code> and <code>diff</code>.</p>
+<h3 id="an-installed-target">An installed target</h3>
+<p>A pack can register its own endpoint target under a scheme (<a href="usage-target.html"><code>usage-target.md</code></a>).
+A recipe names it as <code>probe --target</code> does:</p>
+<pre><code class="language-yaml">schema_version: 3
+name: support-bot
+profile: guardana.yaml
+subject:
+  kind: application
+  target:
+    locator: acme-chat://staging
+    options:
+      region: eu
+</code></pre>
+<p><code>recipe lock</code> and <code>recipe run</code> build the target once, through the same resolution <code>plan probe</code>
+uses, and refuse with exit <code>3</code> what <code>probe --target</code> refuses: a malformed locator, a scheme no
+installed distribution registers, a scheme whose target is not
+an endpoint, an option the target rejects, a budget the target cannot enforce, <code>fixtures</code>
+beside <code>target</code>, and kept exchanges — <code>output.exchanges: true</code> or the profile's
+<code>privacy.keep_exchanges</code> — with a target that keeps none (only the built-in endpoint and a
+pack's target built on it keep exchanges). The <code>Target</code> contract forbids building a target
+from contacting it; a target that connects while it is built and fails exits <code>4</code>, as it does
+for <code>plan probe</code>. The run records <code>source: target</code>, and the target's own options carry no
+secret, so no message withholds one.</p>
 <h2 id="the-lock">The lock</h2>
 <p><code>guardana recipe lock</code> builds the plan of the recipe's run without sending a request and
 without reading a key, and writes <code>guardana-recipe.lock.yaml</code> beside the recipe. It pins:</p>
@@ -385,11 +413,44 @@ calibration in force for it;</li>
 <li>every rule the configuration skips, by reason;</li>
 <li>the adapter file the connection names, as written, and the text of its system-prompt file;</li>
 <li>the fixtures file <code>subject.fixtures</code> names, as written, and every tenant adapter it names
-(<code>fixtures</code>, <code>fixtures.tenants.&lt;name&gt;.adapter</code>).</li>
+(<code>fixtures</code>, <code>fixtures.tenants.&lt;name&gt;.adapter</code>);</li>
+<li>the installed target <code>subject.target</code> names: its scheme, and the distribution and version
+that register it (<code>target</code>);</li>
+<li>the files of every distribution installed from a directory or a URL (<code>sources</code>).</li>
 </ul>
 <p>It never pins a key or the recording: the recording is your application's answer, not your
-configuration. A rule or evaluator from a distribution installed in editable mode or from a
-direct URL can change its code under one version, so it is listed under <code>unpinned</code>.</p>
+configuration.</p>
+<h3 id="distributions-installed-from-a-directory-or-a-url">Distributions installed from a directory or a URL</h3>
+<p>A distribution installed in editable mode or from a direct URL (PEP 610 <code>direct_url.json</code>) can
+change its code under one version, so a version pin says nothing about it. The lock pins each
+such distribution by its files, under <code>sources</code> (<code>digest</code>, <code>files</code>), when it registers a
+selected rule, an evaluator a selected rule grades with or the recipe's target, or when it is
+in the installed <code>Requires-Dist</code> closure of one that does: every requirement whose PEP
+503-normalised name is installed is followed, markers and extras ignored, so a helper library
+installed editable is pinned as the pack that imports it is.</p>
+<ul>
+<li>An <strong>editable</strong> install is pinned by the directory its <code>file://</code> URL names: every file under
+it by sorted POSIX relative path and the SHA-256 of its content, except <code>.git/</code>,
+<code>__pycache__/</code>, <code>*.pyc</code>, <code>.venv/</code>, <code>.tox/</code>, <code>.nox/</code>, <code>node_modules/</code>, <code>*.egg-info/</code>,
+<code>.mypy_cache/</code>, <code>.ruff_cache/</code> and <code>.pytest_cache/</code> at any depth, and <code>venv/</code>, <code>build/</code> and
+<code>dist/</code> at the top of the directory only (a package of the project may carry those names).
+Symlinks are followed, so a linked file is pinned by what it holds.</li>
+<li><strong>Any other direct URL</strong> — a directory installed without <code>-e</code>, a VCS checkout, an archive —
+is pinned by its installed <code>RECORD</code>: each entry's path and recorded hash, except <code>*.pyc</code> and
+every file of its own <code>.dist-info</code> but <code>METADATA</code> (its version and requirements) and
+<code>entry_points.txt</code> (what it registers). The rest — <code>RECORD</code>, <code>INSTALLER</code>, <code>REQUESTED</code>,
+<code>direct_url.json</code>, an installer's cache file — records the install, not the code that runs,
+so installing the same code again pins the same.</li>
+</ul>
+<p>A distribution stays under <code>unpinned</code>, with the reason, when it holds more than 20,000 files or
+256 MiB, when a symlink leads outside its directory, when it has no <code>RECORD</code> to read, or when
+its <code>RECORD</code> lists an entry without a hash. <code>unpinned</code> maps each <code>rule:&lt;id&gt;</code>,
+<code>evaluator:&lt;id&gt;</code> and <code>target:&lt;scheme&gt;</code> it registers — or <code>distribution:&lt;name&gt;</code> when it is only
+required — to that reason. <code>recipe run</code> computes the lock again on every run, so it hashes
+each editable tree again, within the same bounds.</p>
+<p>A lock written before <code>sources</code> existed (schema 1) is still read, with no <code>sources</code>; compared
+with the current configuration it drifts <code>source_added</code> for each distribution the lock now
+pins, beside the <code>guardana_changed</code> an upgrade brings. Run <code>guardana recipe lock</code> again.</p>
 <h2 id="exit-codes">Exit codes</h2>
 <div class="table-wrap"><table>
 <thead>
@@ -432,6 +493,18 @@ direct URL can change its code under one version, so it is listed under <code>un
 <td>runs, and the run records what is unpinned</td>
 </tr>
 <tr>
+<td><code>subject.target</code> refused as <code>probe --target</code> refuses it</td>
+<td><code>3</code>, nothing written</td>
+<td><code>3</code></td>
+<td><code>3</code>, nothing sent</td>
+</tr>
+<tr>
+<td><code>subject.target</code> fails to connect while it is built</td>
+<td><code>4</code>, nothing written</td>
+<td><code>4</code></td>
+<td><code>4</code>, nothing sent</td>
+</tr>
+<tr>
 <td>nothing selected, plugin trust refused an installed extension, or a selected check would not grade (a rule file that did not load, an evaluator nobody registered)</td>
 <td><code>2</code>, nothing written</td>
 <td><code>2</code></td>
@@ -451,7 +524,8 @@ sends nothing until the pins hold; then the run's gate decides its exit code as 
 <code>rule_added</code>, <code>rule_removed</code>, <code>judge_changed</code>, <code>calibration_changed</code>, <code>profile_changed</code>,
 <code>trust_changed</code>, <code>guardana_changed</code>, <code>recipe_changed</code>, <code>distribution_changed</code>,
 <code>skip_changed</code>, <code>trials_changed</code>, <code>subject_file_changed</code>, <code>evaluator_added</code>,
-<code>evaluator_removed</code>. Review the change, then run <code>guardana recipe lock</code> again.</p>
+<code>evaluator_removed</code>, <code>target_changed</code>, <code>source_added</code>, <code>source_removed</code>, <code>source_changed</code>.
+Review the change, then run <code>guardana recipe lock</code> again.</p>
 <p>All three commands regrade the regression pairs of every selected suite
 (<a href="usage-case.html"><code>guardana case add</code></a>) before they compare anything, sending nothing: each
 pair's <code>observed</code> must still grade <code>fail</code> and its <code>accepted</code> <code>pass</code> with the rule as it is

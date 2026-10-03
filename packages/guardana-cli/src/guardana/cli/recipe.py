@@ -21,6 +21,7 @@ from guardana.cli._plugins import hint_refused_plugins, resolve_trust
 from guardana.cli._profile import resolve_profile
 from guardana.cli._rules_loading import load_custom_rules
 from guardana.cli._run_meta import calibrations_or_exit, detect_source
+from guardana.cli._target_locator import resolve_target
 from guardana.cli.exit_codes import ExitCode
 from guardana.cli.plan import recorded_target_or_exit, system_prompt_the_probe_will_send
 from guardana.core import __version__
@@ -39,6 +40,7 @@ from guardana.core.recipe import (
     Recipe,
     RecipeError,
     RecipeLock,
+    RecipeTarget,
     artifact_directory_of,
     compare,
     lock_of,
@@ -48,13 +50,14 @@ from guardana.core.recipe import (
     read_text,
     render_lock,
 )
+from guardana.core.recipe_source import pin_distribution_source
 from guardana.core.recording import Recording, render_recording
 from guardana.core.registry import Registry
 from guardana.core.regression import broken_pairs
 from guardana.core.report import CheckError
 from guardana.core.report.shortfall import CoverageShortfall
 from guardana.core.rule.suite_rule import SuiteRule
-from guardana.core.target import RecordedTarget, Target
+from guardana.core.target import EndpointTarget, RecordedTarget, SeededTarget, Target, TargetKind
 from guardana.core.target.connection import (
     Connection,
     ConnectionConfigError,
@@ -119,6 +122,9 @@ class _Prepared:
     shortfall: tuple[CoverageShortfall, ...] = ()
     """The coverage the run would owe whatever its rules find, so it could never pass."""
 
+    target: Target | None = None
+    """The installed target the recipe names, built once: what is locked is what is sent."""
+
 
 class _Refusal(Exception):  # noqa: N818 — named for the outcome a command reports
     """A command refused before anything was sent, with the reason its artifact carries."""
@@ -164,9 +170,11 @@ def lock(
         _exit_if_unpinned(current)
         return
     prepared.recipe.lock_path.write_text(render_lock(current), encoding="utf-8")
+    sources = f", {len(current.sources)} source pin(s)" if current.sources else ""
     typer.echo(
         f"wrote {prepared.recipe.lock_path}: {len(current.rules)} rule(s), "
         f"{len(current.evaluators)} evaluator(s), {len(current.skipped)} configured skip(s)"
+        f"{sources}"
     )
     _exit_if_unpinned(current)
 
@@ -215,7 +223,7 @@ def run(
         lock_digest=parse_lock(lock_text, loaded.lock_path).digest,
         kind=kind,
         source=loaded.source,
-        unpinned=prepared.lock.unpinned,
+        unpinned=tuple(prepared.lock.unpinned),
     )
     verification = replace(verification, manifest=replace(verification.manifest, recipe=record))
     _publish(prepared, verification, recipe_text=read.text, lock_text=lock_text)
@@ -319,7 +327,12 @@ def _prepare(read: _Read) -> _Prepared:
     except ProfileError as exc:
         raise refuse_invalid_profile(exc) from exc
     prompt = read_system_prompt(recipe.subject_file("system_prompt_file"))
-    target, files = _stand_in(recipe, prompt, read.fixtures)
+    installed = None
+    if recipe.target is None:
+        target, files = _stand_in(recipe, prompt, read.fixtures)
+    else:
+        installed = _installed_target(recipe, recipe.target, registry, profile)
+        target, files = installed, {}
     plan = build_plan(priced, profile, target)
     current = lock_of(
         recipe,
@@ -330,6 +343,7 @@ def _prepare(read: _Read) -> _Prepared:
         guardana_version=__version__,
         subject_files=files,
         movable=moves_under_one_version,
+        pin_source=pin_distribution_source,
     )
     if not current.rules:
         raise _Refusal(
@@ -349,6 +363,7 @@ def _prepare(read: _Read) -> _Prepared:
         plan.errors,
         read.fixtures,
         plan.shortfall,
+        installed,
     )
 
 
@@ -392,6 +407,43 @@ def _refuse_unpassable(prepared: _Prepared) -> None:
             f"the run this recipe describes cannot pass, so nothing was pinned; "
             f"coverage shortfall — {causes}"
         )
+
+
+def _installed_target(
+    recipe: Recipe, named: RecipeTarget, registry: Registry, profile: Profile
+) -> Target:
+    """Build the installed target the recipe names, refused as `probe --target` refuses it.
+
+    Construction sends nothing under the `Target` contract; a target that fails to connect
+    anyway exits `4`, as it does for `plan probe`.
+    """
+    try:
+        target = resolve_target(
+            registry,
+            locator=named.locator,
+            options=named.option_flags(),
+            kind=TargetKind.ENDPOINT,
+            fallback=_no_fallback,
+        )
+    except typer.BadParameter as exc:
+        raise _Refusal(f"{recipe.path}: subject.target: {exc}") from exc
+    keeping = recipe.keep_exchanges or profile.privacy.keep_exchanges
+    if keeping and not isinstance(target, EndpointTarget | SeededTarget):
+        raise _Refusal(
+            f"{recipe.path}: keeping exchanges keeps the chat exchanges of the built-in endpoint "
+            f"and of a pack's target built on it; {target.ref} keeps none, so set "
+            f"output.exchanges: false and stop keeping exchanges in the profile"
+        )
+    try:
+        target.apply_budgets(profile.budgets)
+    except BudgetExhausted as exc:
+        raise _Refusal(str(exc)) from exc
+    return target
+
+
+def _no_fallback() -> Target:
+    """Never reached: a recipe target always names a locator."""
+    raise _Refusal("subject.target names no locator")
 
 
 def _stand_in(
@@ -456,9 +508,12 @@ def _check_judges(profile: Profile) -> None:
 def _subject(prepared: _Prepared) -> tuple[Target, tuple[str, ...]]:
     """Build what the run sends to, holding a re-read adapter to the digest the lock pinned.
 
-    The second item holds every secret the subject sends, which no message may quote.
+    The second item holds every secret the subject sends, which no message may quote; an
+    installed target keeps its own and names none.
     """
     recipe = prepared.recipe
+    if prepared.target is not None:
+        return prepared.target, ()
     if recipe.recording is not None:
         return recorded_target_or_exit(recipe.recording), ()
     try:
@@ -528,10 +583,11 @@ def _exit_if_unpinned(current: RecipeLock) -> None:
 
 
 def _unpinned(current: RecipeLock) -> str:
+    named = ", ".join(f"{entry} ({reason})" for entry, reason in current.unpinned.items())
     return (
-        f"{len(current.unpinned)} selected check(s) come from a distribution installed from a "
-        f"directory or a URL, whose code can change under one version, so the lock does not "
-        f"pin them: {', '.join(current.unpinned)}"
+        f"{len(current.unpinned)} pin(s) come from a distribution installed from a directory "
+        f"or a URL whose files could not be pinned, so their code can change under one "
+        f"version and the lock does not pin them: {named}"
     )
 
 
@@ -547,6 +603,8 @@ def _refuse_exchanges_nobody_asked_for(prepared: _Prepared) -> None:
 def _reason(exc: Exception) -> str:
     if isinstance(exc, typer.BadParameter):
         return f"the run did not start: {exc}"
+    if isinstance(exc, typer.Exit) and exc.exit_code == ExitCode.TARGET_UNAVAILABLE:
+        return "the run did not start: its target could not be reached; see the error output"
     return "the run did not start: its configuration was refused; see the error output"
 
 

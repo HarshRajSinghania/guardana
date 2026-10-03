@@ -7,10 +7,11 @@ import hashlib
 import json
 import re
 import threading
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from typing import Self
 from xml.etree.ElementTree import fromstring
 
 import pytest
@@ -20,6 +21,18 @@ from guardana.cli._artifact import MARKER
 from guardana.cli.exit_codes import ExitCode
 from guardana.cli.main import app
 from guardana.core import fixtures as fixtures_module
+from guardana.core.origin import Origin
+from guardana.core.plugins import PluginMode, PluginTrust
+from guardana.core.recipe_source import SourcePin
+from guardana.core.registry import Registry
+from guardana.core.target import (
+    Capability,
+    ChatMessage,
+    EndpointTarget,
+    LocatorError,
+    Target,
+    TargetKind,
+)
 from guardana.core.target.connection import (
     Connection,
     ResolvedConnection,
@@ -371,10 +384,18 @@ def test_an_output_directory_guardana_did_not_write_is_refused_and_untouched(
     assert wire.requests == []
 
 
+def _editable_rules(monkeypatch: pytest.MonkeyPatch, pin: SourcePin | str) -> None:
+    """Install the keyword evaluator's distribution as if from a directory, pinned as `pin` says."""
+    monkeypatch.setattr(
+        recipe_cli, "moves_under_one_version", lambda distribution: distribution == "guardana-rules"
+    )
+    monkeypatch.setattr(recipe_cli, "pin_distribution_source", lambda _distribution: pin)
+
+
 def test_a_check_from_an_editable_install_is_unpinned_and_never_reads_clean(
     tmp_path: Path, wire: _Wire, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(recipe_cli, "moves_under_one_version", lambda _distribution: True)
+    _editable_rules(monkeypatch, "it holds more than 20000 files")
     recipe = _team(tmp_path, wire.url)
 
     locked = _invoke("lock", str(recipe))
@@ -383,7 +404,32 @@ def test_a_check_from_an_editable_install_is_unpinned_and_never_reads_clean(
     assert locked.exit_code == ExitCode.INDETERMINATE
     assert (tmp_path / "guardana-recipe.lock.yaml").is_file()
     assert checked.exit_code == ExitCode.INDETERMINATE
-    assert "evaluator:keyword" in normalised(checked.output)
+    said = normalised(checked.output)
+    assert "evaluator:keyword (guardana-rules: it holds more than 20000 files)" in said
+    assert wire.requests == []
+
+
+def test_an_editable_install_pinned_by_its_files_locks_clean_and_its_edit_is_drift(
+    tmp_path: Path, wire: _Wire, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _editable_rules(monkeypatch, SourcePin("sha256:" + "a" * 64, 40))
+    recipe = _team(tmp_path, wire.url)
+
+    locked = _invoke("lock", str(recipe))
+    _editable_rules(monkeypatch, SourcePin("sha256:" + "b" * 64, 40))
+    drifted = _invoke("lock", "--check", str(recipe))
+    refused = _invoke("run", str(recipe))
+
+    assert locked.exit_code == ExitCode.OK, locked.output
+    assert "1 source pin(s)" in normalised(locked.output)
+    lock = yaml.safe_load((tmp_path / "guardana-recipe.lock.yaml").read_text(encoding="utf-8"))
+    assert lock["schema_version"] == 2
+    assert lock["sources"] == {"guardana-rules": {"digest": "sha256:" + "a" * 64, "files": 40}}
+    assert lock["unpinned"] == {}
+    assert drifted.exit_code == ExitCode.POLICY_FAILED
+    assert "source_changed: guardana-rules" in normalised(drifted.output)
+    assert refused.exit_code == ExitCode.INVALID_USAGE
+    assert wire.requests == []
 
 
 def test_a_recipe_that_selects_nothing_writes_no_lock(tmp_path: Path, wire: _Wire) -> None:
@@ -443,7 +489,7 @@ def test_a_run_that_selects_nothing_is_refused_with_the_documented_code(
 def test_a_run_of_unpinned_checks_says_so_wherever_it_says_the_pins_hold(
     tmp_path: Path, wire: _Wire, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(recipe_cli, "moves_under_one_version", lambda _distribution: True)
+    _editable_rules(monkeypatch, "it has no RECORD to read")
     recipe = _team(tmp_path, wire.url)
     assert _invoke("lock", str(recipe)).exit_code == ExitCode.INDETERMINATE
 
@@ -791,3 +837,211 @@ def test_a_lock_whose_run_could_never_pass_is_refused_and_writes_nothing(
         )
     assert not (tmp_path / "guardana-recipe.lock.yaml").exists()
     assert wire.requests == []
+
+
+# Schema 3: an installed target answers, built as `probe --target` builds it
+
+
+class _Polite:
+    """A chat transport that refuses every request and remembers which model it was asked."""
+
+    models: list[str] = []  # noqa: RUF012 — shared on purpose: the target builds its own
+
+    def send(
+        self,
+        base_url: str,
+        model: str,
+        messages: Sequence[ChatMessage],
+        api_key: str | None,
+    ) -> str:
+        self.models.append(model)
+        return "I can't help with that."
+
+
+class _SupportChat(EndpointTarget):
+    """A pack's endpoint target built on the built-in one, configured by its options."""
+
+    scheme = "acme-chat"
+
+    @classmethod
+    def from_locator(cls, locator: str, *, options: Mapping[str, str]) -> Self:
+        if set(options) - {"region"}:
+            raise LocatorError("acme-chat takes only `region`")
+        model = f"{locator}-{options.get('region', 'us')}"
+        return cls("http://chat.test", model, transport=_Polite())
+
+
+class _Bare(Target):
+    """An endpoint target that keeps no exchange."""
+
+    kind = TargetKind.ENDPOINT
+    scheme = "acme-bare"
+
+    def __init__(self, ref: str) -> None:
+        self._ref = ref
+
+    @classmethod
+    def from_locator(cls, locator: str, *, options: Mapping[str, str]) -> Self:
+        return cls(f"acme-bare://{locator}")
+
+    def capabilities(self) -> set[Capability]:
+        return {Capability.CHAT}
+
+    @property
+    def ref(self) -> str:
+        return self._ref
+
+    def chat(self, messages: Sequence[ChatMessage]) -> str:
+        return "I can't help with that."
+
+
+class _Files(_Bare):
+    kind = TargetKind.ARTIFACT
+    scheme = "acme-files"
+
+
+class _Down(_Bare):
+    scheme = "acme-down"
+
+    @classmethod
+    def from_locator(cls, locator: str, *, options: Mapping[str, str]) -> Self:
+        raise OSError("connection refused")
+
+
+_DISCOVER = Registry.discover
+"""Discovery as installed, kept before any test replaces it."""
+
+
+def _installed(monkeypatch: pytest.MonkeyPatch, version: str = "2.0") -> None:
+    """Make every later discovery find the four targets, registered by one distribution."""
+    registry = _DISCOVER(PluginTrust(mode=PluginMode.BUILTINS))
+    for target in (_SupportChat, _Bare, _Files, _Down):
+        registry.register_target(target, Origin(distribution="acme-targets", version=version))
+    monkeypatch.setattr(
+        Registry, "discover", classmethod(lambda cls, trust=True: registry.copied())
+    )
+
+
+def _target_team(tmp_path: Path, subject: str, *, version: int = 3, extra: str = "") -> Path:
+    recipe = _team(tmp_path, "http://127.0.0.1:9", extra=extra)
+    recipe.write_text(
+        f"schema_version: {version}\nname: support-bot\nprofile: guardana.yaml\n"
+        f"subject:\n  kind: application\n{subject}",
+        encoding="utf-8",
+    )
+    return recipe
+
+
+_SUPPORT = "  target:\n    locator: acme-chat://support\n    options:\n      region: eu\n"
+
+
+@pytest.fixture(autouse=True)
+def _nothing_sent_yet() -> None:
+    _Polite.models.clear()
+
+
+def test_a_recipe_naming_an_installed_target_locks_it_and_runs_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _installed(monkeypatch)
+    recipe = _target_team(
+        tmp_path,
+        _SUPPORT + "output:\n  exchanges: true\n",
+        extra="privacy:\n  keep_exchanges: true\n",
+    )
+
+    locked = _invoke("lock", str(recipe))
+    assert _Polite.models == []
+    result = _invoke("run", str(recipe))
+
+    assert locked.exit_code == ExitCode.OK, locked.output
+    lock = yaml.safe_load((tmp_path / "guardana-recipe.lock.yaml").read_text(encoding="utf-8"))
+    assert lock["target"] == {
+        "scheme": "acme-chat",
+        "distribution": "acme-targets",
+        "version": "2.0",
+    }
+    assert result.exit_code == ExitCode.OK, result.output
+    assert set(_Polite.models) == {"support-eu"}
+    run = json.loads((_artifact(recipe) / "run.json").read_text(encoding="utf-8"))["run"]
+    assert run["recipe"]["source"] == "target"
+    assert run["recipe"]["kind"] == "application"
+    assert (_artifact(recipe) / "run.exchanges.jsonl").is_file()
+
+
+def test_an_upgraded_target_distribution_moves_the_lock(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _installed(monkeypatch)
+    recipe = _target_team(tmp_path, _SUPPORT)
+    _locked(recipe)
+    _installed(monkeypatch, version="2.1")
+
+    drifted = _invoke("lock", "--check", str(recipe))
+    refused = _invoke("run", str(recipe))
+
+    assert drifted.exit_code == ExitCode.POLICY_FAILED
+    assert "target_changed: target" in normalised(drifted.output)
+    assert refused.exit_code == ExitCode.INVALID_USAGE
+    assert _Polite.models == []
+
+
+@pytest.mark.parametrize(
+    ("subject", "says"),
+    [
+        ("  target:\n    locator: acme-none://x\n", "unknown target scheme 'acme-none'"),
+        ("  target:\n    locator: acme-files://x\n", "accepts only endpoint targets"),
+        ("  target:\n    locator: not-a-locator\n", "use scheme://value"),
+        (
+            "  target:\n    locator: acme-chat://x\n    options:\n      tier: gold\n",
+            "invalid acme-chat target: acme-chat takes only `region`",
+        ),
+        (
+            "  target:\n    locator: acme-bare://x\noutput:\n  exchanges: true\n",
+            "acme-bare://x keeps none",
+        ),
+        (_SUPPORT.replace("  target:", "  fixtures: f.yaml\n  target:"), "subject.target"),
+        (_SUPPORT.replace("  target:", "  recording: a.jsonl\n  target:"), "exactly one of"),
+    ],
+)
+def test_a_target_probe_would_refuse_is_refused_before_anything_is_pinned(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, subject: str, says: str
+) -> None:
+    _installed(monkeypatch)
+    recipe = _target_team(tmp_path, subject)
+
+    result = _invoke("lock", str(recipe))
+
+    assert result.exit_code == ExitCode.INVALID_USAGE, result.output
+    assert says in normalised(result.output)
+    assert not (tmp_path / "guardana-recipe.lock.yaml").exists()
+
+
+def test_a_target_in_a_schema_2_recipe_is_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _installed(monkeypatch)
+    recipe = _target_team(tmp_path, _SUPPORT, version=2)
+
+    result = _invoke("lock", str(recipe))
+
+    assert result.exit_code == ExitCode.INVALID_USAGE
+    assert "needs `schema_version: 3`" in normalised(result.output)
+
+
+def test_a_target_that_connects_while_it_is_built_and_fails_is_unavailable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _installed(monkeypatch)
+    recipe = _target_team(tmp_path, "  target:\n    locator: acme-down://x\n")
+
+    locked = _invoke("lock", str(recipe))
+    ran = _invoke("run", str(recipe))
+
+    assert locked.exit_code == ExitCode.TARGET_UNAVAILABLE
+    assert "could not reach target acme-down://x" in normalised(locked.output)
+    assert not (tmp_path / "guardana-recipe.lock.yaml").exists()
+    assert ran.exit_code == ExitCode.TARGET_UNAVAILABLE
+    assert _status(recipe) == "refused"
+    report = (_artifact(recipe) / "report.txt").read_text(encoding="utf-8")
+    assert "could not be reached" in report

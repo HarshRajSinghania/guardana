@@ -43,13 +43,14 @@ output:
 
 | Key | Required | Meaning |
 |---|---|---|
-| `schema_version` | yes | `2`, or `1` for a recipe without `subject.fixtures`. A newer version is refused with "upgrade Guardana". |
+| `schema_version` | yes | `3`; `2` for a recipe without `subject.target`; `1` for one without `subject.fixtures` either. A newer version is refused with "upgrade Guardana". A schema-1 or schema-2 recipe keeps the digest its lock holds. |
 | `name` | yes | The recipe's name, recorded in the run. |
 | `profile` | yes | The `guardana.yaml` the checks come from, beside the recipe. |
-| `subject.kind` | with `connection` | What answers: `application` or `model_harness`. No default. With `recording` it may be left out when the recording's header declares `subject_kind`; a run where neither declares one, or the two differ, is refused before anything is graded (exit `3`). |
-| `subject.connection` | one of the two | `url`, `model`, and optionally `provider`, `api_key_env`, `adapter`, `system_prompt_file`, with the meanings `guardana probe` gives the same flags. |
-| `subject.recording` | one of the two | A recording to grade, as `guardana grade` reads it. Nothing is sent to the application. |
-| `subject.fixtures` | no | With `connection` and `schema_version: 2`: the [fixtures file](usage-fixtures.md) declaring the synthetic data the application runs with — its tenants, seeded documents, records and tools. Refused with `recording`, and in a schema-1 recipe. |
+| `subject.kind` | with `connection` or `target` | What answers: `application` or `model_harness`. No default. With `recording` it may be left out when the recording's header declares `subject_kind`; a run where neither declares one, or the two differ, is refused before anything is graded (exit `3`). |
+| `subject.connection` | one of the three | `url`, `model`, and optionally `provider`, `api_key_env`, `adapter`, `system_prompt_file`, with the meanings `guardana probe` gives the same flags. |
+| `subject.recording` | one of the three | A recording to grade, as `guardana grade` reads it. Nothing is sent to the application. |
+| `subject.target` | one of the three | With `schema_version: 3`: an installed endpoint target, as `guardana probe --target` names it. `locator` is `scheme://value`; `options` maps each `--target-option` key to its value, every value a string. |
+| `subject.fixtures` | no | With `connection` and `schema_version: 2` or later: the [fixtures file](usage-fixtures.md) declaring the synthetic data the application runs with — its tenants, seeded documents, records and tools. Refused with `recording` or `target`, and in a schema-1 recipe. |
 | `deployment` | no | `ai_system`, `environment`, `deployment_id`, as the `probe` flags of the same names. |
 | `output.directory` | no | The artifact directory, a subdirectory beside the recipe. Default `guardana-artifact`. |
 | `output.exchanges` | no | `true` puts the replies the profile keeps into the artifact. Default `false`. |
@@ -61,6 +62,34 @@ fixtures or test doubles behind it. `model_harness` is a model reached without y
 application's prompt, tools and data: a result about the model, not about what your users
 talk to. Guardana cannot tell the two apart from a URL, so it records what the recipe declares
 and shows it in the run, the terminal report, the JUnit suite name, `run inspect` and `diff`.
+
+### An installed target
+
+A pack can register its own endpoint target under a scheme ([`usage-target.md`](usage-target.md)).
+A recipe names it as `probe --target` does:
+
+```yaml
+schema_version: 3
+name: support-bot
+profile: guardana.yaml
+subject:
+  kind: application
+  target:
+    locator: acme-chat://staging
+    options:
+      region: eu
+```
+
+`recipe lock` and `recipe run` build the target once, through the same resolution `plan probe`
+uses, and refuse with exit `3` what `probe --target` refuses: a malformed locator, a scheme no
+installed distribution registers, a scheme whose target is not
+an endpoint, an option the target rejects, a budget the target cannot enforce, `fixtures`
+beside `target`, and kept exchanges — `output.exchanges: true` or the profile's
+`privacy.keep_exchanges` — with a target that keeps none (only the built-in endpoint and a
+pack's target built on it keep exchanges). The `Target` contract forbids building a target
+from contacting it; a target that connects while it is built and fails exits `4`, as it does
+for `plan probe`. The run records `source: target`, and the target's own options carry no
+secret, so no message withholds one.
 
 ## The lock
 
@@ -77,11 +106,47 @@ without reading a key, and writes `guardana-recipe.lock.yaml` beside the recipe.
 - every rule the configuration skips, by reason;
 - the adapter file the connection names, as written, and the text of its system-prompt file;
 - the fixtures file `subject.fixtures` names, as written, and every tenant adapter it names
-  (`fixtures`, `fixtures.tenants.<name>.adapter`).
+  (`fixtures`, `fixtures.tenants.<name>.adapter`);
+- the installed target `subject.target` names: its scheme, and the distribution and version
+  that register it (`target`);
+- the files of every distribution installed from a directory or a URL (`sources`).
 
 It never pins a key or the recording: the recording is your application's answer, not your
-configuration. A rule or evaluator from a distribution installed in editable mode or from a
-direct URL can change its code under one version, so it is listed under `unpinned`.
+configuration.
+
+### Distributions installed from a directory or a URL
+
+A distribution installed in editable mode or from a direct URL (PEP 610 `direct_url.json`) can
+change its code under one version, so a version pin says nothing about it. The lock pins each
+such distribution by its files, under `sources` (`digest`, `files`), when it registers a
+selected rule, an evaluator a selected rule grades with or the recipe's target, or when it is
+in the installed `Requires-Dist` closure of one that does: every requirement whose PEP
+503-normalised name is installed is followed, markers and extras ignored, so a helper library
+installed editable is pinned as the pack that imports it is.
+
+- An **editable** install is pinned by the directory its `file://` URL names: every file under
+  it by sorted POSIX relative path and the SHA-256 of its content, except `.git/`,
+  `__pycache__/`, `*.pyc`, `.venv/`, `.tox/`, `.nox/`, `node_modules/`, `*.egg-info/`,
+  `.mypy_cache/`, `.ruff_cache/` and `.pytest_cache/` at any depth, and `venv/`, `build/` and
+  `dist/` at the top of the directory only (a package of the project may carry those names).
+  Symlinks are followed, so a linked file is pinned by what it holds.
+- **Any other direct URL** — a directory installed without `-e`, a VCS checkout, an archive —
+  is pinned by its installed `RECORD`: each entry's path and recorded hash, except `*.pyc` and
+  every file of its own `.dist-info` but `METADATA` (its version and requirements) and
+  `entry_points.txt` (what it registers). The rest — `RECORD`, `INSTALLER`, `REQUESTED`,
+  `direct_url.json`, an installer's cache file — records the install, not the code that runs,
+  so installing the same code again pins the same.
+
+A distribution stays under `unpinned`, with the reason, when it holds more than 20,000 files or
+256 MiB, when a symlink leads outside its directory, when it has no `RECORD` to read, or when
+its `RECORD` lists an entry without a hash. `unpinned` maps each `rule:<id>`,
+`evaluator:<id>` and `target:<scheme>` it registers — or `distribution:<name>` when it is only
+required — to that reason. `recipe run` computes the lock again on every run, so it hashes
+each editable tree again, within the same bounds.
+
+A lock written before `sources` existed (schema 1) is still read, with no `sources`; compared
+with the current configuration it drifts `source_added` for each distribution the lock now
+pins, beside the `guardana_changed` an upgrade brings. Run `guardana recipe lock` again.
 
 ## Exit codes
 
@@ -92,6 +157,8 @@ direct URL can change its code under one version, so it is listed under `unpinne
 | a regression pair of a selected suite no longer holds: a side graded the wrong way or declined, the evaluator raised, or it cannot regrade without sending | `1`, nothing written | `1` | `3`, nothing sent |
 | the run could never pass: a check the fixtures demand that the profile does not select, or a recording whose run stopped | `3`, nothing written | `3` | runs, and is `2` |
 | something selected is `unpinned` | `2`, written | `2` | runs, and the run records what is unpinned |
+| `subject.target` refused as `probe --target` refuses it | `3`, nothing written | `3` | `3`, nothing sent |
+| `subject.target` fails to connect while it is built | `4`, nothing written | `4` | `4`, nothing sent |
 | nothing selected, plugin trust refused an installed extension, or a selected check would not grade (a rule file that did not load, an evaluator nobody registered) | `2`, nothing written | `2` | `3` (the lock cannot match) |
 | recipe or lock missing, unreadable, or from a newer Guardana | `3` | `3` | `3` |
 
@@ -101,7 +168,8 @@ sends nothing until the pins hold; then the run's gate decides its exit code as 
 `rule_added`, `rule_removed`, `judge_changed`, `calibration_changed`, `profile_changed`,
 `trust_changed`, `guardana_changed`, `recipe_changed`, `distribution_changed`,
 `skip_changed`, `trials_changed`, `subject_file_changed`, `evaluator_added`,
-`evaluator_removed`. Review the change, then run `guardana recipe lock` again.
+`evaluator_removed`, `target_changed`, `source_added`, `source_removed`, `source_changed`.
+Review the change, then run `guardana recipe lock` again.
 
 All three commands regrade the regression pairs of every selected suite
 ([`guardana case add`](usage-case.md)) before they compare anything, sending nothing: each
