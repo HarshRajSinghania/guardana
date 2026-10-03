@@ -33,12 +33,6 @@ items remain open below. Before closing any item, rerun its reproduction.
 
 Found by the pre-ship review and the false-green hunt on 2026-09-30; each was reproduced.
 
-- **`scan` of an empty directory passes under every preset, `release` included.** Every
-  artifact rule runs over no file and concludes: exit `0`, JUnit `tests="19" errors="0"`,
-  SARIF `executionSuccessful: true`, and `plan scan` agrees. `docs/profiles.md` says so.
-  Recording a target that holds no file as a coverage shortfall changes the exit code of
-  every scan of an empty path, so it needs a decision, and a new shortfall kind is a run
-  schema change.
 - **A protocol the target does not speak is a capability skip.** A chat endpoint skips the
   nine MCP rules, so `probe --preset release` is `indeterminate` against any single endpoint
   unless a profile selects the rules it serves (documented). Decide whether an MCP rule
@@ -79,30 +73,11 @@ A whole-codebase and documentation review (GPT through codex, read-only, 2026-10
 finding was reproduced or read in the code before anything changed; these were confirmed and
 left for the owner, or are design gaps already documented elsewhere.
 
-- **`--preset ci` passes a run with an unreadable notebook or model file** (UNVERIFIED, exit
-  `0`); `--preset release` fails it. Pinned by `test_ci_preset_fails_on_high` and
-  `docs/profiles.md`. Recommendation: keep, the outputs flag it.
-- **A model file whose parser failed counts as examined**, so it is an inconclusive finding
-  (exit `0` under `ci`) where a file no reader exists for is an `unexamined_component`
-  shortfall (exit `2`). Pinned by `test_unexamined_components.py`.
-- **MCP discovery can be rebound after the private-address check** (DNS rebinding); written down
-  as residual risk in `docs/threat-model.md`. Pinning the resolved address is the fix.
-- **`pack validate` does not check who registers a declared evaluator, target or taxonomy.**
-  The registry records evaluator and target origins (`registry.py`), so two of the three could
-  be checked; taxonomy origins are dropped at discovery. Checking them may fail packs that pass
-  today.
 - **`MonitorSummary.exit_code` is `0` after cycles that could not be sampled**; the `monitor`
   command exits `4`. The engine owns result codes only, and the field now says so.
 - **`assert_target_conforms` passes a file target with no files**: it samples the files the
   target lists. The extension guide's example now points at a directory holding one; failing an
   empty target would change the kit for every pack test.
-- **CLAUDE.md principle 3 says the only traffic is to the target under test**; a judge or guard
-  under `evaluators:` is a configured destination, and an MCP probe reads the authorization
-  metadata the server advertises, which may sit on another host (the landing page and
-  `privacy.md` now say so).
-- **An archive whose early members use up the opcode bound reports a later payload as not
-  scanned** (LOW, `ci` passes) rather than finding it. A member padded past 64 MiB already had
-  the same effect; failing `ci` on a not-scanned pickle archive is the owner's call.
 - `pickle_opcode` still decompresses each non-pickle member up to 64 MiB before it stops
   parsing; reading a short probe first would cut that cost. A raw `.pkl` has no opcode budget,
   but its cost grows with its own size.
@@ -110,21 +85,23 @@ left for the owner, or are design gaps already documented elsewhere.
   set is closed (`target/base.py`), and `Verifier` does not run trace analysis
   (`docs/python-api.md`).
 
+## Left by the guarded-application release (0.38.0)
+
+- **`monitor` builds a fresh meter per cycle**, so `max_requests_per_minute` is not held across
+  cycles closer together than `60 / N` seconds; the usage page says so.
+- **A judge failing mid-run and an MCP server failing part-way keep no partial run**: a judge
+  failure exits `4` with nothing saved, and an MCP server's failures stay rule errors.
+- **Declines exist on the adapter only**; the built-in provider transports have no
+  `declines:`, `retry_statuses:` or `metadata_paths:`.
+- **MCP discovery does not unwrap NAT64 or 6to4 forms** of an address it refuses; an
+  IPv4-mapped address is judged as the IPv4 address it reaches.
+- **A third-party MCP `Sender` must accept the `discovery` keyword** that pins discovery
+  connections; `guardana.core.testing.mcp` doubles do.
+- **`recipe lock` plans with `build_plan`**, not with the probe's canary passes, so how the
+  lock prices a canary pass can differ from the run.
+
 ## Left by F6, second half (0.37.0)
 
-- **An HTTP 400 from the endpoint ends a probe with exit `4` and saves nothing.** A guard that
-  rejects one prompt reads as an unreachable endpoint, and the requests already graded are
-  lost. Recording it as an error of the rule that sent it (exit `2`, the run saved) changes the
-  cause an exit code reports, so it is the owner's call; adapter `declines:` is the follow-up
-  (ROADMAP v0.38).
-- **A guarded application** (ROADMAP v0.38): adapter `declines:` the rule reads as a refusal or
-  as ungraded, `retry_statuses:`, `metadata_paths:` into `Exchange.meta`, a floor on the share
-  of graded cases in the gate, a target that fails part-way (a persistent `429` included)
-  keeping the partial run with `stopped_by`, client-side pacing
-  (`budgets.max_requests_per_minute`), a recipe naming an installed `target:`, and a
-  directory-installed pack pinned by the digest of its files rather than listed as unpinned.
-- **`pickle_opcode` reports one finding per callable**, so one Trainer artefact yields nine;
-  one finding per file listing the callables moves every fingerprint and baseline.
 - **The secret and MCP-manifest scans read 16 MiB of a file**; a larger `tokenizer.json` is
   unverified. Streaming the secret scan and sniffing a manifest by structure would cover it;
   a name-based exemption would not.
@@ -150,15 +127,10 @@ left for the owner, or are design gaps already documented elsewhere.
 
 ## Left by F6, first half (0.36.0)
 
-- **A read timeout is a rule error, not an unreachable endpoint.** urllib raises a bare
-  `TimeoutError` for a slow reply, which the runner records per rule (exit `2`) instead of
-  ending the run as unreachable (exit `4`). Never a pass, but the wrong cause.
 - **A recording's origin** (`stopped_by`, planned rules) is declared, not checked against the
   origin's `run.json`.
-- **Recipes speak the built-in connection only:** no pack `--target`, no MCP subject, no
+- **Recipes name a connection, a recording or an installed target**, but no MCP subject, no
   `--reporter`, and no SARIF in the artifact (SARIF carries no subject label yet).
-- **A Python rule's or evaluator's code is pinned by its distribution version only**; an
-  editable or direct-URL install is listed as unpinned rather than digested.
 
 ## Left by F5 (0.35.0)
 
@@ -181,16 +153,8 @@ left for the owner, or are design gaps already documented elsewhere.
 
 ## Left by F3 (0.34.0)
 
-- **Should a scan that lists no file pass?** An empty directory, or one whose every file is
-  excluded, passes today; `test_scanning_an_empty_directory_is_still_a_clean_pass` pins "nothing
-  to find is a pass, nothing to look at is not". The false-green hunt on F3 argued for
-  `indeterminate`: a CI job pointed at an empty checkout or a failed artifact download passes,
-  while the same pickle scanned directly fails. Changing it moves a pinned decision and about
-  twenty tests, so it is the owner's call.
 - **Trace analysis, `monitor`, `baseline create` and `import-observations` do not run through
   `guardana.core.verify`**, so Python gets typed results for `scan` and `probe` only.
-- **A run whose target failed part-way returns no partial result**: `TargetUnavailableError`
-  carries no `ScanResult`, as the CLI's exit `4` carries no report.
 - **A registry given to `Verifier` whole does not load the profile's `rules.paths`**, which is
   documented; refusing it would need the registry to record which rule directories it loaded.
 - **A `SystemPromptPlanter` view must enforce every budget its base target accepted.** A
@@ -229,9 +193,6 @@ left for the owner, or are design gaps already documented elsewhere.
 
 Reproduced, deliberately not fixed in this pass, or found while fixing.
 
-- **`guardana-collector status` exits `1` when the database is unreachable** (09.5). `1` means a
-  policy failure in `docs/exit-codes.md`; `4` and `5` fit. The collector CLI's codes are a
-  documented contract of their own (`docs/usage-collector.md`), so changing them is a decision.
 - **`/stats` drops a source whose submissions all fall outside the newest 1,000** from
   `by_source`, critical ones included; only the submissions tile says the window was cut.
 - **The pickle allowlist names exact callables**, so a legitimate pickle that rebuilds

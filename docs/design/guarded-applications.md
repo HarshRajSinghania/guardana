@@ -7,7 +7,7 @@ status: accepted
 
 # A guarded application, and the outcomes a run states honestly
 
-**Status:** accepted, not yet implemented · **Written:** 2026-10-03 · **Serves:** ROADMAP v0.38 (the rest of F6)
+**Status:** accepted, implemented — ships in the next release · **Written:** 2026-10-03 · **Serves:** ROADMAP v0.38 (the rest of F6)
 and the backlog items it closes · **Amends:** [`team-recipes.md`](team-recipes.md) decisions 2
 and 3, [`exit-codes.md`](exit-codes.md) (code `4` with a result)
 

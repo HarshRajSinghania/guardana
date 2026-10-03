@@ -1,6 +1,6 @@
 # A guarded application, and the outcomes a run states honestly (v0.38)
 
-Size: L · Started: 2026-10-03 · Owner: main session · Status: building
+Size: L · Started: 2026-10-03 · Owner: main session · Status: in review
 
 ## Goal
 
@@ -56,9 +56,9 @@ None — the owner's decisions are fixed. Choices made alone are marked below.
 | 7 | MCP discovery pinning (D13) | `target/_mcp_http.py`, `target/_mcp_authorization.py` | coder | 1 | `uv run pytest packages/guardana-core/tests/target packages/guardana-rules/tests/mcp -q` | [x] |
 | 8 | collector exit 4 (D13) | `server/cli/main.py`, `server/cli/codes.py` | coder | 1 | `GUARDANA_TEST_DATABASE_URL=… uv run pytest packages/guardana-server -q` | [x] |
 | 9 | pacing (D5) | `usage.py`, `cli/_budget_flags.py`, `core/plan.py`, `cli/plan.py`, `schemas/plan-v4` | coder | 1 | `uv run pytest packages/guardana-core/tests/test_budgets.py packages/guardana-core/tests/test_plan.py packages/guardana-cli -q` | [x] |
-| 10 | decline grading, recording 3 (D1 rest, D3 kept) | `exchange.py`, `evaluator/*.py`, `rule/yaml_rule.py`, `rule/suite_rule.py`, `rule/scenario_rule.py`, `suite.py`, `recording.py`, `target/recorded.py`, `promotion.py`, rules `output/secrets.py`, `seeded/*` | coder | 3 | `uv run pytest packages/guardana-core packages/guardana-rules -q` | [ ] |
-| 11 | empty target and graded share (D6, D9) | `runner.py`, `core/plan.py`, `profile/model.py`, `profile/loader.py`, the ~20 pinned tests | coder | 2, 9 | `uv run pytest packages/guardana-core packages/guardana-cli -q` | [ ] |
-| 13 | integration polish: shortfall wording, stop message under `metadata_only`, `custom_rule` shortfall, exit-code rows | renderers, `verify.py`, CLI printing, `examples/custom_rule`, exit-code pages | coder | 2, 4 | core + cli + report, custom_rule suite | [ ] |
+| 10 | decline grading, recording 3 (D1 rest, D3 kept) | `exchange.py`, `evaluator/*.py`, `rule/yaml_rule.py`, `rule/suite_rule.py`, `rule/scenario_rule.py`, `suite.py`, `recording.py`, `target/recorded.py`, `promotion.py`, rules `output/secrets.py`, `seeded/*` | coder | 3 | `uv run pytest packages/guardana-core packages/guardana-rules -q` | [x] |
+| 11 | empty target and graded share (D6, D9) | `runner.py`, `core/plan.py`, `profile/model.py`, `profile/loader.py`, the ~20 pinned tests | coder | 2, 9 | `uv run pytest packages/guardana-core packages/guardana-cli -q` | [x] |
+| 13 | integration polish: shortfall wording, stop message under `metadata_only`, `custom_rule` shortfall, exit-code rows | renderers, `verify.py`, CLI printing, `examples/custom_rule`, exit-code pages | coder | 2, 4 | core + cli + report, custom_rule suite | [x] |
 | 12 | principle 3, docs five places, design accepted | `CLAUDE.md`, `lessons.md`, `CONTRIBUTING.md`, `FEATURES.md`, `docs/*` | main | 2–11 | `uv run pytest packages/guardana-core/tests/test_docs_consistency.py -q`, `build_site.py --check` | [ ] |
 
 Wave 1: lane 1. Wave 2, in parallel: lanes 2–9. Wave 3: lanes 10 and 11. Then lane 12, the
@@ -138,14 +138,12 @@ release write those).
 
 ## Handoff
 
-- Done: lanes 1–9 merged on `integration/v0.38`, each followed by the full suite
-  (last: `7916 passed, 3 skipped`); principle 3 committed. Lane 6 merged with the built-in
-  catalogue owner as a constant; lane 5's RECORD pin leaves out installer bookkeeping.
-- In flight: lanes 10, 11, 13 (coders in worktrees).
-- Next: merge 10, 11, 13; lane 12 (FEATURES, index, ROADMAP, design status); full gate; review.
+- Done: lanes 1–11 and 13 merged on `integration/v0.38`, each followed by the full suite
+  (last: `8098 passed, 3 skipped`); principle 3, the `assert_secure` message and the
+  `declined:` tag reservation committed; FEATURES, BACKLOG and the design status updated.
+  A stand-in guarded application was probed through the CLI: declines graded as refusals and
+  kept (format 3), a `503` stopped the run with exit `4` and saved it, an undeclared `400`
+  was a `request` error of one rule.
+- Next: full gate, review (fresh reviewers per lane group, at most three rounds), false-green
+  hunt, release 0.38.0.
 - How to verify where we are: `git log --oneline main..integration/v0.38`.
-- For BACKLOG at release: `monitor` builds a fresh meter per cycle, so a rate is not held
-  across cycles shorter than 60/N; MCP discovery does not unwrap NAT64/6to4 forms of a refused
-  address; `recipe lock` plans with `build_plan`, not the probe's canary passes; a third-party
-  MCP `Sender` must accept the `discovery` keyword; a judge failing mid-run and an MCP server
-  failing part-way still keep no partial run; declines on the built-in provider transports.

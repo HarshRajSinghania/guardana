@@ -20,7 +20,7 @@ For maturity and known gaps, read [Product status](docs/product-status.md).
 | Probe a model, agent, or MCP server | `guardana probe ...` | bounded active checks with graded evidence |
 | Analyze an existing execution | `guardana analyze-trace TRACE` | trace rules over a local file, calling no model or tool |
 | Grade recorded answers | `guardana grade RECORDING` | your rules over answers you supplied or a probe kept, with no target request |
-| Pin and run a team's checks in CI | `guardana recipe lock`, `guardana recipe run` | a lock of rules, datasets, judges and calibrations checked before anything is sent, and one artifact directory that never shows an earlier green |
+| Pin and run a team's checks in CI | `guardana recipe lock`, `guardana recipe run` | a lock of rules, datasets, judges, calibrations and the files of a directory-installed pack, checked before anything is sent, against a connection, a recording or an installed `target:`, and one artifact directory that never shows an earlier green |
 | Promote a reviewed failure into a regression case | `guardana case add`, `guardana case list` | one kept exchange added to a suite's dataset, labelled and versioned, only once its expectation fails the failure and passes a correct reply |
 | Declare the synthetic data an application runs with | `guardana-fixtures.yaml`, `guardana fixtures render FILE --out DIR` | tenants with their own credentials, seeded documents and records each carrying markers derived from what was declared, the documents a team ingests, and a recipe lock that pins the file and every tenant adapter |
 | Serve an application's tools in CI | `guardana.core.doubles.open_doubles(FILE, trace=PATH)` | the declared tools over an in-memory copy of the declared records, each call acting for one tenant and seeing only its records, and a trace of every call and effect for `analyze-trace` |
@@ -35,7 +35,13 @@ For maturity and known gaps, read [Product status](docs/product-status.md).
 `--url`, `--model`, `--provider`, `--api-key-env`, `--adapter` — and refuse one they cannot
 honour before the first request.
 [Providers](docs/providers.md) lists what each provider and adapter carries and retries; one
-conformance suite holds them to it.
+conformance suite holds them to it. An adapter file maps a guarded application: `declines:`
+names the replies its guard sends when it declines a request, read by the evaluator as a
+refusal or as ungraded and never retried; `retry_statuses:` names what is retried; and
+`metadata_paths:` copies reply fields into what an evaluator reads. An evaluator says how it
+reads a declined request (`read_decline`); one that does not say never passes it, and a
+decline never takes back a failure in an earlier turn.
+`budgets.max_requests_per_minute` paces every request the run sends.
 
 Every target-building workflow also accepts an installed, trusted custom target
 as `--target scheme://locator`. The command retains control of the target kind,
@@ -56,13 +62,17 @@ A run keeps separate channels for:
 - unverified results: the check ran but could not decide;
 - errors: the check could not run;
 - coverage shortfalls: policy-required evidence was unavailable, a model file the scan
-  observed was read by no rule that ran, or a model or notebook a rule could not read,
-  named by its file beside the rule's unverified result;
+  observed was read by no rule that ran, a model or notebook a rule could not read,
+  named by its file beside the rule's unverified result, a scanned path that held no file,
+  or a rule that graded none of its cases (or fewer than `fail_on.min_graded_share`);
 - assessments: what was measured, including passes.
 
 Unknown counts and costs remain unknown rather than becoming zero. Exhausted
 budgets, incomplete runs, unreadable artifacts, and incomparable baselines produce
-explicit non-success exit codes; a crash exits `5` and an interrupt `7`. An unverified result is never weighed against a
+explicit non-success exit codes; a crash exits `5` and an interrupt `7`. A target that fails
+part-way — no connection, a timeout, a persistent `429`, a `5xx` — stops the run with
+`stopped_by: target_unavailable` and exit `4`, and the run it reached is saved; a request the
+application rejects with another `4xx` is an error of the rule that sent it. An unverified result is never weighed against a
 severity bar: how bad an unmeasured thing is has no answer, so `fail_on_inconclusive`
 governs all of them or none, and a check that went dark between two runs is a
 regression at any severity. Saved runs carry versions, policy identity (the profile's digest),
@@ -197,7 +207,9 @@ is a checked fact or a lead (`detection:`), and the generated
 [detection limits](docs/generated/detection-limits.md) page lists every built-in by family
 beside the framework entries it is only mapped to. `guardana new-pack` writes a complete pack —
 manifest, entry points, one sampled rule per shape, a locator target and tests — that
-passes `pack validate` and `rule test` before it is edited. Pack manifests declare API
+passes `pack validate` and `rule test` before it is edited. `pack validate` checks that the
+distribution declaring a rule, evaluator, target or taxonomy framework is the one that
+registers it. Pack manifests declare API
 compatibility and locks pin the exact installed extensions.
 The shipped conformance helpers verify capability claims and fail closed on an
 incomplete implementation.
@@ -223,7 +235,8 @@ Kubernetes deployment; those remain roadmap work.
 
 ## Safety boundaries
 
-Guardana never executes a tool offered to a model. Active checks still send real
+Guardana never executes a tool offered to a model, and MCP authorization discovery
+connects only to the address it checked. Active checks still send real
 requests and can cost money or trigger a model's surrounding application, so they
 are opt-in, budgeted, and documented for staging use. See
 [Safe testing](docs/safe-testing.md), [Privacy](docs/privacy.md), and the
