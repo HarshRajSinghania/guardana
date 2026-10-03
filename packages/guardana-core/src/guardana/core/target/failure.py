@@ -12,6 +12,7 @@ from http.client import HTTPException
 from urllib.error import HTTPError
 
 from guardana.core.redaction import MessageQuoting
+from guardana.core.report.check_error import bounded_reason
 from guardana.core.target.endpoint import EndpointUnreachable
 
 _CREDENTIAL_STATUSES = frozenset({401, 403, 407})
@@ -88,13 +89,16 @@ def describe_failure(
     other status quotes the start of the body, which is where an endpoint says what it
     refused. A failure without a status says the endpoint could not be reached. The
     quote never holds one of the run's secrets, and under `metadata_only` only sizes
-    are given.
+    are given. The message is cut, after its secrets are withheld, to the length a
+    recorded reason may have.
     """
     if isinstance(exc, HTTPError):
-        return _status_message(exc, ref, quoting, remedies)
-    if isinstance(exc, EndpointUnreachable):
-        return _said(exc, quoting)
-    return f"could not reach endpoint {ref}: {_said(exc, quoting)}"
+        said = _status_message(exc, ref, quoting, remedies)
+    elif isinstance(exc, EndpointUnreachable):
+        said = _said(exc, quoting)
+    else:
+        said = f"could not reach endpoint {ref}: {_said(exc, quoting)}"
+    return bounded_reason(said)
 
 
 def _said(exc: BaseException, quoting: MessageQuoting) -> str:

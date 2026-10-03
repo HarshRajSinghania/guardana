@@ -8,8 +8,9 @@ judge that fails is not the target's failure and still propagates.
 """
 
 import io
+import json
 import threading
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from email.message import Message
 from pathlib import Path
 from urllib.error import HTTPError, URLError
@@ -18,6 +19,7 @@ import pytest
 from guardana.core.budget import BudgetExhausted
 from guardana.core.evaluator.config import JudgeUnavailableError
 from guardana.core.gate import exit_code_for, gate_outcome
+from guardana.core.plugins import PluginMode, PluginTrust
 from guardana.core.profile.model import Policy, Profile
 from guardana.core.registry import Registry
 from guardana.core.report import Evidence, Finding, ScanResult, StopReason
@@ -25,20 +27,25 @@ from guardana.core.rule import Rule, RuleContext, RuleMeta
 from guardana.core.runner import Runner, target_failures
 from guardana.core.severity import Severity
 from guardana.core.target import (
+    AdapterConfig,
     ArtifactTarget,
     Capability,
     ChatMessage,
     EndpointError,
     EndpointTarget,
     EndpointUnreachable,
+    HttpAdapterTransport,
     Target,
     TargetKind,
 )
+from guardana.core.target.adapter import FetchedReply
 from guardana.core.target.endpoint import UrllibTransport
 from guardana.core.target.failure import FailureRemedies
 from guardana.core.testing._fake_provider import FakeProvider, delayed, openai_reply
+from guardana.core.verify import Verifier
 
 _KEY = "acme-live-0123456789abcdef"
+_UNPATTERNED_KEY = "gw-live-7Q2mZp9XvR4tL8kN3bW6"
 _PROFILE = Profile(name="t", policy=Policy())
 
 
@@ -302,3 +309,90 @@ def test_a_slow_reply_stops_the_run_as_the_target_not_answering() -> None:
     assert result.stopped_by is StopReason.TARGET_UNAVAILABLE
     assert result.rules_run == ("a.fast",)
     assert target_failures(result) == (f"{target.ref} did not answer within 0.2 seconds",)
+
+
+class _EchoesKey:
+    """An application that refuses every request with `status`, quoting the key it was sent."""
+
+    def __init__(self, status: int) -> None:
+        self._status = status
+
+    def send(
+        self,
+        base_url: str,
+        model: str,
+        messages: Sequence[ChatMessage],
+        api_key: str | None,
+    ) -> str:
+        """Refuse, echoing the key."""
+        raise _status(self._status, f'{{"error":"bad body for key {api_key}"}}'.encode())
+
+
+def _keyed(code: int) -> EndpointTarget:
+    return EndpointTarget("http://x", "m", api_key=_UNPATTERNED_KEY, transport=_EchoesKey(code))
+
+
+@pytest.mark.parametrize("code", [400, 503])
+def test_a_key_the_endpoint_sends_is_withheld_though_the_caller_named_none(code: int) -> None:
+    registry = Registry()
+    registry.register_rule(_Asking("only"))
+
+    result = Runner(registry=registry, profile=_PROFILE).run(_keyed(code))
+
+    assert [e.source for e in result.errors] == ["only"]
+    assert _UNPATTERNED_KEY not in result.errors[0].reason
+    assert "bad body for key [redacted:credential]" in result.errors[0].reason
+
+
+@pytest.mark.parametrize("code", [400, 503])
+def test_the_python_api_never_saves_or_says_a_key_the_target_sent(code: int) -> None:
+    registry = Registry()
+    registry.register_rule(_Asking("only"))
+    verifier = Verifier(trust=PluginTrust(mode=PluginMode.BUILTINS), registry=registry)
+
+    verification = verifier.run(_keyed(code))
+
+    assert verification.result.errors
+    assert _UNPATTERNED_KEY not in json.dumps(verification.document())
+    assert not any(_UNPATTERNED_KEY in message for message in verification.stop_messages)
+
+
+def test_the_header_values_an_adapter_sends_are_withheld_from_the_reason() -> None:
+    gateway = "gw-tok-Hs8mQ2vX9pL4kR7n"
+    bearer = "gw-brr-Zt5cW1yN8bD3fJ6q"
+
+    def echoes(url: str, data: bytes, headers: Mapping[str, str]) -> FetchedReply:
+        return FetchedReply(400, f"refused {gateway} and {bearer}".encode())
+
+    adapter = HttpAdapterTransport(
+        AdapterConfig(
+            url="http://x/chat",
+            body={"message": "{{prompt}}"},
+            response_path="reply",
+            headers={"X-Gateway-Token": gateway, "Authorization": f"Bearer {bearer}"},
+        ),
+        fetch=echoes,
+    )
+    registry = Registry()
+    registry.register_rule(_Asking("only"))
+
+    result = Runner(registry=registry, profile=_PROFILE).run(
+        EndpointTarget("http://x", "m", transport=adapter)
+    )
+
+    reason = result.errors[0].reason
+    assert gateway not in reason
+    assert bearer not in reason
+    assert "refused [redacted:credential] and [redacted:credential]" in reason
+
+
+def test_a_failure_of_any_length_is_saved_cut_to_the_reason_limit() -> None:
+    huge = EndpointError(f"unexpected response from http://x#m: {'A' * 60_000}")
+
+    result = _run(_Answers(only=huge), _Asking("only"))
+
+    assert result.stopped_by is StopReason.TARGET_UNAVAILABLE
+    (said,) = target_failures(result)
+    assert len(said) <= 500
+    assert said.startswith("could not reach endpoint http://x#m: unexpected response")
+    assert said.endswith("characters]")

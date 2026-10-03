@@ -84,6 +84,14 @@ class SeededTarget(Target):
         """The run's endpoint: tenants reach the same application, so they share its reference."""
         return self._endpoint.ref
 
+    def sent_secrets(self) -> tuple[str, ...]:
+        """Return what the run's endpoint and every tenant's endpoint send to authenticate."""
+        return tuple(
+            value
+            for endpoint in (self._endpoint, *self._tenants.values())
+            for value in endpoint.sent_secrets()
+        )
+
     def capabilities(self) -> set[Capability]:
         """Declare what the run's endpoint declares, plus `SEEDED_DATA`."""
         return {*self._endpoint.capabilities(), Capability.SEEDED_DATA}

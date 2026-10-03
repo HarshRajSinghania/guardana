@@ -150,11 +150,14 @@ def _pace_lines(run_plan: RunPlan) -> list[str]:
     rate = run_plan.budgets.max_requests_per_minute
     if floor is None or rate is None or floor == 0:
         return []
-    lines = [f"wall time: at least {floor:g}s at {rate} request(s) per minute, retries not counted"]
+    lines = [
+        f"wall time: {floor:g}s for the estimated requests at {rate} request(s) per minute, "
+        f"retries not counted"
+    ]
     limit = run_plan.budgets.max_duration_seconds
     if limit is not None and run_plan.exceeds_duration:
         lines.append(
-            f"⚠ this plan does not fit its time budget — {limit:g}s is less than the "
+            f"⚠ this plan does not fit its time budget — {limit:g}s is not more than the "
             f"{floor:g}s its requests need at {rate} per minute, so the run would stop early, "
             f"and a run that stops early reports no verdict"
         )
@@ -515,8 +518,8 @@ def plan_probe(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; thi
 
     The budget is applied to the target as the probe applies it, so a token ceiling
     its transport cannot report against is refused here too. Under a request rate the
-    plan states the least wall time the estimated requests need at that pace, retries
-    not counted, and refuses a duration ceiling below it.
+    plan states the wall time the estimated requests need at that pace, retries not
+    counted, and refuses a duration ceiling that ends before the last of them is sent.
 
     With `--fixtures`, the two seeded checks are priced from the file — one request per
     item and tenant per trial, and one per poisoned document per trial — and each tenant

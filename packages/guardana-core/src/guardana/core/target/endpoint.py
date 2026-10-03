@@ -168,6 +168,24 @@ class ChatTransport(Protocol):
         raise NotImplementedError
 
 
+@runtime_checkable
+class SendsSecrets(Protocol):
+    """A target or transport that names the values it sends to authenticate.
+
+    The runner withholds them from every failure it records, so an endpoint that echoes
+    a key in an error body cannot put it in a saved run, whoever built the target.
+    """
+
+    def sent_secrets(self) -> tuple[str, ...]:
+        """Return every value this sends that a recorded message must never quote."""
+        raise NotImplementedError
+
+
+def secrets_sent_by(sender: object) -> tuple[str, ...]:
+    """Return what `sender` declares it sends to authenticate; nothing when it declares none."""
+    return sender.sent_secrets() if isinstance(sender, SendsSecrets) else ()
+
+
 @dataclass(frozen=True, slots=True)
 class ToolSpec:
     """A tool offered to the model — its name and what it does."""
@@ -730,6 +748,11 @@ class EndpointTarget(Target):
     def ref(self) -> str:
         """The endpoint and model under test, as it appears in findings."""
         return endpoint_ref(self._base_url, self._model)
+
+    def sent_secrets(self) -> tuple[str, ...]:
+        """Return the API key this endpoint sends and whatever its transport declares sending."""
+        key = () if self._api_key is None else (self._api_key,)
+        return (*key, *secrets_sent_by(self._transport))
 
     def planting(self, system_prompt: str) -> Self:
         """Return this endpoint with an additional prompt and the same run meter.

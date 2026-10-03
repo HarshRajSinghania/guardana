@@ -331,7 +331,7 @@ def _incomplete(before: ScanResult, after: ScanResult) -> tuple[str, ...]:
     naming the fact: the remedy for a spent budget is a bigger budget, not a
     re-enabled rule.
 
-    **Coverage the operator demanded and did not get counts here too**, and it is the
+    **Coverage the run's verdict needs and did not get counts here too**, and it is the
     case a comparison hides most quietly. A run that could not check the contract
     somebody wrote produces the same finding list as one where the contract held, so
     subtracting them yields no change at all — and `diff` would report "no
@@ -350,7 +350,7 @@ def _incomplete(before: ScanResult, after: ScanResult) -> tuple[str, ...]:
             if result.stopped_by is not None
         ),
         *(
-            f"the {label} run did not get coverage it demanded "
+            f"the {label} run is missing coverage its verdict needs "
             f"({', '.join(gap.name for gap in result.coverage_shortfall)}), so what needed "
             f"that evidence is unknown rather than clean"
             for label, result in sides

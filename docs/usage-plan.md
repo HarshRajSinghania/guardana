@@ -267,15 +267,18 @@ configuration, found before the run rather than halfway through it:
 A token ceiling a judge's transport cannot enforce is refused with `3` too, the same
 way `probe` refuses it.
 
-With `max_requests_per_minute` set, the plan states the least wall time the run needs
-at that pace: the estimated target requests — a rule of unknown cost counted once — or
-the calls of the busiest judge meter, whichever is larger, times `60 / N`. Retries and
-the time each reply takes are not counted, so the real run takes longer. A
-`max_duration` below that floor exits `3`, and `fits_budget` is `false` in the JSON:
+With `max_requests_per_minute` set, the plan states the wall time the estimated
+requests need at that pace. The first request goes at once and each further one
+`60 / N` seconds later, so the time is one less than the requests, times `60 / N`: the
+estimated target requests — a rule of unknown cost counted once — or the calls of the
+busiest judge meter, whichever is larger. Retries and the time each reply takes are not
+counted, so the real run takes longer. A `max_duration` that is not more than that
+time exits `3`, since the run would stop before its last request, and `fits_budget` is
+`false` in the JSON:
 
 ```text
-wall time: at least 590s at 6 request(s) per minute, retries not counted
-⚠ this plan does not fit its time budget — 300s is less than the 590s its requests need at 6 per minute, so the run would stop early, and a run that stops early reports no verdict
+wall time: 580s for the estimated requests at 6 request(s) per minute, retries not counted
+⚠ this plan does not fit its time budget — 300s is not more than the 580s its requests need at 6 per minute, so the run would stop early, and a run that stops early reports no verdict
 ```
 
 The JSON carries both as `budgets.max_requests_per_minute` and

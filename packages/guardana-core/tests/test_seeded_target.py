@@ -161,6 +161,15 @@ def test_one_budget_bounds_the_endpoint_and_every_tenant_together() -> None:
     assert target.usage().requests == 3
 
 
+def test_a_seeded_target_declares_the_key_every_tenant_sends() -> None:
+    target = _seeded()
+
+    sent = target.sent_secrets()
+
+    assert target.fixtures.tenant_names
+    assert all(tenant_key(name) in sent for name in target.fixtures.tenant_names)
+
+
 @pytest.mark.parametrize("problem", ["another meter", "a missing tenant", "the run's endpoint"])
 def test_a_seeded_target_refuses_tenants_the_run_would_not_bound(problem: str) -> None:
     fixtures = _fixtures()

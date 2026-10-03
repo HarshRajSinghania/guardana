@@ -1,8 +1,8 @@
 """`--max-requests-per-minute`: a pace from the command line, and the wall time it costs.
 
 The flag wins over the profile as the other budget flags do, and sets only the pace;
-`plan probe` states the least wall time that pace needs and refuses a duration
-ceiling below it, before anything is sent.
+`plan probe` states the wall time the estimated requests need at that pace and refuses a
+duration ceiling that ends before the last of them is sent, before anything is sent.
 """
 
 import json
@@ -93,7 +93,7 @@ def test_the_rate_flag_reaches_the_plan_over_the_profile(
     )
 
     assert payload["budgets"]["max_requests_per_minute"] == 60
-    assert payload["budgets"]["minimum_wall_time_seconds"] == float(payload["requests"]["max"])
+    assert payload["budgets"]["minimum_wall_time_seconds"] == float(payload["requests"]["max"] - 1)
 
 
 def test_a_plan_states_the_wall_time_its_rate_needs(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -102,7 +102,8 @@ def test_a_plan_states_the_wall_time_its_rate_needs(monkeypatch: pytest.MonkeyPa
     result = _plan(monkeypatch, "--max-requests-per-minute", "60")
 
     assert result.exit_code == ExitCode.OK, result.output
-    assert f"wall time: at least {ceiling}s at 60 request(s) per minute" in _plain(result.output)
+    stated = f"wall time: {ceiling - 1}s for the estimated requests at 60 request(s) per minute"
+    assert stated in _plain(result.output)
 
 
 def test_a_duration_ceiling_below_the_floor_is_refused_before_anything_is_sent(

@@ -121,6 +121,41 @@ def test_an_unreachable_endpoint_is_said_in_its_own_words() -> None:
     assert said == "http://x#m did not answer within 30 seconds"
 
 
+@pytest.mark.parametrize(
+    "error",
+    [
+        EndpointUnreachable(f"connection to http://x#m failed: GARBAGE {'A' * 60_000}"),
+        EndpointError(f"unexpected response from http://x#m: {{'junk': '{'B' * 60_000}'}}"),
+        URLError("C" * 60_000),
+    ],
+    ids=["bad-status-line", "unexpected-payload", "no-connection"],
+)
+def test_a_message_of_any_length_is_cut_to_the_reason_limit_and_says_so(
+    error: Exception,
+) -> None:
+    said = describe_failure(error, "http://x#m", _QUOTING, _REMEDIES)
+
+    assert len(said) <= 500
+    assert said.endswith("characters]")
+    assert "cut from" in said
+
+
+def test_a_message_within_the_limit_is_left_whole() -> None:
+    said = describe_failure(EndpointError("short"), "http://x#m", _QUOTING, _REMEDIES)
+
+    assert said == "could not reach endpoint http://x#m: short"
+
+
+def test_a_sent_secret_is_withheld_before_the_message_is_cut() -> None:
+    sent = "gw-live-7Q2mZp9XvR4tL8kN3bW6"
+    quoting = MessageQuoting.of(RedactionPolicy(), (sent,))
+    error = EndpointError(f"{'D' * 423}{sent}{'E' * 1000}")
+
+    said = describe_failure(error, "http://x#m", quoting, _REMEDIES)
+
+    assert sent[:10] not in said
+
+
 def test_any_other_failure_says_the_endpoint_could_not_be_reached() -> None:
     said = describe_failure(URLError(RemoteDisconnected("gone")), "http://x#m", _QUOTING, _REMEDIES)
 

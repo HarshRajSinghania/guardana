@@ -1,8 +1,11 @@
+import io
 import json
 import re
 from collections.abc import Mapping, Sequence
+from email.message import Message
 from pathlib import Path
 from typing import Self
+from urllib.error import HTTPError
 
 import pytest
 import typer
@@ -99,6 +102,35 @@ class _ChatPack(EndpointTarget):
     @classmethod
     def from_locator(cls, locator: str, *, options: Mapping[str, str]) -> Self:
         return cls("http://chat.test", locator, transport=_Refuses())
+
+
+_ECHOED_KEY = "gw-live-7Q2mZp9XvR4tL8kN3bW6"
+
+
+class _EchoesKey:
+    """A chat transport whose application refuses every request, quoting the key it was sent."""
+
+    status = 400
+
+    def send(
+        self,
+        base_url: str,
+        model: str,
+        messages: Sequence[ChatMessage],
+        api_key: str | None,
+    ) -> str:
+        body = f'{{"error":"bad body for key {api_key}"}}'.encode()
+        raise HTTPError(base_url, self.status, "refused", Message(), io.BytesIO(body))
+
+
+class _KeyedPack(EndpointTarget):
+    """A pack's endpoint target that authenticates with a key no built-in pattern knows."""
+
+    scheme = "acme-keyed"
+
+    @classmethod
+    def from_locator(cls, locator: str, *, options: Mapping[str, str]) -> Self:
+        return cls("http://chat.test", locator, api_key=_ECHOED_KEY, transport=_EchoesKey())
 
 
 class _Unavailable(_Located):
@@ -428,6 +460,27 @@ def test_probe_runs_an_installed_endpoint_target(
         if skipped["rule_id"] == "guardana.prompt.system_prompt_leak.canary"
     )
     assert canary["missing"] == ["plant_system_prompt"]
+
+
+@pytest.mark.parametrize("status", [400, 503], ids=["request-refused", "target-failed"])
+def test_probe_of_an_installed_target_never_saves_or_prints_the_key_it_echoes(
+    status: int, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _install_endpoint(monkeypatch, _KeyedPack)
+    monkeypatch.setattr(_EchoesKey, "status", status)
+    output = tmp_path / "probe.json"
+
+    result = runner.invoke(
+        app,
+        ["probe", "--target", "acme-keyed://support", "--format", "json", "--output", str(output)],
+    )
+
+    assert result.exit_code in (2, 4), result.output
+    saved = output.read_text(encoding="utf-8")
+    assert "bad body for key [redacted:credential]" in saved
+    assert _ECHOED_KEY not in saved
+    assert _ECHOED_KEY not in result.output
+    assert _ECHOED_KEY not in result.stderr
 
 
 def test_monitor_rebuilds_an_installed_target_for_its_cycle(

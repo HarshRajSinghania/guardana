@@ -110,7 +110,7 @@
           "minimum": 1
         },
         "minimum_wall_time_seconds": {
-          "description": "The least wall time the run needs at `max_requests_per_minute`: the estimated target requests (a rule of unknown cost counted once), or the calls of the busiest budgeted judge on its own meter, times 60 / the rate. Retries are not counted. Null without a rate.",
+          "description": "The wall time the estimated requests need at `max_requests_per_minute`: one less than the estimated target requests (a rule of unknown cost counted once), or than the calls of the busiest budgeted judge on its own meter, times 60 / the rate, since the first request goes at once. Retries are not counted. Null without a rate.",
           "type": [
             "number",
             "null"
@@ -121,7 +121,7 @@
     },
     "fits_budget": {
       "type": "boolean",
-      "description": "False when the target requests, or the calls of any one budgeted judge on its own meter, could exceed `budgets.max_requests`, when a rule of unknown cost could draw on either, or when `budgets.max_duration_seconds` is below `budgets.minimum_wall_time_seconds`."
+      "description": "False when the target requests, or the calls of any one budgeted judge on its own meter, could exceed `budgets.max_requests`, when a rule of unknown cost could draw on either, or when `budgets.max_duration_seconds` is not more than `budgets.minimum_wall_time_seconds`."
     },
     "trials": {
       "description": "Attempts per case the run was asked for, already inside `requests`, and the selected rules that make one attempt whatever was asked because their verdict does not depend on a sampled reply.",

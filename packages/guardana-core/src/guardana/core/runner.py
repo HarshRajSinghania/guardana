@@ -32,6 +32,7 @@ from guardana.core.target import (
     TargetKind,
 )
 from guardana.core.target._scoped import RuleScoped
+from guardana.core.target.endpoint import secrets_sent_by
 from guardana.core.target.failure import (
     FailureRemedies,
     FailureScope,
@@ -277,7 +278,11 @@ class Runner:
     """
 
     secrets: tuple[str, ...] = field(default=(), repr=False)
-    """The values the run sends to authenticate, withheld from every failure it records."""
+    """Values to withhold from every failure the run records, beyond those the target declares.
+
+    A target that implements `SendsSecrets` names its own; these add what the caller
+    knows of and the target does not.
+    """
 
     remedies: FailureRemedies = field(default_factory=FailureRemedies)
     """What a recorded failure advises for a refused credential and for a rate limit."""
@@ -585,11 +590,13 @@ class Runner:
 
         A request the application refused is this rule's error and the run goes on. A
         failure of the target stops the run, as a spent budget does, because every
-        further request would meet it; the error says what the target did.
+        further request would meet it; the error says what the target did. The reason
+        withholds the values the target declares sending as well as the run's own.
         """
         scope = failure_scope(exc)
+        withheld = (*self.secrets, *secrets_sent_by(target))
         reason = describe_failure(
-            exc, target.ref, MessageQuoting.of(self.profile.privacy, self.secrets), self.remedies
+            exc, target.ref, MessageQuoting.of(self.profile.privacy, withheld), self.remedies
         )
         findings, unverified = produced
         return _RuleOutcome(

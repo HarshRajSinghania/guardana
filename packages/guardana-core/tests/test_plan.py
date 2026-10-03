@@ -9,6 +9,7 @@ from collections.abc import Iterable
 from dataclasses import replace
 from pathlib import Path
 
+import pytest
 from guardana.core.budget import Budgets
 from guardana.core.plan import JudgeMeterPlan, JudgePlan, RunPlan, build_plan
 from guardana.core.profile import Policy, Profile
@@ -157,13 +158,13 @@ def _planned(budgets: Budgets, *, max_requests: int = 30, unknown: tuple[str, ..
 def test_a_request_rate_sets_a_floor_on_wall_time() -> None:
     plan = _planned(Budgets(max_requests_per_minute=10))
 
-    assert plan.minimum_wall_time_seconds == 180.0
+    assert plan.minimum_wall_time_seconds == 174.0, "30 requests, 29 intervals of 6s"
 
 
 def test_a_rule_of_unknown_cost_adds_at_least_one_paced_request() -> None:
     plan = _planned(Budgets(max_requests_per_minute=60), unknown=("acme.test.unpriced",))
 
-    assert plan.minimum_wall_time_seconds == 31.0
+    assert plan.minimum_wall_time_seconds == 30.0
 
 
 def test_the_busiest_judge_meter_can_set_the_floor() -> None:
@@ -177,7 +178,7 @@ def test_the_busiest_judge_meter_can_set_the_floor() -> None:
         ),
     )
 
-    assert plan.minimum_wall_time_seconds == 40.0
+    assert plan.minimum_wall_time_seconds == 39.0
 
 
 def test_without_a_rate_there_is_no_floor() -> None:
@@ -187,13 +188,22 @@ def test_without_a_rate_there_is_no_floor() -> None:
     assert plan.exceeds_duration is False
 
 
-def test_a_duration_ceiling_below_the_floor_does_not_fit() -> None:
-    plan = _planned(Budgets(max_requests_per_minute=10, max_duration_seconds=179.0))
+@pytest.mark.parametrize("ceiling", [173.0, 174.0])
+def test_a_duration_ceiling_that_ends_before_the_last_request_does_not_fit(
+    ceiling: float,
+) -> None:
+    plan = _planned(Budgets(max_requests_per_minute=10, max_duration_seconds=ceiling))
 
     assert plan.exceeds_duration is True
 
 
-def test_a_duration_ceiling_at_the_floor_fits() -> None:
-    plan = _planned(Budgets(max_requests_per_minute=10, max_duration_seconds=180.0))
+def test_a_duration_ceiling_past_the_last_request_fits() -> None:
+    plan = _planned(Budgets(max_requests_per_minute=10, max_duration_seconds=174.5))
 
     assert plan.exceeds_duration is False
+
+
+def test_one_paced_request_needs_no_wall_time() -> None:
+    plan = _planned(Budgets(max_requests_per_minute=10), max_requests=1)
+
+    assert plan.minimum_wall_time_seconds == 0.0

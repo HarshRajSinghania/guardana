@@ -304,6 +304,17 @@ class HttpAdapterTransport:
         """
         return self.send_with_metadata(base_url, model, messages, api_key).text
 
+    def sent_secrets(self) -> tuple[str, ...]:
+        """Return every header value this adapter sends, and the credential after a scheme word.
+
+        Every header counts, because a literal one may hold a key as surely as one read
+        from a variable. In `Bearer <token>` the token alone counts too, since an
+        endpoint may echo it without the scheme.
+        """
+        values = self._config.headers.values()
+        credentials = (value.split()[-1] for value in values if len(value.split()) > 1)
+        return (*values, *credentials)
+
     def send_with_metadata(
         self,
         base_url: str,

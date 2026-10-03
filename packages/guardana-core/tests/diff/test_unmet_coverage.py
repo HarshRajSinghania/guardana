@@ -54,6 +54,18 @@ def test_no_policy_setting_waves_an_unmet_demand_through() -> None:
     assert gate_diff(diff, Policy()) is True
 
 
+def test_coverage_nobody_demanded_is_named_as_missing_not_as_a_demand() -> None:
+    empty = CoverageShortfall(
+        kind=ShortfallKind.EMPTY_TARGET, name="packages", detail="no file left to scan"
+    )
+    after = ScanResult(findings=(), rules_run=_RULES, rules_skipped=(), coverage_shortfall=(empty,))
+
+    (reason,) = compare(_clean(), after).incomplete
+
+    assert "demanded" not in reason
+    assert reason.startswith("the second run is missing coverage its verdict needs (packages)")
+
+
 def test_two_complete_runs_still_compare_cleanly() -> None:
     """The guard must not make every comparison incomplete, which would be as useless."""
     diff = compare(_clean(), _clean())

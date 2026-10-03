@@ -156,11 +156,12 @@ class RunPlan:
 
     @property
     def minimum_wall_time_seconds(self) -> float | None:
-        """The least wall time the run needs at its request rate, or None without a rate.
+        """The wall time the estimated requests need at the run's rate, or None without a rate.
 
-        Each estimated request waits `60 / N` seconds for its slot; a rule of unknown cost
-        counts as the one request it sends at least, and each budgeted judge paces on its
-        own meter, so the busiest meter sets the floor. Retries are not counted.
+        The first request goes at once and each further one `60 / N` seconds after the one
+        before; a rule of unknown cost counts as the one request it sends at least, and
+        each budgeted judge paces on its own meter, so the busiest meter sets the time.
+        Retries and the time each reply takes are not counted.
         """
         rate = self.budgets.max_requests_per_minute
         if rate is None:
@@ -168,14 +169,17 @@ class RunPlan:
         paced = [self.max_requests + len(self.unknown_cost)]
         if self.judge is not None:
             paced.extend(meter.max_calls for meter in self.judge.meters)
-        return max(paced) * 60.0 / rate
+        return max(0, max(paced) - 1) * 60.0 / rate
 
     @property
     def exceeds_duration(self) -> bool:
-        """Whether the duration ceiling is below the wall time the request rate needs."""
+        """Whether the duration ceiling ends the run before its last paced request is sent.
+
+        A ceiling equal to that time does not fit: the meter refuses a slot at the ceiling.
+        """
         limit = self.budgets.max_duration_seconds
         floor = self.minimum_wall_time_seconds
-        return limit is not None and floor is not None and limit < floor
+        return limit is not None and floor is not None and limit <= floor
 
 
 def build_plan(  # noqa: PLR0913 — what is run, against what, and how the run splits it
