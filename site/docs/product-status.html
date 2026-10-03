@@ -312,7 +312,7 @@ so this page is maintained as carefully as the code.</p>
 <tr>
 <td><code>guardana probe</code></td>
 <td><strong>beta</strong></td>
-<td>Works against OpenAI-compatible, Ollama, TGI, guarded endpoints and live MCP servers — the last of those on both its tool manifest and its authorization surface, and never by calling a tool. Verdict quality depends on the evaluator you configure.</td>
+<td>Works against OpenAI-compatible, Ollama, TGI, guarded endpoints, live MCP servers — on both their tool manifest and their authorization surface, and never by calling a tool — and A2A v1 agents, on their card and whom they answer, with reads only. Verdict quality depends on the evaluator you configure.</td>
 </tr>
 <tr>
 <td><code>guardana monitor</code></td>
@@ -350,7 +350,8 @@ so this page is maintained as carefully as the code.</p>
 <p><strong>Released (beta):</strong> Quality suites use the deterministic assessors <code>exact_match</code>, <code>contains</code>, <code>regex</code>, <code>json_valid</code>, and <code>length</code>. They support versioned JSONL datasets (<code>name@version</code>), deterministic sampling (<code>sample: {size, seed}</code>), repeated trials per case, and a suite gate that passes, fails, or declines with <code>min_sample</code>. Runs save a suite summary in the run document and show a Measured block in the human report. JUnit output is available.</p>
 <p><strong>Experimental:</strong> Judge-graded suites use <code>answered</code> and <code>reference_judge</code>. Judge-error correction adjusts trial and suite rates using Rogan–Gladen and a calibration recorded on the team's own corpus with <code>guardana calibrate --record</code>. Without a usable calibration, the suite declines; it never passes on an uncorrected judge rate. Experimental means shipped, but behaviour, thresholds, and saved fields may change in a minor release.</p>
 <p><strong>Released (beta), first half of F6:</strong> <a href="usage-recipe.html">repository recipes</a> that pin a team's checks and refuse a run whose pins moved, one set of connection settings across <code>probe</code>, <code>plan probe</code>, <code>target inspect</code>, <code>monitor</code> and every judge, and a tested <a href="providers.html">provider table</a>.</p>
-<p><strong>Not released:</strong> The five-user first-run study (F2), the rest of F6 (the team regression loop and the live retrieval pilot), protocol conformance fixtures (F7), and one redacted export with a webhook (F4) are roadmap items in <code>ROADMAP.md</code>. Pages under <code>docs/design/</code> record decisions; each page's status line says whether it shipped.</p>
+<p><strong>Released (beta), F7:</strong> MCP checks proven against servers built on the <code>mcp</code> SDK in both revisions, and the A2A checks against agents built on <code>a2a-sdk</code>; a capability a server does not offer is recorded as skipped <code>not_offered</code>, a coverage gap.</p>
+<p><strong>Not released:</strong> The five-user first-run study (F2), the rest of F6 (the team regression loop and the live retrieval pilot), and one redacted export with a webhook (F4) are roadmap items in <code>ROADMAP.md</code>. Pages under <code>docs/design/</code> record decisions; each page's status line says whether it shipped.</p>
 <h2 id="known-limitations">Known limitations</h2>
 <p>Stated plainly, because finding these out after adoption is worse than reading
 them now.</p>
@@ -370,12 +371,21 @@ pack's own endpoint target cannot keep exchanges. A reply redaction changed is n
 again. <code>grade</code> sends nothing to the collector.</p>
 <h3 id="a-release-gate-cannot-see-a-target-that-holds-the-wrong-files">A release gate cannot see a target that holds the wrong files</h3>
 <p><code>--preset release</code> fails when a selected check is skipped or reaches no verdict, and a
-preset cannot narrow which rules run: a chat endpoint skips every MCP rule, so
+preset cannot narrow which rules run: a chat endpoint skips every MCP and A2A rule, so
 <code>probe --preset release</code> needs a profile that selects the rules the endpoint serves
 (<a href="profiles.html#release-complete-coverage-or-no-pass">profiles</a>). A <code>scan</code> of a path that
 holds no file other than <code>.guardanaignore</code> files is <code>indeterminate</code> (exit <code>2</code>) under every
 preset, and <code>plan scan</code> refuses it, but a scan cannot tell a directory that holds the wrong
 files from the one the build meant to produce.</p>
+<h3 id="protocol-coverage-is-narrow-on-purpose">Protocol coverage is narrow on purpose</h3>
+<p>MCP is spoken in <code>2026-07-28</code> and <code>2025-11-25</code>; a server answering in an older revision is
+reported as sharing no revision, never graded in one Guardana does not speak. Task ids are
+graded only as a caller without a credential sees them, because creating a task would take
+a <code>tools/call</code> or a <code>SendMessage</code> on somebody's system. A registry entry is the file you
+supply, never fetched, and what a server reports about its version is its own claim; Server
+Cards (<code>.well-known/mcp.json</code>) are not read. An A2A agent is spoken to over the JSON-RPC
+binding of version <code>1.0</code> only, on the origin you named: HTTP+JSON, gRPC and an interface
+on another origin are not examined, and agent-card signatures are not verified.</p>
 <h3 id="monitor-is-scheduled-not-passive"><code>monitor</code> is scheduled, not passive</h3>
 <p>It re-runs checks on an interval. It does not observe production traffic, cannot
 see what your real users are doing, and is not an inline control. Watching live

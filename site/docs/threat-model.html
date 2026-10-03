@@ -353,7 +353,10 @@ resolves to a cloud metadata address (<code>169.254.169.254</code>, <code>fd00:e
 the target; one that resolves to any address that is not globally routable —
 private, loopback, carrier-grade NAT — while the server under test is not local;
 one served over plain <code>http</code> when the target is not local; or one whose scheme a
-client must reject. It does not fetch the
+client must reject. An IPv6 address that carries an IPv4 address — IPv4-mapped,
+IPv4-compatible, NAT64 (<code>64:ff9b::/96</code>) or 6to4 (<code>2002::/16</code>) — is judged as the IPv4
+address it carries, so <code>2002:a9fe:a9fe::</code> is the metadata address; one that carries it
+in a form Guardana does not read (NAT64 local-use, Teredo) is refused. It does not fetch the
 address to confirm the address is dangerous — that would be performing the
 attack in order to report it — and <code>guardana.mcp.discovery_target</code> reports the
 refusal. Loopback and private addresses are permitted when the server under test
@@ -483,6 +486,21 @@ attestation beside each container image. How to check them is in
 attestations only, so <code>gh attestation verify</code> cannot check them; from 0.33.0 each
 image digest has a signed provenance statement. The documented pins are moving <code>X.Y</code>
 tags; nothing documents pinning an image by digest.</p>
+<h3 id="t11--a-hostile-a2a-agent">T11 — A hostile A2A agent</h3>
+<p><strong>Scenario:</strong> the A2A agent under <code>probe --a2a</code> is a separate actor from an MCP server or
+a model endpoint, and it writes the document that tells Guardana where to send: its agent
+card names the interface every later request goes to. A hostile card names another
+origin to collect the operator's tokens, or an internal address to aim the scanner.</p>
+<p><strong>Stance:</strong> the card is read from the origin the operator named, and nothing is sent to
+an interface on any other origin: the run reports that the card points elsewhere and
+every check that needs the agent is <code>inconclusive</code>. Both bearer tokens therefore never
+leave the named origin, and are sent only where the card declares a requirement a bearer
+token alone can meet. A redirect to another origin arrives without <code>Authorization</code>, as on
+an MCP server's own requests. Only reads are sent — never <code>SendMessage</code>, <code>CancelTask</code>, a
+subscription or a push-notification configuration — and task ids the agent reveals are
+withheld from every output like a credential.</p>
+<p><strong>Residual risk:</strong> the card's signatures are not verified, so a card is graded on what it
+declares, not on who signed it. Only the JSON-RPC binding is spoken.</p>
 <h2 id="explicit-non-goals">Explicit non-goals</h2>
 <ul>
 <li>Guardana is <strong>not an inline control</strong>. It does not sit in the request path and

@@ -79,14 +79,20 @@ place and hides real bugs in a category people learn to ignore.
 
 **`4` describes a result too.** A target that fails part-way — it refuses the
 credentials, answers `404`, `408`, `425`, `429` or `5xx` once retried, stops answering, or
-sends a reply Guardana cannot read — stops the run (`stopped_by: target_unavailable`). Like
-a budget stop it outranks the verdict, and the run is saved with what it graded before the
-failure ([probe](usage-probe.md#when-the-target-fails-part-way)). A `4xx` about one request
-is not the target's failure: it is an error of the rule that sent it, and the run exits `2`
-under `fail_on_error`. When pooled rules stop for both reasons, the target's stop outranks
-the budget's, because a larger budget would not have let the run finish. A target that
-fails before the run has a result, and a judge that fails at any point, still exit `4`
-with nothing saved.
+sends a reply Guardana cannot read — stops the run (`stopped_by: target_unavailable`). A
+chat endpoint, an MCP server and an A2A agent stop alike, an MCP server that cannot be
+reached at all included ([MCP](usage-probe.md#when-the-server-fails-part-way),
+[A2A](usage-probe.md#probing-an-a2a-agent)). An MCP server that stops accepting the
+protocol revision the run agreed with it stops the run too, as `stopped_by:
+target_changed`: it still answers, so `target_unavailable` would name the wrong cause.
+Like a budget stop either outranks the verdict, and the run is saved with what it graded
+before the failure ([probe](usage-probe.md#when-the-target-fails-part-way)). A `4xx` about
+one request is not the target's failure: it is an error of the rule that sent it, and the
+run exits `2` under `fail_on_error`. When pooled rules stop for several reasons,
+`target_unavailable` outranks `target_changed`, and both outrank the budget's stop,
+because a larger budget would not have let the run finish. A target that fails before
+the run has a result — an stdio MCP command that cannot be started, say — and a judge
+that fails at any point, still exit `4` with nothing saved.
 
 **`3` is usage, not policy.** A malformed `guardana.yaml` must not look like a
 policy failure, or a typo in a config file reads as a security finding.
@@ -128,7 +134,12 @@ A connection that cannot be used as written is `3` on `probe`, `plan probe`,
 unknown `--provider`, a `--system-prompt-file` or `--adapter` that cannot be read, an
 `--api-key-env` naming an unset or empty variable, `--adapter` with `--provider` or
 `--api-key-env`, and an adapter whose `url:` differs from `--url` or whose `method:` is
-not `POST`. None of them is `5`, which is reserved for Guardana's own defects.
+not `POST`. On `probe --mcp` the same holds for an stdio command given without
+`--allow-exec`, which starts nothing, an `--mcp-token-env` naming an unset or empty
+variable, and an `--mcp-registry-entry` that cannot be read or is not an entry; on
+`probe --a2a`, for an unset token variable, a second caller's variable without the first,
+or two variables holding the same value. None of them is `5`, which is reserved for
+Guardana's own defects.
 
 `recipe lock` and `recipe run` exit `4`, writing no lock and sending nothing, when the
 installed target the recipe names fails to connect while it is being built.

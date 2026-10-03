@@ -20,7 +20,7 @@ so this page is maintained as carefully as the code.
 | Engine + built-in rules | **beta** | Stable enough to gate a build on. Outside `guardana.core.verify`, the Python API still moves between minor releases. |
 | Python API (`guardana.core.verify`) | **beta** | Runs what `guardana scan` and `guardana probe` run and returns every outcome as typed data, failed and stopped runs included. Its supported surface is `guardana.core.verify.__all__`; a change to it is announced as breaking with what to write instead. Trace analysis, `monitor` and baselines run from the command line only. |
 | `guardana scan` | **beta** | Deterministic, offline, no false-positive theatre. The most mature part of the product. |
-| `guardana probe` | **beta** | Works against OpenAI-compatible, Ollama, TGI, guarded endpoints and live MCP servers — the last of those on both its tool manifest and its authorization surface, and never by calling a tool. Verdict quality depends on the evaluator you configure. |
+| `guardana probe` | **beta** | Works against OpenAI-compatible, Ollama, TGI, guarded endpoints, live MCP servers — on both their tool manifest and their authorization surface, and never by calling a tool — and A2A v1 agents, on their card and whom they answer, with reads only. Verdict quality depends on the evaluator you configure. |
 | `guardana monitor` | **beta** | Scheduled **active** verification. Not passive traffic inspection, not inline. |
 | `guardana diff` | **beta** | Compares two saved runs. The saved-run format is versioned and migratable — `guardana run migrate` reads every earlier schema. |
 | Collector (`guardana-server`) | **beta** | PostgreSQL with reversible migrations, a scoped API key on every route carrying a finding, project isolation on every query, and a record of what each run verified and where. Findings have a lifecycle and expiring waivers; actions are audited; retention and deletion are commands. What it does not yet hold is a quality trend — it aggregates findings, not measurements. |
@@ -36,7 +36,9 @@ so this page is maintained as carefully as the code.
 
 **Released (beta), first half of F6:** [repository recipes](usage-recipe.md) that pin a team's checks and refuse a run whose pins moved, one set of connection settings across `probe`, `plan probe`, `target inspect`, `monitor` and every judge, and a tested [provider table](providers.md).
 
-**Not released:** The five-user first-run study (F2), the rest of F6 (the team regression loop and the live retrieval pilot), protocol conformance fixtures (F7), and one redacted export with a webhook (F4) are roadmap items in `ROADMAP.md`. Pages under `docs/design/` record decisions; each page's status line says whether it shipped.
+**Released (beta), F7:** MCP checks proven against servers built on the `mcp` SDK in both revisions, and the A2A checks against agents built on `a2a-sdk`; a capability a server does not offer is recorded as skipped `not_offered`, a coverage gap.
+
+**Not released:** The five-user first-run study (F2), the rest of F6 (the team regression loop and the live retrieval pilot), and one redacted export with a webhook (F4) are roadmap items in `ROADMAP.md`. Pages under `docs/design/` record decisions; each page's status line says whether it shipped.
 
 ## Known limitations
 
@@ -65,12 +67,23 @@ again. `grade` sends nothing to the collector.
 ### A release gate cannot see a target that holds the wrong files
 
 `--preset release` fails when a selected check is skipped or reaches no verdict, and a
-preset cannot narrow which rules run: a chat endpoint skips every MCP rule, so
+preset cannot narrow which rules run: a chat endpoint skips every MCP and A2A rule, so
 `probe --preset release` needs a profile that selects the rules the endpoint serves
 ([profiles](profiles.md#release-complete-coverage-or-no-pass)). A `scan` of a path that
 holds no file other than `.guardanaignore` files is `indeterminate` (exit `2`) under every
 preset, and `plan scan` refuses it, but a scan cannot tell a directory that holds the wrong
 files from the one the build meant to produce.
+
+### Protocol coverage is narrow on purpose
+
+MCP is spoken in `2026-07-28` and `2025-11-25`; a server answering in an older revision is
+reported as sharing no revision, never graded in one Guardana does not speak. Task ids are
+graded only as a caller without a credential sees them, because creating a task would take
+a `tools/call` or a `SendMessage` on somebody's system. A registry entry is the file you
+supply, never fetched, and what a server reports about its version is its own claim; Server
+Cards (`.well-known/mcp.json`) are not read. An A2A agent is spoken to over the JSON-RPC
+binding of version `1.0` only, on the origin you named: HTTP+JSON, gRPC and an interface
+on another origin are not examined, and agent-card signatures are not verified.
 
 ### `monitor` is scheduled, not passive
 

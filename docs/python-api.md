@@ -60,12 +60,33 @@ verification = verifier.grade(path, source=None, deployment=None)
 ```
 
 - `scan` builds the artifact target over `path` with the profile's excludes. A path that does not exist raises `FileNotFoundError`.
-- `run` takes any target: an `ArtifactTarget` or your own file target, an `EndpointTarget`, your own endpoint target, or an `McpServerTarget`. An endpoint gets one pass per canary rule with a fresh canary planted when it implements `SystemPromptPlanter`. You own the target and close it.
+- `run` takes any target: an `ArtifactTarget` or your own file target, an `EndpointTarget`, your own endpoint target, an `McpServerTarget` or an `A2aAgentTarget`. An endpoint gets one pass per canary rule with a fresh canary planted when it implements `SystemPromptPlanter`; an MCP server and an A2A agent get one pass of rules. You own the target and close it.
 - `grade` reads a recording ([`guardana grade`](usage-grade.md)) and runs the rules against a `RecordedTarget` built from it, sending nothing to any target. The recording's digest becomes `manifest.target.document` and its own description `manifest.recording`. A recording that cannot be read, or one a probe kept at other trials per case than the profile runs, raises `RecordingRefusedError` before anything runs.
 - With `privacy.keep_exchanges: true` in the profile, `run` keeps the chat exchanges of the built-in `EndpointTarget`'s plain pass in `verification.exchanges` and records their digest in `manifest.exchanges`; `save(path)` writes them to `exchanges_path(path)`. Any other endpoint target is refused with `UnsupportedTargetError` before anything is sent.
 - `relative_to` rewrites file paths in findings, observations and the file listing relative to that directory, as the CLI does against its working directory. `scan` also rewrites the target's own reference; `run` never does, because a third-party target owns its locator.
 - `baseline` is a `Baseline` from `guardana.core.report.baseline.read_baseline(path)`; its findings are waived after redaction and before the gate.
 - `source` (`RunSource`) and `deployment` (`DeploymentRef`) describe where the run came from and which deployment it verifies. Left out, the run is recorded as local and the deployment as undeclared; the engine reads neither from the environment.
+
+### Protocol targets
+
+Both live in `guardana.core.target` and send nothing until a rule reads them.
+
+```python
+from guardana.core.target import A2aAgentTarget, McpServerTarget, RegistryEntry
+
+server = McpServerTarget(
+    "https://mcp.example.com/mcp",
+    credential=token,
+    registry_entry=RegistryEntry.load(Path("server.json")),
+)
+agent = A2aAgentTarget("https://agent.example.com", credential=alice, other_credential=bob)
+```
+
+- `McpServerTarget(url, *, credential=None, sender=None, discovery_sender=None, registry_entry=None)`, or `command=[...]` with `allow_exec=True` for an stdio server. `sender` carries the server's own requests: a `Sender`, `(url, *, method="POST", body=None, headers=None) -> RawReply`, which raises `McpError` when no reply arrived and returns a `RawReply` for every status. `discovery_sender` fetches the discovery documents at addresses the server named: a `DiscoverySender`, which also takes `alongside` and `discovery` and must connect only to an address the guard accepted. With neither, both are the built-in pinned client. A `sender` without a `discovery_sender` raises `ValueError` at construction; pass the same scripted server for both, or `guardana.core.target.send` for the built-in pinned client.
+- `RegistryEntry.load(path)` reads a registry `server.json` of at most 1 MiB and raises `RegistryEntryError` (a `ValueError`) for one it cannot use.
+- `A2aAgentTarget(url, *, credential=None, other_credential=None, sender=None)` takes an http(s) URL. A second credential without the first, or the same value twice, raises `ValueError`. `sender` is a `Sender`.
+- A server that stops accepting the agreed revision mid-run returns the `Verification` with `result.stopped_by` `target_changed` and exit code `4`.
+- `guardana.core.target.is_local_address` is deprecated and will be removed before 1.0. It warns with `DeprecationWarning`; `McpAuthorizationView.server_is_local` says whether a server is local from the addresses a run reached.
 
 A target runs once. Running the same object again, starting a second run while the first is under way, or running one that already sent requests raises `TargetReusedError`: build a fresh target for each run, so its usage, its budget and whatever it cached describe that run alone. A run refused before anything was sent, over its calibrations or a budget, leaves the target free to run. A target that cannot be weakly referenced is checked by its meter alone.
 
@@ -75,10 +96,10 @@ A target runs once. Running the same object again, starting a second run while t
 
 | Field | What it holds |
 |---|---|
-| `result` | The `ScanResult`: findings, unverified results, waived findings, errors, observations, coverage shortfalls, assessments, the file listing (`scope`) and why a run stopped. Redacted under the profile's privacy policy. |
+| `result` | The `ScanResult`: findings, unverified results, waived findings, errors, observations, coverage shortfalls, assessments, the file listing (`scope`), the skipped rules and why a run stopped. A rule that found the target does not offer what it examines is skipped `not_offered` (`NotOffered`, from `guardana.core.rule`), a coverage gap. Redacted under the profile's privacy policy. |
 | `manifest` | The `RunManifest` a saved run carries. |
 | `gate` | `GateOutcome.PASS`, `FAIL` or `INDETERMINATE`. |
-| `exit_code` | The code `guardana` gives this result: `0`, `1`, `2`, `4` when its target stopped it, or `6` ([exit codes](exit-codes.md)). |
+| `exit_code` | The code `guardana` gives this result: `0`, `1`, `2`, `4` when its target stopped it (`target_unavailable` or `target_changed`), or `6` ([exit codes](exit-codes.md)). |
 | `passed` | `True` only when the gate passed. |
 | `open_questions` | Each fact that leaves part of the run's question unanswered, in the order the gate reads them. |
 | `judge_usage`, `judge_stops` | What each judge configured under `evaluators:` spent, and which judge's own ceiling stopped the run. |
@@ -112,4 +133,4 @@ A profile that does not load raises `ProfileError` from `guardana.core.profile`.
 
 The supported surface is `guardana.core.verify.__all__`: `Verifier`, `Verification`, `EndpointBuilder`, `exchanges_path` and the errors above, with the argument and field names on this page; and `guardana.core.doubles.__all__`: `open_doubles`, `Doubles`, `DoublesError`, `PRODUCER` and `INSTRUMENTED`. A test pins their signatures. Everything else is internal and may change in any release: the `Runner`, the registry's load state, `guardana.cli.*`, and every module or name that starts with `_`.
 
-Until 1.0, a change to the supported surface is announced under "Changed — breaking" in the [changelog](../CHANGELOG.md) with what to write instead, and the old spelling keeps working with a `DeprecationWarning` for at least one minor release wherever that is possible. Not covered yet: `monitor`, `baseline create`, trace analysis and the import of observations run only from the command line, and the partial result of a run whose target failed mid-run is not kept.
+Until 1.0, a change to the supported surface is announced under "Changed — breaking" in the [changelog](../CHANGELOG.md) with what to write instead, and the old spelling keeps working with a `DeprecationWarning` for at least one minor release wherever that is possible. Not covered yet: `monitor`, `baseline create`, trace analysis and the import of observations run only from the command line, and a run whose judge failed mid-run keeps no partial result.

@@ -17,7 +17,7 @@ For maturity and known gaps, read [Product status](docs/product-status.md).
 |---|---|---|
 | A first result, offline | `guardana init --starter DIR` | a failing scan, its fix, a saved run and one editable local check, with no account, key, model or network |
 | Scan code and model artifacts | `guardana scan PATH` | deterministic, offline findings |
-| Probe a model, agent, or MCP server | `guardana probe ...` | bounded active checks with graded evidence |
+| Probe a model, agent, MCP server or A2A agent | `guardana probe ...`, `probe --mcp URL`, `probe --a2a URL` | bounded active checks with graded evidence; a protocol server is sent reads only and never asked to call a tool or run a task |
 | Analyze an existing execution | `guardana analyze-trace TRACE` | trace rules over a local file, calling no model or tool |
 | Grade recorded answers | `guardana grade RECORDING` | your rules over answers you supplied or a probe kept, with no target request |
 | Pin and run a team's checks in CI | `guardana recipe lock`, `guardana recipe run` | a lock of rules, datasets, judges, calibrations and the files of a directory-installed pack, checked before anything is sent, against a connection, a recording or an installed `target:`, and one artifact directory that never shows an earlier green |
@@ -65,13 +65,18 @@ A run keeps separate channels for:
   observed was read by no rule that ran, a model or notebook a rule could not read,
   named by its file beside the rule's unverified result, a scanned path that held no file,
   or a rule that graded none of its cases (or fewer than `fail_on.min_graded_share`);
-- assessments: what was measured, including passes.
+- assessments: what was measured, including passes;
+- skipped rules, each with its reason — among them `not_offered`, a rule that found while
+  it ran that the target has none of what it examines (an MCP server without tasks, an
+  A2A agent without `ListTasks`), a coverage gap `--preset release` refuses.
 
 Unknown counts and costs remain unknown rather than becoming zero. Exhausted
 budgets, incomplete runs, unreadable artifacts, and incomparable baselines produce
 explicit non-success exit codes; a crash exits `5` and an interrupt `7`. A target that fails
 part-way — no connection, a timeout, a persistent `429`, a `5xx` — stops the run with
-`stopped_by: target_unavailable` and exit `4`, and the run it reached is saved; a request the
+`stopped_by: target_unavailable` and exit `4`, and the run it reached is saved, whether it is
+a chat endpoint, an MCP server or an A2A agent; an MCP server that drops the protocol
+revision agreed with it stops the run as `target_changed`. A request the
 application rejects with another `4xx` is an error of the rule that sent it. An unverified result is never weighed against a
 severity bar: how bad an unmeasured thing is has no answer, so `fail_on_inconclusive`
 governs all of them or none, and a check that went dark between two runs is a
@@ -121,8 +126,12 @@ Active and trace-backed checks cover:
 - excessive tool use, over-broad arguments, credential exfiltration, and poisoned
   tool results;
 - memory poisoning across sessions;
-- live MCP manifests, authorization discovery, audience and session handling,
-  scope breadth, discovery targets, issuer identification, and cache scope;
+- live MCP manifests, authorization discovery (the metadata `issuer` included), audience
+  and session handling, scope breadth, discovery targets, issuer identification, cache
+  scope, tasks listed to a caller without a credential, and whether the server is the one
+  its registry entry publishes (`--mcp-registry-entry`), in both MCP revisions;
+- a live A2A v1 agent's card, whether it answers a caller presenting no credential, and
+  whether one caller can read another's task (`--a2a`, two callers' tokens);
 - recorded identity, consent, policy, approval, handoff, retrieval, credential,
   and side-effect boundaries;
 - a tenant boundary and a poisoned document checked through the application's own
@@ -236,7 +245,8 @@ Kubernetes deployment; those remain roadmap work.
 ## Safety boundaries
 
 Guardana never executes a tool offered to a model, and MCP authorization discovery
-connects only to the address it checked. Active checks still send real
+connects only to the address it checked. An A2A agent is sent reads only, on the origin
+the operator named, and its tokens never leave that origin. Active checks still send real
 requests and can cost money or trigger a model's surrounding application, so they
 are opt-in, budgeted, and documented for staging use. See
 [Safe testing](docs/safe-testing.md), [Privacy](docs/privacy.md), and the

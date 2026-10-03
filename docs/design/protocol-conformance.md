@@ -7,7 +7,7 @@ status: accepted
 
 # Protocol conformance against servers Guardana did not write
 
-**Status:** accepted, not yet implemented · **Written:** 2026-10-03 · **Serves:** ROADMAP v0.39
+**Status:** accepted, implemented — ships in the next release · **Written:** 2026-10-03 · **Serves:** ROADMAP v0.39
 (F7) and the MCP items the backlog lists under the guarded-application release · **Amends:**
 [`mcp-protocol-eras.md`](mcp-protocol-eras.md) (how a legacy revision is detected, version
 handling), [`guarded-applications.md`](guarded-applications.md) decision 4 (MCP servers join
@@ -307,7 +307,7 @@ entry publishes, so the entry is an input the operator supplies — never fetche
   the registry's `server.json` (at most 1 MiB): `name` matching `^[a-zA-Z0-9.-]+/[a-zA-Z0-9._-]+$`,
   a non-empty string `version`, optional `remotes` as objects with string `type` and an `http`
   or `https` `url`; other keys are ignored. Anything else raises `RegistryEntryError(ValueError)`,
-  reported as an unreadable `--mcp-pin` is. Module `core/target/_mcp_registry.py`;
+  which `probe` and `plan probe` refuse as a usage error (exit `3`) before anything is sent. Module `core/target/_mcp_registry.py`;
   `RegistryEntry`, `RegistryEntryError` and `ReportedServer` exported from `guardana.core.target`.
   The manifest records nothing new; the findings carry the entry's name and version.
 - `Capability.REGISTRY_ENTRY = "registry_entry"`, declared only when an entry was given, so
@@ -424,8 +424,8 @@ SDK's; the fixture writes only the policy under test, through the SDK's seams:
 
 | fixture | expected |
 |---|---|
-| MCP legacy-only, modern-only, dual-era — each gated by one bearer token, probed with it | no finding from the `mcp.*` rules; `task_identity` `not_offered`; `coverage.protocols` holds what each answered; the dual-era server's sessions are graded |
-| the same, probed without a credential | `unauthenticated_access` silent; `token_audience`, `session_binding` inconclusive as documented |
+| MCP legacy-only, modern-only, dual-era — each gated by one bearer token, probed with it | exactly the two findings the SDK's defaults earn: `scope_breadth` (its `401` challenge names no scope) and `issuer_identification` (the authorization-server metadata does not advertise `iss`); `task_identity` silent, because the anonymous listing is refused; `coverage.protocols` holds what each answered; the dual-era server's sessions are graded |
+| the same, probed without a credential | `unauthenticated_access` silent; `session_binding` inconclusive naming `--mcp-token-env`; `token_audience` silent, because the forged token is refused and that needs no operator credential to observe; `task_identity` no finding; exit `2` |
 | open (no auth) | `unauthenticated_access` LOW (loopback); `token_audience` inconclusive |
 | accepting any token | `token_audience` fires |
 | modern and dual-era, gated, `cacheScope: public` on `tools/list` | `cache_scope` fires; the legacy one is silent |
@@ -435,6 +435,7 @@ SDK's; the fixture writes only the policy under test, through the SDK's seams:
 | modern with the tasks extension | inconclusive (`unlisted`) |
 | metadata `issuer` differing from its URL, and absent | `authorization_discovery` fires |
 | registry entries listing / not listing the URL, matching / other / no version | decision 9 |
+| a registry entry that cannot be read or is not an entry | usage error, exit `3`, nothing sent |
 | a server that stops answering after N requests | exit `4`, `run.json` kept, `stopped_by: target_unavailable` |
 | a server whose revisions change after discovery | `stopped_by: target_changed` with decision 3's message |
 | legacy answering `initialize` with `2025-06-18` | no `agreed`; authorization rules inconclusive |
@@ -450,8 +451,10 @@ SDK's; the fixture writes only the policy under test, through the SDK's seams:
 
 Unit tests use `ScriptedMcpServer` and `ScriptedA2aAgent` and refuse real name lookups. Each new
 rule ships finding, clean and inconclusive fixtures, so `_FULLY_SAMPLED` in
-`test_builtin_fixture_coverage.py` rises by five; `test_probe_cost.py` gains an A2A run shape and
-`REGISTRY_ENTRY` in the MCP shape, within its ceiling.
+`test_builtin_fixture_coverage.py` rises by five; `test_probe_cost.py` gains an A2A run shape (ceiling 20, a whole
+run 8 requests) and `REGISTRY_ENTRY` in the MCP shape. The MCP ceiling rises from 60 to 79:
+`notifications/initialized` and the legacy probe are metered, and `task_identity` and
+`registry_entry` declare their own; a whole MCP probe still spends at most 20.
 
 Rejected: hand-written fixtures (Guardana's own reading on both sides); the official MCP
 conformance suite's TypeScript everything-server (a Node toolchain and an npm fetch in CI and on

@@ -14,7 +14,7 @@ guardana plan probe --url https://api.example.com --model gpt-4o-mini
 ```
 
 ```text
-14 rule(s) would run, 11 skipped.
+14 rule(s) would run, 16 skipped.
 requests: at least 14, at most 47 — plus up to 94 retries
   a request refused for a rate limit or a server error is retried up to 2 times, and each retry counts toward --max-requests
 trials: 1 attempt(s) per case, counted in the requests above
@@ -60,10 +60,12 @@ run they are pricing would use, so both take the same plugin-trust flags
 | `--target-option KEY=VALUE` | none | Repeatable, non-secret configuration passed to that target |
 | `--url TEXT`, `--model TEXT` | — | `plan probe` only: the endpoint the probe would call, as on `probe` |
 | `--mcp TEXT` | none | `plan probe` only: price an MCP server at this http(s) URL instead of a model endpoint |
+| `--mcp-registry-entry PATH` | none | `plan probe` only: the registry `server.json` `probe --mcp-registry-entry` would compare, read and refused (exit `3`) as there; needs `--mcp` |
+| `--a2a TEXT` | none | `plan probe` only: price an A2A agent at this http(s) URL instead of a model endpoint — see [Pricing an A2A agent](#pricing-an-a2a-agent). Refused with the endpoint flags and `--mcp` (exit `3`) |
 | `--provider [openai\|ollama\|tgi]` | `openai` | `plan probe` only: the wire protocol, as on `probe`; any other name is refused (exit `3`) |
 | `--adapter PATH` | none | `plan probe` only: the adapter file `probe --adapter` would use, with the same refusals; its `${VAR}` headers are not read, so a plan needs no secret |
 | `--system-prompt-file PATH` | none | `plan probe` only: the system prompt `probe` would plant; a file that cannot be read is refused (exit `3`) |
-| `--fixtures PATH` | none | `plan probe` only: price the seeded checks from this [fixtures file](usage-fixtures.md) — see [Pricing seeded data](#pricing-seeded-data). No tenant key is read; refused with `--mcp` and `--target` |
+| `--fixtures PATH` | none | `plan probe` only: price the seeded checks from this [fixtures file](usage-fixtures.md) — see [Pricing seeded data](#pricing-seeded-data). No tenant key is read; refused with `--mcp`, `--a2a` and `--target` |
 | `--safety [passive\|active\|side-effecting]` | `active` | `plan probe` only: how far rules may reach, as on `probe` |
 | `--allow-destructive` | off | `plan probe` only: permit rules that can destroy or alter something the target owns, as on `probe` |
 | `--trials INTEGER` | `1` (or `trials:` in the profile) | `plan probe` and `plan grade`: price the run at this many attempts per case, as `probe --trials` and `grade --trials` would make them |
@@ -126,10 +128,10 @@ guardana plan probe --mcp https://mcp.example.com --trials 5
 ```
 
 ```text
-9 rule(s) would run, 14 skipped.
-requests: at least 9, at most 59
+10 rule(s) would run, 20 skipped.
+requests: at least 10, at most 77
 trials: 5 attempt(s) per case, counted in the requests above
-  9 rule(s) make one attempt per case whatever --trials says, because their verdict does not depend on a sampled reply:
+  10 rule(s) make one attempt per case whatever --trials says, because their verdict does not depend on a sampled reply:
     • guardana.agent.mcp_server_manifest
     • guardana.mcp.unauthenticated_access
     …
@@ -201,9 +203,10 @@ it as a coverage shortfall and exits `3`.
 ## Pricing an MCP server
 
 `plan probe --mcp` prices an MCP run the same way, and it is where this command
-earns its keep. Reading a manifest costs three requests; the authorization checks
-send around a dozen, which is exactly the number somebody wants before pointing
-this at production.
+earns its keep: it states the most an MCP run can send before anything is pointed at
+production, and [the probe page](usage-probe.md#cost) lists what those requests are.
+`--mcp-registry-entry FILE` adds the registry comparison, which
+sends nothing beyond the opening the other checks already buy.
 
 ```bash
 guardana plan probe --mcp https://mcp.example.com/mcp
@@ -213,8 +216,7 @@ guardana plan probe --mcp https://mcp.example.com/mcp
 it would cost *alone*, because a plan cannot know which rule runs first — and the
 first one to look buys an observation the rest then share — including the single
 `server/discover` call that settles which revision of the protocol the server
-speaks. A whole MCP probe declares around sixty requests and spends around a
-dozen. An upper bound that is too
+speaks, so a whole MCP probe declares several times what it spends. An upper bound that is too
 high refuses a budget that would have fitted, which is the safe direction to be
 wrong in; the other way round is a ceiling that lets a run overspend.
 
@@ -222,6 +224,21 @@ wrong in; the other way round is a ceiling that lets a run overspend.
 starting it, and starting the thing under examination is the one thing this
 command must not do. `guardana probe --mcp … --allow-exec` is where that intent is
 stated out loud.
+
+## Pricing an A2A agent
+
+```bash
+guardana plan probe --a2a https://agent.example.com
+```
+
+```text
+3 rule(s) would run, 27 skipped.
+requests: at least 3, at most 13
+```
+
+The three A2A rules declare thirteen requests between them; a run shares the card and
+each read, and sends at most eight. No token variable is read, so a plan needs no
+secret.
 
 ## Pricing a grade
 

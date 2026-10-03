@@ -280,7 +280,7 @@
 </nav>
 </details>
 <main>
-<h1>Protocol conformance against servers Guardana did not write<span class="status accepted">accepted</span></h1><p class="lede">both MCP revisions and one A2A v1 agent checked against servers built on the protocol owners' own SDKs, task listings and registry entries graded, a server that lacks what a rule examines recorded as missing coverage, and an MCP server that fails part-way stopping the run it leaves</p><p><strong>Status:</strong> accepted, not yet implemented · <strong>Written:</strong> 2026-10-03 · <strong>Serves:</strong> ROADMAP v0.39
+<h1>Protocol conformance against servers Guardana did not write<span class="status accepted">accepted</span></h1><p class="lede">both MCP revisions and one A2A v1 agent checked against servers built on the protocol owners' own SDKs, task listings and registry entries graded, a server that lacks what a rule examines recorded as missing coverage, and an MCP server that fails part-way stopping the run it leaves</p><p><strong>Status:</strong> accepted, implemented — ships in the next release · <strong>Written:</strong> 2026-10-03 · <strong>Serves:</strong> ROADMAP v0.39
 (F7) and the MCP items the backlog lists under the guarded-application release · <strong>Amends:</strong>
 <a href="mcp-protocol-eras.html"><code>mcp-protocol-eras.md</code></a> (how a legacy revision is detected, version
 handling), <a href="guarded-applications.html"><code>guarded-applications.md</code></a> decision 4 (MCP servers join
@@ -612,7 +612,7 @@ entry publishes, so the entry is an input the operator supplies — never fetche
 the registry's <code>server.json</code> (at most 1 MiB): <code>name</code> matching <code>^[a-zA-Z0-9.-]+/[a-zA-Z0-9._-]+$</code>,
 a non-empty string <code>version</code>, optional <code>remotes</code> as objects with string <code>type</code> and an <code>http</code>
 or <code>https</code> <code>url</code>; other keys are ignored. Anything else raises <code>RegistryEntryError(ValueError)</code>,
-reported as an unreadable <code>--mcp-pin</code> is. Module <code>core/target/_mcp_registry.py</code>;
+which <code>probe</code> and <code>plan probe</code> refuse as a usage error (exit <code>3</code>) before anything is sent. Module <code>core/target/_mcp_registry.py</code>;
 <code>RegistryEntry</code>, <code>RegistryEntryError</code> and <code>ReportedServer</code> exported from <code>guardana.core.target</code>.
 The manifest records nothing new; the findings carry the entry's name and version.</li>
 <li><code>Capability.REGISTRY_ENTRY = &quot;registry_entry&quot;</code>, declared only when an entry was given, so
@@ -751,11 +751,11 @@ no-op <code>AgentExecutor</code>; a handler subclass whose <code>on_list_tasks</
 <tbody>
 <tr>
 <td>MCP legacy-only, modern-only, dual-era — each gated by one bearer token, probed with it</td>
-<td>no finding from the <code>mcp.*</code> rules; <code>task_identity</code> <code>not_offered</code>; <code>coverage.protocols</code> holds what each answered; the dual-era server's sessions are graded</td>
+<td>exactly the two findings the SDK's defaults earn: <code>scope_breadth</code> (its <code>401</code> challenge names no scope) and <code>issuer_identification</code> (the authorization-server metadata does not advertise <code>iss</code>); <code>task_identity</code> silent, because the anonymous listing is refused; <code>coverage.protocols</code> holds what each answered; the dual-era server's sessions are graded</td>
 </tr>
 <tr>
 <td>the same, probed without a credential</td>
-<td><code>unauthenticated_access</code> silent; <code>token_audience</code>, <code>session_binding</code> inconclusive as documented</td>
+<td><code>unauthenticated_access</code> silent; <code>session_binding</code> inconclusive naming <code>--mcp-token-env</code>; <code>token_audience</code> silent, because the forged token is refused and that needs no operator credential to observe; <code>task_identity</code> no finding; exit <code>2</code></td>
 </tr>
 <tr>
 <td>open (no auth)</td>
@@ -792,6 +792,10 @@ no-op <code>AgentExecutor</code>; a handler subclass whose <code>on_list_tasks</
 <tr>
 <td>registry entries listing / not listing the URL, matching / other / no version</td>
 <td>decision 9</td>
+</tr>
+<tr>
+<td>a registry entry that cannot be read or is not an entry</td>
+<td>usage error, exit <code>3</code>, nothing sent</td>
 </tr>
 <tr>
 <td>a server that stops answering after N requests</td>
@@ -845,8 +849,10 @@ no-op <code>AgentExecutor</code>; a handler subclass whose <code>on_list_tasks</
 </table></div>
 <p>Unit tests use <code>ScriptedMcpServer</code> and <code>ScriptedA2aAgent</code> and refuse real name lookups. Each new
 rule ships finding, clean and inconclusive fixtures, so <code>_FULLY_SAMPLED</code> in
-<code>test_builtin_fixture_coverage.py</code> rises by five; <code>test_probe_cost.py</code> gains an A2A run shape and
-<code>REGISTRY_ENTRY</code> in the MCP shape, within its ceiling.</p>
+<code>test_builtin_fixture_coverage.py</code> rises by five; <code>test_probe_cost.py</code> gains an A2A run shape (ceiling 20, a whole
+run 8 requests) and <code>REGISTRY_ENTRY</code> in the MCP shape. The MCP ceiling rises from 60 to 79:
+<code>notifications/initialized</code> and the legacy probe are metered, and <code>task_identity</code> and
+<code>registry_entry</code> declare their own; a whole MCP probe still spends at most 20.</p>
 <p>Rejected: hand-written fixtures (Guardana's own reading on both sides); the official MCP
 conformance suite's TypeScript everything-server (a Node toolchain and an npm fetch in CI and on
 every contributor's machine).</p>

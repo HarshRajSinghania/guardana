@@ -372,6 +372,10 @@ only for a rule that grades in its own code and stamps verdicts with its own id,
 <td>Return why the rule has nothing to check on <code>target</code> as a non-empty string, or <code>None</code>. The run and the plan record the rule as skipped <code>not_applicable</code>, never as a check that ran. Any other return (<code>False</code>, <code>&quot;&quot;</code>) is an error naming the hook and what it returned, and the rule runs.</td>
 </tr>
 <tr>
+<td><code>raise NotOffered(detail, missing=(...))</code></td>
+<td>From <code>guardana.core.rule</code>: the rule found, while it ran, that the target does not offer what it examines. Raised before the rule yields anything, the run records it as skipped <code>not_offered</code>, a coverage gap <code>fail_on_skipped</code> refuses, and <code>rule test</code> reports the sample as <code>not_offered</code>; raised after, it is an error of the rule. See <a href="writing-rules.html">writing rules</a>.</td>
+</tr>
+<tr>
 <td><code>RuleFixture.rule</code></td>
 <td>Use the variant of the declaring rule that a sample runs.</td>
 </tr>
@@ -663,6 +667,16 @@ only by a query apart; it does not hide a short or guessable value.</p>
 <td><code>authorization</code>, <code>conversation</code></td>
 </tr>
 <tr>
+<td><code>RegistryEntryInspector</code></td>
+<td><code>registry_entry</code></td>
+<td><code>registry_entry</code>, <code>reported_server</code>, <code>server_url</code></td>
+</tr>
+<tr>
+<td><code>A2aInspector</code></td>
+<td><code>inspect_a2a</code></td>
+<td><code>a2a</code></td>
+</tr>
+<tr>
 <td><code>SeededData</code></td>
 <td><code>seeded_data</code></td>
 <td><code>fixtures</code>, <code>ask_as</code></td>
@@ -672,7 +686,7 @@ only by a query apart; it does not hide a short or guessable value.</p>
 <p>Built-ins are <code>ArtifactTarget</code> (files: pickles, GGUF, ONNX, ML formats,
 requirements/lockfiles, manifests), <code>EndpointTarget</code>
 (OpenAI-compatible / Ollama / vLLM / HF-TGI chat), <code>TraceTarget</code> (a recorded
-execution), <code>McpServerTarget</code> and <code>SeededTarget</code> (an endpoint with a
+execution), <code>McpServerTarget</code>, <code>A2aAgentTarget</code> and <code>SeededTarget</code> (an endpoint with a
 <a href="usage-fixtures.html">fixtures file</a>'s items and one endpoint per tenant, every one on the
 run's meter; <code>guardana.core.testing.seeded_target</code> builds one over a double). A rule declares the capabilities it needs via
 <code>required_capabilities</code> in <code>RuleMeta</code>; the <code>Runner</code> skips a rule whose target
@@ -872,10 +886,15 @@ like a real AWS access key id, without being one.</li>
 <li><code>fake_secrets</code> — all four above, for a test asserting that none leaked.</li>
 </ul>
 <p><strong>A scripted MCP server</strong>, <code>ScriptedMcpServer</code>, stands in for a live one,
-reached exactly the way the real one is (through a <code>Sender</code>) and
-configurable for authorization, session handling, caching headers, and both
-eras of the protocol — so an authorization rule gets a positive and a
-negative server with no network.</p>
+reached exactly the way the real one is and configurable for authorization,
+session handling, caching headers, task listings and both eras of the protocol —
+so an authorization rule gets a positive and a negative server with no network.
+Pass it as both seams: <code>McpServerTarget(url, sender=server, discovery_sender=server)</code>. A <code>Sender</code> carries the server's own requests and takes
+only <code>method</code>, <code>body</code> and <code>headers</code>; discovery documents go through a
+<code>DiscoverySender</code>, which also takes <code>alongside</code> and <code>discovery</code> and must honour
+<code>discovery</code>. A <code>sender</code> given alone raises <code>ValueError</code>, so a pack's transport can
+neither skip the pin on discovery connections nor send a test's discovery to the
+network.</p>
 <p><strong>A scripted A2A agent</strong>, <code>ScriptedA2aAgent</code>, stands in for a live A2A v1 agent
 the same way: it serves a card, answers the task reads per caller, keeps tasks
 per owner and refuses a caller it does not know, so an A2A rule gets an agent

@@ -283,7 +283,7 @@
 <h1><code>guardana plan</code> — what a run would cost, before it costs anything</h1><p class="lede"><code>guardana plan</code>: what a run would cost, before it costs anything</p><p><code>guardana plan</code> estimates request costs when you need to budget a probe or scan without sending a request.</p>
 <pre><code class="language-bash">guardana plan probe --url https://api.example.com --model gpt-4o-mini
 </code></pre>
-<pre><code class="language-text">14 rule(s) would run, 11 skipped.
+<pre><code class="language-text">14 rule(s) would run, 16 skipped.
 requests: at least 14, at most 47 — plus up to 94 retries
   a request refused for a rate limit or a server error is retried up to 2 times, and each retry counts toward --max-requests
 trials: 1 attempt(s) per case, counted in the requests above
@@ -368,6 +368,16 @@ run they are pricing would use, so both take the same plugin-trust flags
 <td><code>plan probe</code> only: price an MCP server at this http(s) URL instead of a model endpoint</td>
 </tr>
 <tr>
+<td><code>--mcp-registry-entry PATH</code></td>
+<td>none</td>
+<td><code>plan probe</code> only: the registry <code>server.json</code> <code>probe --mcp-registry-entry</code> would compare, read and refused (exit <code>3</code>) as there; needs <code>--mcp</code></td>
+</tr>
+<tr>
+<td><code>--a2a TEXT</code></td>
+<td>none</td>
+<td><code>plan probe</code> only: price an A2A agent at this http(s) URL instead of a model endpoint — see <a href="#pricing-an-a2a-agent">Pricing an A2A agent</a>. Refused with the endpoint flags and <code>--mcp</code> (exit <code>3</code>)</td>
+</tr>
+<tr>
 <td><code>--provider [openai|ollama|tgi]</code></td>
 <td><code>openai</code></td>
 <td><code>plan probe</code> only: the wire protocol, as on <code>probe</code>; any other name is refused (exit <code>3</code>)</td>
@@ -385,7 +395,7 @@ run they are pricing would use, so both take the same plugin-trust flags
 <tr>
 <td><code>--fixtures PATH</code></td>
 <td>none</td>
-<td><code>plan probe</code> only: price the seeded checks from this <a href="usage-fixtures.html">fixtures file</a> — see <a href="#pricing-seeded-data">Pricing seeded data</a>. No tenant key is read; refused with <code>--mcp</code> and <code>--target</code></td>
+<td><code>plan probe</code> only: price the seeded checks from this <a href="usage-fixtures.html">fixtures file</a> — see <a href="#pricing-seeded-data">Pricing seeded data</a>. No tenant key is read; refused with <code>--mcp</code>, <code>--a2a</code> and <code>--target</code></td>
 </tr>
 <tr>
 <td><code>--safety [passive|active|side-effecting]</code></td>
@@ -465,10 +475,10 @@ way, the ceiling is a claim somebody checks, not a promise.</p>
 rules will not repeat, so the count is the run's, not an estimate of it:</p>
 <pre><code class="language-bash">guardana plan probe --mcp https://mcp.example.com --trials 5
 </code></pre>
-<pre><code class="language-text">9 rule(s) would run, 14 skipped.
-requests: at least 9, at most 59
+<pre><code class="language-text">10 rule(s) would run, 20 skipped.
+requests: at least 10, at most 77
 trials: 5 attempt(s) per case, counted in the requests above
-  9 rule(s) make one attempt per case whatever --trials says, because their verdict does not depend on a sampled reply:
+  10 rule(s) make one attempt per case whatever --trials says, because their verdict does not depend on a sampled reply:
     • guardana.agent.mcp_server_manifest
     • guardana.mcp.unauthenticated_access
     …
@@ -523,23 +533,32 @@ a plan that would not select one — a profile that excludes it, <code>--safety 
 it as a coverage shortfall and exits <code>3</code>.</p>
 <h2 id="pricing-an-mcp-server">Pricing an MCP server</h2>
 <p><code>plan probe --mcp</code> prices an MCP run the same way, and it is where this command
-earns its keep. Reading a manifest costs three requests; the authorization checks
-send around a dozen, which is exactly the number somebody wants before pointing
-this at production.</p>
+earns its keep: it states the most an MCP run can send before anything is pointed at
+production, and <a href="usage-probe.html#cost">the probe page</a> lists what those requests are.
+<code>--mcp-registry-entry FILE</code> adds the registry comparison, which
+sends nothing beyond the opening the other checks already buy.</p>
 <pre><code class="language-bash">guardana plan probe --mcp https://mcp.example.com/mcp
 </code></pre>
 <p><strong>The ceiling is usually higher than a run spends, on purpose.</strong> Each rule declares what
 it would cost <em>alone</em>, because a plan cannot know which rule runs first — and the
 first one to look buys an observation the rest then share — including the single
 <code>server/discover</code> call that settles which revision of the protocol the server
-speaks. A whole MCP probe declares around sixty requests and spends around a
-dozen. An upper bound that is too
+speaks, so a whole MCP probe declares several times what it spends. An upper bound that is too
 high refuses a budget that would have fitted, which is the safe direction to be
 wrong in; the other way round is a ceiling that lets a run overspend.</p>
 <p><strong>An stdio server is priced by refusing.</strong> Working out what one would cost means
 starting it, and starting the thing under examination is the one thing this
 command must not do. <code>guardana probe --mcp … --allow-exec</code> is where that intent is
 stated out loud.</p>
+<h2 id="pricing-an-a2a-agent">Pricing an A2A agent</h2>
+<pre><code class="language-bash">guardana plan probe --a2a https://agent.example.com
+</code></pre>
+<pre><code class="language-text">3 rule(s) would run, 27 skipped.
+requests: at least 3, at most 13
+</code></pre>
+<p>The three A2A rules declare thirteen requests between them; a run shares the card and
+each read, and sends at most eight. No token variable is read, so a plan needs no
+secret.</p>
 <h2 id="pricing-a-grade">Pricing a grade</h2>
 <p><code>plan grade RECORDING</code> previews <a href="usage-grade.html"><code>guardana grade</code></a>: it selects the rules
 the grade would run, lists every rule the recording does not answer as skipped

@@ -95,7 +95,10 @@ operator *types*, and they are answered differently.
   the target; one that resolves to any address that is not globally routable —
   private, loopback, carrier-grade NAT — while the server under test is not local;
   one served over plain `http` when the target is not local; or one whose scheme a
-  client must reject. It does not fetch the
+  client must reject. An IPv6 address that carries an IPv4 address — IPv4-mapped,
+  IPv4-compatible, NAT64 (`64:ff9b::/96`) or 6to4 (`2002::/16`) — is judged as the IPv4
+  address it carries, so `2002:a9fe:a9fe::` is the metadata address; one that carries it
+  in a form Guardana does not read (NAT64 local-use, Teredo) is refused. It does not fetch the
   address to confirm the address is dangerous — that would be performing the
   attack in order to report it — and `guardana.mcp.discovery_target` reports the
   refusal. Loopback and private addresses are permitted when the server under test
@@ -260,6 +263,25 @@ attestation beside each container image. How to check them is in
 attestations only, so `gh attestation verify` cannot check them; from 0.33.0 each
 image digest has a signed provenance statement. The documented pins are moving `X.Y`
 tags; nothing documents pinning an image by digest.
+
+### T11 — A hostile A2A agent
+
+**Scenario:** the A2A agent under `probe --a2a` is a separate actor from an MCP server or
+a model endpoint, and it writes the document that tells Guardana where to send: its agent
+card names the interface every later request goes to. A hostile card names another
+origin to collect the operator's tokens, or an internal address to aim the scanner.
+
+**Stance:** the card is read from the origin the operator named, and nothing is sent to
+an interface on any other origin: the run reports that the card points elsewhere and
+every check that needs the agent is `inconclusive`. Both bearer tokens therefore never
+leave the named origin, and are sent only where the card declares a requirement a bearer
+token alone can meet. A redirect to another origin arrives without `Authorization`, as on
+an MCP server's own requests. Only reads are sent — never `SendMessage`, `CancelTask`, a
+subscription or a push-notification configuration — and task ids the agent reveals are
+withheld from every output like a credential.
+
+**Residual risk:** the card's signatures are not verified, so a card is graded on what it
+declares, not on who signed it. Only the JSON-RPC binding is spoken.
 
 ## Explicit non-goals
 

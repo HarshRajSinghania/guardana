@@ -92,6 +92,7 @@ These are additive extension points for a rule:
 | `RuleContext.shortfall(CoverageShortfall)` | Report coverage the rule could not get. It joins the run's `coverage_shortfall`, which has no switch, so the run is `indeterminate` unless a finding fails it. |
 | `Rule.estimated_requests_for(target)` | Price the rule against the target it is planned for; defaults to `estimated_requests`. `plan` reads this one. |
 | `Rule.not_applicable_to(target)` | Return why the rule has nothing to check on `target` as a non-empty string, or `None`. The run and the plan record the rule as skipped `not_applicable`, never as a check that ran. Any other return (`False`, `""`) is an error naming the hook and what it returned, and the rule runs. |
+| `raise NotOffered(detail, missing=(...))` | From `guardana.core.rule`: the rule found, while it ran, that the target does not offer what it examines. Raised before the rule yields anything, the run records it as skipped `not_offered`, a coverage gap `fail_on_skipped` refuses, and `rule test` reports the sample as `not_offered`; raised after, it is an error of the rule. See [writing rules](writing-rules.md). |
 | `RuleFixture.rule` | Use the variant of the declaring rule that a sample runs. |
 | `Runner(calibrations=...)` | Pass calibrations to the runner. |
 | `ScanResult.suites` | Read suite results from the scan result. |
@@ -385,12 +386,14 @@ only by a query apart; it does not hide a short or guessable value.
 | `TraceReader` | `read_trace` + dimensions | `trace` |
 | `ToolListing` | `list_tools` | `list_tools` |
 | `AuthorizationInspector` | `inspect_authorization` | `authorization`, `conversation` |
+| `RegistryEntryInspector` | `registry_entry` | `registry_entry`, `reported_server`, `server_url` |
+| `A2aInspector` | `inspect_a2a` | `a2a` |
 | `SeededData` | `seeded_data` | `fixtures`, `ask_as` |
 
 Built-ins are `ArtifactTarget` (files: pickles, GGUF, ONNX, ML formats,
 requirements/lockfiles, manifests), `EndpointTarget`
 (OpenAI-compatible / Ollama / vLLM / HF-TGI chat), `TraceTarget` (a recorded
-execution), `McpServerTarget` and `SeededTarget` (an endpoint with a
+execution), `McpServerTarget`, `A2aAgentTarget` and `SeededTarget` (an endpoint with a
 [fixtures file](usage-fixtures.md)'s items and one endpoint per tenant, every one on the
 run's meter; `guardana.core.testing.seeded_target` builds one over a double). A rule declares the capabilities it needs via
 `required_capabilities` in `RuleMeta`; the `Runner` skips a rule whose target
@@ -592,10 +595,16 @@ a redaction test does not put a secret-shaped literal in the repository:
 - `fake_secrets` — all four above, for a test asserting that none leaked.
 
 **A scripted MCP server**, `ScriptedMcpServer`, stands in for a live one,
-reached exactly the way the real one is (through a `Sender`) and
-configurable for authorization, session handling, caching headers, and both
-eras of the protocol — so an authorization rule gets a positive and a
-negative server with no network.
+reached exactly the way the real one is and configurable for authorization,
+session handling, caching headers, task listings and both eras of the protocol —
+so an authorization rule gets a positive and a negative server with no network.
+Pass it as both seams: `McpServerTarget(url, sender=server,
+discovery_sender=server)`. A `Sender` carries the server's own requests and takes
+only `method`, `body` and `headers`; discovery documents go through a
+`DiscoverySender`, which also takes `alongside` and `discovery` and must honour
+`discovery`. A `sender` given alone raises `ValueError`, so a pack's transport can
+neither skip the pin on discovery connections nor send a test's discovery to the
+network.
 
 **A scripted A2A agent**, `ScriptedA2aAgent`, stands in for a live A2A v1 agent
 the same way: it serves a card, answers the task reads per caller, keeps tasks

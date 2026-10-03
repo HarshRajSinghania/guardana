@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>guardana probe — Guardana documentation</title>
-<meta name="description" content="guardana probe: adversarial checks against a live endpoint or agent, and an MCP server&#x27;s manifest and authorization surface">
+<meta name="description" content="guardana probe: adversarial checks against a live endpoint or agent, an MCP server&#x27;s manifest and authorization surface, and an A2A agent&#x27;s card and callers">
 <link rel="canonical" href="https://guardana.dev/docs/usage-probe">
 <link rel="icon" href="../favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="../assets/brand/v1/tokens.css">
@@ -280,7 +280,7 @@
 </nav>
 </details>
 <main>
-<h1><code>guardana probe</code> — one-shot dynamic checks against a live endpoint</h1><p class="lede"><code>guardana probe</code>: adversarial checks against a live endpoint or agent, and an MCP server's manifest <strong>and authorization surface</strong></p><p>Runs every <strong>endpoint</strong>-kind rule against a live chat endpoint, one attempt per
+<h1><code>guardana probe</code> — one-shot dynamic checks against a live endpoint</h1><p class="lede"><code>guardana probe</code>: adversarial checks against a live endpoint or agent, an MCP server's manifest <strong>and authorization surface</strong>, and an A2A agent's card and callers</p><p>Runs every <strong>endpoint</strong>-kind rule against a live chat endpoint, one attempt per
 case unless <a href="#repeated-trials"><code>--trials</code></a> asks for more:
 direct prompt injection, jailbreak attempts (single-turn and multi-turn
 scenarios), indirect (RAG) injection, system-prompt leakage (via a planted
@@ -291,8 +291,10 @@ finding carries a <code>Verdict</code> — <code>outcome</code>, <code>confidenc
 <p>By default the endpoint is OpenAI-compatible (<code>POST /v1/chat/completions</code> —
 Ollama's <code>/v1</code>, vLLM, llamafile, LM Studio, and friends). <code>--provider ollama</code>
 speaks Ollama's native <code>/api/chat</code> instead, and <code>--provider tgi</code> speaks
-Hugging Face TGI's <code>/generate</code>.</p>
-<pre><code class="language-bash">guardana probe (--url &lt;base-url&gt; --model &lt;name&gt; | --target &lt;scheme://locator&gt;) [OPTIONS]
+Hugging Face TGI's <code>/generate</code>. <code>--mcp</code> examines an
+<a href="#probing-an-mcp-server">MCP server</a> and <code>--a2a</code> an <a href="#probing-an-a2a-agent">A2A agent</a>
+instead of a model.</p>
+<pre><code class="language-bash">guardana probe (--url &lt;base-url&gt; --model &lt;name&gt; | --target &lt;scheme://locator&gt; | --mcp &lt;server&gt; | --a2a &lt;agent-url&gt;) [OPTIONS]
 </code></pre>
 <h2 id="flags">Flags</h2>
 <div class="table-wrap"><table>
@@ -307,17 +309,17 @@ Hugging Face TGI's <code>/generate</code>.</p>
 <tr>
 <td><code>--url TEXT</code></td>
 <td>—</td>
-<td>Base URL of the OpenAI-compatible endpoint; with <code>--adapter</code>, the URL the adapter posts to. Required unless <code>--mcp</code> names an MCP server instead. A redirect is never followed: an endpoint that answers <code>3xx</code> is unavailable (exit <code>4</code>)</td>
+<td>Base URL of the OpenAI-compatible endpoint; with <code>--adapter</code>, the URL the adapter posts to. Required unless <code>--mcp</code> or <code>--a2a</code> names another target. A redirect is never followed: an endpoint that answers <code>3xx</code> is unavailable (exit <code>4</code>)</td>
 </tr>
 <tr>
 <td><code>--model TEXT</code></td>
 <td>—</td>
-<td>Model name to send in each request. Required unless <code>--mcp</code> names an MCP server instead</td>
+<td>Model name to send in each request. Required unless <code>--mcp</code> or <code>--a2a</code> names another target</td>
 </tr>
 <tr>
 <td><code>--target SCHEME://LOCATOR</code></td>
 <td>none</td>
-<td>Build a trusted installed endpoint target instead of the built-in endpoint or MCP flags</td>
+<td>Build a trusted installed endpoint target instead of the built-in endpoint, MCP or A2A flags</td>
 </tr>
 <tr>
 <td><code>--target-option KEY=VALUE</code></td>
@@ -347,7 +349,7 @@ Hugging Face TGI's <code>/generate</code>.</p>
 <tr>
 <td><code>--fixtures PATH</code></td>
 <td>none</td>
-<td>A <a href="usage-fixtures.html"><code>guardana-fixtures.yaml</code></a>: ask every seeded item as its owner and as every other tenant, each through that tenant's own credentials, and every poisoned document as its owner — see <a href="#seeded-data-and-tenants">Seeded data and tenants</a>. A file or a tenant connection that cannot be used is refused before anything is sent (exit <code>3</code>); refused with <code>--mcp</code> and <code>--target</code></td>
+<td>A <a href="usage-fixtures.html"><code>guardana-fixtures.yaml</code></a>: ask every seeded item as its owner and as every other tenant, each through that tenant's own credentials, and every poisoned document as its owner — see <a href="#seeded-data-and-tenants">Seeded data and tenants</a>. A file or a tenant connection that cannot be used is refused before anything is sent (exit <code>3</code>); refused with <code>--mcp</code>, <code>--a2a</code> and <code>--target</code></td>
 </tr>
 <tr>
 <td><code>--profile PATH</code></td>
@@ -397,7 +399,7 @@ Hugging Face TGI's <code>/generate</code>.</p>
 <tr>
 <td><code>--mcp TEXT</code></td>
 <td>none</td>
-<td>Examine an <strong>MCP server</strong> instead of a chat model — see <a href="#probing-an-mcp-server">Probing an MCP server</a>. Refused with <code>--url</code>, <code>--model</code>, <code>--provider</code>, <code>--api-key-env</code>, <code>--adapter</code> or <code>--system-prompt-file</code>, which configure a chat endpoint (exit <code>3</code>)</td>
+<td>Examine an <strong>MCP server</strong> instead of a chat model — see <a href="#probing-an-mcp-server">Probing an MCP server</a>. Refused with <code>--url</code>, <code>--model</code>, <code>--provider</code>, <code>--api-key-env</code>, <code>--adapter</code>, <code>--system-prompt-file</code> or <code>--a2a</code>, which configure another target (exit <code>3</code>)</td>
 </tr>
 <tr>
 <td><code>--mcp-token-env TEXT</code></td>
@@ -415,9 +417,29 @@ Hugging Face TGI's <code>/generate</code>.</p>
 <td>Write the server's current manifest as approved, and exit without reporting</td>
 </tr>
 <tr>
+<td><code>--mcp-registry-entry PATH</code></td>
+<td>none</td>
+<td>The server's registry <code>server.json</code>, compared with the URL the server answered at and the version it reports — see <a href="#the-registry-entry">The registry entry</a>. A file that cannot be read or is not an entry is refused (exit <code>3</code>); needs <code>--mcp</code></td>
+</tr>
+<tr>
 <td><code>--allow-exec</code></td>
 <td>off</td>
-<td>Permit <code>--mcp</code> to <strong>start</strong> an stdio server, which executes the code under examination</td>
+<td>Permit <code>--mcp</code> to <strong>start</strong> an stdio server, which executes the code under examination. Without it an stdio command is refused (exit <code>3</code>) and nothing is started</td>
+</tr>
+<tr>
+<td><code>--a2a TEXT</code></td>
+<td>none</td>
+<td>Examine an <strong>A2A agent</strong> at this http(s) URL instead of a chat model — see <a href="#probing-an-a2a-agent">Probing an A2A agent</a>. Refused with the endpoint and MCP flags (exit <code>3</code>)</td>
+</tr>
+<tr>
+<td><code>--a2a-token-env TEXT</code></td>
+<td>none</td>
+<td>Name of an environment variable holding the first caller's bearer token for the A2A agent. An unset or empty variable is refused (exit <code>3</code>)</td>
+</tr>
+<tr>
+<td><code>--a2a-other-token-env TEXT</code></td>
+<td>none</td>
+<td>Name of an environment variable holding a second, different caller's bearer token. Needs <code>--a2a-token-env</code>; the same value in both is refused (exit <code>3</code>)</td>
 </tr>
 <tr>
 <td><code>--max-requests</code>, <code>--max-input-tokens</code>, <code>--max-output-tokens</code>, <code>--max-duration</code></td>
@@ -462,7 +484,7 @@ Hugging Face TGI's <code>/generate</code>.</p>
 <tr>
 <td><code>--keep-exchanges</code></td>
 <td>off (or <code>privacy.keep_exchanges</code>)</td>
-<td>Keep every chat exchange of the plain pass, redacted, beside the saved run so <a href="usage-grade.html"><code>guardana grade</code></a> can grade it again without calling the endpoint — see <a href="#keeping-the-exchanges">Keeping the exchanges</a>. Needs <code>--format json --output</code>; refused with <code>--mcp</code>, with a <code>--target</code> not built on the built-in endpoint, and with <code>privacy.evidence_mode: metadata_only</code> (exit <code>3</code>)</td>
+<td>Keep every chat exchange of the plain pass, redacted, beside the saved run so <a href="usage-grade.html"><code>guardana grade</code></a> can grade it again without calling the endpoint — see <a href="#keeping-the-exchanges">Keeping the exchanges</a>. Needs <code>--format json --output</code>; refused with <code>--mcp</code> and <code>--a2a</code>, with a <code>--target</code> not built on the built-in endpoint, and with <code>privacy.evidence_mode: metadata_only</code> (exit <code>3</code>)</td>
 </tr>
 </tbody>
 </table></div>
@@ -475,16 +497,17 @@ marker. See <a href="extending.html#adding-a-target"><code>extending.md</code></
 <h2 id="probing-an-mcp-server">Probing an MCP server</h2>
 <p><code>--mcp</code> points <code>probe</code> at a Model Context Protocol server rather than a chat
 endpoint. There is no model to talk to, so every chat rule is skipped by
-capability and says so; what runs instead is the manifest check and the eight
-authorization checks.</p>
+capability and says so; what runs instead is the manifest check, the nine
+authorization checks and, with <code>--mcp-registry-entry</code>, the registry comparison.</p>
 <pre><code class="language-bash">export MCP_TOKEN=…
 guardana probe \
   --mcp https://mcp.example.com/mcp \
   --mcp-token-env MCP_TOKEN
 </code></pre>
 <p><strong>Guardana never calls a tool on your server.</strong> Every observation is made with
-<code>server/discover</code>, <code>tools/list</code>, the <code>initialize</code> handshake where the server still
-expects one, and unauthenticated <code>GET</code>s of the two discovery documents. Calling a
+<code>server/discover</code>, <code>tools/list</code>, the <code>initialize</code> handshake (followed by
+<code>notifications/initialized</code>) where the server still expects one, one <code>tasks/list</code> sent
+without a credential, and unauthenticated <code>GET</code>s of the two discovery documents. Calling a
 tool is a side effect on somebody's system — possibly a write, possibly a payment
 — and no verification result is worth finding that out by experiment.</p>
 <p><strong>Guardana declares no client capabilities</strong>, which is a safety property rather
@@ -518,10 +541,29 @@ conforming <code>2026-07-28</code> server mints none, so there is nothing to gue
 nothing to authenticate with. A server that still offers an older revision
 alongside the new one is graded over that older one, because it is still handing
 sessions to every client that asks for them.</li>
+<li><strong>Whether a server still offers <code>2025-11-25</code> is asked, not read.</strong> Some servers list
+only the new revision in <code>server/discover</code> and still answer <code>initialize</code>. When
+discovery lists no older revision, the checks that need it send one <code>initialize</code> over
+the <code>2025-11-25</code> wire, with your token when you gave one. A result naming <code>2025-11-25</code>
+makes the server dual-era, graded over that revision; a JSON-RPC error, <code>400</code>, <code>404</code> or
+<code>405</code> makes it modern-only; a <code>401</code> or <code>403</code> leaves it unknown, and <code>session_binding</code>
+reports <code>inconclusive</code> naming <code>--mcp-token-env</code>.</li>
 <li><strong>No revision in common is an outcome, never a pass.</strong> The authorization checks
-report <code>inconclusive</code> naming both version lists, and the manifest checks are
-skipped with the same sentence — which <code>fail_on.fail_on_skipped</code> turns into an
-indeterminate run.</li>
+report <code>inconclusive</code> naming both version lists, and the manifest checks
+report the same sentence as an error, so the run is indeterminate under the default
+<code>fail_on_error</code>.</li>
+<li><strong>An <code>initialize</code> answered in a revision Guardana does not speak opens no
+conversation.</strong> A server that answers with <code>2025-06-18</code>, or with no revision, agrees
+nothing: <code>coverage.protocols</code> stays empty, every authorization check reports
+<code>inconclusive</code> (&quot;the server answered initialize with 2025-06-18; guardana speaks
+2026-07-28 and 2025-11-25&quot;), and the manifest check records the same sentence as an
+error. The run exits <code>2</code>.</li>
+<li><strong>A revision dropped mid-run stops the run.</strong> Once a revision is agreed, a server that
+answers any later request with <code>-32022</code> (unsupported protocol version) has changed
+under the run. The run stops, is saved with <code>stopped_by: target_changed</code> and exits <code>4</code>:
+&quot;the MCP server at … stopped accepting revision 2025-11-25 during the run; it now
+offers 2026-07-28&quot;. Between two runs, a different revision is a change of reach in
+<code>guardana diff</code>.</li>
 </ul>
 <p><strong>The token never leaves the origin you named.</strong> MCP is the one protocol here
 where the server picks an address and the client fetches it, so every redirect hop
@@ -551,7 +593,7 @@ only</strong>. They still load and still compare, and every run that uses one ca
 note saying which drift it cannot see — re-approve with <code>--write-mcp-pin</code> to cover
 schemas too.</p>
 <h3 id="the-authorization-surface">The authorization surface</h3>
-<p>Eight checks, each testing an invariant the MCP specification states, and each
+<p>Nine checks, each testing an invariant the MCP specification states, and each
 saying plainly when it could not reach a verdict:</p>
 <div class="table-wrap"><table>
 <thead>
@@ -567,7 +609,7 @@ saying plainly when it could not reach a verdict:</p>
 </tr>
 <tr>
 <td><code>guardana.mcp.authorization_discovery</code></td>
-<td>A protected server publishes Protected Resource Metadata (RFC 9728) naming an authorization server, identifies <em>this</em> origin as its resource, and points at an authorization server that advertises PKCE</td>
+<td>A protected server publishes Protected Resource Metadata (RFC 9728) naming an authorization server, identifies <em>this</em> origin as its resource, and points at an authorization server whose metadata names the <code>issuer</code> it was fetched for (absent or different, a client must not use it — RFC 8414) and advertises PKCE</td>
 </tr>
 <tr>
 <td><code>guardana.mcp.token_audience</code></td>
@@ -593,6 +635,10 @@ saying plainly when it could not reach a verdict:</p>
 <td><code>guardana.mcp.cache_scope</code></td>
 <td>A tool listing the server gates behind a credential is not also declared <code>cacheScope: &quot;public&quot;</code>, which would invite any shared gateway to serve it to a caller the server would have refused</td>
 </tr>
+<tr>
+<td><code>guardana.mcp.task_identity</code></td>
+<td>One <code>tasks/list</code> sent without a credential lists no task, since a fresh anonymous session owns none; on a server that serves tools to anyone, listed task ids are not a counter, repeated or short. A refused listing, or an empty one on a gated server, is the conforming answer. A server that declares no tasks and answers <code>tasks/list</code> as an unknown method is skipped <code>not_offered</code>, a coverage gap</td>
+</tr>
 </tbody>
 </table></div>
 <p><strong>Two of them need <code>--mcp-token-env</code> to say anything</strong>, and say so rather than
@@ -615,18 +661,98 @@ servers offer. Reporting a supported feature as a defect is a false red.</p>
 <p><strong>stdio servers are not graded on this.</strong> The specification says an stdio
 implementation should take credentials from the environment instead of following
 the authorization spec, so an stdio target does not declare the capability and all
-eight rules are <strong>skipped</strong> with their reason recorded. <code>fail_on.fail_on_skipped</code>
-turns that coverage hole into an indeterminate result; what never happens is six
+nine rules are <strong>skipped</strong> with their reason recorded. <code>fail_on.fail_on_skipped</code>
+turns that coverage hole into an indeterminate result; what never happens is nine
 rules reporting nothing about a server they could not examine.</p>
 <p><strong>The credential never reaches a report.</strong> It is read from the environment rather
 than an argument — an argument is in every process list on the machine — and
 evidence records whether one was presented and what the server answered, never its
 value, at any privacy level.</p>
+<h3 id="the-registry-entry">The registry entry</h3>
+<p>Neither MCP revision defines registry metadata a client can observe, and what a server
+says about itself is its own claim. What you can check is whether the server you deployed
+is the one its registry entry publishes. Give the entry's <code>server.json</code>; Guardana never
+fetches it from a registry:</p>
+<pre><code class="language-bash">guardana probe --mcp https://mcp.example.com/mcp --mcp-registry-entry server.json
+</code></pre>
+<p><code>guardana.mcp.registry_entry</code> compares two things and sends no request beyond the
+conversation's opening:</p>
+<ul>
+<li><strong>The URL</strong> (HTTP only): the server must answer at one of the entry's <code>remotes</code>. Scheme
+and host compare lowercased, a default port and one trailing <code>/</code> are dropped, the query
+compares verbatim, a fragment is ignored, and a <code>{variable}</code> in a published URL stands
+for one or more characters other than <code>/</code>. An entry without remotes publishes none.
+A URL it does not publish is <code>medium</code>.</li>
+<li><strong>The version</strong> (HTTP and stdio): the version the server reports in <code>serverInfo</code> or
+discovery <code>_meta</code> must equal the entry's. A different one is <code>low</code>, worded as a
+self-report; none reported is <code>inconclusive</code>.</li>
+</ul>
+<p>The file is read before anything is sent: at most 1 MiB, a <code>name</code> of the form
+<code>namespace/server</code>, a non-empty string <code>version</code>, and optional <code>remotes</code>, each with a
+string <code>type</code> and an <code>http</code> or <code>https</code> <code>url</code>. Anything else is refused (exit <code>3</code>).
+Without the flag the rule is skipped for a missing capability.</p>
+<h3 id="when-the-server-fails-part-way">When the server fails part-way</h3>
+<p>An MCP server's failure stops the run as an endpoint's does, and the run is saved with
+what was graded before it (<a href="#when-the-target-fails-part-way">below</a>):</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>The conversation's request ended with</th>
+<th>Outcome</th>
+<th>Exit</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>no reply: no connection, a timeout, a reset, an stdio server that exited or closed its output</td>
+<td>the run stops (<code>stopped_by: target_unavailable</code>)</td>
+<td><code>4</code></td>
+</tr>
+<tr>
+<td><code>401</code>, <code>403</code> or <code>407</code> to a request carrying your <code>--mcp-token-env</code> token</td>
+<td>the run stops</td>
+<td><code>4</code></td>
+</tr>
+<tr>
+<td><code>404</code> (once a legacy session was re-opened), <code>408</code>, <code>425</code>, <code>429</code> or <code>5xx</code></td>
+<td>the run stops</td>
+<td><code>4</code></td>
+</tr>
+<tr>
+<td>a <code>2xx</code> that is not JSON-RPC, or an stdio line that is over-long or not JSON</td>
+<td>the run stops</td>
+<td><code>4</code></td>
+</tr>
+<tr>
+<td><code>-32022</code> once a revision is agreed</td>
+<td>the run stops (<code>stopped_by: target_changed</code>)</td>
+<td><code>4</code></td>
+</tr>
+<tr>
+<td>another <code>4xx</code></td>
+<td>an error of the rule that sent it; later readers meet the same error without a second request</td>
+<td><code>2</code>, unless a finding fails it</td>
+</tr>
+<tr>
+<td>a JSON-RPC error</td>
+<td>an answer the rules grade</td>
+<td>—</td>
+</tr>
+</tbody>
+</table></div>
+<p>The checks' own requests — the listing without a credential, the forged token, the
+session samples — stop the run only when no reply arrives, or when they meet <code>-32022</code>
+once a revision is agreed: any other status is what they observe. A discovery document
+never stops the run. An stdio command that cannot be started exits <code>4</code> before any rule,
+with nothing saved, and <code>--write-mcp-pin</code> against a server that fails exits <code>4</code> without
+writing a pin.</p>
 <h3 id="cost">Cost</h3>
-<p>An MCP probe sends around a dozen requests: one <code>server/discover</code> to settle the
+<p>An MCP probe sends these requests: one <code>server/discover</code> to settle the
 revision, a listing without a credential (preceded by a handshake where the server
 still expects one), up to five discovery fetches, a listing with the forged token,
-and a handful of handshakes to sample session ids. Every one is
+a handful of handshakes to sample session ids, one <code>initialize</code> to ask whether a
+modern server still offers <code>2025-11-25</code>, one <code>tasks/list</code>, and a
+<code>notifications/initialized</code> after each accepted handshake. Every one is
 counted, so <code>--max-requests</code> bounds it, and a run that hits the ceiling exits <code>6</code>
 with an <code>indeterminate</code> gate rather than reporting the checks it never reached as
 clean.</p>
@@ -637,6 +763,105 @@ clean.</p>
 each rule declares what it would cost <em>alone</em>, because a plan cannot know which
 one runs first and buys the shared observation — so treat it as the upper bound
 it is.</p>
+<h2 id="probing-an-a2a-agent">Probing an A2A agent</h2>
+<p><code>--a2a</code> points <code>probe</code> at an A2A v1 agent. Every chat and MCP
+rule is skipped by capability; three checks run instead.</p>
+<pre><code class="language-bash">export A2A_ALICE=… A2A_BOB=…
+guardana probe --a2a https://agent.example.com \
+  --a2a-token-env A2A_ALICE \
+  --a2a-other-token-env A2A_BOB
+</code></pre>
+<p><code>--a2a-token-env</code> is the first caller's bearer token and <code>--a2a-other-token-env</code> a
+second caller's, who must be somebody else: the second caller asks for the first caller's
+tasks. The second variable without the first, or both holding the same value, is refused
+(exit <code>3</code>). Without them the checks that need two callers report <code>inconclusive</code> and name
+both flags.</p>
+<p><strong>Where it sends.</strong> The card is the <code>--a2a</code> URL itself when its path ends in <code>.json</code>,
+otherwise <code>/.well-known/agent-card.json</code> on its origin. Every later request goes to the
+card's first <code>JSONRPC</code> interface for protocol version <code>1.0</code>. That interface must be on the
+origin you named: an interface elsewhere, or no JSON-RPC 1.0 interface, sends nothing
+further, and every check that needs the agent reports <code>inconclusive</code> naming what the card
+offers (&quot;run --a2a against that origin&quot;). A credential never leaves the origin you named.</p>
+<p><strong>What it sends.</strong> Only reads, as JSON-RPC <code>POST</code>s carrying <code>A2A-Version: 1.0</code>:</p>
+<ul>
+<li>without a credential: <code>GetTask</code> for a random id, <code>ListTasks</code> for one task, and
+<code>GetExtendedAgentCard</code> when the card declares an extended card;</li>
+<li>as the first caller: <code>ListTasks</code> for up to five tasks;</li>
+<li>as the second caller: <code>GetTask</code> on up to three of the first caller's tasks.</li>
+</ul>
+<p>The two callers' requests are sent only when both tokens are given.</p>
+<p><strong>Never</strong> <code>SendMessage</code>, <code>CancelTask</code>, a subscription or a push-notification
+configuration: Guardana creates no task and changes nothing on the agent. Task ids the
+agent reveals are held in memory and withheld from everything the run writes, like a
+credential.</p>
+<p><strong>What the card declares.</strong> Read from <code>securityRequirements</code> and <code>securitySchemes</code> as the
+v1 SDKs write them, or from <code>security</code> when <code>securityRequirements</code> is absent:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Security</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>required</td>
+<td>at least one requirement, and none of them empty</td>
+</tr>
+<tr>
+<td>optional</td>
+<td>a requirement that is empty, which lets a caller present nothing</td>
+</tr>
+<tr>
+<td>none</td>
+<td>no requirement at all</td>
+</tr>
+</tbody>
+</table></div>
+<p>A token is sent, as <code>Authorization: Bearer</code>, only when some requirement consists of
+bearer-capable schemes alone (HTTP <code>bearer</code>, OAuth 2, OpenID Connect). Otherwise the
+checks that need a credential report <code>inconclusive</code>, naming the schemes the card requires.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Rule</th>
+<th>What it establishes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>guardana.a2a.agent_card</code></td>
+<td>The card has every required field (<code>name</code>, <code>description</code>, <code>supportedInterfaces</code>, <code>version</code>, <code>capabilities</code>, <code>defaultInputModes</code>, <code>defaultOutputModes</code>, <code>skills</code>), every scheme a requirement names is declared, and its JSON-RPC 1.0 interface is not plain <code>http</code> on a host that is not loopback or private. One <code>medium</code> finding lists every defect</td>
+</tr>
+<tr>
+<td><code>guardana.a2a.caller_identity</code></td>
+<td>The agent does not answer a caller presenting nothing when the card requires a credential (<code>high</code>), or when it declares no security (<code>high</code>, <code>low</code> on a loopback or private address); and it never serves its extended card anonymously (<code>high</code>). An optional requirement makes an anonymous answer what the card declared</td>
+</tr>
+<tr>
+<td><code>guardana.a2a.task_visibility</code></td>
+<td>An anonymous <code>ListTasks</code> lists no task, and the second caller cannot read a task the first caller listed as its own (<code>high</code> each)</td>
+</tr>
+</tbody>
+</table></div>
+<p>A &quot;task not found&quot; is never graded: the specification asks an agent not to tell &quot;absent&quot;
+from &quot;not yours&quot;, and a random id exists for nobody. An agent that answers every
+<code>ListTasks</code> it was sent as an operation it does not support (<code>-32004</code>, or <code>-32601</code> once it
+answered with an A2A error code) has no listing to grade: <code>task_visibility</code> is skipped
+<code>not_offered</code>, a coverage gap that <code>fail_on.fail_on_skipped</code> and <code>--preset release</code> turn
+into an indeterminate run.</p>
+<p><strong>When the agent fails.</strong> The card and the first caller's request are the conversation, and
+fail as an MCP server's does: no reply, <code>404</code>, <code>408</code>, <code>425</code>, <code>429</code>, <code>5xx</code>, a reply that is
+not JSON-RPC, and <code>401</code> or <code>403</code> to the first caller's token stop the run (exit <code>4</code>),
+saved. Another <code>4xx</code> on the card leaves <code>agent_card</code> <code>inconclusive</code>. The anonymous and
+second-caller requests stop the run only when no reply arrives. An agent that answers
+<code>-32009</code> (version not supported) speaks no A2A 1.0, and every check reports <code>inconclusive</code>.
+Once the agent answered a result or an A2A error code, the run records
+<code>coverage.protocols</code> as <code>{&quot;a2a&quot;: &quot;1.0&quot;}</code>.</p>
+<p><strong>Not verified.</strong> The card's signatures are not checked: the card is graded on what it
+declares. The HTTP+JSON and gRPC bindings are not spoken, and an interface on another
+origin is not followed.</p>
+<p>A whole A2A probe sends at most eight requests; <code>guardana plan probe --a2a URL</code> prices it
+before anything is sent.</p>
 <h2 id="probing-a-guarded-endpoint">Probing a guarded endpoint</h2>
 <p><code>--provider</code> speaks the raw model wire (OpenAI/Ollama/TGI). But the thing you most
 want to test is often your <strong>guarded product endpoint</strong> — the model <em>plus</em> the API
@@ -892,7 +1117,7 @@ judge reply that could not be read — is reported separately as
 <code>? [UNVERIFIED]</code> (the <code>unverified</code> key in JSON), never silently counted as a
 pass; set <code>fail_on_inconclusive: true</code> in your profile to make it fail the
 gate. A judge configured under <code>evaluators:</code> that cannot be reached stops the
-probe with exit <code>4</code> and writes no run, with <code>--url</code>, <code>--target</code> and <code>--mcp</code>
+probe with exit <code>4</code> and writes no run, with <code>--url</code>, <code>--target</code>, <code>--mcp</code> and <code>--a2a</code>
 alike (<a href="exit-codes.html">exit codes</a>).</p>
 <h2 id="rules-graded-by-an-llm-judge">Rules graded by an LLM judge</h2>
 <p>The <code>llm_judge</code> and <code>guard</code> evaluators need a model of their own, wired from

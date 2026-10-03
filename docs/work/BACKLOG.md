@@ -20,12 +20,11 @@ No remote issues were created; the GitHub open-issue query returned zero.
 | B11 | Collector measurement envelope and storage | M3 | Independent envelope migration carries measurements, denominator, trials, uncertainty and missingness, with tenant isolation. |
 | B12 | Non-executing declarative packs | parallel lane, decided before F2 | Keep local ID validation. Decide whether a pack can ship checks that execute no Python. The public extension-ID service is dropped (direction audit). |
 | B13 | Public contributor tasks and adoption checks | F2/F6 | Prepare small issue descriptions from B04/B06/B08; record five developer sessions and two team integrations with consent. Publishing issues is separate maintainer work. |
-| B19 | MCP and A2A conformance fixtures | F7 | Both MCP revisions against independent server fixtures (authorization, task identity, cache scope, registry metadata, version change) and one A2A v1 fixture; unsupported capability recorded as missing coverage. |
 | B20 | Live retrieval pilot | F6 | One retrieval target catches a poisoned document and a tenant-filter failure without an uncontrolled side effect. The checks and a reference application shipped in 0.37.0; open until a team's own retrieval target has run them. |
 | B21 | Three-outcome fixtures for every built-in | 1.0 | The ratchet in `test_builtin_fixture_coverage.py` (12 of 51 at 0.31.0) reaches every rule that can decline. |
 | B22 | A time bound for `regex` | Later | A crafted reply can make an author's backtracking pattern run for a very long time; the 65,536-character bound limits input, not time. Any fix that adds a dependency needs principle 6's justification. |
 
-B08 shipped in 0.36.0 (ROADMAP F6, first half); the F6 second half shipped in 0.37.0. B07 shipped in 0.35.0 (ROADMAP F5). B15, B16, B17 and B18 shipped in 0.32.0 (ROADMAP Q1). B01, B02, B03, B09 and B14 shipped in 0.30.0 (ROADMAP F1). The lockfile/gitleaks and
+B19 shipped in 0.39.0 (ROADMAP F7). B08 shipped in 0.36.0 (ROADMAP F6, first half); the F6 second half shipped in 0.37.0. B07 shipped in 0.35.0 (ROADMAP F5). B15, B16, B17 and B18 shipped in 0.32.0 (ROADMAP Q1). B01, B02, B03, B09 and B14 shipped in 0.30.0 (ROADMAP F1). The lockfile/gitleaks and
 script-parser items shipped in 0.31.0; ONNX metadata grading, ATLAS provenance and the other
 items remain open below. Before closing any item, rerun its reproduction.
 
@@ -34,7 +33,7 @@ items remain open below. Before closing any item, rerun its reproduction.
 Found by the pre-ship review and the false-green hunt on 2026-09-30; each was reproduced.
 
 - **A protocol the target does not speak is a capability skip.** A chat endpoint skips the
-  nine MCP rules, so `probe --preset release` is `indeterminate` against any single endpoint
+  MCP and A2A rules, so `probe --preset release` is `indeterminate` against any single endpoint
   unless a profile selects the rules it serves (documented). Decide whether an MCP rule
   against a chat endpoint, or a chat rule against an MCP server, is `not_applicable`.
 - **A trace reads as `content_prefix` when `MAX_SPANS` stops a read of a file the buffer
@@ -57,8 +56,6 @@ reproduced; the rest are the sweep's reading with its anchors, not yet reproduce
 - The endpoint, adapter and reporter HTTP clients follow redirects without the private-address
   guard the MCP discovery client applies (`core/target/endpoint.py:231`).
 - `analyze-trace --write-trace` writes the trace unredacted (`cli/analyze_trace.py:208`).
-- A stdio MCP server's `readline()` has no size cap or timeout
-  (`core/target/_mcp_client.py:251`).
 - A symlinked file inside a scanned directory is read even when it points outside the root
   (bounded by the reader caps).
 - The dashboard cookie is `Secure` only when the app itself sees `https`
@@ -85,18 +82,29 @@ left for the owner, or are design gaps already documented elsewhere.
   set is closed (`target/base.py`), and `Verifier` does not run trace analysis
   (`docs/python-api.md`).
 
+## Left by protocol conformance (0.39.0)
+
+- **`Impact.PASSIVE` says "reading a tool manifest"**, but a gate in `test_probe_cost.py`
+  makes every endpoint rule declare at least `active`, so the MCP manifest check, the
+  registry comparison and the A2A reads all run as `active` and `--safety passive` skips
+  them. Decide which side is right.
+- **A2A HTTP+JSON and gRPC bindings** are not spoken, and an interface on another origin
+  is not followed; one binding has one fixture.
+- **Agent-card signatures are not verified**: JWS over RFC 8785 needs a JOSE or crypto
+  dependency in the engine (principle 6).
+- **MCP Server Cards** (`.well-known/mcp.json`) are not read (an open proposal in neither
+  revision); **`cacheScope` on prompt and resource lists** is not graded (Guardana sends
+  neither request); **older handshake revisions** (`2025-06-18`, `2025-03-26`) are reported
+  as sharing no revision.
+- **`is_local_address`** warns as deprecated; remove it before 1.0.
+
 ## Left by the guarded-application release (0.38.0)
 
 - **`monitor` builds a fresh meter per cycle**, so `max_requests_per_minute` is not held across
   cycles closer together than `60 / N` seconds; the usage page says so.
-- **A judge failing mid-run and an MCP server failing part-way keep no partial run**: a judge
-  failure exits `4` with nothing saved, and an MCP server's failures stay rule errors.
+- **A judge failing mid-run keeps no partial run**: it exits `4` with nothing saved.
 - **Declines exist on the adapter only**; the built-in provider transports have no
   `declines:`, `retry_statuses:` or `metadata_paths:`.
-- **MCP discovery does not unwrap NAT64 or 6to4 forms** of an address it refuses; an
-  IPv4-mapped address is judged as the IPv4 address it reaches.
-- **A third-party MCP `Sender` must accept the `discovery` keyword** that pins discovery
-  connections; `guardana.core.testing.mcp` doubles do.
 - **`recipe lock` plans with `build_plan`**, not with the probe's canary passes, so how the
   lock prices a canary pass can differ from the run.
 - **Source pins:** a `.pyc` under `__pycache__/` is left out, so an unchecked-hash or
@@ -111,8 +119,6 @@ left for the owner, or are design gaps already documented elsewhere.
   withheld); `target`'s locator failure is quoted under the `redacted` policy rather than the
   profile's; `--write-mcp-pin` keys tools by name, so a token a server puts in a tool name
   reaches the pin file.
-- **`is_local_address`** is still exported from `guardana.core.target` with fresh-lookup
-  semantics and no caller; removing a public name waits for a deprecation.
 - **A first monitor cycle its target stopped** alerts on what it proved and still exits `4`,
   the CLI's code for a target failure, rather than `1`.
 
@@ -306,10 +312,6 @@ Found on 2026-09-26 while building and reviewing the suites
   scenario grades the escalated ask with a step-level `keyword`, and the docs say so.
 - **The collector envelope (8) sends the target's requests only**; `usage.judge` stays in the
   run document. Part of M3.
-- **An MCP server that cannot be reached exits `2`, not `4`.** Every MCP rule records it as
-  unverified or as an error, so the run is indeterminate; an endpoint probe exits `4`. MCP
-  rules call no judge, so the judge-failure traceback this item used to name cannot occur, and
-  `--write-mcp-pin` exits `4` since 0.31.0.
 - **Server-supplied URLs in MCP authorization documents** (`resource_metadata`, `issuer`) are
   shown as the server gave them; a target URL is cleaned by `display_url` since 0.31.0.
 - **`monitor` writes no run document**, so what its judges spend per cycle is metered and
