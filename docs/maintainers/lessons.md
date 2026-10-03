@@ -48,9 +48,10 @@ expressed as a plan.
    counts tree walks and parses, `test_probe_cost.py` counts transport calls) the same way
    coverage is — counts, not wall-clock, because a count means the same thing on a laptop and a
    loaded runner.
-3. **Offline, and no account, always.** The only network traffic is to the target under test.
-   No telemetry, no phone-home, no license check; the collector is optional in every direction
-   and never required for a feature to work.
+3. **Offline, and no account, always.** Traffic goes only to destinations the run names — the
+   target under test, a judge or guard the profile configures, and the authorization metadata
+   the target itself advertises. No telemetry, no phone-home, no license check; the collector is
+   optional in every direction and never required for a feature to work.
 4. **The commercial boundary is fixed.** The engine and every built-in rule stay open source,
    permanently. Only *hosting* (managed collector, hosted runners) and *curated content*
    (language/industry corpora, extended advisory data) may ever be paid. Never withhold a

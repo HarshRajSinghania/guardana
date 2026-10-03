@@ -16,5 +16,5 @@ Requested: $ARGUMENTS (nothing = `postgres`).
 | images | `uv run --no-project python scripts/image_smoke.py` (`--no-build` reuses images) | builds `guardana-cli:smoke` and `guardana-collector:smoke` and runs them; needs docker. |
 | deps | `uv sync` (all five packages plus dev and docs groups) | `uv sync --locked` is what CI runs. |
 
-Nothing here contacts a network host other than what you started; the product's rule is the
-only traffic is to the target under test.
+Nothing here contacts a network host other than what you started; the product's rule is that
+traffic goes only to destinations the run names (principle 3 in `CLAUDE.md`).

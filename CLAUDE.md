@@ -44,7 +44,7 @@ uv run python scripts/generate_docs.py         # after a rule/evaluator/taxonomy
 
 1. The engine knows no regulation and no vendor: a law, a vendor, a format is data, never logic in core.
 2. Cost grows with the target, not the rule count; performance is a security property, pinned by operation-count gates.
-3. Offline, no account, always: the only traffic is to the target under test; the collector is optional in every direction.
+3. Offline, no account, always: traffic goes only to destinations the run names — the target under test, a judge or guard the profile configures, and the authorization metadata the target itself advertises; the collector is optional in every direction.
 4. The commercial boundary is fixed: engine and built-in rules stay open source; only hosting and curated content may be paid.
 5. Every built-in security rule maps to a public framework, in edition form; no mapping, no merge. A team's own quality criteria (suites, local checks) need no public mapping.
 6. The dependency surface is part of the posture: a new dependency needs a written justification.
