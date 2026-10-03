@@ -19,7 +19,7 @@ behaviour.
 | 1 | run completed, policy failed |
 | 2 | result indeterminate, or a comparison could not be made |
 | 3 | invalid configuration or CLI usage |
-| 4 | target or judge unavailable, or authentication failed |
+| 4 | target or judge unavailable, or authentication failed; a run its target stopped part-way is saved |
 | 5 | internal Guardana error |
 | 6 | budget exhausted |
 | 7 | run interrupted before it finished |
@@ -74,6 +74,17 @@ reached or rejects the request is `4` too, and the message names the judge's blo
 (`evaluators.llm_judge`), not the target. Conflating them sends bug reports to the wrong
 place and hides real bugs in a category people learn to ignore.
 
+**`4` describes a result too.** A target that fails part-way — it refuses the
+credentials, answers `404`, `408`, `425`, `429` or `5xx` once retried, stops answering, or
+sends a reply Guardana cannot read — stops the run (`stopped_by: target_unavailable`). Like
+a budget stop it outranks the verdict, and the run is saved with what it graded before the
+failure ([probe](usage-probe.md#when-the-target-fails-part-way)). A `4xx` about one request
+is not the target's failure: it is an error of the rule that sent it, and the run exits `2`
+under `fail_on_error`. When pooled rules stop for both reasons, the target's stop outranks
+the budget's, because a larger budget would not have let the run finish. A target that
+fails before the run has a result, and a judge that fails at any point, still exit `4`
+with nothing saved.
+
 **`3` is usage, not policy.** A malformed `guardana.yaml` must not look like a
 policy failure, or a typo in a config file reads as a security finding.
 
@@ -87,7 +98,7 @@ after an alert: the alerts it printed are the record of the cycles that raised t
 `scan`, `probe` and `monitor` can produce any of them. A `monitor` bounded by
 `--max-cycles` exits with the worst outcome any cycle earned, judged as `probe` judges
 the cycle and as `diff` judges it against the first one; a policy failure outranks a
-stop, and a cycle the endpoint dropped is `4` when nothing worse was seen. `diff` has no target to be
+stop, and a cycle the endpoint dropped or its target stopped is `4` when nothing worse was seen. `diff` has no target to be
 unavailable, so `4` never occurs there; it uses `2` both for "these runs cannot be
 compared" — including a rule whose trials per case changed between the two runs — and
 for "one of them never finished". `run inspect`, `run migrate`,

@@ -8,8 +8,8 @@ if it changes nothing else, which is what these tests pin:
 * the same report, in the same order, whichever rule finishes first;
 * the concurrency limit is a limit, not a suggestion (a probe must not become a
   load test against someone's production model);
-* a rule that raises is still recorded, and an unreachable endpoint still aborts
-  the whole run rather than being reported per-rule.
+* a rule that raises is still recorded, and an unreachable endpoint still stops
+  the whole run rather than being reported as one rule's error.
 """
 
 import threading
@@ -18,7 +18,7 @@ from urllib.error import URLError
 
 from guardana.core.profile.model import Policy, Profile
 from guardana.core.registry import Registry
-from guardana.core.report import Evidence, Finding
+from guardana.core.report import Evidence, Finding, StopReason
 from guardana.core.rule import Rule, RuleContext, RuleMeta
 from guardana.core.runner import Runner
 from guardana.core.severity import Severity
@@ -167,20 +167,22 @@ def test_a_raising_rule_is_recorded_and_the_rest_still_run() -> None:
     assert [e.source for e in result.errors] == ["test.concurrency.raising"]
 
 
-def test_an_unreachable_endpoint_still_aborts_the_whole_run() -> None:
-    # Every rule would fail identically, so this stays a single top-level failure
-    # with its own exit code rather than N per-rule errors.
+def test_an_unreachable_endpoint_still_stops_the_whole_run() -> None:
+    # Every rule would fail identically, so the run stops with its own exit code
+    # rather than reading as one rule's error among finished ones.
     _reset()
     rules: list[Rule] = [_Tracked(i, sync=False) for i in range(2)]
     rules.append(_Unreachable())
     runner = Runner(
         registry=_registry(*rules), profile=Profile(name="t", policy=Policy()), concurrency=_LIMIT
     )
-    try:
-        runner.run(_target())
-    except URLError:
-        return
-    raise AssertionError("an unreachable endpoint must propagate, not be swallowed")
+
+    result = runner.run(_target())
+
+    assert result.stopped_by is StopReason.TARGET_UNAVAILABLE
+    assert [(e.source, e.stage) for e in result.errors] == [
+        ("test.concurrency.unreachable", "target")
+    ]
 
 
 def test_artifact_scans_stay_sequential() -> None:

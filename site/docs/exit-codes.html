@@ -309,7 +309,7 @@ behaviour.</p>
 </tr>
 <tr>
 <td>4</td>
-<td>target or judge unavailable, or authentication failed</td>
+<td>target or judge unavailable, or authentication failed; a run its target stopped part-way is saved</td>
 </tr>
 <tr>
 <td>5</td>
@@ -367,6 +367,16 @@ carry a URL or a payload from the run. A judge configured under <code>evaluators
 reached or rejects the request is <code>4</code> too, and the message names the judge's block
 (<code>evaluators.llm_judge</code>), not the target. Conflating them sends bug reports to the wrong
 place and hides real bugs in a category people learn to ignore.</p>
+<p><strong><code>4</code> describes a result too.</strong> A target that fails part-way — it refuses the
+credentials, answers <code>404</code>, <code>408</code>, <code>425</code>, <code>429</code> or <code>5xx</code> once retried, stops answering, or
+sends a reply Guardana cannot read — stops the run (<code>stopped_by: target_unavailable</code>). Like
+a budget stop it outranks the verdict, and the run is saved with what it graded before the
+failure (<a href="usage-probe.html#when-the-target-fails-part-way">probe</a>). A <code>4xx</code> about one request
+is not the target's failure: it is an error of the rule that sent it, and the run exits <code>2</code>
+under <code>fail_on_error</code>. When pooled rules stop for both reasons, the target's stop outranks
+the budget's, because a larger budget would not have let the run finish. A target that
+fails before the run has a result, and a judge that fails at any point, still exit <code>4</code>
+with nothing saved.</p>
 <p><strong><code>3</code> is usage, not policy.</strong> A malformed <code>guardana.yaml</code> must not look like a
 policy failure, or a typo in a config file reads as a security finding.</p>
 <p><strong><code>7</code> is honest partiality.</strong> Ctrl-C is neither a pass nor a completed failure.
@@ -377,7 +387,7 @@ after an alert: the alerts it printed are the record of the cycles that raised t
 <p><code>scan</code>, <code>probe</code> and <code>monitor</code> can produce any of them. A <code>monitor</code> bounded by
 <code>--max-cycles</code> exits with the worst outcome any cycle earned, judged as <code>probe</code> judges
 the cycle and as <code>diff</code> judges it against the first one; a policy failure outranks a
-stop, and a cycle the endpoint dropped is <code>4</code> when nothing worse was seen. <code>diff</code> has no target to be
+stop, and a cycle the endpoint dropped or its target stopped is <code>4</code> when nothing worse was seen. <code>diff</code> has no target to be
 unavailable, so <code>4</code> never occurs there; it uses <code>2</code> both for &quot;these runs cannot be
 compared&quot; — including a rule whose trials per case changed between the two runs — and
 for &quot;one of them never finished&quot;. <code>run inspect</code>, <code>run migrate</code>,

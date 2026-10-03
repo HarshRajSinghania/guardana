@@ -20,7 +20,13 @@ from guardana.cli._connection import (
     resolve_tenants,
     seeded_endpoint,
 )
-from guardana.cli._errors import EndpointFlag, run_against_endpoint, run_judged
+from guardana.cli._errors import (
+    EndpointFlag,
+    remedies_for,
+    report_target_stop,
+    run_against_endpoint,
+    run_judged,
+)
 from guardana.cli._evaluators import judge_endpoint, wire_config_evaluators
 from guardana.cli._exit import exit_with, refuse_invalid_profile, refuse_unenforceable_budget
 from guardana.cli._formats import OutputFormat
@@ -250,7 +256,7 @@ def probe(  # noqa: C901, PLR0913, PLR0915, PLR0917 — Typer surface, target mo
     # run, and the manifest records the very same ones.
     calibrations = calibrations_or_exit(prof)
 
-    def verifier(of: Profile) -> Verifier:
+    def verifier(of: Profile, secrets: tuple[str, ...]) -> Verifier:
         return Verifier(
             trust=resolved.trust,
             profile=of,
@@ -259,11 +265,15 @@ def probe(  # noqa: C901, PLR0913, PLR0915, PLR0917 — Typer surface, target mo
             concurrency=concurrency,
             judge_endpoint=judge_endpoint,
             fixtures=None if seeded is None else seeded.record(),
+            secrets=secrets,
+            remedies=remedies_for(_ACCEPTED_FLAGS),
         )
 
-    def verified(target: Target, of: Profile = prof) -> Verification:
+    def verified(target: Target, secrets: tuple[str, ...] = ()) -> Verification:
         return _carried_out(
-            lambda: verifier(of).run(target, source=detect_source(), deployment=deployment)
+            lambda: verifier(prof, secrets).run(
+                target, source=detect_source(), deployment=deployment
+            )
         )
 
     if target is not None:
@@ -383,11 +393,12 @@ def probe(  # noqa: C901, PLR0913, PLR0915, PLR0917 — Typer surface, target mo
         ),
         prompt,
     )
+    sent = (*connection.secret_values, *tenant_secrets)
     probed = run_against_endpoint(
         endpoint_url,
-        lambda: verified(subject),
+        lambda: verified(subject, sent),
         privacy=prof.privacy,
-        secrets=(*connection.secret_values, *tenant_secrets),
+        secrets=sent,
         accepts=_ACCEPTED_FLAGS,
     )
     _finish_probe(
@@ -498,7 +509,8 @@ def _finish_probe(  # noqa: PLR0913 — what the command does with a finished ru
 
     A judge whose own ceiling stopped the run is named here, which the exit code alone
     cannot: a judge meters its calls apart from the target's, so a run cut short by
-    grading would otherwise read as the target's budget running out.
+    grading would otherwise read as the target's budget running out. A run its target
+    stopped is saved, kept and forwarded as any other, and what the target did is named.
     """
     for stop in verification.judge_stops:
         typer.echo(f"warning: {stop}", err=True)
@@ -507,6 +519,7 @@ def _finish_probe(  # noqa: PLR0913 — what the command does with a finished ru
     _write_exchanges(verification, output, keep=keep)
     if reporter:
         submit_safely(reporter, verification.result, source=source, deployment=deployment, run=run)
+    report_target_stop(verification.result)
     exit_with(verification.gate, verification.result)
 
 

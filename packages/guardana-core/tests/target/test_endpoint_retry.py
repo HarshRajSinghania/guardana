@@ -11,11 +11,12 @@ answer. It must never turn a genuine failure into silence.
 """
 
 import json
-from urllib.error import HTTPError
+from http.client import BadStatusLine, RemoteDisconnected
+from urllib.error import HTTPError, URLError
 
 import pytest
 from guardana.core.target.endpoint import _MAX_BACKOFF_SECONDS as _MAX_BACKOFF
-from guardana.core.target.endpoint import EndpointError, post_json
+from guardana.core.target.endpoint import EndpointError, EndpointUnreachable, post_json
 
 _REPLY = {"choices": [{"message": {"content": "hi"}}]}
 
@@ -164,3 +165,54 @@ def test_an_oversized_reply_is_still_refused_after_a_retry(
     _install(monkeypatch, [_rate_limited(), _CannedResponse(b"x" * (8 * 1024 * 1024 + 1))])
     with pytest.raises(EndpointError):
         post_json("http://x", {}, None, "ref")
+
+
+def test_a_timeout_is_the_target_not_answering_and_is_not_retried(
+    monkeypatch: pytest.MonkeyPatch, slept: list[float]
+) -> None:
+    calls = _install(monkeypatch, [TimeoutError("timed out")])
+
+    with pytest.raises(EndpointUnreachable, match="ref did not answer within 7 seconds"):
+        post_json("http://x", {}, None, "ref", timeout=7)
+    assert len(calls) == 1
+    assert not slept
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [ConnectionResetError("reset by peer"), RemoteDisconnected("closed"), BadStatusLine("junk")],
+    ids=["reset", "disconnected", "malformed-http"],
+)
+def test_a_connection_that_breaks_while_sending_is_the_target_unreachable(
+    monkeypatch: pytest.MonkeyPatch, slept: list[float], failure: Exception
+) -> None:
+    calls = _install(monkeypatch, [failure])
+
+    with pytest.raises(EndpointUnreachable, match="connection to ref failed"):
+        post_json("http://x", {}, None, "ref")
+    assert len(calls) == 1
+    assert not slept
+
+
+def test_an_unreachable_endpoint_is_still_an_endpoint_error() -> None:
+    assert issubclass(EndpointUnreachable, EndpointError)
+
+
+def test_a_connection_that_times_out_is_the_target_not_answering(
+    monkeypatch: pytest.MonkeyPatch, slept: list[float]
+) -> None:
+    _install(monkeypatch, [URLError(TimeoutError("timed out"))])
+
+    with pytest.raises(EndpointUnreachable, match="ref did not answer within 30 seconds"):
+        post_json("http://x", {}, None, "ref")
+    assert not slept
+
+
+def test_a_refused_connection_stays_the_url_error_it_is(
+    monkeypatch: pytest.MonkeyPatch, slept: list[float]
+) -> None:
+    _install(monkeypatch, [URLError(ConnectionRefusedError("refused"))])
+
+    with pytest.raises(URLError) as raised:
+        post_json("http://x", {}, None, "ref")
+    assert not isinstance(raised.value, EndpointError)

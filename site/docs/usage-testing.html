@@ -498,8 +498,10 @@ canary, the profile's calibrations apply, and the judges configured under
 <code>evaluators:</code> are built and called, with their key read from the environment.</p>
 <p>A target object runs once. Hand each test its own target (a function-scoped
 fixture); the second run of the same object raises <code>TargetReusedError</code>, because its
-meter and whatever it cached would describe both runs. A target that cannot be
-reached raises <code>TargetUnavailableError</code>.</p>
+meter and whatever it cached would describe both runs. A target that fails while a
+rule sends to it stops the run, and the stopped run fails the assertion as
+<code>indeterminate</code>, its errors naming what the target did; one that fails outside any rule
+raises <code>TargetUnavailableError</code>.</p>
 <p>A trace target is the exception: the Python API refuses traces, because
 <code>guardana analyze-trace</code> reads a trace file's contracts and unreadable records, so
 <code>assert_secure</code> runs a trace's rules directly, as it always has. A trace a framework

@@ -296,6 +296,6 @@ def test_the_key_a_probe_sends_never_reaches_its_error_message(
         app, ["probe", "--url", "http://x", "--model", "m", "--api-key-env", "ACME_KEY"]
     )
 
-    assert result.exit_code == ExitCode.TARGET_UNAVAILABLE, result.output
+    assert result.exit_code == ExitCode.INDETERMINATE, result.output
     assert "is not valid here" in normalised(result.output)
     assert _KEY not in result.output

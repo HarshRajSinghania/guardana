@@ -18,7 +18,7 @@ from guardana.core.report import Finding
 from guardana.core.rule import Rule, RuleContext, RuleMeta
 from guardana.core.severity import Severity
 from guardana.core.target import Capability, Target, TargetKind
-from guardana.core.target.endpoint import ChatMessage, ToolCallReply, ToolSpec
+from guardana.core.target.endpoint import ChatMessage, EndpointUnreachable, ToolCallReply, ToolSpec
 from typer.testing import CliRunner, Result
 
 runner = CliRunner()
@@ -248,3 +248,21 @@ def test_an_unknown_safety_level_is_refused(monkeypatch: pytest.MonkeyPatch) -> 
     )
 
     assert result.exit_code == ExitCode.INVALID_USAGE
+
+
+class _NeverAnswers:
+    """An endpoint that accepts the connection and never replies in time."""
+
+    def send(
+        self, base_url: str, model: str, messages: Sequence[ChatMessage], api_key: str | None
+    ) -> str:
+        raise EndpointUnreachable("http://fake#m did not answer within 30 seconds")
+
+
+def test_an_endpoint_that_does_not_answer_is_unavailable_not_unsupported(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    result = _inspect(monkeypatch, _NeverAnswers)
+
+    assert result.exit_code == ExitCode.TARGET_UNAVAILABLE, result.output
+    assert "did not answer within 30 seconds" in " ".join(result.output.split())

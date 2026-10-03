@@ -1,6 +1,8 @@
+import io
+from email.message import Message
 from pathlib import Path
 from typing import TYPE_CHECKING
-from urllib.error import URLError
+from urllib.error import HTTPError, URLError
 
 import guardana.cli._endpoint as endpoint_module
 import pytest
@@ -257,3 +259,42 @@ def test_monitor_says_it_keeps_no_exchanges_when_the_profile_asks(
     )
 
     assert "monitor keeps no exchanges" in result.stderr
+
+
+def _unavailable() -> FailingTransport:
+    return FailingTransport(
+        HTTPError("http://fake", 503, "Service Unavailable", Message(), io.BytesIO(b"draining"))
+    )
+
+
+def test_a_first_cycle_its_target_stopped_ends_the_watch_with_the_cause(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(endpoint_module, "transport_factory", _unavailable)
+    monkeypatch.setattr("guardana.core.target.endpoint._sleep", lambda _s: None)
+
+    result = runner.invoke(
+        app,
+        ["monitor", "--url", "http://fake", "--model", "m", "--max-cycles", "3", "--interval", "0"],
+    )
+
+    assert result.exit_code == ExitCode.TARGET_UNAVAILABLE, result.output
+    assert "returned HTTP 503; its body begins: draining" in " ".join(result.output.split())
+    assert "ALERT" not in result.output
+
+
+def test_a_later_cycle_its_target_stopped_is_not_sampled_and_the_watch_exits_four(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    built = iter([RefusingTransport(), _unavailable()])
+    monkeypatch.setattr(endpoint_module, "transport_factory", lambda: next(built))
+
+    result = runner.invoke(
+        app,
+        ["monitor", "--url", "http://fake", "--model", "m", "--max-cycles", "2", "--interval", "0"],
+    )
+
+    assert result.exit_code == ExitCode.TARGET_UNAVAILABLE, result.output
+    flat = " ".join(result.output.split())
+    assert "warning: monitor cycle 1 failed, continuing: endpoint" in flat
+    assert "1 cycle(s) sampled, 0 alert(s), 1 cycle(s) not sampled" in flat

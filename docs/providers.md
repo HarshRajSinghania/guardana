@@ -64,6 +64,11 @@ adapter's `declines:` matches is never retried. The built-in providers keep thei
 - A redirect is refused and never followed.
 - A reply that is not JSON, lacks the reply text, or exceeds 8 MiB fails the
   request; it is never graded as an empty answer.
-- A reply slower than the request timeout (30 seconds) fails the request.
+- A reply slower than the request timeout (30 seconds), a connection reset while
+  sending, or a reply that is not HTTP fails the request without a retry.
+- A `4xx` other than `401`, `403`, `404`, `407`, `408`, `425` and `429`, once raised,
+  is an error of the rule that sent it and the run goes on; any other failure that
+  survives the retries stops the run as the target's
+  ([probe](usage-probe.md#when-the-target-fails-part-way)).
 
 None of these apply to LangChain, which calls the chat model in-process.

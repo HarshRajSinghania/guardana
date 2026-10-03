@@ -415,7 +415,7 @@ evaluators:                     # config-wired evaluators — see the section be
 <td><code>fail_on.fail_on_error</code></td>
 <td>bool</td>
 <td><strong><code>true</code></strong></td>
-<td>A check that could not run <em>at all</em> — a plugin that failed to import, a custom rule file that would not load, a rule that raised — fails the gate. Note the default is the opposite of <code>fail_on_inconclusive</code>, and deliberately so: <code>inconclusive</code> is a verdict (the check ran and honestly could not tell), while an error means the check never happened while the result looked as though it had. Set <code>false</code> only if you would rather ship than fix the broken check.</td>
+<td>A check that could not run <em>at all</em> — a plugin that failed to import, a custom rule file that would not load, a rule that raised, a request the endpoint refused with a <code>4xx</code> about that request (<code>stage: request</code>) — fails the gate. Note the default is the opposite of <code>fail_on_inconclusive</code>, and deliberately so: <code>inconclusive</code> is a verdict (the check ran and honestly could not tell), while an error means the check never happened while the result looked as though it had. With <code>false</code>, a request the endpoint refused lets the run pass as any other rule error does. Set <code>false</code> only if you would rather ship than fix the broken check.</td>
 </tr>
 <tr>
 <td><code>fail_on.fail_on_skipped</code></td>

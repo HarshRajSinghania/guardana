@@ -17,6 +17,7 @@ from guardana.core.target import Capability, Target, TargetKind
 from guardana.core.target.endpoint import (
     ChatMessage,
     EndpointError,
+    EndpointUnreachable,
     ToolSpec,
 )
 from guardana.core.target.protocols import ChatEndpoint, ToolOfferingEndpoint
@@ -104,6 +105,8 @@ def _probe_chat(target: Target) -> CapabilityFinding:
         )
     try:
         reply = target.chat([ChatMessage(role="user", content=_PROBE)])
+    except EndpointUnreachable:
+        raise
     except EndpointError as exc:
         return CapabilityFinding(
             str(Capability.CHAT), Support.UNSUPPORTED, f"chat request failed: {exc}", 1
@@ -135,6 +138,8 @@ def _probe_system_prompt(base: Target, planted: Target | None) -> CapabilityFind
         )
     try:
         reply = planted.chat([ChatMessage(role="user", content="Reply now.")])
+    except EndpointUnreachable:
+        raise
     except EndpointError as exc:
         return CapabilityFinding(name, Support.UNKNOWN, f"probe failed: {exc}", 1)
     if _SYSTEM_MARKER in reply:
@@ -161,6 +166,8 @@ def _probe_tools(target: Target) -> CapabilityFinding:
         reply = target.offer_tools(
             [ChatMessage(role="user", content="Call the probe tool.")], [_TOOL]
         )
+    except EndpointUnreachable:
+        raise
     except EndpointError as exc:
         return CapabilityFinding(name, Support.UNSUPPORTED, f"tool request rejected: {exc}", 1)
     if reply.tool_calls:

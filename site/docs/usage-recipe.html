@@ -475,7 +475,8 @@ at the end of <code>report.txt</code> and in <code>guardana run inspect</code>.<
 <p><code>recipe run</code> claims <code>output.directory</code> before it starts: it writes a <code>junit.xml</code> with one
 error (&quot;the run did not finish&quot;) and a <code>report.txt</code> saying so. When the run ends it replaces
 the directory whole. An interrupted run leaves the placeholder; a refused run writes the
-refusal into the same two files. A CI step that uploads the directory therefore never shows an
+refusal into the same two files; a run its target stopped part-way replaces it with the
+partial run and exits <code>4</code>. A CI step that uploads the directory therefore never shows an
 earlier run's green.</p>
 <div class="table-wrap"><table>
 <thead>

@@ -523,6 +523,28 @@ each rule runs, each evaluator declines, and the finding count is zero for a rea
 that has nothing to do with the model being sound. See
 [`exit-codes.md`](exit-codes.md).
 
+### When the target fails part-way
+
+Whose failure a request ended with decides what the run does with it.
+
+| The request ended with | Outcome | Exit |
+|---|---|---|
+| HTTP `4xx` other than `401`, `403`, `404`, `407`, `408`, `425`, `429` | an error of the rule that sent it (`stage: request`); the run goes on | `2`, unless a finding fails it |
+| `401`, `403`, `404`, `407`; `408`, `425`, `429` or `5xx` once retried | the run stops (`stopped_by: target_unavailable`) | `4` |
+| no connection, a failed name lookup, a timeout, a reset, a reply that is not HTTP | the run stops | `4` |
+| a redirect, a reply that is not JSON, lacks its text or exceeds 8 MiB | the run stops | `4` |
+
+A `4xx` names that one request, so another may be accepted. An error at `stage: request`
+is a check that did not run, which `fail_on.fail_on_error` governs like any other rule
+error. Every other failure would meet every later request alike: no further rule is sent,
+the rule the failure cut off stays out of the rules that ran, and each rule in flight
+records an error at `stage: target`. Either way the run is written as any other — the
+`--output` file, the kept exchanges and the `--reporter` submission — with what was graded
+before the failure. Each error's reason gives the status and the start of the reply body
+under the profile's privacy policy, never a key the run sends, and a stopped run prints it
+after `error:`. A judge configured under `evaluators:` that fails is not the target: it
+still ends the probe with exit `4` and nothing written.
+
 ## Forwarding to a collector
 
 ```bash

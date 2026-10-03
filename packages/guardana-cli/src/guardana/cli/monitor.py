@@ -15,7 +15,7 @@ from guardana.cli._connection import (
     read_system_prompt,
     resolve_flags,
 )
-from guardana.cli._errors import EndpointFlag, run_against_endpoint
+from guardana.cli._errors import EndpointFlag, remedies_for, run_against_endpoint
 from guardana.cli._evaluators import JudgeMeters, wire_config_evaluators
 from guardana.cli._exit import refuse_invalid_profile, refuse_unenforceable_budget
 from guardana.cli._plugins import (
@@ -50,6 +50,7 @@ _DEFAULT_INTERVAL_SECONDS = 60.0
 _DEFAULT_CONCURRENCY = 4
 
 _ACCEPTED_FLAGS = (EndpointFlag.ADAPTER, EndpointFlag.API_KEY_ENV, EndpointFlag.CONCURRENCY)
+_REMEDIES = remedies_for(_ACCEPTED_FLAGS)
 
 
 def alert_handler(
@@ -99,8 +100,9 @@ def run_monitor(  # noqa: PLR0913 — the test seam needs every hook injectable
 ) -> MonitorSummary:
     """Sample `connection` on a loop, running the same probe `guardana probe` runs.
 
-    A transient failure mid-run is logged and the loop continues; a never-reachable
-    endpoint surfaces (via `run_against_endpoint`, exit 2) instead of spinning.
+    A transient failure mid-run, or a cycle its target stopped, is logged and the loop
+    continues; a never-reachable endpoint surfaces (via `run_against_endpoint`, exit 4)
+    instead of spinning.
 
     `on_alert` defaults to printing under *this profile's* privacy policy. It is
     resolved here rather than in the signature, because a default argument would
@@ -118,7 +120,12 @@ def run_monitor(  # noqa: PLR0913 — the test seam needs every hook injectable
     def scan() -> ScanResult:
         _rearm_judges(registry, profile)
         return run_probe(
-            registry, profile, connection, concurrency=concurrency, calibrations=calibrations
+            registry,
+            profile,
+            connection,
+            concurrency=concurrency,
+            calibrations=calibrations,
+            remedies=_REMEDIES,
         ).result
 
     monitor = Monitor(
@@ -158,6 +165,7 @@ def run_target_monitor(  # noqa: PLR0913 — mirrors the tested monitor seam
             target_factory(),
             concurrency=concurrency,
             calibrations=calibrations,
+            remedies=_REMEDIES,
         ).result
 
     monitor = Monitor(

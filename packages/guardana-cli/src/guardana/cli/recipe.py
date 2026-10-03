@@ -9,7 +9,12 @@ from typing import Annotated
 import typer
 from guardana.cli._artifact import MARKER, ArtifactRefusedError, claim, publish
 from guardana.cli._connection import endpoint_for, read_system_prompt, seeded_endpoint
-from guardana.cli._errors import run_against_endpoint, run_judged
+from guardana.cli._errors import (
+    remedies_for,
+    report_target_stop,
+    run_against_endpoint,
+    run_judged,
+)
 from guardana.cli._evaluators import judge_endpoint, wire_config_evaluators
 from guardana.cli._exit import exit_with, refuse_invalid_profile, refuse_unenforceable_budget
 from guardana.cli._plugins import hint_refused_plugins, resolve_trust
@@ -214,6 +219,7 @@ def run(
     )
     verification = replace(verification, manifest=replace(verification.manifest, recipe=record))
     _publish(prepared, verification, recipe_text=read.text, lock_text=lock_text)
+    report_target_stop(verification.result)
     exit_with(verification.gate, verification.result)
 
 
@@ -575,6 +581,8 @@ def _verify(
         demanded_rules=frozenset(prepared.lock.rules),
         subject_kind=kind,
         fixtures=None if prepared.fixtures is None else prepared.fixtures.record(),
+        secrets=secrets,
+        remedies=remedies_for(()),
     )
     deployment = DeploymentRef(
         ai_system=recipe.deployment.get("ai_system"),

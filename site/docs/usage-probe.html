@@ -876,6 +876,49 @@ every request with an empty message is reachable, well-formed and useless to gra
 each rule runs, each evaluator declines, and the finding count is zero for a reason
 that has nothing to do with the model being sound. See
 <a href="exit-codes.html"><code>exit-codes.md</code></a>.</p>
+<h3 id="when-the-target-fails-part-way">When the target fails part-way</h3>
+<p>Whose failure a request ended with decides what the run does with it.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>The request ended with</th>
+<th>Outcome</th>
+<th>Exit</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>HTTP <code>4xx</code> other than <code>401</code>, <code>403</code>, <code>404</code>, <code>407</code>, <code>408</code>, <code>425</code>, <code>429</code></td>
+<td>an error of the rule that sent it (<code>stage: request</code>); the run goes on</td>
+<td><code>2</code>, unless a finding fails it</td>
+</tr>
+<tr>
+<td><code>401</code>, <code>403</code>, <code>404</code>, <code>407</code>; <code>408</code>, <code>425</code>, <code>429</code> or <code>5xx</code> once retried</td>
+<td>the run stops (<code>stopped_by: target_unavailable</code>)</td>
+<td><code>4</code></td>
+</tr>
+<tr>
+<td>no connection, a failed name lookup, a timeout, a reset, a reply that is not HTTP</td>
+<td>the run stops</td>
+<td><code>4</code></td>
+</tr>
+<tr>
+<td>a redirect, a reply that is not JSON, lacks its text or exceeds 8 MiB</td>
+<td>the run stops</td>
+<td><code>4</code></td>
+</tr>
+</tbody>
+</table></div>
+<p>A <code>4xx</code> names that one request, so another may be accepted. An error at <code>stage: request</code>
+is a check that did not run, which <code>fail_on.fail_on_error</code> governs like any other rule
+error. Every other failure would meet every later request alike: no further rule is sent,
+the rule the failure cut off stays out of the rules that ran, and each rule in flight
+records an error at <code>stage: target</code>. Either way the run is written as any other — the
+<code>--output</code> file, the kept exchanges and the <code>--reporter</code> submission — with what was graded
+before the failure. Each error's reason gives the status and the start of the reply body
+under the profile's privacy policy, never a key the run sends, and a stopped run prints it
+after <code>error:</code>. A judge configured under <code>evaluators:</code> that fails is not the target: it
+still ends the probe with exit <code>4</code> and nothing written.</p>
 <h2 id="forwarding-to-a-collector">Forwarding to a collector</h2>
 <pre><code class="language-bash">guardana probe --url http://localhost:11434 --model llama3 --reporter server://https://collector.example.com
 </code></pre>

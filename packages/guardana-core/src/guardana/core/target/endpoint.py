@@ -4,10 +4,10 @@ import math
 from collections.abc import Callable, Mapping, Sequence
 from contextvars import ContextVar
 from dataclasses import dataclass, field, replace
-from http.client import HTTPMessage, HTTPResponse
+from http.client import HTTPException, HTTPMessage, HTTPResponse
 from time import sleep as _sleep
 from typing import IO, TYPE_CHECKING, Literal, Protocol, Self, TypeVar, runtime_checkable
-from urllib.error import HTTPError
+from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
@@ -62,6 +62,13 @@ def _retry_delay(attempt: int, retry_after: str | None) -> float:
 
 class EndpointError(Exception):
     """Raised when an endpoint is unusable: bad URL, a redirect, or a reply guardana can't parse."""
+
+
+class EndpointUnreachable(EndpointError):  # noqa: N818 — named for what the run meets
+    """The endpoint did not answer: a timeout, a reset, or a connection that broke mid-reply.
+
+    Its message names the endpoint and never quotes a reply, since none arrived.
+    """
 
 
 _T = TypeVar("_T")
@@ -334,6 +341,10 @@ def read_with_retry(
     mis-diagnosed as non-JSON once `json.loads` chokes on the tail. Every retry
     passes the sending target's meter first, so it counts against the run's
     request ceiling and in its usage.
+
+    A connect or read timeout, a reset or a reply that is not HTTP raises
+    `EndpointUnreachable` and is not retried; a refused connection or a failed name
+    lookup stays the `URLError` it is.
     """
     for attempt in range(_MAX_ATTEMPTS):
         try:
@@ -353,9 +364,30 @@ def read_with_retry(
             if before_retry is not None:
                 before_retry()
             _sleep(_retry_delay(attempt, exc.headers.get("Retry-After")))
+        except (OSError, HTTPException) as exc:
+            unreachable = _unreachable(exc, ref, timeout)
+            if unreachable is None:
+                raise
+            raise unreachable from exc
         else:
             return raw
     raise EndpointError(f"exhausted retries for {ref}")  # unreachable: the loop returns or raises
+
+
+def _unreachable(
+    exc: OSError | HTTPException, ref: str, timeout: float
+) -> EndpointUnreachable | None:
+    """Return what a send that broke without a status becomes, or None to raise it as it is.
+
+    A refused connection or a failed name lookup is already the `URLError` callers read.
+    """
+    if isinstance(exc, TimeoutError) or (
+        isinstance(exc, URLError) and isinstance(exc.reason, TimeoutError)
+    ):
+        return EndpointUnreachable(f"{ref} did not answer within {timeout:g} seconds")
+    if isinstance(exc, URLError):
+        return None
+    return EndpointUnreachable(f"connection to {ref} failed: {exc}")
 
 
 def endpoint_ref(base_url: str, model: str) -> str:

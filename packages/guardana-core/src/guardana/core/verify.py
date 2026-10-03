@@ -3,9 +3,9 @@
 `Verifier` holds what a run is configured with — the plugin trust, the profile, local and
 in-code rules and evaluators, calibrations — and `Verifier.scan` or `Verifier.run`
 returns a `Verification`: the redacted result, the saved-run manifest, the gate's
-verdict and the exit code the CLI would use. A run that fails, stays indeterminate or is
-stopped by its budget is returned like one that passed; only a run that could not be
-carried out raises, with a `VerificationError`.
+verdict and the exit code the CLI would use. A run that fails, stays indeterminate, or is
+stopped by its budget or by its target failing part-way is returned like one that passed;
+only a run that could not be carried out raises, with a `VerificationError`.
 
 `guardana scan` and `guardana probe` call this module, so a run from Python and a run
 from the command line compose the same steps in the same order.
@@ -88,6 +88,7 @@ from guardana.core.target import (
 )
 from guardana.core.target.adapter import HttpAdapterTransport
 from guardana.core.target.endpoint import EndpointTarget
+from guardana.core.target.failure import FailureRemedies
 from guardana.core.target.mcp import McpServerTarget
 from guardana.core.target.recorded import RecordedTarget
 
@@ -97,7 +98,11 @@ class VerificationError(Exception):
 
 
 class TargetUnavailableError(VerificationError):
-    """The target could not be reached, before or during the run; nothing partial is kept."""
+    """The target failed in a way the run could not record, so there is no result to keep.
+
+    A target that fails while a rule sends to it stops the run instead, and the stopped
+    `Verification` is returned with what it graded so far.
+    """
 
 
 class JudgeUnreachableError(VerificationError):
@@ -165,7 +170,7 @@ class Verification:
 
     @property
     def exit_code(self) -> int:
-        """The exit code `guardana` gives this result: 0, 1, 2 or 6."""
+        """The exit code `guardana` gives this result: 0, 1, 2, 4 (its target stopped it) or 6."""
         return exit_code_for(self.gate, self.result.stopped_by)
 
     @property
@@ -211,7 +216,9 @@ class Verifier:
     redacts evidence. `rule_paths` load local YAML rules beside the profile's own
     `rules.paths`; `rules` and `evaluators` register objects built in code.
     `calibrations` default to the files the profile names. `concurrency` bounds an
-    endpoint run, as `probe --concurrency` does.
+    endpoint run, as `probe --concurrency` does. `secrets` are the values the target
+    sends to authenticate, withheld from every failure the run records, and `remedies`
+    is what such a failure advises.
 
     `registry` is for a caller that assembled its own: nothing is discovered or loaded
     into it, so it cannot be combined with `rule_paths`, `rules` or `evaluators`, and
@@ -264,6 +271,12 @@ class Verifier:
     `demanded_check` shortfall, and so is a registry with no such rule, so a run cannot
     record seeded data and verify none of it.
     """
+
+    secrets: tuple[str, ...] = field(default=(), repr=False)
+    """The values the target sends to authenticate; no recorded failure quotes one."""
+
+    remedies: FailureRemedies = field(default_factory=FailureRemedies)
+    """What a recorded failure advises for a refused credential and for a rate limit."""
 
     _prepared: list[Registry] = field(default_factory=list, init=False, repr=False)
 
@@ -520,6 +533,8 @@ class Verifier:
                     target,
                     concurrency=self.concurrency,
                     calibrations=records,
+                    secrets=self.secrets,
+                    remedies=self.remedies,
                 )
                 return probed.result, probed.identity
             runner = Runner(
@@ -527,6 +542,8 @@ class Verifier:
                 profile=self.profile,
                 concurrency=self.concurrency if endpoint else 1,
                 calibrations=records,
+                secrets=self.secrets,
+                remedies=self.remedies,
             )
             return runner.run(target), target_identity(target, target.ref)
         except BudgetExhausted as exc:

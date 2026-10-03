@@ -30,7 +30,13 @@ from guardana.core.profile.errors import ProfileError
 from guardana.core.profile.loader import check_evaluator_blocks
 from guardana.core.redaction import MessageQuoting, RedactionPolicy
 from guardana.core.registry import Registry
-from guardana.core.target import ChatMessage, EndpointError, EndpointTarget, private_url_parts
+from guardana.core.target import (
+    ChatMessage,
+    EndpointError,
+    EndpointTarget,
+    EndpointUnreachable,
+    private_url_parts,
+)
 from guardana.core.target.connection import (
     Connection,
     ConnectionConfigError,
@@ -38,13 +44,11 @@ from guardana.core.target.connection import (
     Spelling,
     resolve_connection,
 )
+from guardana.core.target.failure import http_status_problem
 
 _DEFAULT_PROMPT_VERSION = "2025.1"
 _DEFAULT_PORTS = {"https": 443, "http": 80}
 _USABLE_SCHEMES = frozenset({"http", "https"})
-_HTTP_CLIENT_ERROR = 400
-_HTTP_RATE_LIMITED = 429
-_HTTP_SERVER_ERROR = 500
 
 
 class EndpointBuilder(Protocol):
@@ -113,29 +117,6 @@ class JudgeUnavailableError(EndpointError):
         self.block = block
         self.endpoint = endpoint
         super().__init__(problem)
-
-
-def http_status_problem(
-    status: int, *, where: str, sender: str, rate_limited_remedy: str, rejected_remedy: str
-) -> str:
-    """Say what an HTTP error status from `where` means, with the remedy for its class.
-
-    `sender` names who was sending (the probe, the judge). A 4xx reads apart from a
-    5xx because a rejected request usually means a wrong key or body, not a down
-    endpoint.
-    """
-    if status == _HTTP_RATE_LIMITED:
-        # Reaching here means the retries were already exhausted, so this is a
-        # sustained limit rather than a blip. Naming the knob beats the generic
-        # 4xx advice, which would send someone to check an auth header that is
-        # working fine.
-        return (
-            f"{where} kept rate-limiting {sender} (HTTP 429) even after retries — "
-            f"{rate_limited_remedy}"
-        )
-    if _HTTP_CLIENT_ERROR <= status < _HTTP_SERVER_ERROR:
-        return f"{where} rejected the request (HTTP {status}) — {rejected_remedy}"
-    return f"{where} returned HTTP {status}"
 
 
 def unusable_url(url: str) -> str | None:
@@ -232,6 +213,10 @@ class JudgeMeter:
             reason = exc.reason if isinstance(exc, URLError) else exc
             raise self._unavailable(
                 f"could not reach endpoint {self.endpoint} ({self.name}): {self._quoted(reason)}"
+            ) from exc
+        except EndpointUnreachable as exc:
+            raise self._unavailable(
+                f"could not reach endpoint {self.endpoint} ({self.name}): {self._quoted(exc)}"
             ) from exc
         except EndpointError as exc:
             raise self._unavailable(

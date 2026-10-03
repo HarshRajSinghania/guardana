@@ -28,7 +28,7 @@ for finding in verification.result.findings:
 verification.save(Path("run.json"))  # the document `--format json --output` writes
 ```
 
-A run that fails, stays indeterminate or is stopped by its budget is returned like one that passed. Read `verification.gate`, `verification.exit_code` or `verification.open_questions`; nothing is raised for an outcome.
+A run that fails, stays indeterminate, or is stopped by its budget or by its target failing part-way is returned like one that passed. Read `verification.gate`, `verification.exit_code` or `verification.open_questions`; nothing is raised for an outcome.
 
 ## Configure a run
 
@@ -46,6 +46,7 @@ A run that fails, stays indeterminate or is stopped by its budget is returned li
 | `judge_endpoint` | An `EndpointBuilder`: how the endpoint of each judge under `evaluators:` is built from its URL, model and key. Defaults to the HTTP client; a test passes one that returns an `EndpointTarget` on a scripted transport. A judge block that sets `provider` or `adapter` is refused with `ProfileError` when you pass your own builder, which could not honour either. |
 | `demanded_rules` | Rule ids the run must complete. One that is skipped, errors or is never reached becomes a `demanded_check` coverage shortfall, so the run cannot pass whatever `fail_on_*` says. Empty by default; `guardana recipe run` demands every rule its lock pins. |
 | `subject_kind` | What answered, a `SubjectKind` (`application` or `model_harness`), written as `subject_kind` into the exchanges the run keeps. `None` by default, which declares nothing; `guardana recipe run` passes its recipe's kind. |
+| `secrets`, `remedies` | The values your target sends to authenticate, as a tuple of strings, and a `FailureRemedies(auth=..., rate_limited=...)` from `guardana.core.target.failure`: what a recorded failure advises for a refused credential and for a sustained rate limit. A failure the run records quotes the start of the endpoint's reply under the profile's privacy policy and never holds one of `secrets`. Empty and generic advice by default. |
 | `fixtures` | The fixtures file the run was given, a `FixturesRecord` (`Fixtures.record()` from `guardana.core.fixtures`), written into the saved run as `run.fixtures`, with `data` labelled declared. `None` by default; a target that declares `Capability.SEEDED_DATA` records its own. A run given fixtures demands every registered rule that needs seeded data and has something to check on the target, and one with no such rule is a `demanded_check` shortfall too. `diff` reads two runs given different fixtures, or fixtures on one side only, as incomplete. |
 
 Budgets, failure bars, redaction and trials come from the profile, as on the command line.
@@ -77,7 +78,7 @@ A target runs once. Running the same object again, starting a second run while t
 | `result` | The `ScanResult`: findings, unverified results, waived findings, errors, observations, coverage shortfalls, assessments, the file listing (`scope`) and why a run stopped. Redacted under the profile's privacy policy. |
 | `manifest` | The `RunManifest` a saved run carries. |
 | `gate` | `GateOutcome.PASS`, `FAIL` or `INDETERMINATE`. |
-| `exit_code` | The code `guardana` gives this result: `0`, `1`, `2` or `6` ([exit codes](exit-codes.md)). |
+| `exit_code` | The code `guardana` gives this result: `0`, `1`, `2`, `4` when its target stopped it, or `6` ([exit codes](exit-codes.md)). |
 | `passed` | `True` only when the gate passed. |
 | `open_questions` | Each fact that leaves part of the run's question unanswered, in the order the gate reads them. |
 | `judge_usage`, `judge_stops` | What each judge configured under `evaluators:` spent, and which judge's own ceiling stopped the run. |
@@ -92,7 +93,7 @@ Every error derives from `VerificationError`.
 
 | Error | When | The CLI's exit code |
 |---|---|---|
-| `TargetUnavailableError` | The target could not be reached, before or during the run. Nothing partial is returned. | `4` |
+| `TargetUnavailableError` | The target failed in a way the run could not record, outside any rule. A target that fails while a rule sends to it stops the run instead: the `Verification` is returned with `result.stopped_by` `target_unavailable`, what was graded before the failure, and an error at stage `target` naming what the target did. | `4` |
 | `JudgeUnreachableError` | A judge configured under `evaluators:` could not be reached during the run. | `4` |
 | `UnenforceableBudgetError` | The profile sets a budget the target or a judge cannot enforce; refused before anything is sent. | `3` |
 | `CalibrationError` | A calibration file the run was pointed at cannot be read. | `3` |

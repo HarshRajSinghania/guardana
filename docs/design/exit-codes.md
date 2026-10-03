@@ -25,7 +25,7 @@ interface anyone should build on.
 1  run completed, policy failed
 2  result indeterminate, or a comparison could not be made
 3  invalid configuration or CLI usage
-4  target or judge unavailable, or authentication failed
+4  target or judge unavailable, or authentication failed; a run its target stopped part-way is saved
 5  internal Guardana error
 6  budget exhausted
 7  run interrupted, partial evidence written
@@ -50,6 +50,11 @@ gate by lowering the budget until the run stops early.
 **`4` is separate from `5`.** An unreachable endpoint is the user's environment; an
 internal error is our bug. Conflating them sends bug reports to the wrong place and
 hides real defects in a category people learn to ignore.
+
+Amended by [`guarded-applications.md`](guarded-applications.md) (decision 4): `4` also
+describes a result. A target that fails part-way stops the run with
+`stopped_by: target_unavailable`, which outranks the verdict as a budget stop does, and
+the partial run is saved.
 
 **`3` is usage, not policy.** A malformed `guardana.yaml` must not look like a
 policy failure, or a typo in a config file reads as a security finding.

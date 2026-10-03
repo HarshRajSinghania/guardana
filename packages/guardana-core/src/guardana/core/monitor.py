@@ -6,8 +6,21 @@ from guardana.core.diff import IncomparableRunsError, compare, gate_diff
 from guardana.core.gate import GateOutcome, StopReason, exit_code_for, gate_outcome
 from guardana.core.profile.model import Policy
 from guardana.core.report import ScanResult
-from guardana.core.runner import gate
+from guardana.core.runner import gate, target_failures
 from guardana.core.target import EndpointError
+
+
+class TargetStoppedError(EndpointError):
+    """A cycle its target stopped part-way: nothing in it was sampled.
+
+    Carries the cycle's partial `result`; the message is what the target did, as the
+    run recorded it.
+    """
+
+    def __init__(self, result: ScanResult) -> None:
+        self.result = result
+        super().__init__("; ".join(target_failures(result)) or "the target stopped the cycle")
+
 
 # A monitored endpoint blips: a rate-limit, a 502, a dropped connection. A 24/7
 # loop must survive those. A programming bug (anything else) must not be
@@ -58,7 +71,7 @@ class MonitorSummary:
     """Cycles that produced a result."""
     alerts: int
     unsampled: int
-    """Cycles a transient endpoint failure prevented, so nothing was verified in them."""
+    """Cycles a transient failure prevented or the target stopped; none verified anything."""
     exit_code: int
     """The worst result code any sampled cycle earned; `2` when no cycle was sampled.
 
@@ -141,8 +154,10 @@ class Monitor:
 
         A transient endpoint failure during a cycle is reported to `on_error`
         (if given) and the loop continues — one blip must not kill a long-running
-        monitor. But a failure before any cycle has ever succeeded is not a blip;
-        it's a dead endpoint or a bad URL, and it propagates rather than spinning.
+        monitor. A cycle its target stopped part-way is such a failure, raised as
+        `TargetStoppedError`: it is never the baseline and earns no result code. But a
+        failure before any cycle has ever succeeded is not a blip; it's a dead endpoint
+        or a bad URL, and it propagates rather than spinning.
 
         The summary carries the worst code any cycle earned, judged as `probe` judges
         the cycle and as `guardana diff` judges it against the first one, so an alert
@@ -158,6 +173,8 @@ class Monitor:
                 sleep(self.config.interval_seconds)
             try:
                 result = self.scan()
+                if result.stopped_by is StopReason.TARGET_UNAVAILABLE:
+                    raise TargetStoppedError(result)
             except _TRANSIENT as exc:
                 if baseline is None:
                     raise  # never worked once — surface it, don't loop on it

@@ -296,7 +296,7 @@ for finding in verification.result.findings:
     print(finding.severity.name, finding.rule_id, finding.target_ref)
 verification.save(Path(&quot;run.json&quot;))  # the document `--format json --output` writes
 </code></pre>
-<p>A run that fails, stays indeterminate or is stopped by its budget is returned like one that passed. Read <code>verification.gate</code>, <code>verification.exit_code</code> or <code>verification.open_questions</code>; nothing is raised for an outcome.</p>
+<p>A run that fails, stays indeterminate, or is stopped by its budget or by its target failing part-way is returned like one that passed. Read <code>verification.gate</code>, <code>verification.exit_code</code> or <code>verification.open_questions</code>; nothing is raised for an outcome.</p>
 <h2 id="configure-a-run">Configure a run</h2>
 <p><code>Verifier</code> holds the configuration and can run several targets in turn. It is frozen: to change the configuration, build another.</p>
 <div class="table-wrap"><table>
@@ -348,6 +348,10 @@ verification.save(Path(&quot;run.json&quot;))  # the document `--format json --o
 <td>What answered, a <code>SubjectKind</code> (<code>application</code> or <code>model_harness</code>), written as <code>subject_kind</code> into the exchanges the run keeps. <code>None</code> by default, which declares nothing; <code>guardana recipe run</code> passes its recipe's kind.</td>
 </tr>
 <tr>
+<td><code>secrets</code>, <code>remedies</code></td>
+<td>The values your target sends to authenticate, as a tuple of strings, and a <code>FailureRemedies(auth=..., rate_limited=...)</code> from <code>guardana.core.target.failure</code>: what a recorded failure advises for a refused credential and for a sustained rate limit. A failure the run records quotes the start of the endpoint's reply under the profile's privacy policy and never holds one of <code>secrets</code>. Empty and generic advice by default.</td>
+</tr>
+<tr>
 <td><code>fixtures</code></td>
 <td>The fixtures file the run was given, a <code>FixturesRecord</code> (<code>Fixtures.record()</code> from <code>guardana.core.fixtures</code>), written into the saved run as <code>run.fixtures</code>, with <code>data</code> labelled declared. <code>None</code> by default; a target that declares <code>Capability.SEEDED_DATA</code> records its own. A run given fixtures demands every registered rule that needs seeded data and has something to check on the target, and one with no such rule is a <code>demanded_check</code> shortfall too. <code>diff</code> reads two runs given different fixtures, or fixtures on one side only, as incomplete.</td>
 </tr>
@@ -393,7 +397,7 @@ verification = verifier.grade(path, source=None, deployment=None)
 </tr>
 <tr>
 <td><code>exit_code</code></td>
-<td>The code <code>guardana</code> gives this result: <code>0</code>, <code>1</code>, <code>2</code> or <code>6</code> (<a href="exit-codes.html">exit codes</a>).</td>
+<td>The code <code>guardana</code> gives this result: <code>0</code>, <code>1</code>, <code>2</code>, <code>4</code> when its target stopped it, or <code>6</code> (<a href="exit-codes.html">exit codes</a>).</td>
 </tr>
 <tr>
 <td><code>passed</code></td>
@@ -431,7 +435,7 @@ verification = verifier.grade(path, source=None, deployment=None)
 <tbody>
 <tr>
 <td><code>TargetUnavailableError</code></td>
-<td>The target could not be reached, before or during the run. Nothing partial is returned.</td>
+<td>The target failed in a way the run could not record, outside any rule. A target that fails while a rule sends to it stops the run instead: the <code>Verification</code> is returned with <code>result.stopped_by</code> <code>target_unavailable</code>, what was graded before the failure, and an error at stage <code>target</code> naming what the target did.</td>
 <td><code>4</code></td>
 </tr>
 <tr>

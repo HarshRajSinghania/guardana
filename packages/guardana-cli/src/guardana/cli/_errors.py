@@ -1,22 +1,19 @@
 from collections.abc import Callable, Collection, Iterable
 from enum import StrEnum
-from http.client import HTTPException
 from typing import TypeVar
-from urllib.error import HTTPError, URLError
+from urllib.error import URLError
 
 import typer
 from guardana.cli.exit_codes import ExitCode
-from guardana.core.evaluator.config import JudgeUnavailableError, http_status_problem, safe_url
+from guardana.core.evaluator.config import JudgeUnavailableError, safe_url
+from guardana.core.monitor import TargetStoppedError
 from guardana.core.redaction import MessageQuoting, RedactionPolicy
+from guardana.core.report import ScanResult
+from guardana.core.runner import target_failures
 from guardana.core.target import EndpointError, display_url
+from guardana.core.target.failure import FailureRemedies, describe_failure, http_status_problem
 
 T = TypeVar("T")
-
-_AUTH_STATUSES = frozenset({401, 403, 407})
-_RATE_LIMITED = 429
-_CLIENT_ERROR = range(400, 500)
-_BODY_READ_BYTES = 4096
-_BODY_SHOWN_CHARS = 200
 
 
 class EndpointFlag(StrEnum):
@@ -46,52 +43,21 @@ def _rate_limit_advice(accepts: Collection[EndpointFlag]) -> str:
     return "wait for the quota to reset"
 
 
-def _status_message(
-    exc: HTTPError, shown: str, accepts: Collection[EndpointFlag], quoting: MessageQuoting
-) -> str:
-    """Say what an endpoint's error status means, quoting its body when the status is not auth.
-
-    Only 401, 403 and 407 are about credentials; any other status is answered by what the
-    endpoint said, so that is shown instead of advice about a header that may be fine.
-    """
-    if exc.code in _AUTH_STATUSES or exc.code == _RATE_LIMITED:
-        return http_status_problem(
-            exc.code,
-            where=f"endpoint {shown}",
-            sender="the probe",
-            rate_limited_remedy=_rate_limit_advice(accepts),
-            rejected_remedy=f"check the auth header / body{_auth_advice(accepts)}",
-        )
-    if exc.code in _CLIENT_ERROR:
-        return (
-            f"endpoint {shown} rejected the request (HTTP {exc.code}); "
-            f"{_body_snippet(exc, quoting)}"
-        )
-    return f"endpoint {shown} returned HTTP {exc.code}; {_body_snippet(exc, quoting)}"
-
-
-def _body_snippet(exc: HTTPError, quoting: MessageQuoting) -> str:
-    """Quote the start of an error response within the run's policy, control characters escaped.
-
-    Under `metadata_only` only its size is given.
-    """
-    try:
-        raw = exc.read(_BODY_READ_BYTES)
-    except (OSError, ValueError, HTTPException):
-        return "its body could not be read"
-    if not raw.strip():
-        return "its body was empty"
-    if quoting.withholds_text:
-        size = f"at least {len(raw)}" if len(raw) >= _BODY_READ_BYTES else str(len(raw))
-        return f"its body ({size} bytes) is not shown under evidence mode metadata_only"
-    text = quoting.spans(raw.decode("utf-8", errors="replace")).strip()
-    shown = "".join(
-        char if char.isprintable() else char.encode("unicode_escape").decode("ascii")
-        for char in text
+def remedies_for(accepts: Collection[EndpointFlag]) -> FailureRemedies:
+    """Return the remedies a failure message gives, naming only the flags in `accepts`."""
+    return FailureRemedies(
+        auth=f"check the auth header / body{_auth_advice(accepts)}",
+        rate_limited=_rate_limit_advice(accepts),
     )
-    if len(shown) > _BODY_SHOWN_CHARS:
-        shown = f"{shown[:_BODY_SHOWN_CHARS]}…"
-    return f"its body begins: {shown}"
+
+
+def report_target_stop(result: ScanResult) -> None:
+    """Say on stderr what the target did when it stopped `result`, as the run recorded it.
+
+    The run is saved and gated as any other; this names the cause the exit code `4` stands for.
+    """
+    for reason in target_failures(result):
+        typer.echo(f"error: {reason}", err=True)
 
 
 def run_judged(action: Callable[[], T]) -> T:
@@ -127,7 +93,9 @@ def run_against_endpoint(
     `privacy`, the run's own policy, and never holds one of `secrets`, the values the
     run authenticates with; under `metadata_only` only the body's size is given. A judge's
     failure keeps the same exit code and is reported in its own words, never as
-    the target's.
+    the target's, and so is a monitor cycle its target stopped, in the words the run
+    recorded. A run its target stopped part-way is not raised here: it is returned,
+    saved, and named by `report_target_stop`.
 
     `accepts` is the set of flags the calling command actually takes; the message
     names no other one, because advice that the command would reject costs the
@@ -137,16 +105,12 @@ def run_against_endpoint(
     quoting = MessageQuoting.of(privacy, secrets)
     try:
         return run_judged(action)
-    except HTTPError as exc:
-        typer.echo(f"error: {_status_message(exc, shown, accepts, quoting)}", err=True)
+    except TargetStoppedError as exc:
+        typer.echo(f"error: {exc}", err=True)
         raise typer.Exit(code=ExitCode.TARGET_UNAVAILABLE) from exc
     except (URLError, OSError, EndpointError) as exc:
-        said = (
-            f"{type(exc).__name__}, {quoting.detail(str(exc))}"
-            if quoting.withholds_text
-            else quoting.spans(str(exc))
-        )
-        typer.echo(f"error: could not reach endpoint {shown}: {said}", err=True)
+        said = describe_failure(exc, shown, quoting, remedies_for(accepts))
+        typer.echo(f"error: {said}", err=True)
         raise typer.Exit(code=ExitCode.TARGET_UNAVAILABLE) from exc
 
 
@@ -154,6 +118,8 @@ __all__ = [
     "EndpointFlag",
     "JudgeUnavailableError",
     "http_status_problem",
+    "remedies_for",
+    "report_target_stop",
     "run_against_endpoint",
     "run_judged",
     "safe_url",

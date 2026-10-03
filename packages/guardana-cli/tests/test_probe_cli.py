@@ -19,6 +19,7 @@ from guardana.core.rule.scenario_rule import ScenarioRule, ScenarioStep
 from guardana.core.runner import Runner
 from guardana.core.severity import Severity
 from guardana.core.target import Capability, TargetKind
+from guardana.core.target.failure import FailureRemedies
 from guardana.core.testing import (
     EchoingTransport,
     FailingTransport,
@@ -50,16 +51,23 @@ def test_probe_concurrency_flag_reaches_the_runner(monkeypatch: pytest.MonkeyPat
     monkeypatch.setattr(endpoint_module, "transport_factory", RefusingTransport)
     seen: list[int] = []
 
-    def recording_runner(
+    def recording_runner(  # noqa: PLR0913 — the Runner's keywords
         *,
         registry: Registry,
         profile: Profile,
         concurrency: int = 1,
         calibrations: Mapping[str, CalibrationRecord],
+        secrets: tuple[str, ...],
+        remedies: FailureRemedies,
     ) -> Runner:
         seen.append(concurrency)
         return Runner(
-            registry=registry, profile=profile, concurrency=concurrency, calibrations=calibrations
+            registry=registry,
+            profile=profile,
+            concurrency=concurrency,
+            calibrations=calibrations,
+            secrets=secrets,
+            remedies=remedies,
         )
 
     monkeypatch.setattr(probe_run_module, "Runner", recording_runner)

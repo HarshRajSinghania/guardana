@@ -52,6 +52,8 @@ def test_the_verifier_takes_the_documented_arguments_and_trust_is_required() -> 
         "demanded_rules",
         "subject_kind",
         "fixtures",
+        "secrets",
+        "remedies",
     ]
     assert parameters["trust"].default is inspect.Parameter.empty
 

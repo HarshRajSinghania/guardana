@@ -22,6 +22,7 @@ from guardana.core.plugins import PluginMode, PluginTrust
 from guardana.core.profile import Profile
 from guardana.core.registry import Registry
 from guardana.core.runner import Runner
+from guardana.core.target.failure import FailureRemedies
 from guardana.core.taxonomy import catalogs
 from typer.testing import CliRunner
 
@@ -134,16 +135,23 @@ def test_an_mcp_probe_runs_with_the_concurrency_its_manifest_claims() -> None:
     """
     seen: list[int] = []
 
-    def recording(
+    def recording(  # noqa: PLR0913 — the Runner's keywords
         *,
         registry: Registry,
         profile: Profile,
         concurrency: int,
         calibrations: Mapping[str, CalibrationRecord],
+        secrets: tuple[str, ...],
+        remedies: FailureRemedies,
     ) -> Runner:
         seen.append(concurrency)
         return Runner(
-            registry=registry, profile=profile, concurrency=concurrency, calibrations=calibrations
+            registry=registry,
+            profile=profile,
+            concurrency=concurrency,
+            calibrations=calibrations,
+            secrets=secrets,
+            remedies=remedies,
         )
 
     with pytest.MonkeyPatch.context() as patched:

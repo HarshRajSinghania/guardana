@@ -258,8 +258,10 @@ canary, the profile's calibrations apply, and the judges configured under
 
 A target object runs once. Hand each test its own target (a function-scoped
 fixture); the second run of the same object raises `TargetReusedError`, because its
-meter and whatever it cached would describe both runs. A target that cannot be
-reached raises `TargetUnavailableError`.
+meter and whatever it cached would describe both runs. A target that fails while a
+rule sends to it stops the run, and the stopped run fails the assertion as
+`indeterminate`, its errors naming what the target did; one that fails outside any rule
+raises `TargetUnavailableError`.
 
 A trace target is the exception: the Python API refuses traces, because
 `guardana analyze-trace` reads a trace file's contracts and unreadable records, so

@@ -1,0 +1,128 @@
+"""Whose failure a send ended with, and the message that says so within the run's policy.
+
+A `4xx` other than the credential, address, timeout and rate-limit statuses names the
+request one rule sent; everything else names the target, which every rule would meet.
+"""
+
+import io
+from email.message import Message
+from http.client import RemoteDisconnected
+from urllib.error import HTTPError, URLError
+
+import pytest
+from guardana.core.redaction import EvidenceMode, MessageQuoting, RedactionPolicy
+from guardana.core.target import EndpointError, EndpointUnreachable
+from guardana.core.target.failure import (
+    FailureRemedies,
+    FailureScope,
+    describe_failure,
+    failure_scope,
+)
+
+_REMEDIES = FailureRemedies(auth="check the key", rate_limited="send fewer at once")
+_QUOTING = MessageQuoting.of(RedactionPolicy())
+
+
+def _status(code: int, body: bytes = b"") -> HTTPError:
+    return HTTPError("http://x", code, "status", Message(), io.BytesIO(body))
+
+
+@pytest.mark.parametrize("code", [400, 402, 405, 409, 413, 415, 422, 451, 499])
+def test_a_4xx_about_the_request_is_the_request_s_failure(code: int) -> None:
+    assert failure_scope(_status(code)) is FailureScope.REQUEST
+
+
+@pytest.mark.parametrize("code", [401, 403, 404, 407, 408, 425, 429])
+def test_credentials_an_address_a_timeout_and_a_rate_limit_are_the_target_s(code: int) -> None:
+    assert failure_scope(_status(code)) is FailureScope.TARGET
+
+
+@pytest.mark.parametrize("code", [500, 502, 503, 504, 599, 302])
+def test_a_server_error_or_any_other_status_is_the_target_s(code: int) -> None:
+    assert failure_scope(_status(code)) is FailureScope.TARGET
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        URLError("connection refused"),
+        EndpointUnreachable("http://x did not answer within 30 seconds"),
+        EndpointError("non-JSON response from http://x"),
+    ],
+    ids=["no-connection", "unreachable", "unusable-reply"],
+)
+def test_a_failure_without_a_status_is_the_target_s(error: Exception) -> None:
+    assert failure_scope(error) is FailureScope.TARGET
+
+
+def test_a_request_failure_quotes_the_body_where_the_application_says_what_it_refused() -> None:
+    said = describe_failure(
+        _status(400, b'{"error":"input_rejected"}'), "http://x#m", _QUOTING, _REMEDIES
+    )
+
+    assert said == (
+        "endpoint http://x#m rejected the request (HTTP 400); its body begins: "
+        '{"error":"input_rejected"}'
+    )
+
+
+def test_a_credentials_status_gives_the_auth_remedy_the_caller_named() -> None:
+    said = describe_failure(_status(401, b"denied"), "http://x#m", _QUOTING, _REMEDIES)
+
+    assert "rejected the request (HTTP 401)" in said
+    assert "check the key" in said
+    assert "denied" not in said
+
+
+def test_a_sustained_rate_limit_gives_the_rate_remedy_and_not_the_auth_one() -> None:
+    said = describe_failure(_status(429), "http://x#m", _QUOTING, _REMEDIES)
+
+    assert "send fewer at once" in said
+    assert "check the key" not in said
+
+
+def test_a_server_error_quotes_its_body() -> None:
+    said = describe_failure(_status(503, b"maintenance"), "http://x#m", _QUOTING, _REMEDIES)
+
+    assert said == "endpoint http://x#m returned HTTP 503; its body begins: maintenance"
+
+
+def test_a_sent_secret_never_reaches_the_message() -> None:
+    quoting = MessageQuoting.of(RedactionPolicy(), ("acme-live-0123456789abcdef",))
+
+    said = describe_failure(
+        _status(400, b"key acme-live-0123456789abcdef is not valid"),
+        "http://x#m",
+        quoting,
+        _REMEDIES,
+    )
+
+    assert "acme-live-0123456789abcdef" not in said
+    assert "[redacted:credential]" in said
+
+
+def test_metadata_only_gives_the_status_and_quotes_nothing() -> None:
+    quoting = MessageQuoting.of(RedactionPolicy(mode=EvidenceMode.METADATA_ONLY))
+
+    said = describe_failure(_status(400, b"private words"), "http://x#m", quoting, _REMEDIES)
+
+    assert "rejected the request (HTTP 400)" in said
+    assert "private words" not in said
+
+
+def test_an_unreachable_endpoint_is_said_in_its_own_words() -> None:
+    said = describe_failure(
+        EndpointUnreachable("http://x#m did not answer within 30 seconds"),
+        "http://x#m",
+        _QUOTING,
+        _REMEDIES,
+    )
+
+    assert said == "http://x#m did not answer within 30 seconds"
+
+
+def test_any_other_failure_says_the_endpoint_could_not_be_reached() -> None:
+    said = describe_failure(URLError(RemoteDisconnected("gone")), "http://x#m", _QUOTING, _REMEDIES)
+
+    assert said.startswith("could not reach endpoint http://x#m: ")
+    assert "gone" in said

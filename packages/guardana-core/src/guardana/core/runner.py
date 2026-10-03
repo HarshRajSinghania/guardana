@@ -7,11 +7,13 @@ from urllib.error import URLError
 
 from guardana.core.assessment import Assessment, UnmeasuredReason
 from guardana.core.budget import BudgetExhausted
+from guardana.core.evaluator.config import JudgeUnavailableError
 from guardana.core.gate import GateOutcome, gate, gate_outcome
 from guardana.core.inventory import observe
 from guardana.core.manifest.records import CalibrationRecord, SuiteSummary
 from guardana.core.observation import Observation, ObservationKind
 from guardana.core.profile.model import Profile
+from guardana.core.redaction import MessageQuoting
 from guardana.core.registry import Registry
 from guardana.core.regression import broken_pairs
 from guardana.core.report import CheckError, Finding, ScanResult, StopReason, split_ref
@@ -30,6 +32,12 @@ from guardana.core.target import (
     TargetKind,
 )
 from guardana.core.target._scoped import RuleScoped
+from guardana.core.target.failure import (
+    FailureRemedies,
+    FailureScope,
+    describe_failure,
+    failure_scope,
+)
 from guardana.core.target.protocols import FileReader, TraceReader, unmet_surfaces
 from guardana.core.target.scope import FileScope, ReportsFileScope
 
@@ -89,13 +97,13 @@ class _RuleOutcome:
     """The coverage this rule reported it could not get, through `RuleContext.shortfall`."""
 
     stopped_by: StopReason | None = None
-    """Set when the run ran out of budget part-way through this rule.
+    """Set when the run ran out of budget, or its target failed, part-way through this rule.
 
-    Separate from `error`, because the rule did not fail — and separate from a
-    clean outcome, because the rule did not finish either. A rule cut off here
-    must not join `rules_run`: listing it would claim coverage the run does not
-    have, and a later comparison would read the missing findings as an
-    improvement.
+    Separate from a clean outcome, because the rule did not finish. A rule cut off
+    here must not join `rules_run`: listing it would claim coverage the run does not
+    have, and a later comparison would read the missing findings as an improvement.
+    A budget stop carries no `error`, because the rule did not fail; a target stop
+    carries the error that names what the target did.
     """
 
     @property
@@ -203,6 +211,12 @@ class Runner:
     correct with the same measurements.
     """
 
+    secrets: tuple[str, ...] = field(default=(), repr=False)
+    """The values the run sends to authenticate, withheld from every failure it records."""
+
+    remedies: FailureRemedies = field(default_factory=FailureRemedies)
+    """What a recorded failure advises for a refused credential and for a rate limit."""
+
     def concurrency_for(self, kind: TargetKind) -> int:
         """How many rules may run at once against this kind of target.
 
@@ -262,7 +276,9 @@ class Runner:
             # rule stopped failed, and the stop alone would not say which item it was.
             reported.extend(outcome.shortfalls)
             if outcome.stopped_by is not None:
-                stopped_by = outcome.stopped_by
+                stopped_by = _outranking(stopped_by, outcome.stopped_by)
+                if outcome.error is not None:
+                    errors.append(outcome.error)
             elif outcome.error is not None:
                 errors.append(outcome.error)
             else:
@@ -446,16 +462,16 @@ class Runner:
                 stopped_by=StopReason.BUDGET_EXHAUSTED,
                 shortfalls=ctx.shortfalls(),
             )
+        except JudgeUnavailableError:
+            # A judge is not the target under test: its failure says nothing about the
+            # target, so it ends the run rather than being recorded as the target's.
+            raise
         except (URLError, EndpointError) as exc:
-            # The endpoint being unreachable is a fact about the run, not about
-            # this rule: every rule would fail identically, so it is reported
-            # once at the top with its own exit code, and therefore propagates.
-            # Narrowed to connection failures on purpose — a rule that merely
-            # opens a missing local file raises OSError too, and reporting a
-            # healthy endpoint as down while abandoning every remaining rule is
-            # a worse lie than the one this catch exists to avoid.
+            # Narrowed to connection failures on purpose — a rule that merely opens a
+            # missing local file raises OSError too, and reporting a healthy endpoint
+            # as down while abandoning every remaining rule would be a worse lie.
             if target.kind is TargetKind.ENDPOINT:
-                raise
+                return self._failed_send(rule, target, ctx, exc, (findings, unverified))
             return _RuleOutcome(
                 rule.meta.id,
                 tuple(findings),
@@ -486,6 +502,37 @@ class Runner:
             suite=ctx.concluded(),
             examined=ctx.examined_paths() | reported,
             shortfalls=ctx.shortfalls(),
+        )
+
+    def _failed_send(
+        self,
+        rule: Rule,
+        target: Target,
+        ctx: RuleContext,
+        exc: URLError | EndpointError,
+        produced: tuple[list[Finding], list[Finding]],
+    ) -> _RuleOutcome:
+        """Record a send to an endpoint that failed, as the request's failure or the target's.
+
+        A request the application refused is this rule's error and the run goes on. A
+        failure of the target stops the run, as a spent budget does, because every
+        further request would meet it; the error says what the target did.
+        """
+        scope = failure_scope(exc)
+        reason = describe_failure(
+            exc, target.ref, MessageQuoting.of(self.profile.privacy, self.secrets), self.remedies
+        )
+        findings, unverified = produced
+        return _RuleOutcome(
+            rule.meta.id,
+            tuple(findings),
+            tuple(unverified),
+            ctx.recorded(),
+            error=CheckError(source=rule.meta.id, stage=str(scope), reason=reason),
+            suite=ctx.concluded(),
+            raised=type(exc),
+            shortfalls=ctx.shortfalls(),
+            stopped_by=StopReason.TARGET_UNAVAILABLE if scope is FailureScope.TARGET else None,
         )
 
 
@@ -830,6 +877,29 @@ def _coverage_shortfall(profile: Profile, target: Target) -> tuple[CoverageShort
     )
 
 
+def target_failures(result: ScanResult) -> tuple[str, ...]:
+    """Return what the target did when it stopped `result`, each reason once, in rule order.
+
+    Empty unless the run was stopped by its target. Read by whoever reports the stop, so
+    a command and a library caller name the same cause the saved run records.
+    """
+    if result.stopped_by is not StopReason.TARGET_UNAVAILABLE:
+        return ()
+    reasons = (error.reason for error in result.errors if error.stage == FailureScope.TARGET)
+    return tuple(dict.fromkeys(reasons))
+
+
+def _outranking(held: StopReason | None, met: StopReason) -> StopReason:
+    """Return the stop a run records once a rule met `met`: the target's, else the first.
+
+    A target that failed outranks a budget that ran out alongside it, because a larger
+    budget would not have let the run finish.
+    """
+    if held is None or met is StopReason.TARGET_UNAVAILABLE:
+        return met
+    return held
+
+
 def _is_inconclusive(finding: Finding) -> bool:
     return finding.verdict is not None and finding.verdict.outcome == "inconclusive"
 
@@ -843,4 +913,5 @@ __all__ = [
     "incomplete_recording",
     "refused_by_this_run",
     "safety_refusal",
+    "target_failures",
 ]

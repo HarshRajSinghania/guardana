@@ -24,6 +24,7 @@ from guardana.core.target.endpoint import (
     ChatMessage,
     ChatTransport,
     EndpointError,
+    EndpointUnreachable,
     ToolCall,
     ToolSpec,
     UrllibTransport,
@@ -637,7 +638,7 @@ def test_a_slow_reply_times_out(http: _HttpHarness) -> None:
     http.provider.script(delayed(http.wire.reply("too late", None), 5.0))
     target = http.target(timeout=0.2)
 
-    with pytest.raises(OSError, match="timed out"):
+    with pytest.raises(EndpointUnreachable, match=r"did not answer within 0\.2 seconds"):
         target.chat(_HELLO)
 
     assert target.usage().requests == 1
