@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 
 import pytest
+from guardana.core.report import ShortfallKind
 from guardana.core.rule import RuleContext
 from guardana.core.target import ArtifactTarget
 from guardana.rules.supply_chain._reading import MAX_SCAN_BYTES
@@ -19,6 +20,18 @@ def _findings(tmp_path: Path) -> list[tuple[str, str]]:
     return [
         (f.severity.name, f.evidence.summary)
         for f in rule.run(ArtifactTarget(tmp_path), RuleContext())
+    ]
+
+
+def _unread(root: Path) -> list[str]:
+    """The files the rule names as unread components when run over `root`."""
+    ctx = RuleContext()
+    list(NotebookPayloadRule().run(ArtifactTarget(root), ctx))
+    return [
+        gap.name
+        for gap in ctx.shortfalls()
+        if gap.kind is ShortfallKind.UNEXAMINED_COMPONENT
+        and gap.detail.startswith("guardana.supply_chain.notebook_payload could not read it: ")
     ]
 
 
@@ -58,6 +71,8 @@ def test_unparseable_cell_is_surfaced_not_silently_skipped(tmp_path: Path) -> No
     (tmp_path / "nb.ipynb").write_text(_notebook("def (this is not valid python\n"))
     findings = _findings(tmp_path)
     assert any(sev == "LOW" and "could not be parsed" in why for sev, why in findings)
+    # A cell is part of a notebook that was read, so the run is not short of a file.
+    assert _unread(tmp_path) == []
 
 
 def test_markdown_cells_are_ignored(tmp_path: Path) -> None:
@@ -75,6 +90,7 @@ def test_an_unreadable_notebook_is_unverified_not_clean(tmp_path: Path) -> None:
     assert [f.title for f in findings] == ["Notebook not scanned"]
     assert findings[0].verdict is not None
     assert findings[0].verdict.outcome == "inconclusive"
+    assert _unread(tmp_path) == [str(tmp_path / "nb.ipynb")]
 
 
 def test_a_notebook_past_the_read_bound_says_so(tmp_path: Path) -> None:
@@ -85,3 +101,14 @@ def test_a_notebook_past_the_read_bound_says_so(tmp_path: Path) -> None:
 
     assert [f.title for f in findings] == ["Notebook not scanned"]
     assert "read bound" in findings[0].evidence.summary
+    assert _unread(tmp_path) == [str(tmp_path / "nb.ipynb")]
+
+
+@pytest.mark.parametrize("text", ["{ not json", '{"nbformat": 4}'], ids=["not-json", "no-cells"])
+def test_a_notebook_that_cannot_be_parsed_is_a_named_shortfall(tmp_path: Path, text: str) -> None:
+    (tmp_path / "nb.ipynb").write_text(text)
+
+    findings = list(NotebookPayloadRule().run(ArtifactTarget(tmp_path), RuleContext()))
+
+    assert [f.title for f in findings] == ["Notebook not scanned"]
+    assert _unread(tmp_path) == [str(tmp_path / "nb.ipynb")]

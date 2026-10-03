@@ -19,7 +19,7 @@ from guardana.core.taxonomy import (
 )
 from guardana.rules._base import ArtifactRule
 from guardana.rules.supply_chain._jinja_gadgets import Gadget, jinja_gadgets
-from guardana.rules.supply_chain._leads import unscanned_verdict
+from guardana.rules.supply_chain._leads import unread_component, unscanned_verdict
 from guardana.rules.supply_chain._reading import (
     MAX_SCAN_BYTES,
     read_bytes_bounded,
@@ -72,20 +72,20 @@ class ChatTemplateRule(ArtifactRule):
         if not isinstance(target, FileReader):
             return
         for path in target.iter_files((".gguf",)):
-            yield from self._scan_gguf(path)
+            yield from self._scan_gguf(path, ctx)
             ctx.examined(path)
         for path in target.iter_files(_TEMPLATE_SUFFIXES):
             if path.stem.lower().startswith(_TEMPLATE_STEM):
-                yield from self._scan_template_file(path)
+                yield from self._scan_template_file(path, ctx)
         for path in target.iter_files((".json",)):
             if path.name.lower() in _CONFIG_NAMES:
-                yield from self._scan_config(path)
+                yield from self._scan_config(path, ctx)
 
-    def _scan_gguf(self, path: Path) -> Iterator[Finding]:
+    def _scan_gguf(self, path: Path, ctx: RuleContext) -> Iterator[Finding]:
         try:
             metadata = read_gguf_metadata(path)
         except FormatError as exc:
-            yield self._unscanned(path, str(exc))
+            yield self._unscanned(path, str(exc), ctx)
             return
         # A model with no template is not an open question — the file was read and
         # understood. Only an unreadable file is.
@@ -93,10 +93,10 @@ class ChatTemplateRule(ArtifactRule):
         if template is not None:
             yield from self._graded(path, _GGUF_TEMPLATE_KEY, template)
 
-    def _scan_template_file(self, path: Path) -> Iterator[Finding]:
+    def _scan_template_file(self, path: Path, ctx: RuleContext) -> Iterator[Finding]:
         prefix = read_bytes_bounded(path)
         if prefix is None:
-            yield self._unscanned(path, "file could not be read")
+            yield self._unscanned(path, "file could not be read", ctx)
             return
         raw, truncated = prefix
         yield from self._graded(path, path.name, raw.decode("utf-8", errors="ignore"))
@@ -104,22 +104,24 @@ class ChatTemplateRule(ArtifactRule):
         # obvious evasion once a scanner is known, and a gadget found in the part that
         # was read says nothing about a worse one after it.
         if truncated:
-            yield self._unscanned(path, _PAST_THE_BOUND)
+            yield self._unscanned(path, _PAST_THE_BOUND, ctx)
 
-    def _scan_config(self, path: Path) -> Iterator[Finding]:
+    def _scan_config(self, path: Path, ctx: RuleContext) -> Iterator[Finding]:
         prefix = read_text_prefix(path, errors="ignore")
         if prefix is not None and prefix[1]:
-            yield self._unscanned(path, _PAST_THE_BOUND)
+            yield self._unscanned(path, _PAST_THE_BOUND, ctx)
             return
         document = None if prefix is None else _json_object(prefix[0])
         if document is None:
-            yield self._unscanned(path, "not a readable JSON object")
+            yield self._unscanned(path, "not a readable JSON object", ctx)
             return
         if _CONFIG_KEY not in document:
             return
         templates = list(_config_templates(document[_CONFIG_KEY]))
         if not templates:
-            yield self._unscanned(path, f"'{_CONFIG_KEY}' is present in a shape we cannot read")
+            yield self._unscanned(
+                path, f"'{_CONFIG_KEY}' is present in a shape we cannot read", ctx
+            )
             return
         for label, template in templates:
             yield from self._graded(path, label, template)
@@ -143,7 +145,8 @@ class ChatTemplateRule(ArtifactRule):
             ),
         )
 
-    def _unscanned(self, path: Path, reason: str) -> Finding:
+    def _unscanned(self, path: Path, reason: str, ctx: RuleContext) -> Finding:
+        ctx.shortfall(unread_component(_RULE_ID, path, reason))
         return Finding(
             rule_id=_RULE_ID,
             severity=Severity.LOW,

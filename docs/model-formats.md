@@ -107,8 +107,11 @@ the budget. A rule reports the findings it has and says the walk was partial:
 ```python
 yield from self._graded(path, summary)
 if summary.truncated:
-    yield self._unscanned(path, "the graph was too large to walk within the budget")
+    yield self._unscanned(path, "the graph was too large to walk within the budget", ctx)
 ```
+
+`_unscanned` there yields the inconclusive finding and reports the file as an
+unexamined component; see [writing a rule on top](#writing-a-rule-on-top).
 
 ### Limits
 
@@ -130,8 +133,28 @@ inside them. Pass your own `Limits` to tighten them for a constrained runner.
 Two rules, one shape. Read the file, turn `FormatError` into a visible finding,
 grade what you got.
 
+A file the rule could not read, or read only in part, gets two reports. The finding
+carries an `inconclusive` verdict, so it lands on the unverified channel. The
+`unexamined_component` shortfall names the file, so the run is `indeterminate` under
+every policy rather than only under `fail_on_inconclusive`. The built-in model rules
+do both, and a rule that reads the format calls `ctx.examined(path)` either way, so
+the format-level pass does not name the file again
+([`guardana scan`](usage-scan.md#model-files-no-rule-reads)).
+
 ```python
 from guardana.core.formats import FormatError, read_onnx_summary, STANDARD_ONNX_DOMAINS
+from guardana.core.report import CoverageShortfall, ShortfallKind
+
+
+def unscanned(ctx: RuleContext, path: Path, reason: str) -> Finding:
+    ctx.shortfall(
+        CoverageShortfall(
+            ShortfallKind.UNEXAMINED_COMPONENT,
+            name=str(path),
+            detail=f"acme.supply_chain.unapproved_operator could not read it: {reason}",
+        )
+    )
+    return Finding(...)                     # verdict outcome "inconclusive"
 
 class UnapprovedOperatorRule(Rule):
     meta = RuleMeta(
@@ -147,16 +170,17 @@ class UnapprovedOperatorRule(Rule):
         if not isinstance(target, ArtifactTarget):
             return
         for path in target.iter_files((".onnx",)):
+            ctx.examined(path)
             try:
                 summary = read_onnx_summary(path)
             except FormatError as exc:
-                yield unscanned(path, str(exc))     # never silence
+                yield unscanned(ctx, path, str(exc))     # never silence
                 continue
             unknown = set(summary.node_domains) - STANDARD_ONNX_DOMAINS - APPROVED
             if unknown:
                 yield Finding(...)
             if summary.truncated:
-                yield unscanned(path, "the field budget ran out")   # a partial walk
+                yield unscanned(ctx, path, "the field budget ran out")   # a partial walk
 ```
 
 `examples/custom_rule/src/acme_rules/approved_model.py` is the runnable version

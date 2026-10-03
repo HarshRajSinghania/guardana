@@ -145,7 +145,10 @@ security contract, that the producer does not record makes the run `indeterminat
 correctly — they cover checks nobody specifically asked for. This one you asked for
 by name, and `fail_on_skipped` defaulting to off would otherwise turn "your
 contract could not be checked" into exit `0`. The saved run records which demand
-went unmet under `run.coverage.shortfall`.
+went unmet under `run.coverage.shortfall`. A model file the scan observed and no rule
+read, or a model or notebook a rule could not read, lands there too, so a scan holding
+one exits `2` under every preset, `ci` included
+([`guardana scan`](usage-scan.md#model-files-no-rule-reads)).
 
 ## Config-wired evaluators: `llm_judge` and `guard`
 

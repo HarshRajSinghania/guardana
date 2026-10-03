@@ -18,7 +18,7 @@ from guardana.core.taxonomy import (
     OWASP_ML06_2023,
 )
 from guardana.rules._base import ArtifactRule
-from guardana.rules.supply_chain._leads import unscanned_verdict
+from guardana.rules.supply_chain._leads import unread_component, unscanned_verdict
 from guardana.rules.supply_chain._reading import read_bytes_bounded
 
 # A Keras `Lambda` layer wraps an arbitrary Python callable that runs on
@@ -84,19 +84,19 @@ class KerasLambdaRule(ArtifactRule):
         if not isinstance(target, FileReader):
             return
         for path in target.iter_files((".keras",)):
-            yield from self._scan_keras(path)
+            yield from self._scan_keras(path, ctx)
             ctx.examined(path)
         for path in target.iter_files((".h5", ".hdf5")):
-            yield from self._byte_scan(path, fallback_reason=None)
+            yield from self._byte_scan(path, ctx, fallback_reason=None)
             ctx.examined(path)
 
-    def _scan_keras(self, path: Path) -> Iterator[Finding]:
+    def _scan_keras(self, path: Path, ctx: RuleContext) -> Iterator[Finding]:
         config = _read_keras_config(path)
         if config is None:
             # Real `.keras` files are zip archives. A file that is not one is
             # malformed, so fall back to the byte marker — a payload inside a
             # deliberately broken archive must not become invisible.
-            yield from self._byte_scan(path, fallback_reason="not a readable .keras archive")
+            yield from self._byte_scan(path, ctx, fallback_reason="not a readable .keras archive")
             return
         for lambda_config in _iter_lambda_configs(config):
             module = _dangerous_module(lambda_config)
@@ -105,10 +105,12 @@ class KerasLambdaRule(ArtifactRule):
                 summary += f"; references the {module!r} module (near-certain malicious)"
             yield self._finding(path, summary)
 
-    def _byte_scan(self, path: Path, *, fallback_reason: str | None) -> Iterator[Finding]:
+    def _byte_scan(
+        self, path: Path, ctx: RuleContext, *, fallback_reason: str | None
+    ) -> Iterator[Finding]:
         prefix = read_bytes_bounded(path, _MAX_CONFIG_BYTES)
         if prefix is None:
-            yield self._unscanned(path, "file could not be read")
+            yield self._unscanned(path, "file could not be read", ctx)
             return
         data, truncated = prefix
         if _CLASS_MARKER.search(data) is not None:
@@ -117,9 +119,9 @@ class KerasLambdaRule(ArtifactRule):
             # will execute.
             yield self._finding(path, "model config declares a Lambda layer, which runs on load")
         elif fallback_reason is not None:
-            yield self._unscanned(path, fallback_reason)
+            yield self._unscanned(path, fallback_reason, ctx)
         elif truncated:
-            yield self._unscanned(path, f"only the first {_MAX_CONFIG_BYTES} bytes were read")
+            yield self._unscanned(path, f"only the first {_MAX_CONFIG_BYTES} bytes were read", ctx)
 
     def _finding(self, path: Path, summary: str) -> Finding:
         return Finding(
@@ -131,7 +133,8 @@ class KerasLambdaRule(ArtifactRule):
             evidence=Evidence(summary=summary, detail=f"file={path.name}"),
         )
 
-    def _unscanned(self, path: Path, reason: str) -> Finding:
+    def _unscanned(self, path: Path, reason: str, ctx: RuleContext) -> Finding:
+        ctx.shortfall(unread_component(self.meta.id, path, reason))
         return Finding(
             rule_id=self.meta.id,
             severity=Severity.LOW,

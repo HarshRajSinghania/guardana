@@ -3,6 +3,7 @@ import io
 import os
 import pickle
 import zipfile
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -10,6 +11,7 @@ from guardana.core.gate import GateOutcome, gate_outcome
 from guardana.core.plugins import PluginMode, PluginTrust
 from guardana.core.profile import FailOn, Policy, Profile
 from guardana.core.registry import Registry
+from guardana.core.report import ShortfallKind
 from guardana.core.rule import RuleContext
 from guardana.core.runner import Runner
 from guardana.core.severity import Severity
@@ -177,6 +179,9 @@ def test_7z_compressed_model_is_flagged_as_unscannable(tmp_path: Path) -> None:
 class _Evil:
     def __reduce__(self) -> tuple[object, tuple[str]]:
         return (os.system, ("echo pwned",))
+
+
+_SYSTEM = f"{os.system.__module__}.system"
 
 
 def test_flags_os_system_reduce(tmp_path: Path) -> None:
@@ -570,7 +575,7 @@ def test_a_malicious_data_pkl_beside_raw_storages_is_still_critical(tmp_path: Pa
     findings = list(PickleOpcodeRule().run(ArtifactTarget(tmp_path), RuleContext()))
 
     assert [(f.severity, f.evidence.detail) for f in findings] == [
-        (Severity.CRITICAL, "file=optimizer.pt::optimizer/data.pkl")
+        (Severity.CRITICAL, f"{_SYSTEM} in optimizer.pt::optimizer/data.pkl")
     ]
 
 
@@ -589,7 +594,7 @@ def test_a_pickle_stored_as_a_tensor_storage_beside_a_benign_data_pkl_is_critica
     findings = list(PickleOpcodeRule().run(ArtifactTarget(tmp_path), RuleContext()))
 
     assert [(f.severity, f.evidence.detail) for f in findings] == [
-        (Severity.CRITICAL, "file=optimizer.pt::archive/data/1")
+        (Severity.CRITICAL, f"{_SYSTEM} in optimizer.pt::archive/data/1")
     ]
 
 
@@ -652,5 +657,154 @@ def test_a_dangerous_global_beside_rebuilt_bytes_still_fires(tmp_path: Path) -> 
     findings = list(PickleOpcodeRule().run(ArtifactTarget(tmp_path), RuleContext()))
 
     assert [f.evidence.summary for f in findings] == [
-        f"unpickling imports non-allowlisted callable: {os.system.__module__}.system"
+        f"unpickling imports 1 non-allowlisted callable(s): {_SYSTEM}"
     ]
+
+
+def _global(module: str, name: str) -> bytes:
+    """A protocol-0 pickle that imports `module.name` and calls it."""
+    return f"c{module}\n{name}\n(S'x'\ntR.".encode()
+
+
+def _unread(ctx: RuleContext) -> list[str]:
+    return [
+        gap.name
+        for gap in ctx.shortfalls()
+        if gap.kind is ShortfallKind.UNEXAMINED_COMPONENT
+        and gap.detail.startswith("guardana.supply_chain.pickle_opcode could not read it: ")
+    ]
+
+
+def test_a_file_importing_several_callables_is_one_finding_naming_each_once(
+    tmp_path: Path,
+) -> None:
+    _checkpoint(
+        tmp_path,
+        {
+            "archive/data.pkl": _global("subprocess", "Popen") + _global("builtins", "eval"),
+            "archive/extra.pkl": _global("builtins", "eval"),
+        },
+    )
+
+    findings = list(PickleOpcodeRule().run(ArtifactTarget(tmp_path), RuleContext()))
+
+    assert len(findings) == 1
+    assert findings[0].severity is Severity.CRITICAL
+    assert findings[0].evidence.summary == (
+        "unpickling imports 2 non-allowlisted callable(s): builtins.eval, subprocess.Popen"
+    )
+    assert findings[0].evidence.detail == (
+        "builtins.eval in optimizer.pt::archive/data.pkl; "
+        "builtins.eval in optimizer.pt::archive/extra.pkl; "
+        "subprocess.Popen in optimizer.pt::archive/data.pkl"
+    )
+
+
+def test_a_raw_pickle_names_its_callables_without_a_member(tmp_path: Path) -> None:
+    (tmp_path / "model.pkl").write_bytes(_global("os", "system") + _global("builtins", "exec"))
+
+    findings = list(PickleOpcodeRule().run(ArtifactTarget(tmp_path), RuleContext()))
+
+    assert [(f.evidence.summary, f.evidence.detail) for f in findings] == [
+        (
+            "unpickling imports 2 non-allowlisted callable(s): builtins.exec, os.system",
+            "builtins.exec in model.pkl; os.system in model.pkl",
+        )
+    ]
+
+
+def test_swapping_one_callable_for_another_moves_the_fingerprint(tmp_path: Path) -> None:
+    """A waiver granted for one import must not cover a file that now imports another."""
+    first, second = tmp_path / "a", tmp_path / "b"
+    first.mkdir()
+    second.mkdir()
+    (first / "model.pkl").write_bytes(_global("os", "system") + _global("builtins", "eval"))
+    (second / "model.pkl").write_bytes(_global("os", "system") + _global("builtins", "exec"))
+
+    (before,) = PickleOpcodeRule().run(ArtifactTarget(first), RuleContext())
+    (after,) = PickleOpcodeRule().run(ArtifactTarget(second), RuleContext())
+    (again,) = PickleOpcodeRule().run(ArtifactTarget(first), RuleContext())
+
+    assert before.fingerprint == again.fingerprint
+    same_file = replace(after, target_ref=before.target_ref)
+    assert same_file.fingerprint != before.fingerprint
+
+
+def test_callables_found_before_a_later_member_raises_are_still_reported(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _checkpoint(
+        tmp_path,
+        {"archive/data.pkl": pickle.dumps(_Evil()), "archive/later.pkl": pickle.dumps({})},
+    )
+    real_open = zipfile.ZipFile.open
+
+    def failing(
+        self: zipfile.ZipFile, name: str | zipfile.ZipInfo, *args: object, **kwargs: object
+    ) -> object:
+        member = name.filename if isinstance(name, zipfile.ZipInfo) else name
+        if member == "archive/later.pkl":
+            raise ValueError("a decoder this rule does not expect")
+        return real_open(self, name, *args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(zipfile.ZipFile, "open", failing)
+    registry = Registry()
+    registry.register_rule(PickleOpcodeRule())
+
+    result = Runner(registry=registry, profile=Profile(name="t", policy=Policy())).run(
+        ArtifactTarget(tmp_path)
+    )
+
+    assert [f.evidence.summary for f in result.findings] == [
+        f"unpickling imports 1 non-allowlisted callable(s): {_SYSTEM}"
+    ]
+    assert [e.source for e in result.errors] == ["guardana.supply_chain.pickle_opcode"]
+
+
+@pytest.mark.parametrize(
+    ("name", "payload"),
+    [
+        ("model.pt", b"7z\xbc\xaf\x27\x1c" + b"\x00" * 32),
+        ("model.pt", b"PK\x03\x04 not a real zip"),
+        ("model.pt", _zip_with("archive/nested.zip", _zip_with("archive/data.pkl", b"."))),
+        ("model.pt", _zip_with("archive/data.pkl", b"\x80\x04h\x05h\x06\x93.")),
+        ("model.pkl", b"\x80\x02\x82\x01."),
+    ],
+    ids=["7z", "malformed-zip", "nested-archive", "unresolvable-member", "extension-code"],
+)
+def test_a_file_left_unread_is_a_named_shortfall_beside_its_finding(
+    tmp_path: Path, name: str, payload: bytes
+) -> None:
+    path = tmp_path / name
+    path.write_bytes(payload)
+    ctx = RuleContext()
+
+    findings = list(PickleOpcodeRule().run(ArtifactTarget(tmp_path), ctx))
+
+    assert [f.title for f in findings] == ["Unscanned model file"]
+    assert _unread(ctx) == [str(path)]
+    assert str(path) in ctx.examined_paths()
+
+
+def test_a_raw_pickle_whose_import_cannot_be_resolved_stays_a_finding_alone(
+    tmp_path: Path,
+) -> None:
+    """The stream was read to the import it hides; the file is not left unread."""
+    (tmp_path / "crafted.pkl").write_bytes(b"\x80\x04h\x05h\x06\x93.")
+    ctx = RuleContext()
+
+    findings = list(PickleOpcodeRule().run(ArtifactTarget(tmp_path), ctx))
+
+    assert [f.title for f in findings] == ["Unscanned model file"]
+    assert ctx.shortfalls() == ()
+
+
+def test_a_clean_or_malicious_pickle_reports_no_shortfall(tmp_path: Path) -> None:
+    (tmp_path / "ok.pkl").write_bytes(pickle.dumps({"w": 1}))
+    (tmp_path / "bad.pkl").write_bytes(pickle.dumps(_Evil()))
+    ctx = RuleContext()
+
+    findings = list(PickleOpcodeRule().run(ArtifactTarget(tmp_path), ctx))
+
+    assert [f.severity for f in findings] == [Severity.CRITICAL]
+    assert ctx.shortfalls() == ()

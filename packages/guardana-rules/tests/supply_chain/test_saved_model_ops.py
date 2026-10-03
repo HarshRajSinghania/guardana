@@ -1,7 +1,10 @@
 from pathlib import Path
 
+import pytest
+from guardana.core.report import ShortfallKind
 from guardana.core.rule import RuleContext
 from guardana.core.target import ArtifactTarget
+from guardana.rules.supply_chain import saved_model_ops
 from guardana.rules.supply_chain.saved_model_ops import SavedModelOpsRule
 
 
@@ -10,6 +13,18 @@ def _findings(tmp_path: Path) -> list[tuple[str, str]]:
     return [
         (f.severity.name, f.evidence.summary)
         for f in rule.run(ArtifactTarget(tmp_path), RuleContext())
+    ]
+
+
+def _unread(root: Path) -> list[str]:
+    """The files the rule names as unread components when run over `root`."""
+    ctx = RuleContext()
+    list(SavedModelOpsRule().run(ArtifactTarget(root), ctx))
+    return [
+        gap.name
+        for gap in ctx.shortfalls()
+        if gap.kind is ShortfallKind.UNEXAMINED_COMPONENT
+        and gap.detail.startswith("guardana.supply_chain.saved_model_ops could not read it: ")
     ]
 
 
@@ -40,3 +55,23 @@ def test_clean_graph_not_flagged(tmp_path: Path) -> None:
 def test_non_tf_pb_without_ops_is_clean(tmp_path: Path) -> None:
     (tmp_path / "data.pb").write_bytes(b"some other protobuf payload")
     assert _findings(tmp_path) == []
+
+
+def test_a_graph_past_the_read_bound_is_unverified_and_a_named_shortfall(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(saved_model_ops, "_MAX_SCAN_BYTES", 64)
+    (tmp_path / "saved_model.pb").write_bytes(b"\x08\x01" + b"\x00" * 128 + b"WriteFile")
+
+    findings = list(SavedModelOpsRule().run(ArtifactTarget(tmp_path), RuleContext()))
+
+    assert [f.title for f in findings] == ["SavedModel not scanned"]
+    assert findings[0].verdict is not None
+    assert findings[0].verdict.outcome == "inconclusive"
+    assert _unread(tmp_path) == [str(tmp_path / "saved_model.pb")]
+
+
+def test_a_graph_read_whole_is_no_shortfall(tmp_path: Path) -> None:
+    (tmp_path / "saved_model.pb").write_bytes(b"\x08\x01 WriteFile")
+
+    assert _unread(tmp_path) == []

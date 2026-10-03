@@ -78,8 +78,12 @@ def _tree(tmp_path: Path, files: dict[str, bytes]) -> Path:
 _CASES: dict[str, tuple[dict[str, bytes], int]] = {
     "pass": ({"app.py": b"print('hello')\n"}, 0),
     "fail": ({"model.pkl": pickle.dumps(_Evil())}, 1),
-    "unverified": ({"model.onnx": b"\xff" * 11}, 0),
+    "unverified": (
+        {"nb.ipynb": b'{"cells": [{"cell_type": "code", "source": "def (\\n"}]}'},
+        0,
+    ),
     "indeterminate": ({"model.tflite": b"TFL3" + b"\x00" * 16}, 2),
+    "unread": ({"model.onnx": b"\xff" * 11}, 2),
 }
 
 

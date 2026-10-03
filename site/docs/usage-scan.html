@@ -396,6 +396,18 @@ read is a coverage shortfall named <code>unexamined_component</code>, one per fo
 is <code>indeterminate</code> (exit <code>2</code>) and never clean. There is no switch: exclude the file
 with <code>.guardanaignore</code> or <code>rules.paths_exclude</code>, which the saved run then records, or
 install a rule that reads the format.</p>
+<p>A model or notebook a rule tried to read and could not is a shortfall of the same kind,
+named by its file: a pickle, archive or graph that does not parse, a safetensors file
+whose header is malformed, a file cut by a read bound, a PMML document past the bound, a
+notebook that is not JSON. The rule reports two things for it: an inconclusive
+&quot;not scanned&quot; result on the unverified channel, and an <code>unexamined_component</code> shortfall
+whose name is the file's path and whose detail reads <code>&lt;rule id&gt; could not read it: &lt;reason&gt;</code>. The file is not named a second time by format. With no switch over it, a scan
+holding one such file is <code>indeterminate</code> (exit <code>2</code>) under every preset, <code>ci</code> included,
+unless a finding fails it. A notebook cell that does not parse as Python is not one: the
+notebook was read, and the cell is reported as an unverified result only.</p>
+<p>Shortfall names are relative to the working directory, as finding locations are, and the
+scan root is removed from their detail, so a saved run names the same file on a laptop
+and in CI. A format name (<code>tflite</code>) is not a path and stays as it is.</p>
 <div class="table-wrap"><table>
 <thead>
 <tr>
@@ -453,7 +465,7 @@ malicious so the quickstart has something real to find. CI therefore scans
 <h2 id="example-output-with-findings---format-human-the-default">Example output with findings (<code>--format human</code>, the default)</h2>
 <pre><code class="language-console">$ guardana scan ./some-model-repo
 ✖ [CRITICAL] guardana.supply_chain.pickle_opcode — Dangerous pickle opcode (arbitrary code on load)
-    unpickling imports non-allowlisted callable: os.system  (./some-model-repo)
+    unpickling imports 1 non-allowlisted callable(s): os.system  (./some-model-repo)
 ▲ [MEDIUM] guardana.supply_chain.hallucinated_package — Import of unknown package (possible slopsquat lead)
     import 'torchutilz' isn't a known package or a declared dependency — declare it in requirements/pyproject, or verify it exists on PyPI  (./some-model-repo)
 
@@ -461,6 +473,11 @@ malicious so the quickstart has something real to find. CI therefore scans
 </code></pre>
 <p><code>hallucinated_package</code> scans <code>import</code>/<code>from</code> statements in <code>.py</code> source
 files via <code>ast.parse</code>; it does not read <code>requirements.txt</code> or lockfiles.</p>
+<p><code>pickle_opcode</code> reports one finding per file. Its summary names every non-allowlisted
+callable the file imports, sorted and each once (<code>unpickling imports 2 non-allowlisted callable(s): builtins.eval, os.system</code>). Its detail names the archive member each was
+found in (<code>os.system in model.pt::archive/data.pkl</code>). A baseline fingerprint includes the
+summary, so a file that imports a different callable is a new finding. Callables found
+in the members read before a member that failed are still reported.</p>
 <h2 id="other-formats">Other formats</h2>
 <pre><code class="language-bash">guardana scan . --format json    # machine-readable findings + summary
 guardana scan . --format sarif   # SARIF 2.1.0, for GitHub code-scanning upload

@@ -58,6 +58,21 @@ is `indeterminate` (exit `2`) and never clean. There is no switch: exclude the f
 with `.guardanaignore` or `rules.paths_exclude`, which the saved run then records, or
 install a rule that reads the format.
 
+A model or notebook a rule tried to read and could not is a shortfall of the same kind,
+named by its file: a pickle, archive or graph that does not parse, a safetensors file
+whose header is malformed, a file cut by a read bound, a PMML document past the bound, a
+notebook that is not JSON. The rule reports two things for it: an inconclusive
+"not scanned" result on the unverified channel, and an `unexamined_component` shortfall
+whose name is the file's path and whose detail reads `<rule id> could not read it:
+<reason>`. The file is not named a second time by format. With no switch over it, a scan
+holding one such file is `indeterminate` (exit `2`) under every preset, `ci` included,
+unless a finding fails it. A notebook cell that does not parse as Python is not one: the
+notebook was read, and the cell is reported as an unverified result only.
+
+Shortfall names are relative to the working directory, as finding locations are, and the
+scan root is removed from their detail, so a saved run names the same file on a laptop
+and in CI. A format name (`tflite`) is not a path and stays as it is.
+
 | Observed as a model | Read by |
 |---|---|
 | `.pkl`, `.pickle`, `.dill`, `.joblib`, `.pt`, `.pth`, `.ckpt` | `guardana.supply_chain.pickle_opcode` |
@@ -94,7 +109,7 @@ malicious so the quickstart has something real to find. CI therefore scans
 ```console
 $ guardana scan ./some-model-repo
 ✖ [CRITICAL] guardana.supply_chain.pickle_opcode — Dangerous pickle opcode (arbitrary code on load)
-    unpickling imports non-allowlisted callable: os.system  (./some-model-repo)
+    unpickling imports 1 non-allowlisted callable(s): os.system  (./some-model-repo)
 ▲ [MEDIUM] guardana.supply_chain.hallucinated_package — Import of unknown package (possible slopsquat lead)
     import 'torchutilz' isn't a known package or a declared dependency — declare it in requirements/pyproject, or verify it exists on PyPI  (./some-model-repo)
 
@@ -103,6 +118,13 @@ $ guardana scan ./some-model-repo
 
 `hallucinated_package` scans `import`/`from` statements in `.py` source
 files via `ast.parse`; it does not read `requirements.txt` or lockfiles.
+
+`pickle_opcode` reports one finding per file. Its summary names every non-allowlisted
+callable the file imports, sorted and each once (`unpickling imports 2 non-allowlisted
+callable(s): builtins.eval, os.system`). Its detail names the archive member each was
+found in (`os.system in model.pt::archive/data.pkl`). A baseline fingerprint includes the
+summary, so a file that imports a different callable is a new finding. Callables found
+in the members read before a member that failed are still reported.
 
 ## Other formats
 

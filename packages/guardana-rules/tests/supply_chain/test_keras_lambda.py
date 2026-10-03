@@ -4,6 +4,7 @@ import zipfile
 from pathlib import Path
 
 import pytest
+from guardana.core.report import ShortfallKind
 from guardana.core.rule import RuleContext
 from guardana.core.target import ArtifactTarget
 from guardana.rules.supply_chain.keras_lambda import KerasLambdaRule
@@ -21,6 +22,18 @@ def _findings(tmp_path: Path) -> list[tuple[str, str]]:
     return [
         (f.severity.name, f.evidence.summary)
         for f in rule.run(ArtifactTarget(tmp_path), RuleContext())
+    ]
+
+
+def _unread(root: Path) -> list[str]:
+    """The files the rule names as unread components when run over `root`."""
+    ctx = RuleContext()
+    list(KerasLambdaRule().run(ArtifactTarget(root), ctx))
+    return [
+        gap.name
+        for gap in ctx.shortfalls()
+        if gap.kind is ShortfallKind.UNEXAMINED_COMPONENT
+        and gap.detail.startswith("guardana.supply_chain.keras_lambda could not read it: ")
     ]
 
 
@@ -106,6 +119,7 @@ def test_a_keras_file_that_is_not_an_archive_still_gets_scanned(tmp_path: Path) 
     # back to the byte marker keeps a payload in a malformed archive visible.
     (tmp_path / "model.keras").write_bytes(b'{"class_name": "Lambda", "config": {}}')
     assert [severity for severity, _ in _findings(tmp_path)] == ["HIGH"]
+    assert _unread(tmp_path) == []
 
 
 def test_an_unreadable_keras_archive_is_reported_as_unscanned(tmp_path: Path) -> None:
@@ -113,6 +127,7 @@ def test_an_unreadable_keras_archive_is_reported_as_unscanned(tmp_path: Path) ->
     findings = _findings(tmp_path)
     assert [severity for severity, _ in findings] == ["LOW"]
     assert "not scanned" in findings[0][1]
+    assert _unread(tmp_path) == [str(tmp_path / "model.keras")]
 
 
 def test_model_format_no_longer_reports_on_keras_or_h5(tmp_path: Path) -> None:
@@ -132,9 +147,11 @@ def test_a_file_larger_than_the_scan_bound_is_not_cleared(tmp_path: Path) -> Non
     findings = _findings(tmp_path)
     assert [severity for severity, _ in findings] == ["LOW"]
     assert "first" in findings[0][1]
+    assert _unread(tmp_path) == [str(tmp_path / "big.h5")]
 
 
 @pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="mkfifo is POSIX-only")
 def test_an_unreadable_h5_is_reported_as_unscanned(tmp_path: Path) -> None:
     os.mkfifo(tmp_path / "model.h5")
     assert [severity for severity, _ in _findings(tmp_path)] == ["LOW"]
+    assert _unread(tmp_path) == [str(tmp_path / "model.h5")]

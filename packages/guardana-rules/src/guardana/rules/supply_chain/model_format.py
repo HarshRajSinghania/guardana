@@ -6,7 +6,6 @@ from xml.etree.ElementTree import ParseError
 import defusedxml.ElementTree as _defused_et  # noqa: N813 — the library's own module name
 from defusedxml.common import DTDForbidden, EntitiesForbidden, ExternalReferenceForbidden
 from guardana.core.formats import FormatError, read_safetensors_header
-from guardana.core.formats.errors import UnreadableFileError
 from guardana.core.report import Evidence, Finding
 from guardana.core.rule import RuleContext, RuleMeta
 from guardana.core.safety import Detection
@@ -21,11 +20,12 @@ from guardana.core.taxonomy import (
     OWASP_LLM10_2026,
 )
 from guardana.rules._base import ArtifactRule
-from guardana.rules.supply_chain._leads import unscanned_verdict
+from guardana.rules.supply_chain._leads import unread_component, unscanned_verdict
 from guardana.rules.supply_chain._reading import MAX_SCAN_BYTES, read_bytes_bounded
 
 _RULE_ID = "guardana.supply_chain.model_format"
 
+_PMML_SUFFIX = ".pmml"
 _XXE_DOCTYPE = re.compile(rb"<!DOCTYPE", re.IGNORECASE)
 _XXE_ENTITY = re.compile(rb"<!ENTITY", re.IGNORECASE)
 
@@ -85,15 +85,19 @@ def _scan_pmml(path: Path, data: bytes) -> Generator[Finding, None, bool]:
     return True
 
 
-def _scan_safetensors(path: Path) -> Iterator[Finding]:
-    # safetensors has no code-execution surface: the header is a length-prefixed
-    # JSON dict of tensor metadata and the payload is raw bytes. Only the
-    # container's shape is checked here — a well-formed file is inert and must
-    # yield nothing. (`hidden_instructions` scans the one text channel it does
-    # have, `__metadata__`.)
+def _scan_safetensors(path: Path, ctx: RuleContext) -> Iterator[Finding]:
+    """Check a safetensors container's header; one that cannot be read is not cleared.
+
+    safetensors has no code-execution surface: the header is a length-prefixed JSON
+    dict of tensor metadata and the payload is raw bytes, so a well-formed file is
+    inert and yields nothing (`hidden_instructions` scans its one text channel,
+    `__metadata__`). A malformed header is no verdict about the file either: what a
+    loader makes of it was never read here.
+    """
     try:
         read_safetensors_header(path)
-    except UnreadableFileError as exc:
+    except FormatError as exc:
+        ctx.shortfall(unread_component(_RULE_ID, path, str(exc)))
         yield Finding(
             rule_id=_RULE_ID,
             severity=Severity.LOW,
@@ -105,21 +109,13 @@ def _scan_safetensors(path: Path) -> Iterator[Finding]:
             ),
             verdict=unscanned_verdict("the file could not be read, so nothing was cleared"),
         )
-    except FormatError as exc:
-        yield Finding(
-            rule_id=_RULE_ID,
-            severity=Severity.INFO,
-            title="Malformed safetensors header",
-            taxonomy=(NIST_SUPPLY_CHAIN,),
-            target_ref=str(path),
-            evidence=Evidence(
-                summary=f"structurally corrupt safetensors container: {exc}",
-                detail=f"file={path.name}",
-            ),
-        )
 
 
-def _unscanned(path: Path, reason: str) -> Finding:
+def _unscanned(path: Path, reason: str, ctx: RuleContext) -> Finding:
+    # Only PMML is a model component the inventory lists; an oversized `.xml` is any
+    # document, and naming it as an unread model would hold up every run beside it.
+    if path.suffix.lower() == _PMML_SUFFIX:
+        ctx.shortfall(unread_component(_RULE_ID, path, reason))
     return Finding(
         rule_id=_RULE_ID,
         severity=Severity.LOW,
@@ -138,11 +134,11 @@ def _unscanned(path: Path, reason: str) -> Finding:
 # Whole-file detectors manage their own reading because the interesting region
 # can legitimately exceed that bound.
 _CONTENT_DETECTORS: dict[str, Callable[[Path, bytes], Generator[Finding, None, bool]]] = {
-    ".pmml": _scan_pmml,
+    _PMML_SUFFIX: _scan_pmml,
     ".xml": _scan_pmml,
 }
 
-_WHOLE_FILE_DETECTORS: dict[str, Callable[[Path], Iterator[Finding]]] = {
+_WHOLE_FILE_DETECTORS: dict[str, Callable[[Path, RuleContext], Iterator[Finding]]] = {
     ".safetensors": _scan_safetensors,
 }
 
@@ -176,14 +172,14 @@ class ModelFormatRule(ArtifactRule):
         if not isinstance(target, FileReader):
             return
         for path in target.iter_files((*_CONTENT_DETECTORS, *_WHOLE_FILE_DETECTORS)):
-            if (yield from self._scan(path)):
+            if (yield from self._scan(path, ctx)):
                 ctx.examined(path)
 
-    def _scan(self, path: Path) -> Generator[Finding, None, bool]:
-        """Scan one file and return whether it could be read at all."""
+    def _scan(self, path: Path, ctx: RuleContext) -> Generator[Finding, None, bool]:
+        """Scan one file and return whether it was read, or reported as unread by name."""
         whole_file_detector = _WHOLE_FILE_DETECTORS.get(path.suffix.lower())
         if whole_file_detector is not None:
-            yield from whole_file_detector(path)
+            yield from whole_file_detector(path, ctx)
             return True
         prefix = read_bytes_bounded(path)
         if prefix is None:
@@ -193,6 +189,8 @@ class ModelFormatRule(ArtifactRule):
         if truncated:
             # A parser reads the whole document, and a prolog of comments can push a
             # DOCTYPE past the bound.
-            yield _unscanned(path, f"the file is larger than the {MAX_SCAN_BYTES}-byte read bound")
-            return False
+            yield _unscanned(
+                path, f"the file is larger than the {MAX_SCAN_BYTES}-byte read bound", ctx
+            )
+            return path.suffix.lower() == _PMML_SUFFIX
         return examined

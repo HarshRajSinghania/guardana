@@ -25,7 +25,7 @@ from guardana.core.taxonomy import (
 )
 from guardana.rules._base import ArtifactRule
 from guardana.rules.prompt._injection_markers import has_smuggled_char
-from guardana.rules.supply_chain._leads import lead_verdict, unscanned_verdict
+from guardana.rules.supply_chain._leads import lead_verdict, unread_component, unscanned_verdict
 
 _RULE_ID = "guardana.supply_chain.onnx_graph"
 _UNSCANNED_TITLE = "ONNX model not scanned"
@@ -84,20 +84,22 @@ class OnnxGraphRule(ArtifactRule):
         if not isinstance(target, FileReader):
             return
         for path in target.iter_files((".onnx",)):
-            yield from self._scan(path)
+            yield from self._scan(path, ctx)
             ctx.examined(path)
 
-    def _scan(self, path: Path) -> Iterator[Finding]:
+    def _scan(self, path: Path, ctx: RuleContext) -> Iterator[Finding]:
         try:
             summary = read_onnx_summary(path, limits=self._limits)
         except FormatError as exc:
-            yield self._unscanned(path, str(exc))
+            yield self._unscanned(path, str(exc), ctx)
             return
         yield from self._graded(path, summary)
         # A partial walk has not cleared the model, whatever it found: a lead in the
         # fields it reached says nothing about a worse one past the budget.
         if summary.truncated:
-            yield self._unscanned(path, "the graph was too large to walk within the field budget")
+            yield self._unscanned(
+                path, "the graph was too large to walk within the field budget", ctx
+            )
 
     def _graded(self, path: Path, summary: OnnxSummary) -> Iterator[Finding]:
         custom = sorted(
@@ -151,7 +153,8 @@ class OnnxGraphRule(ArtifactRule):
             verdict=lead_verdict(summary) if lead else None,
         )
 
-    def _unscanned(self, path: Path, reason: str) -> Finding:
+    def _unscanned(self, path: Path, reason: str, ctx: RuleContext) -> Finding:
+        ctx.shortfall(unread_component(_RULE_ID, path, reason))
         return Finding(
             rule_id=_RULE_ID,
             severity=Severity.LOW,

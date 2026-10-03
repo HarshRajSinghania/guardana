@@ -44,7 +44,7 @@ Scan the bundled vulnerable model directory for another example:
 $ uv run guardana scan examples/vulnerable-model
 
 ✖ [CRITICAL] guardana.supply_chain.pickle_opcode — Dangerous pickle opcode (arbitrary code on load)
-    unpickling imports non-allowlisted callable: posix.system  (examples/vulnerable-model/model.pt)
+    unpickling imports 1 non-allowlisted callable(s): posix.system  (examples/vulnerable-model/model.pt)
 ✖ [HIGH] guardana.supply_chain.dependency_risk — Unsafe model/deserialization loader call
     torch.load without weights_only=True  (examples/vulnerable-model/load_model.py:3)
 ✖ [CRITICAL] guardana.supply_chain.remote_code_config — Model config requests custom-code execution on load

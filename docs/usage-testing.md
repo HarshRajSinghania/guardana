@@ -44,7 +44,7 @@ E   guardana: 8 finding(s) at or above HIGH — examples/vulnerable-model
 E
 E     CRITICAL guardana.supply_chain.pickle_opcode
 E              examples/vulnerable-model/model.pt
-E              unpickling imports non-allowlisted callable: posix.system
+E              unpickling imports 1 non-allowlisted callable(s): posix.system
 E
 E     HIGH     guardana.supply_chain.malicious_dependency
 E              examples/vulnerable-model/requirements.txt
@@ -97,7 +97,10 @@ except SecurityAssertionError as failure:
 
 Which reasons make a run indeterminate is the policy's decision, not this
 function's — see [`profiles.md`](profiles.md) for `fail_on_error`,
-`fail_on_inconclusive` and `fail_on_skipped`.
+`fail_on_inconclusive` and `fail_on_skipped`. One reason no policy turns off: a
+model or notebook a rule could not read is a coverage shortfall named by its file
+([`guardana scan`](usage-scan.md#model-files-no-rule-reads)), so `assert_secure`
+raises for it under every preset.
 
 ## Evidence in a CI log
 

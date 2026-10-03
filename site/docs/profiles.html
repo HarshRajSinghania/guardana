@@ -486,7 +486,10 @@ security contract, that the producer does not record makes the run <code>indeter
 correctly — they cover checks nobody specifically asked for. This one you asked for
 by name, and <code>fail_on_skipped</code> defaulting to off would otherwise turn &quot;your
 contract could not be checked&quot; into exit <code>0</code>. The saved run records which demand
-went unmet under <code>run.coverage.shortfall</code>.</p>
+went unmet under <code>run.coverage.shortfall</code>. A model file the scan observed and no rule
+read, or a model or notebook a rule could not read, lands there too, so a scan holding
+one exits <code>2</code> under every preset, <code>ci</code> included
+(<a href="usage-scan.html#model-files-no-rule-reads"><code>guardana scan</code></a>).</p>
 <h2 id="config-wired-evaluators-llm_judge-and-guard">Config-wired evaluators: <code>llm_judge</code> and <code>guard</code></h2>
 <p>Two built-in evaluators grade with a model of their own, so they only become
 available once the <code>evaluators:</code> block tells Guardana where that model lives.

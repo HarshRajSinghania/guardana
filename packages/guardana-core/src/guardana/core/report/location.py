@@ -6,12 +6,18 @@ repo-relative `uri` (what GitHub code scanning needs to attach an alert) and giv
 the baseline fingerprint a path that is stable between a dev machine and CI.
 """
 
+import contextlib
+import os
 from dataclasses import replace
-from pathlib import Path
+from pathlib import Path, PurePath
 
 from guardana.core.report._ref import split_ref
 from guardana.core.report.finding import Finding
 from guardana.core.report.result import ScanResult
+from guardana.core.report.shortfall import CoverageShortfall, ShortfallKind
+
+_NAMED_BY_PATH = frozenset({ShortfallKind.UNEXAMINED_COMPONENT, ShortfallKind.EMPTY_TARGET})
+"""Shortfall kinds whose name may be a file or a target path rather than a label."""
 
 
 def relativize(ref: str, base: Path) -> str:
@@ -26,8 +32,37 @@ def relativize(ref: str, base: Path) -> str:
     return f"{rel}:{line}" if line is not None else str(rel)
 
 
+def _relativize_shortfall(gap: CoverageShortfall, base: Path) -> CoverageShortfall:
+    """Rewrite a path-named shortfall relative to `base`, and drop `base` from its detail.
+
+    A bare name — a model format such as `pickle` — is a label, not a location, and
+    passes unchanged; so does every kind that is never named by a path.
+    """
+    if gap.kind not in _NAMED_BY_PATH:
+        return gap
+    name = gap.name
+    if PurePath(name).is_absolute() or len(PurePath(name).parts) > 1:
+        name = relativize(name, base)
+    return replace(gap, name=name, detail=_without_root(gap.detail, base))
+
+
+def _without_root(text: str, base: Path) -> str:
+    """Remove `base` as a leading directory from every path `text` spells out."""
+    roots = {str(base), str(base.absolute())}
+    with contextlib.suppress(OSError):
+        roots.add(str(base.resolve()))
+    # Longest first: `/var/x/` sits inside `/private/var/x/`, and removing the shorter
+    # spelling first would leave `/private` in front of every path.
+    for root in sorted(roots, key=len, reverse=True):
+        spelled = PurePath(root)
+        # The filesystem root would strip every separator in the text, not one prefix.
+        if spelled.is_absolute() and spelled.parent != spelled:
+            text = text.replace(root.rstrip(os.sep) + os.sep, "")
+    return text
+
+
 def relativize_findings(result: ScanResult, base: Path) -> ScanResult:
-    """Return a copy of `result` with every file target_ref made relative to `base`.
+    """Return a copy of `result` with every file location made relative to `base`.
 
     Applied once before rendering and baselining, so both the SARIF `uri` and the
     baseline fingerprint use a portable, repo-relative path instead of the absolute
@@ -54,5 +89,10 @@ def relativize_findings(result: ScanResult, base: Path) -> ScanResult:
         if result.scope is None
         else replace(
             result.scope, files=tuple(relativize(path, base) for path in result.scope.files)
+        ),
+        # A file the run could not read is named the way its finding is, or a saved run
+        # would name one file two ways and carry the checkout path the findings dropped.
+        coverage_shortfall=tuple(
+            _relativize_shortfall(gap, base) for gap in result.coverage_shortfall
         ),
     )

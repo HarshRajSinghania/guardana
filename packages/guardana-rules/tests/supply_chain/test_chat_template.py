@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 
 import pytest
+from guardana.core.report import ShortfallKind
 from guardana.core.rule import RuleContext
 from guardana.core.severity import Severity
 from guardana.core.target import ArtifactTarget, EndpointTarget
@@ -38,6 +39,18 @@ _REAL_TEMPLATE = """
 {%- endfor %}
 {{- "Today is " + strftime_now("%Y-%m-%d") }}
 """
+
+
+def _unread(root: Path) -> list[str]:
+    """The files the rule names as unread components when run over `root`."""
+    ctx = RuleContext()
+    list(ChatTemplateRule().run(ArtifactTarget(root), ctx))
+    return [
+        gap.name
+        for gap in ctx.shortfalls()
+        if gap.kind is ShortfallKind.UNEXAMINED_COMPONENT
+        and gap.detail.startswith("guardana.supply_chain.chat_template could not read it: ")
+    ]
 
 
 def _run(root: Path) -> list[object]:
@@ -137,12 +150,14 @@ def test_an_unreadable_gguf_is_reported_as_unscanned(tmp_path: Path) -> None:
     assert [f.severity for f in findings] == [Severity.LOW]
     assert findings[0].verdict is not None
     assert "not scanned" in findings[0].evidence.summary
+    assert _unread(tmp_path) == [str(tmp_path / "broken.gguf")]
 
 
 def test_an_unparseable_tokenizer_config_is_reported_as_unscanned(tmp_path: Path) -> None:
     (tmp_path / "tokenizer_config.json").write_text("{ not json")
     findings = list(ChatTemplateRule().run(ArtifactTarget(tmp_path), RuleContext()))
     assert [f.severity for f in findings] == [Severity.LOW]
+    assert _unread(tmp_path) == [str(tmp_path / "tokenizer_config.json")]
 
 
 def test_a_gguf_without_a_chat_template_is_clean(tmp_path: Path) -> None:
@@ -150,6 +165,7 @@ def test_a_gguf_without_a_chat_template_is_clean(tmp_path: Path) -> None:
     # and it carries no template. That is different from "could not be read".
     (tmp_path / "base.gguf").write_bytes(build_gguf({"general.architecture": "llama"}))
     assert _run(tmp_path) == []
+    assert _unread(tmp_path) == []
 
 
 def test_a_config_whose_template_is_an_unreadable_shape_is_not_cleared(tmp_path: Path) -> None:
@@ -182,6 +198,7 @@ def test_an_unreadable_template_file_is_not_cleared(tmp_path: Path) -> None:
     # skipped — but skipped loudly.
     os.mkfifo(tmp_path / "chat_template.jinja")
     assert _severities(tmp_path) == [Severity.LOW.name]
+    assert _unread(tmp_path) == [str(tmp_path / "chat_template.jinja")]
 
 
 def test_a_template_padded_past_the_read_bound_is_not_cleared(tmp_path: Path) -> None:
@@ -212,6 +229,7 @@ def test_a_gadget_before_the_read_bound_does_not_hide_the_unread_rest(tmp_path: 
 
     assert [f.severity for f in findings] == [Severity.HIGH, Severity.LOW]
     assert findings[1].title == "Chat template not scanned"
+    assert _unread(tmp_path) == [str(tmp_path / "chat_template.jinja")]
 
 
 def test_a_tokenizer_config_past_the_read_bound_says_so(tmp_path: Path) -> None:

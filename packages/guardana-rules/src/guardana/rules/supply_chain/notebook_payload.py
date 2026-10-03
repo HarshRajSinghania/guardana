@@ -19,7 +19,7 @@ from guardana.core.taxonomy import (
 )
 from guardana.rules._base import ArtifactRule
 from guardana.rules.supply_chain._code_sinks import code_sinks
-from guardana.rules.supply_chain._leads import unscanned_verdict
+from guardana.rules.supply_chain._leads import unread_component, unscanned_verdict
 from guardana.rules.supply_chain._reading import MAX_SCAN_BYTES, read_text_prefix
 
 # Fetching a script and piping it straight into a shell (`curl … | sh`) is the
@@ -98,17 +98,17 @@ class NotebookPayloadRule(ArtifactRule):
         if not isinstance(target, FileReader):
             return
         for path in target.iter_files((".ipynb",)):
-            yield from self._scan(path)
+            yield from self._scan(path, ctx)
 
-    def _scan(self, path: Path) -> Iterator[Finding]:
+    def _scan(self, path: Path, ctx: RuleContext) -> Iterator[Finding]:
         prefix = read_text_prefix(path, errors="ignore")
         if prefix is None:
-            yield self._unscanned(path, "the file could not be read")
+            yield self._unscanned(path, "the file could not be read", ctx)
             return
         raw, truncated = prefix
         if truncated:
             yield self._unscanned(
-                path, f"the file is larger than the {MAX_SCAN_BYTES}-byte read bound"
+                path, f"the file is larger than the {MAX_SCAN_BYTES}-byte read bound", ctx
             )
             return
         try:
@@ -116,19 +116,20 @@ class NotebookPayloadRule(ArtifactRule):
         except ValueError:
             # Not one cell was examined, so a malformed notebook is no cleaner than
             # one that holds a payload.
-            yield self._unscanned(path, "the notebook could not be parsed as JSON")
+            yield self._unscanned(path, "the notebook could not be parsed as JSON", ctx)
             return
         cells = doc.get("cells") if isinstance(doc, dict) else None
         if not isinstance(cells, list):
-            yield self._unscanned(path, "the notebook declares no list of cells")
+            yield self._unscanned(path, "the notebook declares no list of cells", ctx)
             return
         for index, cell in enumerate(cells):
             source = _cell_source(cell)
             if source is not None:
                 yield from self._scan_cell(path, index, source)
 
-    def _unscanned(self, path: Path, reason: str) -> Finding:
+    def _unscanned(self, path: Path, reason: str, ctx: RuleContext) -> Finding:
         """Say the notebook was not examined, rather than returning as if it were clean."""
+        ctx.shortfall(unread_component(self.meta.id, path, reason))
         return Finding(
             rule_id=self.meta.id,
             severity=Severity.LOW,

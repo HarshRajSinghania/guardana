@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from guardana.core.report import ShortfallKind
 from guardana.core.rule import RuleContext
 from guardana.core.severity import Severity
 from guardana.core.target import ArtifactTarget
@@ -14,6 +15,18 @@ def _findings(tmp_path: Path) -> list[tuple[str, str]]:
     return [
         (f.severity.name, f.evidence.summary)
         for f in rule.run(ArtifactTarget(tmp_path), RuleContext())
+    ]
+
+
+def _unread(root: Path) -> list[str]:
+    """The files the rule names as unread components when run over `root`."""
+    ctx = RuleContext()
+    list(OnnxGraphRule().run(ArtifactTarget(root), ctx))
+    return [
+        gap.name
+        for gap in ctx.shortfalls()
+        if gap.kind is ShortfallKind.UNEXAMINED_COMPONENT
+        and gap.detail.startswith("guardana.supply_chain.onnx_graph could not read it: ")
     ]
 
 
@@ -90,13 +103,22 @@ def test_an_unreadable_onnx_file_is_reported_as_unscanned(tmp_path: Path) -> Non
     findings = _findings(tmp_path)
     assert [severity for severity, _ in findings] == ["LOW"]
     assert "not scanned" in findings[0][1]
+    assert _unread(tmp_path) == [str(tmp_path / "model.onnx")]
+
+
+def test_a_readable_graph_is_no_shortfall(tmp_path: Path) -> None:
+    _write(tmp_path, build_onnx(nodes=(("Conv", ""),)))
+
+    assert _unread(tmp_path) == []
 
 
 def test_a_graph_too_large_to_walk_is_not_cleared(tmp_path: Path) -> None:
     _write(tmp_path, build_onnx(nodes=tuple(("Conv", "") for _ in range(400))))
     rule = OnnxGraphRule(max_entries=20)
-    findings = [f.severity for f in rule.run(ArtifactTarget(tmp_path), RuleContext())]
+    ctx = RuleContext()
+    findings = [f.severity for f in rule.run(ArtifactTarget(tmp_path), ctx)]
     assert findings == [Severity.LOW]
+    assert [gap.name for gap in ctx.shortfalls()] == [str(tmp_path / "model.onnx")]
 
 
 def test_a_lead_found_before_the_budget_ran_out_does_not_hide_the_unread_rest(

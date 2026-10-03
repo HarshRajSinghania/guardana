@@ -373,8 +373,10 @@ it found</strong>: a lead in the fields it reached says nothing about a worse on
 the budget. A rule reports the findings it has and says the walk was partial:</p>
 <pre><code class="language-python">yield from self._graded(path, summary)
 if summary.truncated:
-    yield self._unscanned(path, &quot;the graph was too large to walk within the budget&quot;)
+    yield self._unscanned(path, &quot;the graph was too large to walk within the budget&quot;, ctx)
 </code></pre>
+<p><code>_unscanned</code> there yields the inconclusive finding and reports the file as an
+unexamined component; see <a href="#writing-a-rule-on-top">writing a rule on top</a>.</p>
 <h3 id="limits">Limits</h3>
 <pre><code class="language-python">@dataclass(frozen=True)
 class Limits:
@@ -389,7 +391,26 @@ inside them. Pass your own <code>Limits</code> to tighten them for a constrained
 <h2 id="writing-a-rule-on-top">Writing a rule on top</h2>
 <p>Two rules, one shape. Read the file, turn <code>FormatError</code> into a visible finding,
 grade what you got.</p>
+<p>A file the rule could not read, or read only in part, gets two reports. The finding
+carries an <code>inconclusive</code> verdict, so it lands on the unverified channel. The
+<code>unexamined_component</code> shortfall names the file, so the run is <code>indeterminate</code> under
+every policy rather than only under <code>fail_on_inconclusive</code>. The built-in model rules
+do both, and a rule that reads the format calls <code>ctx.examined(path)</code> either way, so
+the format-level pass does not name the file again
+(<a href="usage-scan.html#model-files-no-rule-reads"><code>guardana scan</code></a>).</p>
 <pre><code class="language-python">from guardana.core.formats import FormatError, read_onnx_summary, STANDARD_ONNX_DOMAINS
+from guardana.core.report import CoverageShortfall, ShortfallKind
+
+
+def unscanned(ctx: RuleContext, path: Path, reason: str) -&gt; Finding:
+    ctx.shortfall(
+        CoverageShortfall(
+            ShortfallKind.UNEXAMINED_COMPONENT,
+            name=str(path),
+            detail=f&quot;acme.supply_chain.unapproved_operator could not read it: {reason}&quot;,
+        )
+    )
+    return Finding(...)                     # verdict outcome &quot;inconclusive&quot;
 
 class UnapprovedOperatorRule(Rule):
     meta = RuleMeta(
@@ -405,16 +426,17 @@ class UnapprovedOperatorRule(Rule):
         if not isinstance(target, ArtifactTarget):
             return
         for path in target.iter_files((&quot;.onnx&quot;,)):
+            ctx.examined(path)
             try:
                 summary = read_onnx_summary(path)
             except FormatError as exc:
-                yield unscanned(path, str(exc))     # never silence
+                yield unscanned(ctx, path, str(exc))     # never silence
                 continue
             unknown = set(summary.node_domains) - STANDARD_ONNX_DOMAINS - APPROVED
             if unknown:
                 yield Finding(...)
             if summary.truncated:
-                yield unscanned(path, &quot;the field budget ran out&quot;)   # a partial walk
+                yield unscanned(ctx, path, &quot;the field budget ran out&quot;)   # a partial walk
 </code></pre>
 <p><code>examples/custom_rule/src/acme_rules/approved_model.py</code> is the runnable version
 of this — a complete third-party rule, tested, whose entire body is policy.</p>

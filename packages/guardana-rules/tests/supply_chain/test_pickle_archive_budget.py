@@ -19,7 +19,7 @@ from pathlib import Path
 import pytest
 from guardana.core.profile import Policy, Profile
 from guardana.core.registry import Registry
-from guardana.core.report import ScanResult
+from guardana.core.report import ScanResult, ShortfallKind
 from guardana.core.rule import RuleContext
 from guardana.core.runner import Runner
 from guardana.core.target import ArtifactTarget
@@ -74,6 +74,14 @@ def _unverified_naming(result: ScanResult, bound: int) -> list[str]:
     ]
 
 
+def _unread(result: ScanResult) -> list[str]:
+    return [
+        gap.name
+        for gap in result.coverage_shortfall
+        if gap.kind is ShortfallKind.UNEXAMINED_COMPONENT and gap.detail.startswith(_RULE_ID)
+    ]
+
+
 def test_opcodes_walked_across_members_stop_at_the_archive_bound(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -90,6 +98,7 @@ def test_opcodes_walked_across_members_stop_at_the_archive_bound(
     assert walked[0] <= bound
     assert _unverified_naming(result, bound), [f.evidence.summary for f in result.unverified]
     assert not [f for f in result.findings if f.rule_id == _RULE_ID]
+    assert _unread(result) == [str(tmp_path / "model.pt")]
 
 
 def test_a_payload_found_before_the_opcode_bound_is_still_critical(
@@ -130,6 +139,7 @@ def test_members_past_the_archive_bound_are_not_opened_and_not_clean(
 
     assert opened[0] <= bound
     assert _unverified_naming(result, bound), [f.evidence.summary for f in result.unverified]
+    assert _unread(result) == [str(tmp_path / "model.pt")]
 
 
 class _Storage:
@@ -211,10 +221,12 @@ def test_a_torch_shaped_checkpoint_stays_clean_within_its_own_size(
     checkpoint = _torch_checkpoint(monkeypatch, tensors)
     (tmp_path / "model.pt").write_bytes(checkpoint)
     walked = _count_opcodes(monkeypatch)
+    ctx = RuleContext()
 
-    findings = list(PickleOpcodeRule().run(ArtifactTarget(tmp_path), RuleContext()))
+    findings = list(PickleOpcodeRule().run(ArtifactTarget(tmp_path), ctx))
 
     assert findings == []
+    assert ctx.shortfalls() == ()
     assert tensors < walked[0] <= len(checkpoint)
     assert tensors + 7 < pickle_opcode._ARCHIVE_MAX_MEMBERS
 

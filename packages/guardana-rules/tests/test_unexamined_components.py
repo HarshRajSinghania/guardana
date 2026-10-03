@@ -5,12 +5,15 @@ question is what the run concludes, not what one rule returns.
 """
 
 import io
+import json
 import os
 import pickle
 import zipfile
 from collections.abc import Iterable
 from pathlib import Path
 
+import pytest
+from guardana.cli.main import app
 from guardana.core.gate import GateOutcome, gate_outcome
 from guardana.core.plugins import PluginMode, PluginTrust
 from guardana.core.profile import Policy, Profile
@@ -21,7 +24,9 @@ from guardana.core.runner import Runner
 from guardana.core.severity import Severity
 from guardana.core.target import ArtifactTarget, Capability, FileReader, Target, TargetKind
 from guardana.core.taxonomy import OWASP_LLM03_2025
+from guardana.core.testing import build_onnx
 from guardana.rules import provide_rules
+from typer.testing import CliRunner
 
 
 class _Evil:
@@ -34,6 +39,13 @@ def _torch_zip(payload: bytes) -> bytes:
     with zipfile.ZipFile(buffer, "w") as archive:
         archive.writestr("archive/data.pkl", payload)
         archive.writestr("archive/version", "3")
+    return buffer.getvalue()
+
+
+def _keras(config: dict[str, object]) -> bytes:
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr("config.json", json.dumps(config))
     return buffer.getvalue()
 
 
@@ -126,12 +138,69 @@ def test_every_model_suffix_a_built_in_rule_reads_leaves_no_shortfall(tmp_path: 
     """The negative: a component some rule read is not reported as unread."""
     (tmp_path / "model.pkl").write_bytes(pickle.dumps({"w": 1}))
     (tmp_path / "model.dill").write_bytes(pickle.dumps({"w": 1}))
-    (tmp_path / "model.keras").write_bytes(b"not a zip")
-    (tmp_path / "model.onnx").write_bytes(b"\xff" * 11)
+    (tmp_path / "model.keras").write_bytes(_keras({"class_name": "Sequential", "config": {}}))
+    (tmp_path / "model.onnx").write_bytes(build_onnx(nodes=(("Conv", ""),)))
 
     result = _scan(tmp_path)
 
     assert _unexamined(result) == {}
+
+
+def test_a_model_a_rule_could_not_read_is_named_by_its_file(tmp_path: Path) -> None:
+    """Named once, by the rule that tried: the format-level pass does not repeat it."""
+    (tmp_path / "model.keras").write_bytes(b"not a zip")
+    (tmp_path / "model.onnx").write_bytes(b"\xff" * 11)
+    (tmp_path / "model.pkl").write_bytes(pickle.dumps({"w": 1}))
+
+    result = _scan(tmp_path)
+
+    unread = _unexamined(result)
+    assert set(unread) == {str(tmp_path / "model.keras"), str(tmp_path / "model.onnx")}
+    assert unread[str(tmp_path / "model.keras")].startswith(
+        "guardana.supply_chain.keras_lambda could not read it: "
+    )
+    assert unread[str(tmp_path / "model.onnx")].startswith(
+        "guardana.supply_chain.onnx_graph could not read it: "
+    )
+    assert sorted(f.target_ref for f in result.unverified) == sorted(unread)
+    assert gate_outcome(result, Policy()) is GateOutcome.INDETERMINATE
+
+
+def test_a_scan_under_the_ci_preset_of_an_unreadable_model_is_indeterminate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / "models").mkdir()
+    (tmp_path / "models" / "model.safetensors").write_bytes(b"\x01\x00")
+    monkeypatch.chdir(tmp_path)
+
+    outcome = CliRunner().invoke(
+        app,
+        ["scan", str(tmp_path), "--preset", "ci", "--format", "json", "--output", "run.json"],
+    )
+
+    assert outcome.exit_code == 2, outcome.output
+    saved = json.loads((tmp_path / "run.json").read_text())
+    assert saved["run"]["coverage"]["shortfall"] == [
+        {
+            "kind": "unexamined_component",
+            "name": "models/model.safetensors",
+            "detail": (
+                "guardana.supply_chain.model_format could not read it: "
+                "file is shorter than the safetensors header length prefix"
+            ),
+        }
+    ]
+
+
+def test_a_scan_under_the_ci_preset_of_a_readable_model_passes(tmp_path: Path) -> None:
+    header = b'{"w":{"dtype":"F32","shape":[1],"data_offsets":[0,4]}}'
+    (tmp_path / "model.safetensors").write_bytes(
+        len(header).to_bytes(8, "little") + header + b"\x00" * 4
+    )
+
+    outcome = CliRunner().invoke(app, ["scan", str(tmp_path), "--preset", "ci"])
+
+    assert outcome.exit_code == 0, outcome.output
 
 
 class _TfliteChecker(Rule):

@@ -22,6 +22,7 @@ from guardana.core.gate import GateOutcome, gate_outcome
 from guardana.core.plugins import PluginMode, PluginTrust
 from guardana.core.profile import Policy, Profile
 from guardana.core.registry import Registry
+from guardana.core.report import ShortfallKind
 from guardana.core.rule import Rule, RuleContext
 from guardana.core.runner import Runner
 from guardana.core.target import ArtifactTarget, Capability, TargetKind
@@ -166,7 +167,8 @@ _CASES = (
 def _outcome(case: _Case, root: Path, name: str) -> list[tuple[object, ...]]:
     root.mkdir()
     (root / name).write_bytes(case.content)
-    return [
+    ctx = RuleContext()
+    findings = [
         (
             f.rule_id,
             f.severity,
@@ -175,8 +177,13 @@ def _outcome(case: _Case, root: Path, name: str) -> list[tuple[object, ...]]:
             f.evidence.detail.replace(name, "<file>"),
             f.verdict,
         )
-        for f in case.rule().run(ArtifactTarget(root), RuleContext())
+        for f in case.rule().run(ArtifactTarget(root), ctx)
     ]
+    unread = [
+        (gap.kind, gap.name == str(root / name), gap.detail.replace(name, "<file>"))
+        for gap in ctx.shortfalls()
+    ]
+    return [*findings, *unread]
 
 
 @pytest.mark.parametrize("case", _CASES, ids=[case.shouted for case in _CASES])
@@ -210,6 +217,12 @@ def test_a_corrupt_capitalised_onnx_is_unverified_not_clean(tmp_path: Path) -> N
     ).run(ArtifactTarget(tmp_path))
 
     assert [f.rule_id for f in result.unverified] == ["guardana.supply_chain.onnx_graph"]
+    assert [
+        gap.name
+        for gap in result.coverage_shortfall
+        if gap.kind is ShortfallKind.UNEXAMINED_COMPONENT
+    ] == [str(tmp_path / "c.ONNX")]
+    assert gate_outcome(result, Policy()) is GateOutcome.INDETERMINATE
 
 
 def test_a_capitalised_malicious_pickle_fails_the_gate(tmp_path: Path) -> None:

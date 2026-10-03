@@ -304,7 +304,7 @@ the worst shape of false green there is — the same refusal <code>guardana scan
 E
 E     CRITICAL guardana.supply_chain.pickle_opcode
 E              examples/vulnerable-model/model.pt
-E              unpickling imports non-allowlisted callable: posix.system
+E              unpickling imports 1 non-allowlisted callable(s): posix.system
 E
 E     HIGH     guardana.supply_chain.malicious_dependency
 E              examples/vulnerable-model/requirements.txt
@@ -347,7 +347,10 @@ except SecurityAssertionError as failure:
 </code></pre>
 <p>Which reasons make a run indeterminate is the policy's decision, not this
 function's — see <a href="profiles.html"><code>profiles.md</code></a> for <code>fail_on_error</code>,
-<code>fail_on_inconclusive</code> and <code>fail_on_skipped</code>.</p>
+<code>fail_on_inconclusive</code> and <code>fail_on_skipped</code>. One reason no policy turns off: a
+model or notebook a rule could not read is a coverage shortfall named by its file
+(<a href="usage-scan.html#model-files-no-rule-reads"><code>guardana scan</code></a>), so <code>assert_secure</code>
+raises for it under every preset.</p>
 <h2 id="evidence-in-a-ci-log">Evidence in a CI log</h2>
 <p>The failure message is redacted by the profile's privacy policy before it is
 raised. That is not a detail: the message goes into a CI log, which is a file on

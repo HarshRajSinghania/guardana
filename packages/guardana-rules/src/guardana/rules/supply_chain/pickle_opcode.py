@@ -22,7 +22,7 @@ from guardana.core.taxonomy import (
     OWASP_LLM10_2026,
 )
 from guardana.rules._base import ArtifactRule
-from guardana.rules.supply_chain._leads import unscanned_verdict
+from guardana.rules.supply_chain._leads import unread_component, unscanned_verdict
 from guardana.rules.supply_chain._reading import read_bytes_bounded
 
 _SUFFIXES = (".pkl", ".pickle", ".pt", ".pth", ".ckpt", ".joblib", ".dill")
@@ -202,6 +202,7 @@ _ARCHIVE_MAX_MEMBERS = 100_000
 _MAX_PICKLE_BYTES = 512 * 1024 * 1024
 _MAGIC_SNIFF_BYTES = 8
 
+_RULE_ID = "guardana.supply_chain.pickle_opcode"
 _UNSCANNED_TITLE = "Unscanned model file"
 
 
@@ -531,6 +532,48 @@ def _holds_a_pickle(head: bytes, scan: _OpcodeScan, *, cut: bool) -> bool:
     return cut and scan.end is ParseEnd.RAN_OUT and head.startswith(_PICKLE_HEADERS)
 
 
+@dataclass(slots=True)
+class _FileReport:
+    """What reading one file established, gathered before anything about it is reported.
+
+    Gathered rather than yielded as found, so the file gets one finding naming every
+    callable it imports, and a member that raises part-way cannot discard the callables
+    the members before it already showed.
+    """
+
+    path: Path
+    ctx: RuleContext
+    imports: set[tuple[str, str | None]] = field(default_factory=set)
+    """Each non-allowlisted callable, with the archive member it was found in."""
+
+    unread: list[Finding] = field(default_factory=list)
+
+    def found(self, refs: Iterable[str], member: str | None = None) -> None:
+        """Keep the callables one stream imports."""
+        self.imports.update((ref, member) for ref in refs)
+
+    def unscanned(self, summary: str, *, component: bool = True) -> None:
+        """Keep an inconclusive finding; a `component` left unread is a shortfall as well."""
+        if component:
+            self.ctx.shortfall(unread_component(_RULE_ID, self.path, summary))
+        self.unread.append(
+            Finding(
+                rule_id=_RULE_ID,
+                severity=Severity.LOW,
+                title=_UNSCANNED_TITLE,
+                taxonomy=(
+                    OWASP_LLM03_2025,
+                    OWASP_LLM04_2026,
+                ),
+                target_ref=str(self.path),
+                evidence=Evidence(summary=summary, detail=f"file={self.path.name}"),
+                verdict=unscanned_verdict(
+                    "this member could not be parsed, so nothing in it was cleared"
+                ),
+            )
+        )
+
+
 class PickleOpcodeRule(ArtifactRule):
     """Flag a pickle that imports a non-allowlisted callable — code that runs on load.
 
@@ -540,13 +583,13 @@ class PickleOpcodeRule(ArtifactRule):
     slip past. A raw tensor storage beside a `data.pkl`, which `torch.load` never
     unpickles, is reported only when it holds a pickle or a nested archive, so tensor
     values that parse as opcodes are not noise. One archive is read up to a member count
-    and an opcode budget shared by its members. Anything it cannot fully parse, or
-    stops reading at a bound, becomes a visible unverified result, never a silent
-    clean.
+    and an opcode budget shared by its members. A file gets one finding naming every
+    callable it imports. Anything it cannot fully parse, or stops reading at a bound,
+    becomes a visible unverified result and a coverage shortfall, never a silent clean.
     """
 
     meta = RuleMeta(
-        id="guardana.supply_chain.pickle_opcode",
+        id=_RULE_ID,
         title="Dangerous pickle opcode (arbitrary code on load)",
         severity=Severity.CRITICAL,
         target_kind=TargetKind.ARTIFACT,
@@ -568,38 +611,59 @@ class PickleOpcodeRule(ArtifactRule):
         if not isinstance(target, FileReader):
             return
         for path in target.iter_files(_SUFFIXES):
-            yield from self._scan(path)
+            yield from self._scan(_FileReport(path, ctx))
             ctx.examined(path)
         for path in target.iter_files((_BIN_SUFFIX,)):
-            if (yield from self._scan(path, by_content=True)):
+            if (yield from self._scan(_FileReport(path, ctx), by_content=True)):
                 ctx.examined(path)
 
-    def _scan(self, path: Path, *, by_content: bool = False) -> Generator[Finding, None, bool]:
-        """Scan one file and return whether it was a pickle or a zip this rule read.
+    def _scan(
+        self, report: _FileReport, *, by_content: bool = False
+    ) -> Generator[Finding, None, bool]:
+        """Scan one file, report it, and return whether it was a pickle or a zip this rule read.
 
         `by_content` is for a suffix that names no format: a file that is neither a zip
         nor a pickle stream is left alone, without a finding, and reported as unread.
         """
+        try:
+            read = self._read(report, by_content=by_content)
+        except Exception:
+            # What the members before the failure imported is as real as it would be
+            # after a clean read, and the runner keeps what a rule yielded before raising.
+            yield from self._report(report)
+            raise
+        yield from self._report(report)
+        return read
+
+    def _report(self, report: _FileReport) -> Iterator[Finding]:
+        critical = self._critical(report)
+        if critical is not None:
+            yield critical
+        yield from report.unread
+
+    def _read(self, report: _FileReport, *, by_content: bool) -> bool:
+        path = report.path
         sniffed = read_bytes_bounded(path, _MAGIC_SNIFF_BYTES)
         if sniffed is None:
             if not by_content:
                 # Not a regular file (a FIFO named `model.pkl` blocks a plain read
                 # forever) or unreadable. Either way it is unexamined, not clean.
-                yield self._unscanned(path, "not a readable regular file; not scanned")
+                report.unscanned("not a readable regular file; not scanned")
             return False
         magic = sniffed[0]
         if magic.startswith(_ZIP_MAGIC):
-            yield from self._scan_zip(path)
+            self._scan_zip(report)
             return True
         if magic.startswith(_7Z_MAGIC):
-            yield self._unscanned(
-                path, "7z-compressed archive; cannot decompress to scan — treat as suspicious"
+            report.unscanned(
+                "7z-compressed archive; cannot decompress to scan — treat as suspicious"
             )
             return True
-        return (yield from self._scan_stream(path, by_content=by_content))
+        return self._scan_stream(report, by_content=by_content)
 
-    def _scan_stream(self, path: Path, *, by_content: bool) -> Generator[Finding, None, bool]:
-        """Read `path` as a raw pickle stream; see `_scan` for `by_content`."""
+    def _scan_stream(self, report: _FileReport, *, by_content: bool) -> bool:
+        """Read the file as a raw pickle stream; see `_scan` for `by_content`."""
+        path = report.path
         if by_content:
             probe = read_bytes_bounded(path, _BIN_PROBE_BYTES)
             if probe is None:
@@ -610,30 +674,32 @@ class PickleOpcodeRule(ArtifactRule):
         prefix = read_bytes_bounded(path, _MAX_PICKLE_BYTES)
         if prefix is None:
             if not by_content:
-                yield self._unscanned(path, "not a readable regular file; not scanned")
+                report.unscanned("not a readable regular file; not scanned")
             return False
         data, oversized = prefix
         scan = _scan_opcodes(data)
         if by_content and not _bin_verdict(data, scan, cut=oversized):
             return False
-        refs, truncated = scan.refs, scan.truncated
-        if refs:
-            yield from (self._critical(path, ref) for ref in refs)
+        if scan.refs:
+            report.found(scan.refs)
         elif oversized:
-            yield self._unscanned(
-                path, f"raw pickle larger than {_MAX_PICKLE_BYTES} bytes; not scanned in full"
+            report.unscanned(
+                f"raw pickle larger than {_MAX_PICKLE_BYTES} bytes; not scanned in full"
             )
-        elif truncated:
-            yield self._unscanned(
-                path,
+        elif scan.truncated:
+            # A pickle hiding the operands of an import was read to that import: what is
+            # missing is the name it resolves to, not a part of the file.
+            report.unscanned(
                 "could not parse as a pickle stream (may be a zip-based container); not scanned",
+                component=scan.end is not ParseEnd.UNRESOLVABLE,
             )
         return True
 
-    def _scan_zip(self, path: Path) -> Iterator[Finding]:
+    def _scan_zip(self, report: _FileReport) -> None:
         # Opened from the path, not from bytes in memory: a checkpoint for a 7B
         # model is a multi-GB zip, and holding it whole just to list its members
         # would make scanning a real model cost more RAM than serving it.
+        path = report.path
         try:
             budget = _OpcodeBudget(_ARCHIVE_OPCODE_FLOOR + path.stat().st_size)
             with zipfile.ZipFile(path) as archive:
@@ -643,25 +709,24 @@ class PickleOpcodeRule(ArtifactRule):
                 names = frozenset(info.filename for info in members)
                 for info in members[:_ARCHIVE_MAX_MEMBERS]:
                     storage = _is_raw_storage(info.filename, names)
-                    if (yield from self._scan_member(path, archive, info, budget, storage)):
+                    if self._scan_member(report, archive, info, budget, storage):
                         return
                 if len(members) > _ARCHIVE_MAX_MEMBERS:
-                    yield self._unscanned(
-                        path,
+                    report.unscanned(
                         f"zip holds {len(members)} members; members past the first "
-                        f"{_ARCHIVE_MAX_MEMBERS} not scanned",
+                        f"{_ARCHIVE_MAX_MEMBERS} not scanned"
                     )
         except (zipfile.BadZipFile, OSError):
-            yield self._unscanned(path, "malformed zip container; not scanned")
+            report.unscanned("malformed zip container; not scanned")
 
     def _scan_member(
         self,
-        path: Path,
+        report: _FileReport,
         archive: zipfile.ZipFile,
         info: zipfile.ZipInfo,
         budget: _OpcodeBudget,
         storage: bool,
-    ) -> Generator[Finding, None, bool]:
+    ) -> bool:
         """Scan one member and return whether the archive's opcode budget ran out in it.
 
         A `storage` member is reported only when its bytes hold a pickle.
@@ -675,11 +740,11 @@ class PickleOpcodeRule(ArtifactRule):
             # RuntimeError is what zipfile raises for an encrypted member. Either
             # way, one crafted member must never abort the whole scan (a DoS) nor
             # pass as clean — the bytes we couldn't read become a visible finding.
-            yield self._unscanned(path, f"zip member could not be read ({name}); not scanned")
+            report.unscanned(f"zip member could not be read ({name}); not scanned")
             return False
         member_data, cut = raw[:limit], len(raw) > limit
         if member_data.startswith(_NESTED_CONTAINER_MAGICS):
-            yield self._unscanned(path, f"zip member is a nested archive ({name}); not scanned")
+            report.unscanned(f"zip member is a nested archive ({name}); not scanned")
             return False
         scan = _scan_opcodes(member_data, budget)
         if (
@@ -688,13 +753,11 @@ class PickleOpcodeRule(ArtifactRule):
             and not _holds_a_pickle(member_data, scan, cut=cut)
         ):
             return False
-        for ref in scan.refs:
-            yield self._critical(path, ref, member=name)
+        report.found(scan.refs, name)
         if scan.end is ParseEnd.OVER_BUDGET:
-            yield self._unscanned(
-                path,
+            report.unscanned(
                 f"zip members hold more than {budget.limit} pickle opcodes, the bound for "
-                f"an archive of this size; {name} and the members after it not scanned",
+                f"an archive of this size; {name} and the members after it not scanned"
             )
             return True
         if not scan.refs and _left_a_pickle_unproven(scan.end, cut=cut):
@@ -705,7 +768,7 @@ class PickleOpcodeRule(ArtifactRule):
             # so hiding a global behind it cost nothing. Only a stream that was
             # *reading as a pickle* qualifies: a real checkpoint's tensor storages are
             # bigger than the cap and are not pickles, so they stay quiet.
-            yield self._unscanned(path, self._unfinished(scan.end, name, limit))
+            report.unscanned(self._unfinished(scan.end, name, limit))
         return False
 
     def _unfinished(self, end: ParseEnd, name: str, limit: int) -> str:
@@ -716,32 +779,31 @@ class PickleOpcodeRule(ArtifactRule):
             )
         return f"zip member is a pickle with an operand this scanner cannot resolve ({name})"
 
-    def _critical(self, path: Path, ref: str, *, member: str | None = None) -> Finding:
-        where = path.name if member is None else f"{path.name}::{member}"
+    def _critical(self, report: _FileReport) -> Finding | None:
+        """One finding naming every callable the file imports; None when it imports none.
+
+        The summary names the callables, so the fingerprint a waiver matches moves when
+        one of them is swapped for another.
+        """
+        if not report.imports:
+            return None
+        callables = sorted({ref for ref, _member in report.imports})
+        file = report.path.name
+        where = sorted(
+            f"{ref} in {file if member is None else f'{file}::{member}'}"
+            for ref, member in report.imports
+        )
         return Finding(
-            rule_id=self.meta.id,
+            rule_id=_RULE_ID,
             severity=self.meta.severity,
             title=self.meta.title,
             taxonomy=self.meta.taxonomy,
-            target_ref=str(path),
+            target_ref=str(report.path),
             evidence=Evidence(
-                summary=f"unpickling imports non-allowlisted callable: {ref}",
-                detail=f"file={where}",
-            ),
-        )
-
-    def _unscanned(self, path: Path, summary: str) -> Finding:
-        return Finding(
-            rule_id=self.meta.id,
-            severity=Severity.LOW,
-            title=_UNSCANNED_TITLE,
-            taxonomy=(
-                OWASP_LLM03_2025,
-                OWASP_LLM04_2026,
-            ),
-            target_ref=str(path),
-            evidence=Evidence(summary=summary, detail=f"file={path.name}"),
-            verdict=unscanned_verdict(
-                "this member could not be parsed, so nothing in it was cleared"
+                summary=(
+                    f"unpickling imports {len(callables)} non-allowlisted callable(s): "
+                    f"{', '.join(callables)}"
+                ),
+                detail="; ".join(where),
             ),
         )

@@ -15,7 +15,7 @@ from guardana.core.taxonomy import (
     OWASP_ML06_2023,
 )
 from guardana.rules._base import ArtifactRule
-from guardana.rules.supply_chain._leads import lead_verdict, unscanned_verdict
+from guardana.rules.supply_chain._leads import lead_verdict, unread_component, unscanned_verdict
 from guardana.rules.supply_chain._reading import read_bytes_bounded
 
 # TensorFlow SavedModel graph operators that touch the filesystem on model load.
@@ -54,9 +54,9 @@ class SavedModelOpsRule(ArtifactRule):
         if not isinstance(target, FileReader):
             return
         for path in target.iter_files((".pb",)):
-            yield from self._scan(path)
+            yield from self._scan(path, ctx)
 
-    def _scan(self, path: Path) -> Iterator[Finding]:
+    def _scan(self, path: Path, ctx: RuleContext) -> Iterator[Finding]:
         prefix = read_bytes_bounded(path, _MAX_SCAN_BYTES)
         if prefix is None:
             return
@@ -65,6 +65,8 @@ class SavedModelOpsRule(ArtifactRule):
             # The flag was already here and was being dropped. Past the bound the
             # graph is unread, so an op sitting after it is invisible — and silence
             # about the tail read exactly like a clean graph.
+            reason = f"only the first {_MAX_SCAN_BYTES} bytes were read"
+            ctx.shortfall(unread_component(self.meta.id, path, reason))
             yield Finding(
                 rule_id=self.meta.id,
                 severity=Severity.LOW,
@@ -72,7 +74,7 @@ class SavedModelOpsRule(ArtifactRule):
                 taxonomy=self.meta.taxonomy,
                 target_ref=str(path),
                 evidence=Evidence(
-                    summary=f"only the first {_MAX_SCAN_BYTES} bytes were read",
+                    summary=reason,
                     detail=f"file={path.name}",
                 ),
                 verdict=unscanned_verdict(
