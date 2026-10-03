@@ -59,28 +59,14 @@ class SavedModelOpsRule(ArtifactRule):
     def _scan(self, path: Path, ctx: RuleContext) -> Iterator[Finding]:
         prefix = read_bytes_bounded(path, _MAX_SCAN_BYTES)
         if prefix is None:
+            yield self._unscanned(path, ctx, "the file could not be read", "was not read")
             return
         data, truncated = prefix
         if truncated:
-            # The flag was already here and was being dropped. Past the bound the
-            # graph is unread, so an op sitting after it is invisible — and silence
-            # about the tail read exactly like a clean graph.
+            # Past the bound the graph is unread, so an op sitting after it is
+            # invisible, and silence about the tail reads exactly like a clean graph.
             reason = f"only the first {_MAX_SCAN_BYTES} bytes were read"
-            ctx.shortfall(unread_component(self.meta.id, path, reason))
-            yield Finding(
-                rule_id=self.meta.id,
-                severity=Severity.LOW,
-                title="SavedModel not scanned",
-                taxonomy=self.meta.taxonomy,
-                target_ref=str(path),
-                evidence=Evidence(
-                    summary=reason,
-                    detail=f"file={path.name}",
-                ),
-                verdict=unscanned_verdict(
-                    "the graph was read only in part, so nothing was cleared"
-                ),
-            )
+            yield self._unscanned(path, ctx, reason, "was read only in part")
         for op in _FILESYSTEM_OPS:
             if op in data:
                 name = op.decode()
@@ -98,3 +84,16 @@ class SavedModelOpsRule(ArtifactRule):
                         f"{name} op present; legitimate in data pipelines, so a lead, not a verdict"
                     ),
                 )
+
+    def _unscanned(self, path: Path, ctx: RuleContext, reason: str, how: str) -> Finding:
+        """Name the graph as an unread component and build its inconclusive finding."""
+        ctx.shortfall(unread_component(self.meta.id, path, reason))
+        return Finding(
+            rule_id=self.meta.id,
+            severity=Severity.LOW,
+            title="SavedModel not scanned",
+            taxonomy=self.meta.taxonomy,
+            target_ref=str(path),
+            evidence=Evidence(summary=reason, detail=f"file={path.name}"),
+            verdict=unscanned_verdict(f"the graph {how}, so nothing was cleared"),
+        )

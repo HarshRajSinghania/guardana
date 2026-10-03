@@ -617,21 +617,25 @@ by a function <code>Runner.run</code> and <code>build_plan</code> both call, so 
 <h3 id="10-a-model-or-notebook-a-rule-could-not-read-is-an-unexamined-component">10. A model or notebook a rule could not read is an unexamined component</h3>
 <p>Every place a model-reading rule now yields an inconclusive &quot;not scanned&quot; finding — the
 notebook as a whole (<code>notebook_payload</code>), <code>pickle_opcode</code> (every <code>_unscanned</code> call, the opcode
-bound of an archive included), <code>onnx_graph</code>, <code>keras_lambda</code>, <code>chat_template</code>, <code>model_format</code>
-(safetensors unreadable or with a malformed header, a truncated PMML) and <code>saved_model_ops</code> —
-also calls <code>ctx.shortfall(CoverageShortfall(UNEXAMINED_COMPONENT, name=&lt;path&gt;, detail=&quot;&lt;rule id&gt; could not read it: &lt;reason&gt;&quot;))</code>. The finding stays (the collector envelope carries findings and
+bound of an archive included, an unresolvable or unread remainder after callables already
+found, and a <code>.bin</code> file it cannot open), <code>onnx_graph</code>, <code>keras_lambda</code>, <code>chat_template</code>,
+<code>model_format</code> (safetensors unreadable or with a malformed header, a truncated PMML) and
+<code>saved_model_ops</code> (a graph cut by the bound or unreadable) — also calls <code>ctx.shortfall(CoverageShortfall(UNEXAMINED_COMPONENT, name=&lt;path&gt;, detail=&quot;&lt;rule id&gt; could not read it: &lt;reason&gt;&quot;))</code>. The finding stays (the collector envelope carries findings and
 no shortfall), and so does <code>ctx.examined(path)</code>, so the runner's own inventory pass does not
 name the file a second time. No switch, so <code>indeterminate</code> under every preset, <code>ci</code> included.
 Every <code>UNEXAMINED_COMPONENT</code> and <code>EMPTY_TARGET</code> name is relativized with the findings
 (<code>report/location.py</code>; a format name passes unchanged) and the scan root is stripped from the
-detail as from a finding's evidence, so a saved run names the same file on a laptop and in CI.
+detail where a path starts, as from a finding's evidence, so a saved run names the same file on a laptop and in CI.
 The tests that compare <code>_unexamined</code> maps (<code>rules/tests/test_unexamined_components.py</code>) gain the
 per-file entries. Unchanged: a notebook <em>cell</em> that does not
-parse as Python (magics are ordinary), the non-model rules' unscanned findings, and a raw
-pickle's unresolvable global.</p>
+parse as Python (magics are ordinary) and the non-model rules' unscanned findings. A raw
+pickle's unresolvable global is a shortfall like any other: the opcodes after it were never
+read.</p>
 <h3 id="11-pickle_opcode-reports-one-finding-per-file">11. <code>pickle_opcode</code> reports one finding per file</h3>
-<p>One <code>CRITICAL</code> finding per file, summary <code>unpickling imports N non-allowlisted callable(s): a, b, c</code> naming every callable, sorted and unique — the fingerprint hashes the summary, so a
-swapped callable is a different finding. The detail lists each callable with its archive member.
+<p>One <code>CRITICAL</code> finding per file, summary <code>unpickling imports N non-allowlisted callable(s) (set &lt;digest&gt;): a, b, c</code> naming every callable, sorted and unique; the digest is the first 12
+hex of the SHA-256 of the newline-joined set. The fingerprint hashes the summary, and the
+digest sits before the evidence bound can cut a long listing, so a swapped callable is a
+different finding however many there are. The detail lists each callable with its archive member.
 Callables collected before a later member raises are reported, not dropped. Every fingerprint
 of this rule moves; the changelog says to regenerate baselines and waivers for it.</p>
 <h3 id="12-persisted-documents">12. Persisted documents</h3>

@@ -69,9 +69,10 @@ with `.guardanaignore` or `rules.paths_exclude`, which the saved run then record
 install a rule that reads the format.
 
 A model or notebook a rule tried to read and could not is a shortfall of the same kind,
-named by its file: a pickle, archive or graph that does not parse, a safetensors file
-whose header is malformed, a file cut by a read bound, a PMML document past the bound, a
-notebook that is not JSON. The rule reports two things for it: an inconclusive
+named by its file: a pickle, archive or graph that does not parse, a pickle import whose
+name the scanner cannot resolve, a model file that cannot be opened (a `.bin` included,
+since it may be a model), a safetensors file whose header is malformed, a file cut by a
+read bound, a PMML document past the bound, a notebook that is not JSON. The rule reports two things for it: an inconclusive
 "not scanned" result on the unverified channel, and an `unexamined_component` shortfall
 whose name is the file's path and whose detail reads `<rule id> could not read it:
 <reason>`. The file is not named a second time by format. With no switch over it, a scan
@@ -119,7 +120,7 @@ malicious so the quickstart has something real to find. CI therefore scans
 ```console
 $ guardana scan ./some-model-repo
 ✖ [CRITICAL] guardana.supply_chain.pickle_opcode — Dangerous pickle opcode (arbitrary code on load)
-    unpickling imports 1 non-allowlisted callable(s): os.system  (./some-model-repo)
+    unpickling imports 1 non-allowlisted callable(s) (set b04a8341e816): os.system  (./some-model-repo)
 ▲ [MEDIUM] guardana.supply_chain.hallucinated_package — Import of unknown package (possible slopsquat lead)
     import 'torchutilz' isn't a known package or a declared dependency — declare it in requirements/pyproject, or verify it exists on PyPI  (./some-model-repo)
 
@@ -130,11 +131,15 @@ $ guardana scan ./some-model-repo
 files via `ast.parse`; it does not read `requirements.txt` or lockfiles.
 
 `pickle_opcode` reports one finding per file. Its summary names every non-allowlisted
-callable the file imports, sorted and each once (`unpickling imports 2 non-allowlisted
-callable(s): builtins.eval, os.system`). Its detail names the archive member each was
-found in (`os.system in model.pt::archive/data.pkl`). A baseline fingerprint includes the
-summary, so a file that imports a different callable is a new finding. Callables found
-in the members read before a member that failed are still reported.
+callable the file imports, sorted and each once, after a digest of that set
+(`unpickling imports 2 non-allowlisted callable(s) (set 9a0cd5b778d9): builtins.eval,
+os.system`). Its detail names the archive member each was found in
+(`os.system in model.pt::archive/data.pkl`). A baseline fingerprint includes the
+summary, so a file that imports a different callable is a new finding, even when the
+listing is long enough to be cut by the evidence bound. Callables found in the members
+read before a member that failed are still reported. A pickle that imports a callable
+and then one whose name the scanner cannot resolve, or that is cut by a read bound, is
+reported both ways: the finding for what was found, and the file as unread.
 
 ## Other formats
 

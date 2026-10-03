@@ -8,6 +8,7 @@ the baseline fingerprint a path that is stable between a dev machine and CI.
 
 import contextlib
 import os
+import re
 from dataclasses import replace
 from pathlib import Path, PurePath
 
@@ -46,6 +47,13 @@ def _relativize_shortfall(gap: CoverageShortfall, base: Path) -> CoverageShortfa
     return replace(gap, name=name, detail=_without_root(gap.detail, base))
 
 
+_PATH_START = r"(?<![^\s,(\'\"])"
+"""Where a path may start: the text's start, or after a space, comma, bracket or quote.
+
+Anywhere else the root is an inner segment of another path, which is not under it.
+"""
+
+
 def _without_root(text: str, base: Path) -> str:
     """Remove `base` as a leading directory from every path `text` spells out."""
     roots = {str(base), str(base.absolute())}
@@ -57,7 +65,8 @@ def _without_root(text: str, base: Path) -> str:
         spelled = PurePath(root)
         # The filesystem root would strip every separator in the text, not one prefix.
         if spelled.is_absolute() and spelled.parent != spelled:
-            text = text.replace(root.rstrip(os.sep) + os.sep, "")
+            prefix = re.escape(root.rstrip(os.sep) + os.sep)
+            text = re.sub(_PATH_START + prefix, "", text)
     return text
 
 

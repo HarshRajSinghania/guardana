@@ -332,25 +332,29 @@ by a function `Runner.run` and `build_plan` both call, so `plan scan` refuses it
 
 Every place a model-reading rule now yields an inconclusive "not scanned" finding — the
 notebook as a whole (`notebook_payload`), `pickle_opcode` (every `_unscanned` call, the opcode
-bound of an archive included), `onnx_graph`, `keras_lambda`, `chat_template`, `model_format`
-(safetensors unreadable or with a malformed header, a truncated PMML) and `saved_model_ops` —
-also calls `ctx.shortfall(CoverageShortfall(UNEXAMINED_COMPONENT, name=<path>, detail="<rule id>
+bound of an archive included, an unresolvable or unread remainder after callables already
+found, and a `.bin` file it cannot open), `onnx_graph`, `keras_lambda`, `chat_template`,
+`model_format` (safetensors unreadable or with a malformed header, a truncated PMML) and
+`saved_model_ops` (a graph cut by the bound or unreadable) — also calls `ctx.shortfall(CoverageShortfall(UNEXAMINED_COMPONENT, name=<path>, detail="<rule id>
 could not read it: <reason>"))`. The finding stays (the collector envelope carries findings and
 no shortfall), and so does `ctx.examined(path)`, so the runner's own inventory pass does not
 name the file a second time. No switch, so `indeterminate` under every preset, `ci` included.
 Every `UNEXAMINED_COMPONENT` and `EMPTY_TARGET` name is relativized with the findings
 (`report/location.py`; a format name passes unchanged) and the scan root is stripped from the
-detail as from a finding's evidence, so a saved run names the same file on a laptop and in CI.
+detail where a path starts, as from a finding's evidence, so a saved run names the same file on a laptop and in CI.
 The tests that compare `_unexamined` maps (`rules/tests/test_unexamined_components.py`) gain the
 per-file entries. Unchanged: a notebook *cell* that does not
-parse as Python (magics are ordinary), the non-model rules' unscanned findings, and a raw
-pickle's unresolvable global.
+parse as Python (magics are ordinary) and the non-model rules' unscanned findings. A raw
+pickle's unresolvable global is a shortfall like any other: the opcodes after it were never
+read.
 
 ### 11. `pickle_opcode` reports one finding per file
 
-One `CRITICAL` finding per file, summary `unpickling imports N non-allowlisted callable(s): a,
-b, c` naming every callable, sorted and unique — the fingerprint hashes the summary, so a
-swapped callable is a different finding. The detail lists each callable with its archive member.
+One `CRITICAL` finding per file, summary `unpickling imports N non-allowlisted callable(s)
+(set <digest>): a, b, c` naming every callable, sorted and unique; the digest is the first 12
+hex of the SHA-256 of the newline-joined set. The fingerprint hashes the summary, and the
+digest sits before the evidence bound can cut a long listing, so a swapped callable is a
+different finding however many there are. The detail lists each callable with its archive member.
 Callables collected before a later member raises are reported, not dropped. Every fingerprint
 of this rule moves; the changelog says to regenerate baselines and waivers for it.
 

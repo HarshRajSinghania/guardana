@@ -1,3 +1,4 @@
+import hashlib
 import io
 import pickletools
 import re
@@ -204,6 +205,8 @@ _MAGIC_SNIFF_BYTES = 8
 
 _RULE_ID = "guardana.supply_chain.pickle_opcode"
 _UNSCANNED_TITLE = "Unscanned model file"
+_UNREADABLE = "not a readable regular file; not scanned"
+_SET_DIGEST_HEX = 12
 
 
 class UnparseableStreamError(Exception):
@@ -416,6 +419,14 @@ def _bin_verdict(head: bytes, scan: "_OpcodeScan", *, cut: bool) -> bool | None:
     return False
 
 
+def _maybe_a_file(path: Path) -> bool:
+    """Whether `path` is a regular file, or an entry whose type could not be told."""
+    try:
+        return path.is_file()
+    except OSError:
+        return True
+
+
 def _left_a_pickle_unproven(end: ParseEnd, *, cut: bool) -> bool:
     """Whether this member is a pickle the rule stopped short of clearing.
 
@@ -552,10 +563,9 @@ class _FileReport:
         """Keep the callables one stream imports."""
         self.imports.update((ref, member) for ref in refs)
 
-    def unscanned(self, summary: str, *, component: bool = True) -> None:
-        """Keep an inconclusive finding; a `component` left unread is a shortfall as well."""
-        if component:
-            self.ctx.shortfall(unread_component(_RULE_ID, self.path, summary))
+    def unscanned(self, summary: str) -> None:
+        """Keep an inconclusive finding, and name the file as an unread component."""
+        self.ctx.shortfall(unread_component(_RULE_ID, self.path, summary))
         self.unread.append(
             Finding(
                 rule_id=_RULE_ID,
@@ -623,7 +633,8 @@ class PickleOpcodeRule(ArtifactRule):
         """Scan one file, report it, and return whether it was a pickle or a zip this rule read.
 
         `by_content` is for a suffix that names no format: a file that is neither a zip
-        nor a pickle stream is left alone, without a finding, and reported as unread.
+        nor a pickle stream is left alone, without a finding, and reported as unread. One
+        that cannot be opened is reported as unscanned, since it may be either.
         """
         try:
             read = self._read(report, by_content=by_content)
@@ -645,11 +656,13 @@ class PickleOpcodeRule(ArtifactRule):
         path = report.path
         sniffed = read_bytes_bounded(path, _MAGIC_SNIFF_BYTES)
         if sniffed is None:
-            if not by_content:
-                # Not a regular file (a FIFO named `model.pkl` blocks a plain read
-                # forever) or unreadable. Either way it is unexamined, not clean.
-                report.unscanned("not a readable regular file; not scanned")
-            return False
+            # Not a regular file (a FIFO named `model.pkl` blocks a plain read forever)
+            # or unreadable. Either way it is unexamined, not clean; a `.bin` only when
+            # it is a file, since one that cannot be opened may well be a model.
+            if by_content and not _maybe_a_file(path):
+                return False
+            report.unscanned(_UNREADABLE)
+            return True
         magic = sniffed[0]
         if magic.startswith(_ZIP_MAGIC):
             self._scan_zip(report)
@@ -667,31 +680,34 @@ class PickleOpcodeRule(ArtifactRule):
         if by_content:
             probe = read_bytes_bounded(path, _BIN_PROBE_BYTES)
             if probe is None:
-                return False
+                report.unscanned(_UNREADABLE)
+                return True
             verdict = _bin_verdict(probe[0], _scan_opcodes(probe[0]), cut=probe[1])
             if verdict is False:
                 return False
         prefix = read_bytes_bounded(path, _MAX_PICKLE_BYTES)
         if prefix is None:
-            if not by_content:
-                report.unscanned("not a readable regular file; not scanned")
-            return False
+            report.unscanned(_UNREADABLE)
+            return True
         data, oversized = prefix
         scan = _scan_opcodes(data)
         if by_content and not _bin_verdict(data, scan, cut=oversized):
             return False
-        if scan.refs:
-            report.found(scan.refs)
-        elif oversized:
+        report.found(scan.refs)
+        # Callables found first do not clear what comes after them: an unpickler runs
+        # every opcode up to the one it refuses, and an unread tail is never refused.
+        if oversized:
             report.unscanned(
                 f"raw pickle larger than {_MAX_PICKLE_BYTES} bytes; not scanned in full"
             )
-        elif scan.truncated:
-            # A pickle hiding the operands of an import was read to that import: what is
-            # missing is the name it resolves to, not a part of the file.
+        elif scan.end is ParseEnd.UNRESOLVABLE:
             report.unscanned(
-                "could not parse as a pickle stream (may be a zip-based container); not scanned",
-                component=scan.end is not ParseEnd.UNRESOLVABLE,
+                "pickle imports a callable whose name this scanner cannot resolve; "
+                "not scanned past it"
+            )
+        elif scan.truncated and not scan.refs:
+            report.unscanned(
+                "could not parse as a pickle stream (may be a zip-based container); not scanned"
             )
         return True
 
@@ -760,7 +776,7 @@ class PickleOpcodeRule(ArtifactRule):
                 f"an archive of this size; {name} and the members after it not scanned"
             )
             return True
-        if not scan.refs and _left_a_pickle_unproven(scan.end, cut=cut):
+        if _left_a_pickle_unproven(scan.end, cut=cut):
             # A member that was still a pickle where this rule stopped. Silence here
             # was a bypass twice over: `torch.save` writes a ZIP, so an unresolvable
             # `STACK_GLOBAL` that a raw `.pkl` reports LOW for was quiet inside one —
@@ -782,12 +798,14 @@ class PickleOpcodeRule(ArtifactRule):
     def _critical(self, report: _FileReport) -> Finding | None:
         """One finding naming every callable the file imports; None when it imports none.
 
-        The summary names the callables, so the fingerprint a waiver matches moves when
-        one of them is swapped for another.
+        The summary opens with a digest of the whole callable set, so the fingerprint a
+        waiver matches moves when one callable is swapped for another, even one past
+        the evidence bound that cuts a long listing.
         """
         if not report.imports:
             return None
         callables = sorted({ref for ref, _member in report.imports})
+        digest = hashlib.sha256("\n".join(callables).encode()).hexdigest()[:_SET_DIGEST_HEX]
         file = report.path.name
         where = sorted(
             f"{ref} in {file if member is None else f'{file}::{member}'}"
@@ -801,8 +819,8 @@ class PickleOpcodeRule(ArtifactRule):
             target_ref=str(report.path),
             evidence=Evidence(
                 summary=(
-                    f"unpickling imports {len(callables)} non-allowlisted callable(s): "
-                    f"{', '.join(callables)}"
+                    f"unpickling imports {len(callables)} non-allowlisted callable(s) "
+                    f"(set {digest}): {', '.join(callables)}"
                 ),
                 detail="; ".join(where),
             ),

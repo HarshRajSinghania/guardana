@@ -1,7 +1,9 @@
 import collections
+import hashlib
 import io
 import os
 import pickle
+import re
 import zipfile
 from dataclasses import replace
 from pathlib import Path
@@ -10,6 +12,7 @@ import pytest
 from guardana.core.gate import GateOutcome, gate_outcome
 from guardana.core.plugins import PluginMode, PluginTrust
 from guardana.core.profile import FailOn, Policy, Profile
+from guardana.core.redaction import EvidenceRedactor
 from guardana.core.registry import Registry
 from guardana.core.report import ShortfallKind
 from guardana.core.rule import RuleContext
@@ -656,9 +659,17 @@ def test_a_dangerous_global_beside_rebuilt_bytes_still_fires(tmp_path: Path) -> 
 
     findings = list(PickleOpcodeRule().run(ArtifactTarget(tmp_path), RuleContext()))
 
-    assert [f.evidence.summary for f in findings] == [
-        f"unpickling imports 1 non-allowlisted callable(s): {_SYSTEM}"
-    ]
+    assert [f.evidence.summary for f in findings] == [_summary(_SYSTEM)]
+
+
+def _summary(*callables: str) -> str:
+    """The summary of a file importing exactly `callables`."""
+    named = sorted(callables)
+    digest = hashlib.sha256("\n".join(named).encode()).hexdigest()[:12]
+    return (
+        f"unpickling imports {len(named)} non-allowlisted callable(s) (set {digest}): "
+        f"{', '.join(named)}"
+    )
 
 
 def _global(module: str, name: str) -> bytes:
@@ -690,9 +701,7 @@ def test_a_file_importing_several_callables_is_one_finding_naming_each_once(
 
     assert len(findings) == 1
     assert findings[0].severity is Severity.CRITICAL
-    assert findings[0].evidence.summary == (
-        "unpickling imports 2 non-allowlisted callable(s): builtins.eval, subprocess.Popen"
-    )
+    assert findings[0].evidence.summary == _summary("builtins.eval", "subprocess.Popen")
     assert findings[0].evidence.detail == (
         "builtins.eval in optimizer.pt::archive/data.pkl; "
         "builtins.eval in optimizer.pt::archive/extra.pkl; "
@@ -707,7 +716,7 @@ def test_a_raw_pickle_names_its_callables_without_a_member(tmp_path: Path) -> No
 
     assert [(f.evidence.summary, f.evidence.detail) for f in findings] == [
         (
-            "unpickling imports 2 non-allowlisted callable(s): builtins.exec, os.system",
+            _summary("builtins.exec", "os.system"),
             "builtins.exec in model.pkl; os.system in model.pkl",
         )
     ]
@@ -755,9 +764,7 @@ def test_callables_found_before_a_later_member_raises_are_still_reported(
         ArtifactTarget(tmp_path)
     )
 
-    assert [f.evidence.summary for f in result.findings] == [
-        f"unpickling imports 1 non-allowlisted callable(s): {_SYSTEM}"
-    ]
+    assert [f.evidence.summary for f in result.findings] == [_summary(_SYSTEM)]
     assert [e.source for e in result.errors] == ["guardana.supply_chain.pickle_opcode"]
 
 
@@ -786,17 +793,128 @@ def test_a_file_left_unread_is_a_named_shortfall_beside_its_finding(
     assert str(path) in ctx.examined_paths()
 
 
-def test_a_raw_pickle_whose_import_cannot_be_resolved_stays_a_finding_alone(
-    tmp_path: Path,
+_HIDDEN_OS = (
+    b"\x80\x04"
+    + _s("builtins")
+    + _s("str")
+    + b"\x93"
+    + _s("os")
+    + b"\x85R"
+    + _s("system")
+    + b"\x93"
+)
+"""Builds "os" through an allowlisted call, so the import after it has no operand to read."""
+
+
+@pytest.mark.parametrize(
+    "stream",
+    [
+        b"\x80\x04h\x05h\x06\x93.",
+        _HIDDEN_OS + _s("id") + b"\x85R0" + _global("subprocess", "Popen"),
+    ],
+    ids=["memo-miss", "import-built-by-a-call"],
+)
+def test_a_raw_pickle_whose_import_cannot_be_resolved_is_a_named_shortfall(
+    tmp_path: Path, stream: bytes
 ) -> None:
-    """The stream was read to the import it hides; the file is not left unread."""
-    (tmp_path / "crafted.pkl").write_bytes(b"\x80\x04h\x05h\x06\x93.")
+    """The opcodes after the import it hides were never read, so the file is unexamined."""
+    path = tmp_path / "model.pkl"
+    path.write_bytes(stream)
     ctx = RuleContext()
 
     findings = list(PickleOpcodeRule().run(ArtifactTarget(tmp_path), ctx))
 
     assert [f.title for f in findings] == ["Unscanned model file"]
-    assert ctx.shortfalls() == ()
+    assert "cannot resolve" in findings[0].evidence.summary
+    assert "zip" not in findings[0].evidence.summary
+    assert _unread(ctx) == [str(path)]
+
+
+def test_an_unresolved_remainder_is_reported_beside_the_callables_found_before_it(
+    tmp_path: Path,
+) -> None:
+    """A waiver for the first import must not cover what the unread remainder hides."""
+    raw = tmp_path / "model.pkl"
+    raw.write_bytes(_global("subprocess", "Popen")[:-1] + b"0" + _HIDDEN_OS + _REDUCE_ID)
+    _checkpoint(tmp_path, {"archive/data.pkl": raw.read_bytes()})
+    ctx = RuleContext()
+
+    findings = list(PickleOpcodeRule().run(ArtifactTarget(tmp_path), ctx))
+
+    assert sorted((f.target_ref, f.title) for f in findings) == sorted(
+        (str(path), title)
+        for path in (raw, tmp_path / "optimizer.pt")
+        for title in ("Dangerous pickle opcode (arbitrary code on load)", "Unscanned model file")
+    )
+    assert sorted(_unread(ctx)) == sorted([str(raw), str(tmp_path / "optimizer.pt")])
+
+
+def test_an_oversized_raw_pickle_is_reported_beside_the_callables_found_before_the_cut(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(pickle_opcode, "_MAX_PICKLE_BYTES", 4096)
+    path = tmp_path / "model.pkl"
+    path.write_bytes(_global("subprocess", "Popen")[:-1] + b"0" + _pickle_padded_past(4096)[2:])
+    ctx = RuleContext()
+
+    findings = list(PickleOpcodeRule().run(ArtifactTarget(tmp_path), ctx))
+
+    assert [f.severity for f in findings] == [Severity.CRITICAL, Severity.LOW]
+    assert _unread(ctx) == [str(path)]
+
+
+def _callables(count: int, last: str) -> bytes:
+    names = [f"package_number_{i:04d}.callable_function_{i:04d}" for i in range(count - 1)]
+    return b"".join(_global(*name.split("."))[:-1] + b"0" for name in names) + _global(
+        *last.split(".")
+    )
+
+
+def test_the_callable_set_survives_the_evidence_bound_in_the_fingerprint(tmp_path: Path) -> None:
+    """Swapping the last of many callables moves the fingerprint even past the bound."""
+    first, second = tmp_path / "a", tmp_path / "b"
+    first.mkdir()
+    second.mkdir()
+    (first / "model.pkl").write_bytes(_callables(700, "zzz_pkg.benign"))
+    (second / "model.pkl").write_bytes(_callables(700, "zzz_os.system"))
+    redactor = EvidenceRedactor()
+
+    (before,) = PickleOpcodeRule().run(ArtifactTarget(first), RuleContext())
+    (after,) = PickleOpcodeRule().run(ArtifactTarget(second), RuleContext())
+    before, after = redactor.redact(before), redactor.redact(after)
+
+    assert "zzz_" not in before.evidence.summary, "the fixture must be cut by the bound"
+    assert re.match(
+        r"unpickling imports 700 non-allowlisted callable\(s\) \(set [0-9a-f]{12}\): ",
+        before.evidence.summary,
+    )
+    assert replace(after, target_ref=before.target_ref).fingerprint != before.fingerprint
+
+
+def test_the_callable_set_digest_is_stable_and_names_the_set(tmp_path: Path) -> None:
+    (tmp_path / "model.pkl").write_bytes(_global("os", "system") + _global("builtins", "exec"))
+
+    (finding,) = PickleOpcodeRule().run(ArtifactTarget(tmp_path), RuleContext())
+
+    digest = hashlib.sha256(b"builtins.exec\nos.system").hexdigest()[:12]
+    assert finding.evidence.summary == (
+        f"unpickling imports 2 non-allowlisted callable(s) (set {digest}): builtins.exec, os.system"
+    )
+
+
+def test_an_unreadable_bin_is_a_named_shortfall(tmp_path: Path) -> None:
+    """A `.bin` that cannot be opened may be a model, so it is not left out as one that is not."""
+    path = tmp_path / "pytorch_model.bin"
+    path.write_bytes(_zip_with("archive/data.pkl", pickle.dumps(_Evil())))
+    path.chmod(0)
+    ctx = RuleContext()
+    try:
+        findings = list(PickleOpcodeRule().run(ArtifactTarget(tmp_path), ctx))
+    finally:
+        path.chmod(0o600)
+
+    assert [f.title for f in findings] == ["Unscanned model file"]
+    assert _unread(ctx) == [str(path)]
 
 
 def test_a_clean_or_malicious_pickle_reports_no_shortfall(tmp_path: Path) -> None:

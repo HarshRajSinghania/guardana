@@ -84,3 +84,29 @@ def test_a_path_outside_the_root_and_another_kind_are_left_as_they_are(tmp_path:
     )
 
     assert _relativized(tmp_path, outside, demanded) == (outside, demanded)
+
+
+def test_the_root_inside_an_unrelated_path_is_left_where_it_is(tmp_path: Path) -> None:
+    root = tmp_path / "home" / "u" / "repo"
+    mounted = f"{tmp_path}/mnt{root}/m.pkl"
+    gap = CoverageShortfall(
+        ShortfallKind.UNEXAMINED_COMPONENT,
+        name="pickle",
+        detail=(
+            f"read {mounted}, {root}/a.pkl,{root}/b.pkl ({root}/c.pkl) '{root}/d.pkl' \"{root}/e\""
+        ),
+    )
+
+    (moved,) = _relativized(root, gap)
+
+    assert moved.detail == f"read {mounted}, a.pkl,b.pkl (c.pkl) 'd.pkl' \"e\""
+
+
+def test_a_detail_that_starts_with_the_root_loses_it(tmp_path: Path) -> None:
+    gap = CoverageShortfall(
+        ShortfallKind.UNEXAMINED_COMPONENT, name="pickle", detail=f"{tmp_path}/m.pkl unread"
+    )
+
+    (moved,) = _relativized(tmp_path, gap)
+
+    assert moved.detail == "m.pkl unread"

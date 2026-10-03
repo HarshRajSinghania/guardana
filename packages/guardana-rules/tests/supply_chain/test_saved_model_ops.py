@@ -75,3 +75,21 @@ def test_a_graph_read_whole_is_no_shortfall(tmp_path: Path) -> None:
     (tmp_path / "saved_model.pb").write_bytes(b"\x08\x01 WriteFile")
 
     assert _unread(tmp_path) == []
+
+
+def test_an_unreadable_graph_is_unverified_and_a_named_shortfall(tmp_path: Path) -> None:
+    path = tmp_path / "saved_model.pb"
+    path.write_bytes(b"\x08\x01 WriteFile")
+    path.chmod(0)
+    ctx = RuleContext()
+    try:
+        findings = list(SavedModelOpsRule().run(ArtifactTarget(tmp_path), ctx))
+    finally:
+        path.chmod(0o600)
+
+    assert [(f.title, f.evidence.summary) for f in findings] == [
+        ("SavedModel not scanned", "the file could not be read")
+    ]
+    assert findings[0].verdict is not None
+    assert findings[0].verdict.outcome == "inconclusive"
+    assert [gap.name for gap in ctx.shortfalls()] == [str(path)]

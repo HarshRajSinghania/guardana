@@ -44,7 +44,7 @@ E   guardana: 8 finding(s) at or above HIGH — examples/vulnerable-model
 E
 E     CRITICAL guardana.supply_chain.pickle_opcode
 E              examples/vulnerable-model/model.pt
-E              unpickling imports 1 non-allowlisted callable(s): posix.system
+E              unpickling imports 1 non-allowlisted callable(s) (set 705e9da4c561): posix.system
 E
 E     HIGH     guardana.supply_chain.malicious_dependency
 E              examples/vulnerable-model/requirements.txt
