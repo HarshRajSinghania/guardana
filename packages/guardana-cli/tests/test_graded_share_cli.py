@@ -90,9 +90,7 @@ def test_the_ci_preset_does_not_pass_a_rule_that_graded_nothing(
     result = _probe(monkeypatch, tmp_path, "--preset", "ci")
 
     assert result.exit_code == ExitCode.INDETERMINATE, result.output
-    assert "coverage missing (ungraded_cases): acme.prompt.silent" in _plain(
-        result.output
-    )
+    assert "coverage missing (ungraded_cases): acme.prompt.silent" in _plain(result.output)
 
 
 def test_a_saved_probe_records_the_shortfall(
@@ -180,9 +178,7 @@ def test_grading_the_kept_replies_records_the_same_shortfall(
     )
 
     assert result.exit_code == ExitCode.INDETERMINATE, result.output
-    assert "coverage missing (ungraded_cases): acme.prompt.silent" in _plain(
-        result.output
-    )
+    assert "coverage missing (ungraded_cases): acme.prompt.silent" in _plain(result.output)
 
 
 def test_a_monitor_cycle_whose_rule_graded_nothing_is_indeterminate(
