@@ -2,14 +2,14 @@
 
 Exit codes match the CLI's table, because one product with two tables is a product
 whose exit status means nothing. `0` did what was asked, `1` the database said no,
-`3` the command was pointed at nothing.
+`3` the command was pointed at nothing, `4` the database could not be reached.
 """
 
 import psycopg
 import pytest
 from conftest import DbConnection
 from guardana.server.auth import Scope, list_keys
-from guardana.server.cli import EXIT_FAILED, EXIT_INVALID_USAGE, EXIT_OK, main
+from guardana.server.cli import EXIT_FAILED, EXIT_INVALID_USAGE, EXIT_OK, EXIT_UNAVAILABLE, main
 from guardana.server.db.migrations import apply_pending, read_state
 from guardana.server.envelope import DeploymentIn, EvidenceIn, FindingIn, RunIn, Submission
 from guardana.server.inventory import _query
@@ -119,14 +119,45 @@ def test_the_memory_store_has_no_schema_to_migrate(monkeypatch: pytest.MonkeyPat
     assert main(["migrate"]) == EXIT_INVALID_USAGE
 
 
-def test_an_unreachable_database_is_a_failure_not_a_usage_error(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize(
+    "argv", [["status"], ["migrate"], ["key", "list"], ["run", "list"]], ids=" ".join
+)
+def test_an_unreachable_database_is_unavailable_not_a_failure(
+    argv: list[str], monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    # The distinction the exit-code table exists for: the command was right and the
-    # environment was not.
+    # The command was right and the environment was not: a pipeline retries a `4`
+    # and investigates a `1`.
+    monkeypatch.setenv("GUARDANA_DATABASE_URL", "postgresql://nobody:hunter2@127.0.0.1:1/nothing")
+
+    assert main(argv) == EXIT_UNAVAILABLE
+    message = capsys.readouterr().err
+    assert "could not reach the database" in message
+    assert "hunter2" not in message
+
+
+class _ConnectedButBroken:
+    """A connection that opened, and fails at the first thing a command asks of it."""
+
+    def __enter__(self) -> "_ConnectedButBroken":
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        return None
+
+    def __getattr__(self, name: str) -> object:
+        raise RuntimeError(f"server closed the connection during {name}")
+
+
+def test_a_failure_after_connecting_is_a_failure_not_unavailable(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
     monkeypatch.setenv("GUARDANA_DATABASE_URL", "postgresql://nobody@127.0.0.1:1/nothing")
+    monkeypatch.setattr(psycopg, "connect", lambda *_, **__: _ConnectedButBroken())
 
     assert main(["status"]) == EXIT_FAILED
+    message = capsys.readouterr().err
+    assert "server closed the connection" in message
+    assert "could not reach the database" not in message
 
 
 def test_key_create_prints_the_key_once(

@@ -519,7 +519,10 @@ guardana-collector rollback    # undo the most recent (--steps N for more)
 ```
 
 Exit codes match [the table the rest of the tool uses](exit-codes.md): `0` did
-what was asked, `1` the database said no, `3` the command was pointed at nothing.
+what was asked, `1` the database said no, `3` the command was pointed at nothing,
+`4` the database could not be reached. Every command that needs the database,
+`status` included, exits `4` when the connection cannot be opened; an error after
+it opened is `1`. `serve` opens its own connections and starts without one.
 
 **Every migration ships a rollback**, checked when the migration set is loaded
 rather than when it is needed. A schema change that cannot be undone is an upgrade
