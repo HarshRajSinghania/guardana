@@ -217,14 +217,14 @@ def _notification(error: CheckError) -> dict[str, object]:
 
 
 def _coverage_notification(gap: CoverageShortfall) -> dict[str, object]:
-    """Say which demanded evidence was missing, not only that the run failed.
+    """Say which coverage was missing, not only that the run failed.
 
     A viewer told an invocation was unsuccessful and not told why has a red mark and
     no next step, which is how a channel stops being read.
     """
     return {
         "level": "error",
-        "message": {"text": f"{gap.name} was demanded and not available: {gap.detail}"},
+        "message": {"text": f"coverage missing ({gap.kind}): {gap.name}: {gap.detail}"},
         "descriptor": {"id": f"guardana.coverage_shortfall.{gap.kind}"},
     }
 

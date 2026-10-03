@@ -414,7 +414,9 @@ unknown <code>--provider</code>, a <code>--system-prompt-file</code> or <code>--
 <code>--api-key-env</code> naming an unset or empty variable, <code>--adapter</code> with <code>--provider</code> or
 <code>--api-key-env</code>, and an adapter whose <code>url:</code> differs from <code>--url</code> or whose <code>method:</code> is
 not <code>POST</code>. None of them is <code>5</code>, which is reserved for Guardana's own defects.</p>
-<p><code>recipe lock</code> exits <code>0</code> once it wrote the lock, <code>1</code>, writing nothing, when a regression
+<p><code>recipe lock</code> and <code>recipe run</code> exit <code>4</code>, writing no lock and sending nothing, when the
+installed target the recipe names fails to connect while it is being built.
+<code>recipe lock</code> exits <code>0</code> once it wrote the lock, <code>1</code>, writing nothing, when a regression
 case of a selected suite no longer holds with the rule as it is now — a side graded the
 wrong way, a side declined, the evaluator raised, or the suite's evaluator cannot regrade
 without sending — where <code>rule test</code> tells those apart as <code>1</code>, <code>2</code>, <code>2</code> and <code>3</code>; <code>2</code> when

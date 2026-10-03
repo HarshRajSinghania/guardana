@@ -8,10 +8,9 @@ from guardana.cli.exit_codes import ExitCode
 from guardana.core.evaluator.config import JudgeUnavailableError, safe_url
 from guardana.core.monitor import TargetStoppedError
 from guardana.core.redaction import MessageQuoting, RedactionPolicy
-from guardana.core.report import ScanResult
-from guardana.core.runner import target_failures
 from guardana.core.target import EndpointError, display_url
 from guardana.core.target.failure import FailureRemedies, describe_failure, http_status_problem
+from guardana.core.verify import Verification
 
 T = TypeVar("T")
 
@@ -51,13 +50,13 @@ def remedies_for(accepts: Collection[EndpointFlag]) -> FailureRemedies:
     )
 
 
-def report_target_stop(result: ScanResult) -> None:
-    """Say on stderr what the target did when it stopped `result`, as the run recorded it.
+def report_target_stop(verification: Verification) -> None:
+    """Say on stderr what the target did when it stopped the run `verification` holds.
 
     The run is saved and gated as any other; this names the cause the exit code `4` stands for.
     """
-    for reason in target_failures(result):
-        typer.echo(f"error: {reason}", err=True)
+    for message in verification.stop_messages:
+        typer.echo(f"error: {message}", err=True)
 
 
 def run_judged(action: Callable[[], T]) -> T:

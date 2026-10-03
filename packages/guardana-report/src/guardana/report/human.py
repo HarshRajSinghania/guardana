@@ -58,7 +58,7 @@ class HumanRenderer:
         # that printed it, and one that says `indeterminate` without saying which
         # evidence was missing leaves the reader with a verdict and no next step.
         for gap in result.coverage_shortfall:
-            lines.append(f"! [COVERAGE] {gap.name} — demanded, and not available ({gap.kind})")
+            lines.append(f"! [COVERAGE] coverage missing ({gap.kind}): {gap.name}")
             lines.append(f"    {gap.detail}")
         for block in (_trials_block(result, self._run), _measured_block(result)):
             if block:
@@ -238,7 +238,7 @@ _NOT_AN_ALL_CLEAR: dict[OpenQuestion, Callable[[ScanResult], str]] = {
         f"not one of the {r.rules_run_count} check(s) that ran could reach a verdict"
     ),
     OpenQuestion.COVERAGE_SHORTFALL: lambda r: (
-        f"{len(r.coverage_shortfall)} piece(s) of demanded coverage were not available"
+        f"{len(r.coverage_shortfall)} piece(s) of coverage were missing"
     ),
     OpenQuestion.NOTHING_MEASURED: lambda r: (
         f"not one of the {len(r.assessments)} recorded measurement(s) produced a value"

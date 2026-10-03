@@ -139,3 +139,27 @@ def test_credentials_the_target_refuses_stop_the_run_with_the_auth_remedy(
     assert code == ExitCode.TARGET_UNAVAILABLE, output
     assert "rejected the request (HTTP 401) — check the auth header / body" in _plain(output)
     assert load_report(setup / "run.json").result.stopped_by is StopReason.TARGET_UNAVAILABLE
+
+
+def test_a_stop_under_metadata_only_names_its_status_and_the_saved_run_withholds_it(
+    setup: Path,
+) -> None:
+    (setup / "guardana.yaml").write_text(
+        "name: t\nrules:\n  include: ['acme.*']\nprivacy:\n  evidence_mode: metadata_only\n",
+        encoding="utf-8",
+    )
+    failing = Scripted(
+        status=503, body=b"upstream is down for maintenance", headers={"Retry-After": "0"}
+    )
+    with FakeProvider(openai_reply(_REFUSAL), failing) as provider:
+        code, output = _probe(setup, provider.url)
+
+    assert code == ExitCode.TARGET_UNAVAILABLE, output
+    shown = _plain(output)
+    assert "error: endpoint" in shown
+    assert "returned HTTP 503" in shown
+    assert "body (32 bytes) is not shown" in shown
+    assert "withheld" not in shown
+    assert "maintenance" not in shown
+    saved = load_report(setup / "run.json").result
+    assert [e.reason for e in saved.errors] == ["[reason withheld: metadata_only]"]

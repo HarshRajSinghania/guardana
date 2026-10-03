@@ -81,7 +81,7 @@ def test_monitor_clean_model_no_alert(monkeypatch: pytest.MonkeyPatch) -> None:
     assert alerts == []
 
 
-def test_monitor_unreachable_endpoint_exits_two(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_monitor_unreachable_endpoint_exits_four(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(endpoint_module, "transport_factory", _unreachable)
 
     with pytest.raises(Exit) as exc_info:

@@ -83,6 +83,7 @@ A target runs once. Running the same object again, starting a second run while t
 | `open_questions` | Each fact that leaves part of the run's question unanswered, in the order the gate reads them. |
 | `judge_usage`, `judge_stops` | What each judge configured under `evaluators:` spent, and which judge's own ceiling stopped the run. |
 | `exchanges` | The `Recording` of the chat exchanges the run kept under `privacy.keep_exchanges`, redacted, or `None`. |
+| `stop_messages` | What the target did when it stopped the run, as the CLI prints it. Taken before redaction, so it names the cause under `metadata_only`, which withholds the recorded reason; never saved. |
 | `document()`, `save(path)` | The saved-run document, in the current run schema ([saved runs](usage-run.md)); `save` also writes kept exchanges to `exchanges_path(path)` (`run.json` → `run.exchanges.jsonl`). |
 
 SARIF, JUnit and the terminal report are rendered by `guardana-report`: `guardana.report.get_renderer("sarif", run=verification.manifest).render(verification.result)`.

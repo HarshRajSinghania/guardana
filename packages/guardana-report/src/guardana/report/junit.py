@@ -133,12 +133,12 @@ def _nothing_verified_cases(result: ScanResult, _unverified: list[Finding]) -> l
 
 
 def _shortfall_cases(result: ScanResult, _unverified: list[Finding]) -> list[str]:
-    """One error per demanded piece of coverage the run did not get."""
+    """One error per piece of coverage the run did not get."""
     return [
         _error_case(
             gap.name,
             f"guardana.coverage.{gap.kind}",
-            "demanded coverage was not available",
+            f"coverage missing ({gap.kind})",
             gap.detail,
         )
         for gap in result.coverage_shortfall

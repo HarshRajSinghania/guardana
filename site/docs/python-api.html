@@ -416,6 +416,10 @@ verification = verifier.grade(path, source=None, deployment=None)
 <td>The <code>Recording</code> of the chat exchanges the run kept under <code>privacy.keep_exchanges</code>, redacted, or <code>None</code>.</td>
 </tr>
 <tr>
+<td><code>stop_messages</code></td>
+<td>What the target did when it stopped the run, as the CLI prints it. Taken before redaction, so it names the cause under <code>metadata_only</code>, which withholds the recorded reason; never saved.</td>
+</tr>
+<tr>
 <td><code>document()</code>, <code>save(path)</code></td>
 <td>The saved-run document, in the current run schema (<a href="usage-run.html">saved runs</a>); <code>save</code> also writes kept exchanges to <code>exchanges_path(path)</code> (<code>run.json</code> → <code>run.exchanges.jsonl</code>).</td>
 </tr>

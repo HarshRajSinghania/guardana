@@ -294,7 +294,7 @@ interface anyone should build on.</p>
 4  target or judge unavailable, or authentication failed; a run its target stopped part-way is saved
 5  internal Guardana error
 6  budget exhausted
-7  run interrupted, partial evidence written
+7  run interrupted before it finished
 </code></pre>
 <h3 id="decisions">Decisions</h3>
 <p><strong>Every non-zero code is a non-pass.</strong> Nothing in the table means &quot;probably fine&quot;.
@@ -314,12 +314,14 @@ hides real defects in a category people learn to ignore.</p>
 <p>Amended by <a href="guarded-applications.html"><code>guarded-applications.md</code></a> (decision 4): <code>4</code> also
 describes a result. A target that fails part-way stops the run with
 <code>stopped_by: target_unavailable</code>, which outranks the verdict as a budget stop does, and
-the partial run is saved.</p>
+the partial run is saved. A pack's target that fails to connect while it is being built,
+before the run starts, is <code>4</code> as well: on every command that builds one from a <code>--target</code>
+locator, and on <code>recipe lock</code> and <code>recipe run</code> for the target a recipe names.</p>
 <p><strong><code>3</code> is usage, not policy.</strong> A malformed <code>guardana.yaml</code> must not look like a
 policy failure, or a typo in a config file reads as a security finding.</p>
-<p><strong><code>7</code> is honest partiality.</strong> Ctrl-C or a timeout with evidence already written is
-neither a pass nor a completed failure. The partial run is kept, and the code says
-it is partial.</p>
+<p><strong><code>7</code> is honest partiality.</strong> A command interrupted before it finished is neither a
+pass nor a completed failure. Nothing it had not yet written exists, and the code says
+the run is incomplete rather than judging it.</p>
 <h3 id="migration--decided-against-a-transitional-mode">Migration — decided against a transitional mode</h3>
 <p>This proposed <code>--exit-code-mode legacy|strict</code> for one minor. That is <strong>not</strong> what
 shipped: the whole table landed in 0.7 as a single breaking change, announced in

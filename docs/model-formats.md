@@ -130,8 +130,8 @@ inside them. Pass your own `Limits` to tighten them for a constrained runner.
 
 ## Writing a rule on top
 
-Two rules, one shape. Read the file, turn `FormatError` into a visible finding,
-grade what you got.
+Every rule on a model format has one shape. Read the file, turn `FormatError`
+into a visible finding, grade what you got.
 
 A file the rule could not read, or read only in part, gets two reports. The finding
 carries an `inconclusive` verdict, so it lands on the unverified channel. The
@@ -141,50 +141,48 @@ do both, and a rule that reads the format calls `ctx.examined(path)` either way,
 the format-level pass does not name the file again
 ([`guardana scan`](usage-scan.md#model-files-no-rule-reads)).
 
+Here is that shape in `ApprovedModelRule`, from
+`examples/custom_rule/src/acme_rules/approved_model.py` — a complete third-party
+rule, tested, whose entire body is policy:
+
 ```python
-from guardana.core.formats import FormatError, read_onnx_summary, STANDARD_ONNX_DOMAINS
-from guardana.core.report import CoverageShortfall, ShortfallKind
-
-
-def unscanned(ctx: RuleContext, path: Path, reason: str) -> Finding:
-    ctx.shortfall(
-        CoverageShortfall(
-            ShortfallKind.UNEXAMINED_COMPONENT,
-            name=str(path),
-            detail=f"acme.supply_chain.unapproved_operator could not read it: {reason}",
-        )
-    )
-    return Finding(...)                     # verdict outcome "inconclusive"
-
-class UnapprovedOperatorRule(Rule):
-    meta = RuleMeta(
-        id="acme.supply_chain.unapproved_operator",
-        title="ONNX model uses an operator domain we have not vetted",
-        severity=Severity.MEDIUM,
-        target_kind=TargetKind.ARTIFACT,
-        taxonomy=(OWASP_LLM03_2025,),
-        required_capabilities=frozenset({Capability.READ_FILES}),
-    )
-
     def run(self, target: Target, ctx: RuleContext) -> Iterable[Finding]:
-        if not isinstance(target, ArtifactTarget):
-            return
-        for path in target.iter_files((".onnx",)):
+        """Check the provenance metadata of every GGUF model under the target."""
+        if not isinstance(target, FileReader):
+            raise RuleError(f"{self.meta.id} needs a file target, got {type(target).__name__}")
+        for path in target.iter_files((".gguf",)):
             ctx.examined(path)
             try:
-                summary = read_onnx_summary(path)
+                metadata = read_gguf_metadata(path)
             except FormatError as exc:
-                yield unscanned(ctx, path, str(exc))     # never silence
+                yield self._unscanned(path, f"provenance unreadable: {exc}", ctx)
                 continue
-            unknown = set(summary.node_domains) - STANDARD_ONNX_DOMAINS - APPROVED
-            if unknown:
-                yield Finding(...)
-            if summary.truncated:
-                yield unscanned(ctx, path, "the field budget ran out")   # a partial walk
-```
+            organization = metadata.text(_ORGANIZATION_KEY)
+            if organization is None or organization.lower() not in _APPROVED_ORGANIZATIONS:
+                name = metadata.text(_NAME_KEY) or path.name
+                yield self._finding(path, f"'{name}' declares organization {organization!r}")
 
-`examples/custom_rule/src/acme_rules/approved_model.py` is the runnable version
-of this — a complete third-party rule, tested, whose entire body is policy.
+    def _unscanned(self, path: Path, reason: str, ctx: RuleContext) -> Finding:
+        # Unreadable provenance is a decline, not an accusation: reporting the model
+        # as unapproved would invent evidence. The shortfall keeps the run from
+        # passing under every policy, not only under `fail_on_inconclusive`.
+        ctx.shortfall(
+            CoverageShortfall(
+                ShortfallKind.UNEXAMINED_COMPONENT,
+                name=str(path),
+                detail=f"{self.meta.id} could not read it: {reason}",
+            )
+        )
+        return Finding(
+            rule_id=self.meta.id,
+            severity=self.meta.severity,
+            title=self.meta.title,
+            taxonomy=self.meta.taxonomy,
+            target_ref=str(path),
+            evidence=Evidence(summary=reason, detail=f"file={path.name}"),
+            verdict=Verdict("inconclusive", 0.0, reason, self.meta.id),
+        )
+```
 
 ## Testing your rule
 

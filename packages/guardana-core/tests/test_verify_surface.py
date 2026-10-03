@@ -76,6 +76,7 @@ def test_a_verification_holds_the_documented_fields() -> None:
         "judge_usage",
         "judge_stops",
         "exchanges",
+        "stop_messages",
     ]
     for member in ("exit_code", "passed", "open_questions", "document", "save"):
         assert hasattr(verify.Verification, member), member

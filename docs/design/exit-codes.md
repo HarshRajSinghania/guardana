@@ -28,7 +28,7 @@ interface anyone should build on.
 4  target or judge unavailable, or authentication failed; a run its target stopped part-way is saved
 5  internal Guardana error
 6  budget exhausted
-7  run interrupted, partial evidence written
+7  run interrupted before it finished
 ```
 
 ### Decisions
@@ -54,14 +54,16 @@ hides real defects in a category people learn to ignore.
 Amended by [`guarded-applications.md`](guarded-applications.md) (decision 4): `4` also
 describes a result. A target that fails part-way stops the run with
 `stopped_by: target_unavailable`, which outranks the verdict as a budget stop does, and
-the partial run is saved.
+the partial run is saved. A pack's target that fails to connect while it is being built,
+before the run starts, is `4` as well: on every command that builds one from a `--target`
+locator, and on `recipe lock` and `recipe run` for the target a recipe names.
 
 **`3` is usage, not policy.** A malformed `guardana.yaml` must not look like a
 policy failure, or a typo in a config file reads as a security finding.
 
-**`7` is honest partiality.** Ctrl-C or a timeout with evidence already written is
-neither a pass nor a completed failure. The partial run is kept, and the code says
-it is partial.
+**`7` is honest partiality.** A command interrupted before it finished is neither a
+pass nor a completed failure. Nothing it had not yet written exists, and the code says
+the run is incomplete rather than judging it.
 
 ### Migration — decided against a transitional mode
 

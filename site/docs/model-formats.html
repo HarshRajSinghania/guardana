@@ -389,8 +389,8 @@ class Limits:
 of JSON, a 256k-token GGUF vocabulary a few MiB — so honest files stay far
 inside them. Pass your own <code>Limits</code> to tighten them for a constrained runner.</p>
 <h2 id="writing-a-rule-on-top">Writing a rule on top</h2>
-<p>Two rules, one shape. Read the file, turn <code>FormatError</code> into a visible finding,
-grade what you got.</p>
+<p>Every rule on a model format has one shape. Read the file, turn <code>FormatError</code>
+into a visible finding, grade what you got.</p>
 <p>A file the rule could not read, or read only in part, gets two reports. The finding
 carries an <code>inconclusive</code> verdict, so it lands on the unverified channel. The
 <code>unexamined_component</code> shortfall names the file, so the run is <code>indeterminate</code> under
@@ -398,48 +398,46 @@ every policy rather than only under <code>fail_on_inconclusive</code>. The built
 do both, and a rule that reads the format calls <code>ctx.examined(path)</code> either way, so
 the format-level pass does not name the file again
 (<a href="usage-scan.html#model-files-no-rule-reads"><code>guardana scan</code></a>).</p>
-<pre><code class="language-python">from guardana.core.formats import FormatError, read_onnx_summary, STANDARD_ONNX_DOMAINS
-from guardana.core.report import CoverageShortfall, ShortfallKind
-
-
-def unscanned(ctx: RuleContext, path: Path, reason: str) -&gt; Finding:
-    ctx.shortfall(
-        CoverageShortfall(
-            ShortfallKind.UNEXAMINED_COMPONENT,
-            name=str(path),
-            detail=f&quot;acme.supply_chain.unapproved_operator could not read it: {reason}&quot;,
-        )
-    )
-    return Finding(...)                     # verdict outcome &quot;inconclusive&quot;
-
-class UnapprovedOperatorRule(Rule):
-    meta = RuleMeta(
-        id=&quot;acme.supply_chain.unapproved_operator&quot;,
-        title=&quot;ONNX model uses an operator domain we have not vetted&quot;,
-        severity=Severity.MEDIUM,
-        target_kind=TargetKind.ARTIFACT,
-        taxonomy=(OWASP_LLM03_2025,),
-        required_capabilities=frozenset({Capability.READ_FILES}),
-    )
-
-    def run(self, target: Target, ctx: RuleContext) -&gt; Iterable[Finding]:
-        if not isinstance(target, ArtifactTarget):
-            return
-        for path in target.iter_files((&quot;.onnx&quot;,)):
+<p>Here is that shape in <code>ApprovedModelRule</code>, from
+<code>examples/custom_rule/src/acme_rules/approved_model.py</code> — a complete third-party
+rule, tested, whose entire body is policy:</p>
+<pre><code class="language-python">    def run(self, target: Target, ctx: RuleContext) -&gt; Iterable[Finding]:
+        &quot;&quot;&quot;Check the provenance metadata of every GGUF model under the target.&quot;&quot;&quot;
+        if not isinstance(target, FileReader):
+            raise RuleError(f&quot;{self.meta.id} needs a file target, got {type(target).__name__}&quot;)
+        for path in target.iter_files((&quot;.gguf&quot;,)):
             ctx.examined(path)
             try:
-                summary = read_onnx_summary(path)
+                metadata = read_gguf_metadata(path)
             except FormatError as exc:
-                yield unscanned(ctx, path, str(exc))     # never silence
+                yield self._unscanned(path, f&quot;provenance unreadable: {exc}&quot;, ctx)
                 continue
-            unknown = set(summary.node_domains) - STANDARD_ONNX_DOMAINS - APPROVED
-            if unknown:
-                yield Finding(...)
-            if summary.truncated:
-                yield unscanned(ctx, path, &quot;the field budget ran out&quot;)   # a partial walk
+            organization = metadata.text(_ORGANIZATION_KEY)
+            if organization is None or organization.lower() not in _APPROVED_ORGANIZATIONS:
+                name = metadata.text(_NAME_KEY) or path.name
+                yield self._finding(path, f&quot;'{name}' declares organization {organization!r}&quot;)
+
+    def _unscanned(self, path: Path, reason: str, ctx: RuleContext) -&gt; Finding:
+        # Unreadable provenance is a decline, not an accusation: reporting the model
+        # as unapproved would invent evidence. The shortfall keeps the run from
+        # passing under every policy, not only under `fail_on_inconclusive`.
+        ctx.shortfall(
+            CoverageShortfall(
+                ShortfallKind.UNEXAMINED_COMPONENT,
+                name=str(path),
+                detail=f&quot;{self.meta.id} could not read it: {reason}&quot;,
+            )
+        )
+        return Finding(
+            rule_id=self.meta.id,
+            severity=self.meta.severity,
+            title=self.meta.title,
+            taxonomy=self.meta.taxonomy,
+            target_ref=str(path),
+            evidence=Evidence(summary=reason, detail=f&quot;file={path.name}&quot;),
+            verdict=Verdict(&quot;inconclusive&quot;, 0.0, reason, self.meta.id),
+        )
 </code></pre>
-<p><code>examples/custom_rule/src/acme_rules/approved_model.py</code> is the runnable version
-of this — a complete third-party rule, tested, whose entire body is policy.</p>
 <h2 id="testing-your-rule">Testing your rule</h2>
 <p><code>guardana.core.testing</code> builds crafted artifacts so a malicious fixture is a
 dict literal in a test rather than a binary in your repository.</p>

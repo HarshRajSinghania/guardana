@@ -227,7 +227,7 @@ def run(
     )
     verification = replace(verification, manifest=replace(verification.manifest, recipe=record))
     _publish(prepared, verification, recipe_text=read.text, lock_text=lock_text)
-    report_target_stop(verification.result)
+    report_target_stop(verification)
     exit_with(verification.gate, verification.result)
 
 

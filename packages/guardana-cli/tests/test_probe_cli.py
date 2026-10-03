@@ -151,7 +151,7 @@ def test_probe_rejects_invalid_format(monkeypatch: pytest.MonkeyPatch) -> None:
     assert "Traceback" not in result.output
 
 
-def test_probe_unreachable_endpoint_exits_two_without_traceback(
+def test_probe_unreachable_endpoint_exits_four_without_traceback(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(endpoint_module, "transport_factory", _unreachable)

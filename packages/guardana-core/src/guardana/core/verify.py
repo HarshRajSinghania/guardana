@@ -75,6 +75,7 @@ from guardana.core.runner import (
     Runner,
     applicability_refusal,
     select_rules,
+    target_failures,
 )
 from guardana.core.subject import SubjectKind
 from guardana.core.target import (
@@ -166,6 +167,14 @@ class Verification:
 
     `manifest.exchanges` records the digest of `render_recording(exchanges)`, which is what
     `save()` writes beside the run.
+    """
+
+    stop_messages: tuple[str, ...] = ()
+    """What the target did when it stopped the run, in the words the CLI prints; never saved.
+
+    Taken before redaction, which under `metadata_only` withholds every recorded reason:
+    these messages were built within the run's privacy policy already, so the saved run
+    stays redacted while the operator still learns the cause.
     """
 
     @property
@@ -584,6 +593,7 @@ class Verifier:
         the redacted evidence; the gate reads the waived result; the manifest records
         the gate.
         """
+        stop_messages = target_failures(result)
         if relative_to is not None:
             result = relativize_findings(result, relative_to)
         result = EvidenceRedactor(self.profile.privacy).redact_result(result)
@@ -642,6 +652,7 @@ class Verifier:
             judge_usage=judges.usage(),
             judge_stops=judges.stops(),
             exchanges=exchanges,
+            stop_messages=stop_messages,
         )
 
     def _kept_recording(  # noqa: PLR0913 — the facts the sidecar's origin states

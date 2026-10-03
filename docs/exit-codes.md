@@ -127,6 +127,8 @@ unknown `--provider`, a `--system-prompt-file` or `--adapter` that cannot be rea
 `--api-key-env`, and an adapter whose `url:` differs from `--url` or whose `method:` is
 not `POST`. None of them is `5`, which is reserved for Guardana's own defects.
 
+`recipe lock` and `recipe run` exit `4`, writing no lock and sending nothing, when the
+installed target the recipe names fails to connect while it is being built.
 `recipe lock` exits `0` once it wrote the lock, `1`, writing nothing, when a regression
 case of a selected suite no longer holds with the rule as it is now — a side graded the
 wrong way, a side declined, the evaluator raised, or the suite's evaluator cannot regrade

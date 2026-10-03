@@ -519,7 +519,7 @@ def _finish_probe(  # noqa: PLR0913 — what the command does with a finished ru
     _write_exchanges(verification, output, keep=keep)
     if reporter:
         submit_safely(reporter, verification.result, source=source, deployment=deployment, run=run)
-    report_target_stop(verification.result)
+    report_target_stop(verification)
     exit_with(verification.gate, verification.result)
 
 
