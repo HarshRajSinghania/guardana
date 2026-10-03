@@ -498,3 +498,16 @@ def test_the_format_2_schema_refuses_half_a_pair_and_the_format_1_schema_any_pai
 
 def test_a_tag_in_the_reserved_namespace_is_refused_by_the_schema_too() -> None:
     assert not _validator(2).is_valid({**STRING_CASE, "tags": ["sample:7"]})
+    assert not _validator(2).is_valid({**STRING_CASE, "tags": ["declined:content_filter"]})
+
+
+def test_a_tag_in_the_reserved_declined_namespace_is_refused(tmp_path: Path) -> None:
+    """A case tagged as a decline would be left out of judge-error correction."""
+    path = _write(
+        tmp_path / "golden.jsonl", HEADER, {**STRING_CASE, "tags": ["declined:content_filter"]}
+    )
+
+    message = _refusal(path)
+
+    assert f"{path}:2" in message
+    assert "declined:" in message

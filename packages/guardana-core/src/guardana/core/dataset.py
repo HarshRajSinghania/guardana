@@ -24,6 +24,7 @@ from typing import Literal
 
 from guardana.core.fingerprint import digest_of
 from guardana.core.target import ChatMessage
+from guardana.core.target.decline import DECLINED_TAG_PREFIX
 from guardana.core.trace.limits import MAX_RECORD_BYTES, MAX_TRACE_BYTES
 
 DATASET_FORMAT = 2
@@ -404,7 +405,7 @@ def _expect(value: object, path: str, number: int) -> Mapping[str, object]:
 
 
 def _tags(value: object, path: str, number: int) -> tuple[str, ...]:
-    """Read a case's tags: non-empty strings outside the prefix the suite reserves."""
+    """Read a case's tags: non-empty strings outside the prefixes the suite reserves."""
     if not isinstance(value, list):
         raise DatasetError(f"{path}:{number}: `tags` must be a list of strings")
     tags = tuple(_non_empty(tag, "a tag", path, number) for tag in value)
@@ -413,6 +414,12 @@ def _tags(value: object, path: str, number: int) -> tuple[str, ...]:
             raise DatasetError(
                 f"{path}:{number}: tag {tag!r} uses the `{_RESERVED_TAG_PREFIX}` prefix, which "
                 f"the suite reserves for marking a sampled run"
+            )
+        if tag.startswith(DECLINED_TAG_PREFIX):
+            raise DatasetError(
+                f"{path}:{number}: tag {tag!r} uses the `{DECLINED_TAG_PREFIX}` prefix, which "
+                f"marks a case graded from a declined request and is kept out of judge-error "
+                f"correction"
             )
     return tags
 

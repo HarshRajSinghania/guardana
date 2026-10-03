@@ -102,13 +102,13 @@
       ]
     },
     "tags": {
-      "description": "Labels for the case; the `sample:` prefix is reserved for the suite.",
+      "description": "Labels for the case; the `sample:` and `declined:` prefixes are reserved for the suite.",
       "type": "array",
       "items": {
         "type": "string",
         "pattern": "\\S",
         "not": {
-          "pattern": "^sample:"
+          "pattern": "^(sample|declined):"
         }
       }
     },
