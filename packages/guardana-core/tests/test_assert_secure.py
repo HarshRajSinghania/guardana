@@ -252,6 +252,9 @@ def test_an_empty_directory_is_not_a_pass(tmp_path: Path) -> None:
     assert [gap.kind for gap in raised.value.result.coverage_shortfall] == [
         ShortfallKind.EMPTY_TARGET
     ]
+    assert "1 piece(s) of coverage missing:" in str(raised.value)
+    assert "empty_target" in str(raised.value)
+    assert "holds no file to scan" in str(raised.value)
 
 
 def test_a_profile_and_a_preset_together_are_a_usage_error(tmp_path: Path) -> None:

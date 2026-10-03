@@ -503,8 +503,8 @@ asked for, bounded by a policy you wrote.</li>
 </tr>
 <tr>
 <td><code>coverage shortfall</code></td>
-<td>Evidence you <strong>demanded</strong> was not available — a dimension your policy requires, or one your security contract needs — or a model file the scan observed that no running rule read</td>
-<td>Instrument the producer, stop demanding it, or run the rule that reads the file or exclude it. No <code>fail_on_*</code> setting makes this a pass</td>
+<td>Coverage the run needed was missing: evidence you <strong>demanded</strong> (a dimension your policy requires, or one your security contract needs), a model file the scan observed that no running rule read, a model or notebook a rule could not read, a target that held no file, or a rule that graded none of its cases (or fewer than <code>fail_on.min_graded_share</code>)</td>
+<td>Instrument the producer, stop demanding it, run the rule that reads the file or exclude it, check the scanned path, or find out why the cases went ungraded. No <code>fail_on_*</code> setting makes this a pass</td>
 </tr>
 </tbody>
 </table></div>

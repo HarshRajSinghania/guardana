@@ -492,7 +492,7 @@ guardana scan . --format sarif   # SARIF 2.1.0, for GitHub code-scanning upload
 guardana scan . --format junit   # JUnit XML, for CI test-result reporting
 </code></pre>
 <p>Every format says when a run is not a clean pass, each in its own vocabulary. A run that
-stopped early, verified or measured nothing, missed demanded coverage, had a suite decline,
+stopped early, verified or measured nothing, missed coverage, had a suite decline,
 could not run a check or left a check without a verdict prints no <code>✓</code> in the terminal, is
 an <code>&lt;error&gt;</code> testcase in JUnit, and sets SARIF's <code>executionSuccessful</code> to <code>false</code> with one
 <code>toolExecutionNotifications</code> entry per cause (<code>guardana.open_question.*</code>,

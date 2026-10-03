@@ -145,7 +145,7 @@ guardana scan . --format junit   # JUnit XML, for CI test-result reporting
 ```
 
 Every format says when a run is not a clean pass, each in its own vocabulary. A run that
-stopped early, verified or measured nothing, missed demanded coverage, had a suite decline,
+stopped early, verified or measured nothing, missed coverage, had a suite decline,
 could not run a check or left a check without a verdict prints no `✓` in the terminal, is
 an `<error>` testcase in JUnit, and sets SARIF's `executionSuccessful` to `false` with one
 `toolExecutionNotifications` entry per cause (`guardana.open_question.*`,

@@ -205,7 +205,7 @@ Four channels, because "nothing to report" has four meanings:
 | `findings` | A check ran and found something | Fix it, or waive it with a reason |
 | `unverified` | A check ran and honestly could not reach a verdict | Investigate why — an empty reply, a judge reply that could not be read, a capability gap |
 | `errors` | A check **never ran** | Treat as a broken gate, not as a clean result |
-| `coverage shortfall` | Evidence you **demanded** was not available — a dimension your policy requires, or one your security contract needs — or a model file the scan observed that no running rule read | Instrument the producer, stop demanding it, or run the rule that reads the file or exclude it. No `fail_on_*` setting makes this a pass |
+| `coverage shortfall` | Coverage the run needed was missing: evidence you **demanded** (a dimension your policy requires, or one your security contract needs), a model file the scan observed that no running rule read, a model or notebook a rule could not read, a target that held no file, or a rule that graded none of its cases (or fewer than `fail_on.min_graded_share`) | Instrument the producer, stop demanding it, run the rule that reads the file or exclude it, check the scanned path, or find out why the cases went ungraded. No `fail_on_*` setting makes this a pass |
 
 A run that reports zero findings and three errors has not told you the system is
 clean. It has told you it could not look.
