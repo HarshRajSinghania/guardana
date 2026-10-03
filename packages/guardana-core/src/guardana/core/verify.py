@@ -62,7 +62,7 @@ from guardana.core.recording import (
     read_recording,
     render_recording,
 )
-from guardana.core.redaction import EvidenceRedactor
+from guardana.core.redaction import EvidenceRedactor, MessageQuoting
 from guardana.core.registry import Registry
 from guardana.core.report import ScanResult
 from guardana.core.report.baseline import Baseline, apply_baseline
@@ -88,8 +88,8 @@ from guardana.core.target import (
     TargetKind,
 )
 from guardana.core.target.adapter import HttpAdapterTransport
-from guardana.core.target.endpoint import EndpointTarget
-from guardana.core.target.failure import FailureRemedies
+from guardana.core.target.endpoint import EndpointTarget, secrets_sent_by
+from guardana.core.target.failure import FailureRemedies, describe_failure
 from guardana.core.target.mcp import McpServerTarget
 from guardana.core.target.recorded import RecordedTarget
 
@@ -560,11 +560,17 @@ class Verifier:
         except JudgeUnavailableError as exc:
             raise JudgeUnreachableError(str(exc)) from exc
         except (URLError, EndpointError) as exc:
-            raise TargetUnavailableError(f"could not reach {target.ref}: {exc}") from exc
+            raise TargetUnavailableError(self._unreachable(exc, target)) from exc
         except OSError as exc:
             if not endpoint:
                 raise
-            raise TargetUnavailableError(f"could not reach {target.ref}: {exc}") from exc
+            raise TargetUnavailableError(self._unreachable(exc, target)) from exc
+
+    def _unreachable(self, exc: BaseException, target: Target) -> str:
+        """Say why `target` could not be reached, without a secret it sends, bounded."""
+        withheld = (*self.secrets, *secrets_sent_by(target))
+        quoting = MessageQuoting.of(self.profile.privacy, withheld)
+        return describe_failure(exc, target.ref, quoting, self.remedies)
 
     def _finish(  # noqa: PLR0913 — one value per persisted execution fact
         self,

@@ -16,6 +16,7 @@ from pathlib import Path
 from urllib.error import HTTPError, URLError
 
 import pytest
+from guardana.core import verify
 from guardana.core.budget import BudgetExhausted
 from guardana.core.evaluator.config import JudgeUnavailableError
 from guardana.core.gate import exit_code_for, gate_outcome
@@ -42,7 +43,7 @@ from guardana.core.target.adapter import FetchedReply
 from guardana.core.target.endpoint import UrllibTransport
 from guardana.core.target.failure import FailureRemedies
 from guardana.core.testing._fake_provider import FakeProvider, delayed, openai_reply
-from guardana.core.verify import Verifier
+from guardana.core.verify import TargetUnavailableError, Verifier
 
 _KEY = "acme-live-0123456789abcdef"
 _UNPATTERNED_KEY = "gw-live-7Q2mZp9XvR4tL8kN3bW6"
@@ -396,3 +397,30 @@ def test_a_failure_of_any_length_is_saved_cut_to_the_reason_limit() -> None:
     assert len(said) <= 500
     assert said.startswith("could not reach endpoint http://x#m: unexpected response")
     assert said.endswith("characters]")
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        URLError(f"refused key {_UNPATTERNED_KEY} {'A' * 60_000}"),
+        EndpointError(f"unusable reply for key {_UNPATTERNED_KEY} {'B' * 60_000}"),
+    ],
+    ids=["no-connection", "unusable-reply"],
+)
+def test_a_target_the_python_api_could_not_reach_is_said_without_its_key_and_bounded(
+    monkeypatch: pytest.MonkeyPatch, error: Exception
+) -> None:
+    def failing(*args: object, **kwargs: object) -> object:
+        raise error
+
+    monkeypatch.setattr(verify, "run_target_probe", failing)
+    verifier = Verifier(trust=PluginTrust(mode=PluginMode.BUILTINS), registry=Registry())
+
+    with pytest.raises(TargetUnavailableError) as raised:
+        verifier.run(_keyed(400))
+
+    said = str(raised.value)
+    assert _UNPATTERNED_KEY not in said
+    assert "[redacted:credential]" in said
+    assert len(said) <= 500
+    assert said.startswith("could not reach endpoint http://x")

@@ -26,10 +26,13 @@ class McpDiscoveryTargetRule(McpAuthorizationRule):
     the attack in order to report it, which is the confused deputy this whole area
     is about.
 
-    Loopback and private addresses are refused only when the server under test is
-    itself somewhere else. A development server on `127.0.0.1` pointing at an
-    authorization server on `127.0.0.1` is a normal setup, and reporting it would
-    make this rule noise on the first machine anybody tries it on.
+    The cloud metadata addresses, link-local, multicast and reserved ranges are
+    refused however local the server under test is. Every other address that is not
+    globally routable — loopback, private, shared and carrier-grade ranges alike —
+    is refused only when the server under test is not itself local. A development
+    server on `127.0.0.1` pointing at an authorization server on `127.0.0.1` is a
+    normal setup, and reporting it would make this rule noise on the first machine
+    anybody tries it on.
     """
 
     meta = RuleMeta(

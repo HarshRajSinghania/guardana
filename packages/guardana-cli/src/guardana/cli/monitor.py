@@ -1,5 +1,5 @@
 import time
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import replace
 from pathlib import Path
 from typing import Annotated
@@ -34,13 +34,21 @@ from guardana.cli.exit_codes import ExitCode
 from guardana.core.budget import BudgetExhausted
 from guardana.core.manifest import DeploymentRef
 from guardana.core.manifest.records import CalibrationRecord
-from guardana.core.monitor import Alert, Monitor, MonitorConfig, MonitorSummary
+from guardana.core.monitor import (
+    Alert,
+    Monitor,
+    MonitorConfig,
+    MonitorSummary,
+    TargetStoppedError,
+)
 from guardana.core.profile import Profile, ProfileError
-from guardana.core.redaction import EvidenceRedactor
+from guardana.core.redaction import EvidenceRedactor, MessageQuoting, RedactionPolicy
 from guardana.core.registry import Registry
 from guardana.core.report import ScanResult
 from guardana.core.runner import DEFAULT_ENDPOINT_CONCURRENCY
 from guardana.core.target import Target, TargetKind, display_url
+from guardana.core.target.endpoint import secrets_sent_by
+from guardana.core.target.failure import describe_failure
 from guardana.report import get_renderer
 
 _DEFAULT_INTERVAL_SECONDS = 60.0
@@ -81,8 +89,23 @@ def alert_handler(
     return handle
 
 
-def _warn_cycle_failed(cycle: int, exc: Exception) -> None:
-    typer.echo(f"warning: monitor cycle {cycle} failed, continuing: {exc}", err=True)
+def _cycle_failure_warning(
+    ref: str, privacy: RedactionPolicy, secrets: Callable[[], Iterable[str]]
+) -> Callable[[int, Exception], None]:
+    """Warn of a failed cycle under `privacy`, bounded, without a value `secrets` returns.
+
+    A cycle its target stopped is said in the words the run recorded, already withheld.
+    """
+
+    def warn(cycle: int, exc: Exception) -> None:
+        if isinstance(exc, TargetStoppedError):
+            said = str(exc)
+        else:
+            quoting = MessageQuoting.of(privacy, secrets())
+            said = describe_failure(exc, ref, quoting, _REMEDIES)
+        typer.echo(f"warning: monitor cycle {cycle} failed, continuing: {said}", err=True)
+
+    return warn
 
 
 def run_monitor(  # noqa: PLR0913 — the test seam needs every hook injectable
@@ -94,7 +117,7 @@ def run_monitor(  # noqa: PLR0913 — the test seam needs every hook injectable
     max_cycles: int | None = None,
     concurrency: int = DEFAULT_ENDPOINT_CONCURRENCY,
     on_alert: Callable[[Alert], None] | None = None,
-    on_error: Callable[[int, Exception], None] = _warn_cycle_failed,
+    on_error: Callable[[int, Exception], None] | None = None,
     sleep: Callable[[float], None] = time.sleep,
     calibrations: Mapping[str, CalibrationRecord] | None = None,
 ) -> MonitorSummary:
@@ -109,11 +132,17 @@ def run_monitor(  # noqa: PLR0913 — the test seam needs every hook injectable
     have to name a redactor before the profile is known — which is how the
     unredacted default got in.
     """
+    shown = display_url(connection.reached.url)
     handler = (
         on_alert
         if on_alert is not None
-        else alert_handler(
-            EvidenceRedactor(profile.privacy), None, display_url(connection.reached.url)
+        else alert_handler(EvidenceRedactor(profile.privacy), None, shown)
+    )
+    warn = (
+        on_error
+        if on_error is not None
+        else _cycle_failure_warning(
+            shown, profile.privacy, lambda: connection.reached.secret_values
         )
     )
 
@@ -133,7 +162,7 @@ def run_monitor(  # noqa: PLR0913 — the test seam needs every hook injectable
         policy=profile.policy,
         config=MonitorConfig(interval_seconds=interval_seconds, max_cycles=max_cycles),
     )
-    return monitor.run(handler, on_error=on_error, sleep=sleep)
+    return monitor.run(handler, on_error=warn, sleep=sleep)
 
 
 def run_target_monitor(  # noqa: PLR0913 — mirrors the tested monitor seam
@@ -146,7 +175,7 @@ def run_target_monitor(  # noqa: PLR0913 — mirrors the tested monitor seam
     max_cycles: int | None = None,
     concurrency: int = DEFAULT_ENDPOINT_CONCURRENCY,
     on_alert: Callable[[Alert], None] | None = None,
-    on_error: Callable[[int, Exception], None] = _warn_cycle_failed,
+    on_error: Callable[[int, Exception], None] | None = None,
     sleep: Callable[[float], None] = time.sleep,
     calibrations: Mapping[str, CalibrationRecord] | None = None,
 ) -> MonitorSummary:
@@ -156,13 +185,22 @@ def run_target_monitor(  # noqa: PLR0913 — mirrors the tested monitor seam
         if on_alert is not None
         else alert_handler(EvidenceRedactor(profile.privacy), None, source)
     )
+    built: list[Target] = []
+    warn = (
+        on_error
+        if on_error is not None
+        else _cycle_failure_warning(
+            source, profile.privacy, lambda: secrets_sent_by(built[-1]) if built else ()
+        )
+    )
 
     def scan() -> ScanResult:
         _rearm_judges(registry, profile)
+        built[:] = [target_factory()]
         return run_target_probe(
             registry,
             profile,
-            target_factory(),
+            built[-1],
             concurrency=concurrency,
             calibrations=calibrations,
             remedies=_REMEDIES,
@@ -173,7 +211,7 @@ def run_target_monitor(  # noqa: PLR0913 — mirrors the tested monitor seam
         policy=profile.policy,
         config=MonitorConfig(interval_seconds=interval_seconds, max_cycles=max_cycles),
     )
-    return monitor.run(handler, on_error=on_error, sleep=sleep)
+    return monitor.run(handler, on_error=warn, sleep=sleep)
 
 
 def _rearm_judges(registry: Registry, profile: Profile) -> JudgeMeters:

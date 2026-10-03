@@ -4,7 +4,7 @@ from guardana.core.report import Finding
 from guardana.core.rule import RuleMeta
 from guardana.core.safety import Detection, Impact
 from guardana.core.severity import Severity
-from guardana.core.target import Capability, McpAuthorizationView, TargetKind, is_local_address
+from guardana.core.target import Capability, McpAuthorizationView, TargetKind
 from guardana.core.taxonomy import (
     ATLAS_T0084_001,
     OWASP_ASI03_2026,
@@ -26,6 +26,8 @@ class McpUnauthenticatedAccessRule(McpAuthorizationRule):
     everyone develops and is reported `low` with that said out loud; the same
     server on a routable address is publishing an agent's tool surface to anyone
     who asks, and the tool list is itself reconnaissance (`AML.T0084.001`).
+    Locality is never decided by a new lookup of the server's name, which the
+    server answers itself; when it is unknown, the server is graded as routable.
     """
 
     meta = RuleMeta(
@@ -54,7 +56,7 @@ class McpUnauthenticatedAccessRule(McpAuthorizationRule):
             return
         if not view.anonymous.open_to_anyone:
             return
-        if is_local_address(view.server):
+        if view.server_is_local:
             yield self.finding(
                 view,
                 "the server returns its tool manifest to a caller presenting no credential; "

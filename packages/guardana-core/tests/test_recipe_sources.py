@@ -441,13 +441,62 @@ def _finder(mapping: Mapping[str, str], namespaces: Mapping[str, list[str]]) -> 
     )
 
 
+_FINDER = "__editable___acme_pack_1_0_finder"
+
+
 def test_an_editable_path_file_inside_its_directory_is_pinned(tmp_path: Path, site: Path) -> None:
     root = _source_tree(tmp_path / "acme-pack")
+    finder = _finder({"acme_pack": str(root / "src" / "acme_pack")}, {})
     _editable_with(
-        site, root, {"_acme_pack.pth": f"# comment\n\n{root / 'src'}\nimport acme_hook\n"}
+        site,
+        root,
+        {
+            "_acme_pack.pth": (
+                f"# comment\n\n{root / 'src'}\nimport {_FINDER}; {_FINDER}.install()\n"
+            ),
+            f"{_FINDER}.py": finder,
+        },
     )
 
     assert isinstance(pin_distribution_source("acme-pack"), SourcePin)
+
+
+@pytest.mark.parametrize(
+    ("line", "hook"),
+    [
+        ("import _editable_impl_acme_pack", "_editable_impl_acme_pack"),
+        (f"import {_FINDER}, acme_hook; {_FINDER}.install()", "acme_hook"),
+        (f"import {_FINDER} as alias; alias.install()", _FINDER),
+        (f"import {_FINDER}; {_FINDER}.install(); exec('x')", "a statement beside its finder"),
+        (f"import {_FINDER}; {_FINDER}.install(", "a line that is not Python"),
+    ],
+    ids=["other-hook", "finder-and-hook", "renamed-finder", "extra-statement", "not-python"],
+)
+def test_an_editable_path_file_running_a_hook_that_is_not_a_read_finder_leaves_it_unpinned(
+    tmp_path: Path, site: Path, line: str, hook: str
+) -> None:
+    root = _source_tree(tmp_path / "acme-pack")
+    finder = _finder({"acme_pack": str(root / "src" / "acme_pack")}, {})
+    _editable_with(
+        site,
+        root,
+        {"_acme_pack.pth": f"{root / 'src'}\n{line}\n", f"{_FINDER}.py": finder},
+    )
+
+    assert pin_distribution_source("acme-pack") == (
+        f"its _acme_pack.pth runs {hook}, which Guardana cannot read"
+    )
+
+
+def test_an_editable_path_file_importing_a_finder_its_record_does_not_list_leaves_it_unpinned(
+    tmp_path: Path, site: Path
+) -> None:
+    root = _source_tree(tmp_path / "acme-pack")
+    _editable_with(site, root, {"_acme_pack.pth": f"import {_FINDER}; {_FINDER}.install()\n"})
+
+    assert pin_distribution_source("acme-pack") == (
+        f"its _acme_pack.pth runs {_FINDER}, which Guardana cannot read"
+    )
 
 
 def test_an_editable_path_file_reaching_outside_its_directory_leaves_it_unpinned(

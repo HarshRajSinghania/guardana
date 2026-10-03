@@ -129,12 +129,14 @@ def _body_snippet(exc: HTTPError, quoting: MessageQuoting) -> str:
 
     Under `metadata_only` only its size is given.
     """
+    secrets = [value.encode("utf-8") for value in quoting.secrets]
     try:
-        raw = exc.read(_BODY_READ_BYTES)
+        raw = exc.read(_BODY_READ_BYTES + max(map(len, secrets), default=0))
     except (OSError, ValueError, HTTPException):
         return "its body could not be read"
     finally:
         exc.close()
+    raw = raw[: _quoted_end(raw, secrets)]
     if not raw.strip():
         return "its body was empty"
     if quoting.withholds_text:
@@ -148,6 +150,19 @@ def _body_snippet(exc: HTTPError, quoting: MessageQuoting) -> str:
     if len(shown) > _BODY_SHOWN_CHARS:
         shown = f"{shown[:_BODY_SHOWN_CHARS]}…"
     return f"its body begins: {shown}"
+
+
+def _quoted_end(raw: bytes, secrets: list[bytes]) -> int:
+    """Where the quoted body ends: the read limit, or past a secret that straddles it.
+
+    Cutting through a secret would leave a prefix no replacement can recognise.
+    """
+    end = min(len(raw), _BODY_READ_BYTES)
+    for secret in secrets:
+        start = raw.find(secret, max(0, _BODY_READ_BYTES - len(secret) + 1))
+        if 0 <= start < _BODY_READ_BYTES:
+            end = max(end, start + len(secret))
+    return end
 
 
 __all__ = [

@@ -101,6 +101,29 @@ def test_a_sent_secret_never_reaches_the_message() -> None:
     assert "[redacted:credential]" in said
 
 
+@pytest.mark.parametrize("before", [4080, 4090, 4095])
+def test_a_sent_secret_straddling_the_read_limit_is_withheld_whole(before: int) -> None:
+    sent = "acme-live-0123456789abcdef"
+    quoting = MessageQuoting.of(RedactionPolicy(), (sent,))
+    body = b" " * before + sent.encode() + b" is not valid"
+
+    said = describe_failure(_status(400, body), "http://x#m", quoting, _REMEDIES)
+
+    assert sent[:4] not in said
+    assert said.endswith("its body begins: [redacted:credential]")
+
+
+def test_a_sent_secret_beyond_the_read_limit_shows_no_part_of_itself() -> None:
+    sent = "acme-live-0123456789abcdef"
+    quoting = MessageQuoting.of(RedactionPolicy(), (sent,))
+    body = b" " * 4100 + sent.encode()
+
+    said = describe_failure(_status(400, body), "http://x#m", quoting, _REMEDIES)
+
+    assert sent[:4] not in said
+    assert said.endswith("its body was empty")
+
+
 def test_metadata_only_gives_the_status_and_quotes_nothing() -> None:
     quoting = MessageQuoting.of(RedactionPolicy(mode=EvidenceMode.METADATA_ONLY))
 

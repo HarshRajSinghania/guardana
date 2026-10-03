@@ -1,7 +1,9 @@
 """An MCP server that hands its tool manifest to anybody, and how loudly to say so."""
 
+import socket
 from collections.abc import Mapping
 
+import pytest
 from guardana.core.rule import RuleContext
 from guardana.core.severity import Severity
 from guardana.core.target import McpServerTarget
@@ -41,6 +43,31 @@ def test_the_same_server_on_loopback_is_reported_low_and_says_why() -> None:
 
     assert [f.severity for f in reported] == [Severity.LOW]
     assert "loopback or private" in reported[0].evidence.summary
+
+
+def test_a_server_named_localhost_is_reported_low() -> None:
+    reported = findings(RULE, wide_open("http://localhost:3000/mcp"))
+
+    assert [f.severity for f in reported] == [Severity.LOW]
+
+
+def test_a_name_that_resolves_privately_does_not_lower_the_severity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The server answers lookups of its own name, so a fresh lookup that says
+    # "private" is the server choosing its own severity.
+    asked: list[object] = []
+
+    def private(host: object, *args: object, **kwargs: object) -> list[object]:
+        asked.append(host)
+        return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("10.0.0.5", 0))]
+
+    monkeypatch.setattr(socket, "getaddrinfo", private)
+
+    reported = findings(RULE, wide_open("https://mcp.rebind.test/mcp"))
+
+    assert [f.severity for f in reported] == [Severity.HIGH]
+    assert asked == []
 
 
 def test_a_server_that_could_not_be_reached_is_inconclusive_not_silence() -> None:

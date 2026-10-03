@@ -172,6 +172,16 @@ class McpAuthorizationView:
         return display_url(self._probe.url)
 
     @property
+    def server_is_local(self) -> bool:
+        """Whether the server is local, never decided by a new lookup of its name.
+
+        The server answers lookups of its own name, so only the operator's URL and
+        the addresses its own connections already reached count; unknown is not local.
+        """
+        self.anonymous  # noqa: B018 — the connections this decision reads are made here
+        return self._probe.is_local()
+
+    @property
     def credential_presented(self) -> bool:
         """Whether the operator supplied a credential for this server."""
         return self._probe.credential is not None
@@ -275,6 +285,10 @@ class _Probe:
     def credential(self) -> str | None:
         """The credential the operator supplied, if any."""
         return self._credential
+
+    def is_local(self) -> bool:
+        """Whether the server is local, from its URL and the connections already made to it."""
+        return server_is_local(self._url, self._send)
 
     def anonymous(self) -> Anonymous:
         """Ask for the tool list presenting nothing, and record what came back.

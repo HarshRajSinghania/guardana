@@ -5,16 +5,18 @@ from typing import TYPE_CHECKING
 from urllib.error import HTTPError, URLError
 
 import guardana.cli._endpoint as endpoint_module
+import guardana.cli.monitor as monitor_module
 import pytest
 from guardana.cli import main as cli_main
 from guardana.cli._errors import run_against_endpoint
-from guardana.cli._probe_run import Connection
+from guardana.cli._probe_run import Connection, ProbeOutcome, run_probe
 from guardana.cli.exit_codes import ExitCode
 from guardana.cli.main import app
 from guardana.cli.monitor import run_monitor
 from guardana.core.plugins import PluginMode, PluginTrust
 from guardana.core.profile import default_profile
 from guardana.core.registry import Registry
+from guardana.core.target import EndpointError
 from guardana.core.target.connection import Connection as Written
 from guardana.core.target.connection import resolve_connection
 from guardana.core.testing import EchoingTransport, FailingTransport, RefusingTransport
@@ -298,3 +300,41 @@ def test_a_later_cycle_its_target_stopped_is_not_sampled_and_the_watch_exits_fou
     flat = " ".join(result.output.split())
     assert "warning: monitor cycle 1 failed, continuing: endpoint" in flat
     assert "1 cycle(s) sampled, 0 alert(s), 1 cycle(s) not sampled" in flat
+
+
+def test_a_later_cycle_that_failed_is_said_without_the_key_and_bounded(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    key = "gw-live-7Q2mZp9XvR4tL8kN3bW6"
+    connection = Connection(
+        resolve_connection(
+            Written("http://fake", "m", api_key_env="ACME_KEY"),
+            sending=True,
+            environ={"ACME_KEY": key},
+        )
+    )
+    monkeypatch.setattr(endpoint_module, "transport_factory", RefusingTransport)
+    registry = Registry.discover(PluginTrust(mode=PluginMode.BUILTINS))
+    answered = [run_probe(registry, default_profile(), connection)]
+
+    def probe(*_args: object, **_kwargs: object) -> ProbeOutcome:
+        if answered:
+            return answered.pop()
+        raise EndpointError(f"unusable reply for key {key} {'A' * 60_000}")
+
+    monkeypatch.setattr(monitor_module, "run_probe", probe)
+
+    run_monitor(
+        registry,
+        default_profile(),
+        connection,
+        max_cycles=2,
+        on_alert=lambda _alert: None,
+        sleep=_no_sleep,
+    )
+
+    (warning,) = [line for line in capsys.readouterr().err.splitlines() if "cycle 1" in line]
+    assert key not in warning
+    assert "[redacted:credential]" in warning
+    assert warning.startswith("warning: monitor cycle 1 failed, continuing: could not reach")
+    assert len(warning) <= 600

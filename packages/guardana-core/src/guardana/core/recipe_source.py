@@ -3,10 +3,10 @@
 A version pin says nothing about such a distribution: its code can change while its
 version stays put. An editable install is pinned by the source directory its
 `direct_url.json` names; any other direct URL by the hashes its installed `RECORD` lists.
-An editable install whose path file or finder loads code from outside that directory, a
-distribution too large to read, with a symlink leading out of its directory, or with
-nothing to read stays unpinned, with the reason. Design:
-`docs/design/guarded-applications.md`.
+An editable install whose path file or finder loads code from outside that directory, or
+whose path file runs a hook other than a setuptools finder read here, stays unpinned with
+the reason; so does a distribution too large to read, with a symlink leading out of its
+directory, or with nothing to read. Design: `docs/design/guarded-applications.md`.
 """
 
 import ast
@@ -58,6 +58,8 @@ _DIST_INFO_KEPT = frozenset({"METADATA", "entry_points.txt"})
 """What in a `.dist-info` says what runs: the version and requirements, and what it registers."""
 _REQUIREMENT_NAME = re.compile(r"\s*([A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)")
 _FINDER_TABLES = frozenset({"MAPPING", "NAMESPACES"})
+_PTH_IMPORT = ("import ", "import\t")
+"""The prefixes `site` executes, rather than adds to `sys.path`, in a path file."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -165,16 +167,19 @@ def _loaded_from_outside(found: importlib.metadata.Distribution, root: Path) -> 
     """Why the install imports code its directory does not hold; None when it imports none.
 
     The path files and setuptools finders its `RECORD` lists are what make an editable
-    install importable, so a path one of them names outside `root` is code no tree pin
-    covers.
+    install importable, so a path one of them names outside `root`, or a hook a path
+    file runs other than a finder read here, is code no tree pin covers.
     """
     files = found.files
     if files is None:
         return "it has no RECORD to read"
     inside = root.resolve()
+    finders = frozenset(
+        entry.stem for entry in files if _is_finder(entry.name) and str(entry) == entry.name
+    )
     for entry in files:
         name = entry.name
-        finder = name.startswith("__editable__") and name.endswith("finder.py")
+        finder = _is_finder(name)
         if not finder and not name.endswith(".pth"):
             continue
         located = Path(str(entry.locate()))
@@ -182,6 +187,9 @@ def _loaded_from_outside(found: importlib.metadata.Distribution, root: Path) -> 
             text = located.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
             return f"its {name} cannot be read"
+        hook = None if finder else _unread_hook(text, finders)
+        if hook is not None:
+            return f"its {name} runs {hook}, which Guardana cannot read"
         paths = _finder_paths(text) if finder else _path_file_paths(text)
         if paths is None:
             return f"its {name} maps its packages in a way Guardana cannot read"
@@ -194,16 +202,60 @@ def _loaded_from_outside(found: importlib.metadata.Distribution, root: Path) -> 
     return None
 
 
+def _is_finder(name: str) -> bool:
+    """Whether a file name is that of a setuptools editable finder."""
+    return name.startswith("__editable__") and name.endswith("finder.py")
+
+
+def _unread_hook(text: str, finders: frozenset[str]) -> str | None:
+    """Name what a `.pth` file runs beyond installing a finder in `finders`; None when nothing.
+
+    `site` executes every `import` line of a path file, so only importing a finder whose
+    mapping is read here and calling its `install()` leaves the loaded code known.
+    """
+    for line in text.splitlines():
+        if not line.startswith(_PTH_IMPORT):
+            continue
+        try:
+            statements = ast.parse(line).body
+        except (SyntaxError, ValueError):
+            return "a line that is not Python"
+        for statement in statements:
+            if isinstance(statement, ast.Import):
+                for alias in statement.names:
+                    if alias.name not in finders or alias.asname is not None:
+                        return alias.name
+            elif not _installs_finder(statement, finders):
+                return "a statement beside its finder"
+    return None
+
+
+def _installs_finder(statement: ast.stmt, finders: frozenset[str]) -> bool:
+    """Whether a statement is exactly `<finder>.install()` for a finder in `finders`."""
+    if not isinstance(statement, ast.Expr) or not isinstance(statement.value, ast.Call):
+        return False
+    call = statement.value
+    target = call.func
+    return (
+        not call.args
+        and not call.keywords
+        and isinstance(target, ast.Attribute)
+        and target.attr == "install"
+        and isinstance(target.value, ast.Name)
+        and target.value.id in finders
+    )
+
+
 def _path_file_paths(text: str) -> list[str]:
     """Return the paths a `.pth` file adds to `sys.path`, relative to its own directory.
 
-    Lines are read as `site` reads them. An `import` line runs a module the install lists
-    beside it; a setuptools finder among those is read on its own.
+    Lines are read as `site` reads them. An `import` line runs code rather than naming a
+    path, and `_unread_hook` decides whether that code is known.
     """
     return [
         line.rstrip()
         for line in text.splitlines()
-        if line.strip() and not line.startswith(("#", "import ", "import\t"))
+        if line.strip() and not line.startswith(("#", *_PTH_IMPORT))
     ]
 
 
