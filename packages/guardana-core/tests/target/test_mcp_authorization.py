@@ -6,10 +6,12 @@ meter that under-counts makes every declared cost agree with it and stay wrong.
 """
 
 import pytest
-from _offline import refuse_name_lookups  # noqa: F401 — an autouse fixture
+from _offline import refuse_name_lookups
 from guardana.core.budget import BudgetExhausted, Budgets
 from guardana.core.target import McpError, McpServerTarget
 from guardana.core.testing import ScriptedMcpServer
+
+pytestmark = pytest.mark.usefixtures(refuse_name_lookups.__name__)
 
 ROUTABLE = "https://93.184.215.14/mcp"
 TOOLS = [{"name": "read_file", "description": "Read a file."}]

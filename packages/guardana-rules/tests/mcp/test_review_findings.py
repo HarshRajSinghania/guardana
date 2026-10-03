@@ -5,7 +5,8 @@ place where the code reached a confident answer it had not earned, and each is n
 pinned by a test that fails if the answer goes back.
 """
 
-from _offline import refuse_name_lookups  # noqa: F401 — an autouse fixture
+import pytest
+from _offline import refuse_name_lookups
 from guardana.core.rule import RuleContext
 from guardana.core.target import McpServerTarget
 from guardana.core.target._mcp_http import RawReply
@@ -17,6 +18,8 @@ from guardana.rules.mcp import (
     McpUnauthenticatedAccessRule,
 )
 from mcp_fixtures import CONFORMING_RESOURCE, CREDENTIAL, ROUTABLE, findings, guarded, outcomes
+
+pytestmark = pytest.mark.usefixtures(refuse_name_lookups.__name__)
 
 _TOOLS = [{"name": "read_file", "description": "Read a file."}]
 

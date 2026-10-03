@@ -7,7 +7,7 @@ checks, and a run that carried on spent one failure per rule before exiting `2`.
 """
 
 import pytest
-from _offline import refuse_name_lookups  # noqa: F401 — an autouse fixture
+from _offline import refuse_name_lookups
 from guardana.core.gate import StopReason
 from guardana.core.profile import Policy, Profile
 from guardana.core.registry import Registry
@@ -25,6 +25,8 @@ from guardana.rules.mcp import (
     McpUnauthenticatedAccessRule,
 )
 from mcp_fixtures import ROUTABLE, unreachable
+
+pytestmark = pytest.mark.usefixtures(refuse_name_lookups.__name__)
 
 EVERY_MCP_RULE: list[Rule] = [
     McpUnauthenticatedAccessRule(),

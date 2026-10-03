@@ -10,7 +10,8 @@ from collections.abc import Mapping
 from types import SimpleNamespace
 from typing import cast
 
-from _offline import refuse_name_lookups  # noqa: F401 — an autouse fixture
+import pytest
+from _offline import refuse_name_lookups
 from guardana.core.report import Finding
 from guardana.core.rule import RuleContext
 from guardana.core.target import Anonymous, Document, McpAuthorizationView, McpServerTarget
@@ -21,6 +22,8 @@ from guardana.rules.mcp import (
     McpIssuerIdentificationRule,
 )
 from mcp_fixtures import CONFORMING_RESOURCE, CREDENTIAL, ROUTABLE, findings, guarded, summaries
+
+pytestmark = pytest.mark.usefixtures(refuse_name_lookups.__name__)
 
 _PLANTED = "planted-query-value"
 _PLACEHOLDER = "[redacted:query:"

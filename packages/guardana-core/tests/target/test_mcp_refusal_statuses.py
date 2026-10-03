@@ -9,11 +9,13 @@ import json
 from collections.abc import Mapping
 
 import pytest
-from _offline import refuse_name_lookups  # noqa: F401 — an autouse fixture
+from _offline import refuse_name_lookups
 from guardana.core.target import McpServerTarget
 from guardana.core.target._mcp_client import carries_tools
 from guardana.core.target._mcp_http import DiscoveryScope, RawReply
 from guardana.core.testing import ScriptedMcpServer
+
+pytestmark = pytest.mark.usefixtures(refuse_name_lookups.__name__)
 
 ROUTABLE = "https://93.184.215.14/mcp"
 TOOLS = [{"name": "read_file", "description": "Read a file."}]

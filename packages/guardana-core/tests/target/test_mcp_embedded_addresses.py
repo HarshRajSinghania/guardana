@@ -11,7 +11,7 @@ import socket
 import warnings
 
 import pytest
-from _offline import refuse_name_lookups  # noqa: F401 — an autouse fixture
+from _offline import refuse_name_lookups
 from guardana.core.target import is_local_address
 from guardana.core.target._mcp_http import (
     AddressRefusedError,
@@ -21,6 +21,8 @@ from guardana.core.target._mcp_http import (
     refusal_for,
     send,
 )
+
+pytestmark = pytest.mark.usefixtures(refuse_name_lookups.__name__)
 
 _CANNOT_JUDGE = "embeds an IPv4 address guardana cannot judge"
 

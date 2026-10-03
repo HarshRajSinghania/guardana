@@ -3,7 +3,8 @@
 import json
 from dataclasses import replace
 
-from _offline import refuse_name_lookups  # noqa: F401 — an autouse fixture
+import pytest
+from _offline import refuse_name_lookups
 from guardana.core.plugins import PluginMode, PluginTrust
 from guardana.core.profile import default_profile
 from guardana.core.severity import Severity
@@ -11,6 +12,8 @@ from guardana.core.target import McpServerTarget
 from guardana.core.verify import Verifier
 from guardana.rules.mcp import McpSessionBindingRule
 from mcp_fixtures import CREDENTIAL, findings, guarded, outcomes, summaries
+
+pytestmark = pytest.mark.usefixtures(refuse_name_lookups.__name__)
 
 RULE = McpSessionBindingRule()
 _RANDOM_IDS = [

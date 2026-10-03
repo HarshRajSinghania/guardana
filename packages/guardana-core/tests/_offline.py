@@ -1,8 +1,9 @@
 """Keep a unit test away from real name resolution.
 
-Import `refuse_name_lookups` into a test module and it applies to every test there: a
-name lookup fails as it would on a machine without a resolver, and the test fails at
-teardown naming the host, so a lookup that the code under test swallowed still shows.
+Import `refuse_name_lookups` into a test module and name it in
+`pytestmark = pytest.mark.usefixtures(refuse_name_lookups.__name__)`: every test there then
+runs with it, a name lookup fails as it would on a machine without a resolver, and the test
+fails at teardown naming the host, so a lookup that the code under test swallowed still shows.
 An IP literal resolves locally and passes. A test that scripts its own resolver
 replaces this one for its duration.
 """

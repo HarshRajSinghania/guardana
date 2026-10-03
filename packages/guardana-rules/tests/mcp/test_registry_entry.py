@@ -2,7 +2,8 @@
 
 from collections.abc import Mapping
 
-from _offline import refuse_name_lookups  # noqa: F401 — an autouse fixture
+import pytest
+from _offline import refuse_name_lookups
 from guardana.core.report import Finding
 from guardana.core.rule import RuleContext
 from guardana.core.rule.verify import verify_rule
@@ -12,6 +13,8 @@ from guardana.core.target._mcp_wire import Wire
 from guardana.core.testing import ScriptedMcpServer
 from guardana.rules.mcp import McpRegistryEntryRule
 from mcp_fixtures import CREDENTIAL, ROUTABLE, TOOLS, outcomes, summaries
+
+pytestmark = pytest.mark.usefixtures(refuse_name_lookups.__name__)
 
 RULE = McpRegistryEntryRule()
 _NAME = "io.example/lookup"

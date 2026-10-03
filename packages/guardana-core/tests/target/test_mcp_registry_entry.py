@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 import pytest
-from _offline import refuse_name_lookups  # noqa: F401 — an autouse fixture
+from _offline import refuse_name_lookups
 from guardana.core.target import (
     Capability,
     McpServerTarget,
@@ -15,6 +15,8 @@ from guardana.core.target import (
 from guardana.core.target._mcp_registry import MAX_ENTRY_BYTES
 from guardana.core.target.protocols import CAPABILITY_SURFACE, RegistryEntryInspector
 from guardana.core.testing import ScriptedMcpServer
+
+pytestmark = pytest.mark.usefixtures(refuse_name_lookups.__name__)
 
 _NAME = "io.example/lookup"
 

@@ -5,7 +5,7 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 import pytest
-from _offline import refuse_name_lookups  # noqa: F401 — an autouse fixture
+from _offline import refuse_name_lookups
 from guardana.core.rule import NotOffered, RuleContext
 from guardana.core.rule.fixture import FixtureOutcome
 from guardana.core.rule.verify import FixtureVerdict, verify_rule
@@ -15,6 +15,8 @@ from guardana.core.target._mcp_http import RawReply
 from guardana.core.testing import ScriptedMcpServer
 from guardana.rules.mcp import McpTaskIdentityRule
 from mcp_fixtures import CREDENTIAL, ROUTABLE, TOOLS, findings, guarded, outcomes, summaries
+
+pytestmark = pytest.mark.usefixtures(refuse_name_lookups.__name__)
 
 RULE = McpTaskIdentityRule()
 _COUNTING = ["task-1", "task-2", "task-3"]

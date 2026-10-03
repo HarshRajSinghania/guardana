@@ -1,6 +1,7 @@
 """Addresses a server hands its client, and the ones this client will not follow."""
 
-from _offline import refuse_name_lookups  # noqa: F401 — an autouse fixture
+import pytest
+from _offline import refuse_name_lookups
 from guardana.core.testing import ScriptedMcpServer
 from guardana.rules.mcp import McpDiscoveryTargetRule
 from mcp_fixtures import (
@@ -11,6 +12,8 @@ from mcp_fixtures import (
     guarded,
     summaries,
 )
+
+pytestmark = pytest.mark.usefixtures(refuse_name_lookups.__name__)
 
 RULE = McpDiscoveryTargetRule()
 _METADATA_ENDPOINT = "169.254.169.254/.well-known/oauth-protected-resource"

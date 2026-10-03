@@ -7,7 +7,8 @@ about a dual-era server that still mints one for every legacy client it serves.
 
 import json
 
-from _offline import refuse_name_lookups  # noqa: F401 — an autouse fixture
+import pytest
+from _offline import refuse_name_lookups
 from guardana.core.rule import RuleContext
 from guardana.core.severity import Severity
 from guardana.core.target import McpServerTarget
@@ -16,6 +17,8 @@ from guardana.core.target._mcp_wire import LATEST_VERSION, LEGACY_VERSION
 from guardana.core.testing import ScriptedMcpServer
 from guardana.rules.mcp import McpSessionBindingRule, McpUnauthenticatedAccessRule
 from mcp_fixtures import CREDENTIAL, ROUTABLE, findings, guarded, outcomes, summaries
+
+pytestmark = pytest.mark.usefixtures(refuse_name_lookups.__name__)
 
 RULE = McpSessionBindingRule()
 _COUNTER = ["mcp-session-1000", "mcp-session-1001", "mcp-session-1002"]

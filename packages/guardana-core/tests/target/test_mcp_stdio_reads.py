@@ -10,11 +10,13 @@ import sys
 import threading
 
 import pytest
-from _offline import refuse_name_lookups  # noqa: F401 — an autouse fixture
+from _offline import refuse_name_lookups
 from guardana.core.target import EndpointUnreachable, UnreadableReply
 from guardana.core.target._mcp_client import StdioMcpTransport, open_conversation
 from guardana.core.target._mcp_http import MAX_RESPONSE_BYTES
 from guardana.core.target._mcp_wire import LEGACY_VERSION
+
+pytestmark = pytest.mark.usefixtures(refuse_name_lookups.__name__)
 
 _GRACE_SECONDS = 15
 

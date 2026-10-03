@@ -4,7 +4,7 @@ import socket
 from collections.abc import Mapping
 
 import pytest
-from _offline import refuse_name_lookups  # noqa: F401 — an autouse fixture
+from _offline import refuse_name_lookups
 from guardana.core.rule import RuleContext
 from guardana.core.severity import Severity
 from guardana.core.target import EndpointUnreachable, McpServerTarget
@@ -20,6 +20,8 @@ from mcp_fixtures import (
     unreachable,
     wide_open,
 )
+
+pytestmark = pytest.mark.usefixtures(refuse_name_lookups.__name__)
 
 RULE = McpUnauthenticatedAccessRule()
 

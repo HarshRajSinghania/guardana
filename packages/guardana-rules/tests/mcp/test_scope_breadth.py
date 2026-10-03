@@ -1,6 +1,7 @@
 """Scopes that cannot express least privilege, and a challenge that names none."""
 
-from _offline import refuse_name_lookups  # noqa: F401 — an autouse fixture
+import pytest
+from _offline import refuse_name_lookups
 from guardana.core.severity import Severity
 from guardana.rules.mcp import McpScopeBreadthRule
 from mcp_fixtures import (
@@ -11,6 +12,8 @@ from mcp_fixtures import (
     outcomes,
     summaries,
 )
+
+pytestmark = pytest.mark.usefixtures(refuse_name_lookups.__name__)
 
 RULE = McpScopeBreadthRule()
 

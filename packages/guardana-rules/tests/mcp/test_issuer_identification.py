@@ -1,6 +1,7 @@
 """Whether a client here could tell an authorization-server mix-up from a normal flow."""
 
-from _offline import refuse_name_lookups  # noqa: F401 — an autouse fixture
+import pytest
+from _offline import refuse_name_lookups
 from guardana.rules.mcp import McpIssuerIdentificationRule
 from mcp_fixtures import (
     CONFORMING_AUTHORIZATION,
@@ -11,6 +12,8 @@ from mcp_fixtures import (
     summaries,
     wide_open,
 )
+
+pytestmark = pytest.mark.usefixtures(refuse_name_lookups.__name__)
 
 RULE = McpIssuerIdentificationRule()
 _WITH_ISS = {**CONFORMING_AUTHORIZATION, "authorization_response_iss_parameter_supported": True}

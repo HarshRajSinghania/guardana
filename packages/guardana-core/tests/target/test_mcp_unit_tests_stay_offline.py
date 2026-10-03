@@ -10,7 +10,9 @@ import socket
 from pathlib import Path
 
 import pytest
-from _offline import refuse_name_lookups  # noqa: F401 — an autouse fixture
+from _offline import refuse_name_lookups
+
+pytestmark = pytest.mark.usefixtures(refuse_name_lookups.__name__)
 
 _PACKAGES = Path(__file__).resolve().parents[3]
 _GUARDED = (

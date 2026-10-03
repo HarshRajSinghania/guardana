@@ -10,7 +10,7 @@ from collections.abc import Iterable, Mapping
 from typing import Any
 
 import pytest
-from _offline import refuse_name_lookups  # noqa: F401 — an autouse fixture
+from _offline import refuse_name_lookups
 from guardana.core.gate import StopReason
 from guardana.core.profile import Policy, Profile
 from guardana.core.registry import Registry
@@ -29,6 +29,8 @@ from guardana.core.target import (
 from guardana.core.target._mcp_http import RawReply
 from guardana.core.target._mcp_wire import INITIALIZED, LATEST_VERSION, LEGACY_VERSION, LEGACY_WIRE
 from guardana.core.testing import ScriptedMcpServer
+
+pytestmark = pytest.mark.usefixtures(refuse_name_lookups.__name__)
 
 ROUTABLE = "https://93.184.215.14/mcp"
 CREDENTIAL = "operator-supplied-token-0123456789"

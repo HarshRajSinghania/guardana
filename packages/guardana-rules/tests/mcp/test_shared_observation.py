@@ -1,6 +1,7 @@
 """Eight rules, one purchase — the reason the observation lives on the target."""
 
-from _offline import refuse_name_lookups  # noqa: F401 — an autouse fixture
+import pytest
+from _offline import refuse_name_lookups
 from guardana.core.rule import Rule, RuleContext
 from guardana.core.target import McpServerTarget
 from guardana.rules.mcp import (
@@ -14,6 +15,8 @@ from guardana.rules.mcp import (
     McpUnauthenticatedAccessRule,
 )
 from mcp_fixtures import CREDENTIAL, ROUTABLE, guarded
+
+pytestmark = pytest.mark.usefixtures(refuse_name_lookups.__name__)
 
 EVERY_MCP_RULE: list[Rule] = [
     McpUnauthenticatedAccessRule(),

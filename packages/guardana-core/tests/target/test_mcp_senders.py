@@ -8,7 +8,7 @@ supplying one without the other is refused before anything is sent.
 from collections.abc import Mapping
 
 import pytest
-from _offline import refuse_name_lookups  # noqa: F401 — an autouse fixture
+from _offline import refuse_name_lookups
 from guardana.core.target import (
     DiscoveryScope,
     DiscoverySender,
@@ -18,6 +18,8 @@ from guardana.core.target import (
 )
 from guardana.core.target._mcp_http import HttpSender, RawReply
 from guardana.core.testing import ScriptedMcpServer
+
+pytestmark = pytest.mark.usefixtures(refuse_name_lookups.__name__)
 
 ROUTABLE = "https://93.184.215.14/mcp"
 CREDENTIAL = "operator-supplied-token-0123456789"

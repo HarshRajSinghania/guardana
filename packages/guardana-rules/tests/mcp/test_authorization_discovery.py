@@ -1,6 +1,7 @@
 """Whether a protected server publishes an authorization surface a client can use."""
 
-from _offline import refuse_name_lookups  # noqa: F401 — an autouse fixture
+import pytest
+from _offline import refuse_name_lookups
 from guardana.rules.mcp import McpAuthorizationDiscoveryRule
 from mcp_fixtures import (
     CONFORMING_AUTHORIZATION,
@@ -13,6 +14,8 @@ from mcp_fixtures import (
     summaries,
     wide_open,
 )
+
+pytestmark = pytest.mark.usefixtures(refuse_name_lookups.__name__)
 
 RULE = McpAuthorizationDiscoveryRule()
 

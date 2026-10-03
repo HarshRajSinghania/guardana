@@ -4,7 +4,7 @@ from base64 import urlsafe_b64decode as b64decode
 from collections.abc import Mapping
 
 import pytest
-from _offline import refuse_name_lookups  # noqa: F401 — an autouse fixture
+from _offline import refuse_name_lookups
 from guardana.core.report import Finding
 from guardana.core.rule import RuleContext
 from guardana.core.severity import Severity
@@ -12,6 +12,8 @@ from guardana.core.target import McpServerTarget, forged_token
 from guardana.core.target._mcp_http import DiscoveryScope, RawReply
 from guardana.rules.mcp import McpTokenAudienceRule
 from mcp_fixtures import CREDENTIAL, findings, guarded, outcomes, summaries, wide_open
+
+pytestmark = pytest.mark.usefixtures(refuse_name_lookups.__name__)
 
 RULE = McpTokenAudienceRule()
 

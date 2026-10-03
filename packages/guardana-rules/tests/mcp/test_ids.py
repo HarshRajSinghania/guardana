@@ -1,7 +1,10 @@
 """The structure of identifiers a server hands out, named without quoting one."""
 
-from _offline import refuse_name_lookups  # noqa: F401 — an autouse fixture
+import pytest
+from _offline import refuse_name_lookups
 from guardana.rules.mcp._ids import counts_up, id_structure
+
+pytestmark = pytest.mark.usefixtures(refuse_name_lookups.__name__)
 
 _RANDOM = (
     "7f3a1c04-1b2d-4e5f-8a9b-0c1d2e3f4a5b",

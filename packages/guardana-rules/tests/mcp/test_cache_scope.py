@@ -1,13 +1,15 @@
 """What a server declares about who may hold a copy of a manifest it will not give away."""
 
 import pytest
-from _offline import refuse_name_lookups  # noqa: F401 — an autouse fixture
+from _offline import refuse_name_lookups
 from guardana.core.rule import RuleContext
 from guardana.core.target import McpServerTarget, TargetChanged
 from guardana.core.target._mcp_wire import LATEST_VERSION, LEGACY_VERSION
 from guardana.core.testing import ScriptedMcpServer
 from guardana.rules.mcp import McpCacheScopeRule
 from mcp_fixtures import CREDENTIAL, ROUTABLE, findings, guarded, outcomes, summaries, wide_open
+
+pytestmark = pytest.mark.usefixtures(refuse_name_lookups.__name__)
 
 RULE = McpCacheScopeRule()
 

@@ -15,7 +15,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import ClassVar
 
 import pytest
-from _offline import refuse_name_lookups  # noqa: F401 — an autouse fixture
+from _offline import refuse_name_lookups
 from guardana.core.target import McpServerTarget, _mcp_authorization, _mcp_http
 from guardana.core.target._mcp_http import (
     AddressRefusedError,
@@ -29,6 +29,8 @@ from guardana.core.target._mcp_http import (
     server_is_local,
 )
 from guardana.core.testing import ScriptedMcpServer
+
+pytestmark = pytest.mark.usefixtures(refuse_name_lookups.__name__)
 
 _LOCAL = DiscoveryScope(local_target=True)
 _METADATA = "169.254.169.254"
