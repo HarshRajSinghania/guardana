@@ -190,7 +190,7 @@ filterwarnings = [
 # which is not a published distribution — no wheel declares markdown-it-py, and
 # `test_declared_dependencies.py` plus `clean_install_check.py` are what keep that
 # true rather than this comment.
-default-groups = ["dev", "docs"]
+default-groups = ["dev", "docs", "conformance"]
 
 [dependency-groups]
 docs = [
@@ -203,6 +203,17 @@ docs = [
     # and (for Docusaurus) a Node toolchain to render sixty files, and the half
     # with actual value — the rule explorer — would still be custom work.
     "markdown-it-py>=3.0",
+]
+conformance = [
+    # Test-only fixtures for the MCP and A2A conformance suite. Servers written by the
+    # same hands as the client share one reading of the specification, so a misreading
+    # passes both; these are the protocol owners' reference SDKs, pinned exactly so a
+    # release of theirs never changes what the suite means. Nothing under
+    # `packages/*/src` may import `mcp` or `a2a` (the import-linter contract below),
+    # and the clean-install check and the isolated example suites never install it.
+    "mcp==2.3.0",
+    "a2a-sdk[http-server]==1.2.1",
+    "uvicorn",
 ]
 dev = [
     # Property-based tests for the parsers that read files an attacker chose.
@@ -249,6 +260,9 @@ root_packages = [
     "guardana.testing",
     "guardana.adapters",
 ]
+# The contract over the conformance SDKs names packages outside the workspace, which
+# import-linter only sees when external packages are part of the graph.
+include_external_packages = true
 
 [[tool.importlinter.contracts]]
 # The commercialization carve-out, enforced by tooling and not just by review:
@@ -291,3 +305,19 @@ layers = [
     "guardana.rules | guardana.report | guardana.testing | guardana.adapters",
     "guardana.core",
 ]
+
+[[tool.importlinter.contracts]]
+# The conformance SDKs are test fixtures, never runtime code: a shipped module that
+# imported one would make an installed Guardana depend on a group no wheel declares.
+name = "No shipped module imports a conformance SDK"
+type = "forbidden"
+source_modules = [
+    "guardana.core",
+    "guardana.rules",
+    "guardana.cli",
+    "guardana.report",
+    "guardana.server",
+    "guardana.testing",
+    "guardana.adapters",
+]
+forbidden_modules = ["mcp", "mcp_types", "a2a"]
