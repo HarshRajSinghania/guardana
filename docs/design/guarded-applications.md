@@ -2,12 +2,12 @@
 title: "A guarded application, and the outcomes a run states honestly"
 nav_order: 89
 summary: "an application whose guard declines requests is graded on what the team declared a decline to mean, a target that fails part-way leaves the run it got so far, a request rate and a graded share are budgets a team can set, a recipe names an installed target, and a scan that read nothing, or could not read a model, says so under every preset"
-status: accepted
+status: implemented
 ---
 
 # A guarded application, and the outcomes a run states honestly
 
-**Status:** accepted, implemented — ships in the next release · **Written:** 2026-10-03 · **Serves:** ROADMAP v0.38 (the rest of F6)
+**Status:** implemented in 0.38.0 · **Written:** 2026-10-03 · **Serves:** ROADMAP v0.38 (the rest of F6)
 and the backlog items it closes · **Amends:** [`team-recipes.md`](team-recipes.md) decisions 2
 and 3, [`exit-codes.md`](exit-codes.md) (code `4` with a result)
 
@@ -116,7 +116,8 @@ declines:
   its exchange carried a decline. Every assessment graded from a decline carries the tag
   `declined:<name>`; a suite's judge-error correction leaves those out and counts them as
   observed (a decline is a fact, not a judge's reading): corrected rate = (n_judged ×
-  corrected_judged + passed_declined) / n, and each limit likewise from the judged limit. A
+  corrected_judged + passed_declined) / n; each limit is the judged limit combined the same way,
+  and never narrower than a Wilson limit over all n trials at the combined rate. A
   finding's evidence names the decline
   instead of a reply (`declined by the application: content_filter (HTTP 400)`).
 - **Which rules handle it.** A rule catches `RequestDeclined` around the send only, never around
@@ -124,7 +125,8 @@ declines:
   declined exchange. A scenario stops at a decline: the declined step is graded, its later
   steps are not sent, and its conversation scope is graded once over the turns that were sent,
   with the decline. A step without `expect:` is not graded, so a decline there leaves the
-  scopes it did not reach: each is recorded `inconclusive` with `TARGET_DECLINED` and the
+  scopes it did not reach: each reads the replies its grader had not yet read, a `fail` there
+  stands, and otherwise it is recorded `inconclusive` with `TARGET_DECLINED` and the
   `declined:<name>` tag, so a trial never disappears. `output/secrets.py` records either reading as
   `inconclusive` with `TARGET_DECLINED`: it scans text, and a decline has none.
   `seeded/_base.py` grades in its own code: `Asked.reply` becomes `str | None` beside

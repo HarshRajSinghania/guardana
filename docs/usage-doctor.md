@@ -18,10 +18,10 @@ guardana config explain
 ## `doctor` — what this installation is
 
 ```text
-✓ guardana-core: 0.37.0
-✓ guardana-rules: 0.37.0
-✓ guardana-cli: 0.37.0
-✓ guardana-report: 0.37.0
+✓ guardana-core: 0.38.0
+✓ guardana-rules: 0.38.0
+✓ guardana-cli: 0.38.0
+✓ guardana-report: 0.38.0
 ✓ plugin trust: builtins (not stated, the default)
 ✓ rules discovered: 53
 ✓ evaluators discovered: 10

@@ -134,7 +134,7 @@
 <li><a href="../design/recorded-answers.html">Recorded answers and regrading<span class="tag">accepted</span></a></li>
 <li><a href="../design/team-recipes.html">Repository recipes, one connection and provider conformance<span class="tag">accepted</span></a></li>
 <li><a href="../design/application-fixtures-and-regressions.html">Regression cases, a declared fixture boundary and the retrieval pilot<span class="tag">implemented</span></a></li>
-<li><a href="../design/guarded-applications.html" aria-current="page">A guarded application, and the outcomes a run states honestly<span class="tag">accepted</span></a></li>
+<li><a href="../design/guarded-applications.html" aria-current="page">A guarded application, and the outcomes a run states honestly<span class="tag">implemented</span></a></li>
 <li><a href="../design/run-manifest-v2.html">Run manifest v2<span class="tag">implemented</span></a></li>
 <li><a href="../design/privacy-and-redaction.html">Privacy and redaction<span class="tag">implemented</span></a></li>
 <li><a href="../design/exit-codes.html">Exit codes and gate semantics<span class="tag">implemented</span></a></li>
@@ -263,7 +263,7 @@
 <li><a href="../design/recorded-answers.html">Recorded answers and regrading<span class="tag">accepted</span></a></li>
 <li><a href="../design/team-recipes.html">Repository recipes, one connection and provider conformance<span class="tag">accepted</span></a></li>
 <li><a href="../design/application-fixtures-and-regressions.html">Regression cases, a declared fixture boundary and the retrieval pilot<span class="tag">implemented</span></a></li>
-<li><a href="../design/guarded-applications.html" aria-current="page">A guarded application, and the outcomes a run states honestly<span class="tag">accepted</span></a></li>
+<li><a href="../design/guarded-applications.html" aria-current="page">A guarded application, and the outcomes a run states honestly<span class="tag">implemented</span></a></li>
 <li><a href="../design/run-manifest-v2.html">Run manifest v2<span class="tag">implemented</span></a></li>
 <li><a href="../design/privacy-and-redaction.html">Privacy and redaction<span class="tag">implemented</span></a></li>
 <li><a href="../design/exit-codes.html">Exit codes and gate semantics<span class="tag">implemented</span></a></li>
@@ -278,7 +278,7 @@
 </nav>
 </details>
 <main>
-<h1>A guarded application, and the outcomes a run states honestly<span class="status accepted">accepted</span></h1><p class="lede">an application whose guard declines requests is graded on what the team declared a decline to mean, a target that fails part-way leaves the run it got so far, a request rate and a graded share are budgets a team can set, a recipe names an installed target, and a scan that read nothing, or could not read a model, says so under every preset</p><p><strong>Status:</strong> accepted, implemented — ships in the next release · <strong>Written:</strong> 2026-10-03 · <strong>Serves:</strong> ROADMAP v0.38 (the rest of F6)
+<h1>A guarded application, and the outcomes a run states honestly<span class="status implemented">implemented</span></h1><p class="lede">an application whose guard declines requests is graded on what the team declared a decline to mean, a target that fails part-way leaves the run it got so far, a request rate and a graded share are budgets a team can set, a recipe names an installed target, and a scan that read nothing, or could not read a model, says so under every preset</p><p><strong>Status:</strong> implemented in 0.38.0 · <strong>Written:</strong> 2026-10-03 · <strong>Serves:</strong> ROADMAP v0.38 (the rest of F6)
 and the backlog items it closes · <strong>Amends:</strong> <a href="team-recipes.html"><code>team-recipes.md</code></a> decisions 2
 and 3, <a href="exit-codes.html"><code>exit-codes.md</code></a> (code <code>4</code> with a result)</p>
 <h2 id="the-question">The question</h2>
@@ -384,7 +384,8 @@ evaluator that could not decide): <code>from_verdict</code> takes <code>reason=<
 its exchange carried a decline. Every assessment graded from a decline carries the tag
 <code>declined:&lt;name&gt;</code>; a suite's judge-error correction leaves those out and counts them as
 observed (a decline is a fact, not a judge's reading): corrected rate = (n_judged ×
-corrected_judged + passed_declined) / n, and each limit likewise from the judged limit. A
+corrected_judged + passed_declined) / n; each limit is the judged limit combined the same way,
+and never narrower than a Wilson limit over all n trials at the combined rate. A
 finding's evidence names the decline
 instead of a reply (<code>declined by the application: content_filter (HTTP 400)</code>).</li>
 <li><strong>Which rules handle it.</strong> A rule catches <code>RequestDeclined</code> around the send only, never around
@@ -392,7 +393,8 @@ instead of a reply (<code>declined by the application: content_filter (HTTP 400)
 declined exchange. A scenario stops at a decline: the declined step is graded, its later
 steps are not sent, and its conversation scope is graded once over the turns that were sent,
 with the decline. A step without <code>expect:</code> is not graded, so a decline there leaves the
-scopes it did not reach: each is recorded <code>inconclusive</code> with <code>TARGET_DECLINED</code> and the
+scopes it did not reach: each reads the replies its grader had not yet read, a <code>fail</code> there
+stands, and otherwise it is recorded <code>inconclusive</code> with <code>TARGET_DECLINED</code> and the
 <code>declined:&lt;name&gt;</code> tag, so a trial never disappears. <code>output/secrets.py</code> records either reading as
 <code>inconclusive</code> with <code>TARGET_DECLINED</code>: it scans text, and a decline has none.
 <code>seeded/_base.py</code> grades in its own code: <code>Asked.reply</code> becomes <code>str | None</code> beside
@@ -757,7 +759,7 @@ shortfalls in the collector envelope.</p>
 </main>
 </div>
 <footer class="foot"><div class="bar">
-<span class="who">Guardana 0.37.0 · Apache-2.0 ·
+<span class="who">Guardana 0.38.0 · Apache-2.0 ·
 maintained by Konrad Karauda</span>
 <a href="https://github.com/guardana/guardana/blob/main/docs/design/guarded-applications.md">Edit this page on GitHub</a>
 <a href="https://github.com/guardana/guardana">github.com/guardana</a>

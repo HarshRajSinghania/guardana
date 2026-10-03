@@ -99,6 +99,22 @@ left for the owner, or are design gaps already documented elsewhere.
   connections; `guardana.core.testing.mcp` doubles do.
 - **`recipe lock` plans with `build_plan`**, not with the probe's canary passes, so how the
   lock prices a canary pass can differ from the run.
+- **Source pins:** a `.pyc` under `__pycache__/` is left out, so an unchecked-hash or
+  timestamp-matching bytecode file can run code the pin does not cover; `_generated_script`
+  matches an outside file by its base name rather than within the scripts directory; a
+  distribution installed with `pip --target`, on `PYTHONPATH` or by a system package without a
+  `RECORD` is always unpinned (fail-closed, noisy); a `RECORD` path outside the install root is
+  opened to be hashed, so a crafted one could name a FIFO.
+- **Withheld values:** a placeholder key of four or more characters (`EMPTY`, `ollama`) is
+  withheld wherever it appears, which can mark kept replies altered so `grade` skips them; the
+  adapter's credential-named headers miss `apikey`-style names (a `${VAR}` value is always
+  withheld); `target`'s locator failure is quoted under the `redacted` policy rather than the
+  profile's; `--write-mcp-pin` keys tools by name, so a token a server puts in a tool name
+  reaches the pin file.
+- **`is_local_address`** is still exported from `guardana.core.target` with fresh-lookup
+  semantics and no caller; removing a public name waits for a deprecation.
+- **A first monitor cycle its target stopped** alerts on what it proved and still exits `4`,
+  the CLI's code for a target failure, rather than `1`.
 
 ## Left by F6, second half (0.37.0)
 
