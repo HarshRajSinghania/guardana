@@ -23,6 +23,20 @@ def _scan_text(text: str) -> Iterator[re.Match[str]]:
     yield from _ACME_KEY.finditer(text)
 
 
+class _ListedThenGone(ArtifactTarget):
+    """A directory whose config file is removed after the scan listed it and before it is read.
+
+    The engine reports a path it cannot list as an unread source of its own, so a rule only
+    meets an unreadable file it was already handed, which is this case.
+    """
+
+    def iter_files(self, suffixes: tuple[str, ...] | None = None) -> Iterator[Path]:
+        """List as the base target does, removing each file before it is handed on."""
+        for path in super().iter_files(suffixes):
+            path.unlink(missing_ok=True)
+            yield path
+
+
 class HardcodedAcmeKeyRule(Rule):
     """Flags an Acme live API key checked into a config file."""
 
@@ -82,12 +96,7 @@ class HardcodedAcmeKeyRule(Rule):
         (root / "clean").mkdir()
         (root / "clean" / "settings.env").write_text("ACME_KEY=${ACME_KEY_FROM_VAULT}\n")
         (root / "unreadable").mkdir()
-        # A directory named settings.env would never reach `iter_files`: `os.walk`
-        # sorts directories into `dirnames`, not `filenames`, so that shape would
-        # silently be a CLEAN fixture rather than an INCONCLUSIVE one — exactly the
-        # failure this fixture exists to catch. A dangling symlink is a file by
-        # `os.walk`'s own reckoning, and `Path.read_text` raises `OSError` on it.
-        (root / "unreadable" / "settings.env").symlink_to(root / "unreadable" / "gone")
+        (root / "unreadable" / "settings.env").write_text("ACME_KEY=${ACME_KEY_FROM_VAULT}\n")
         return (
             RuleFixture(
                 "a live key checked in", ArtifactTarget(root / "finding"), FixtureOutcome.FINDING
@@ -95,8 +104,8 @@ class HardcodedAcmeKeyRule(Rule):
             RuleFixture("a vault reference", ArtifactTarget(root / "clean"), FixtureOutcome.CLEAN),
             RuleFixture(
                 "a config path that cannot be read",
-                ArtifactTarget(root / "unreadable"),
+                _ListedThenGone(root / "unreadable"),
                 FixtureOutcome.INCONCLUSIVE,
-                note="a dangling symlink: os.walk lists it as a file, read_text raises OSError",
+                note="a file removed after the scan listed it: read_text raises OSError",
             ),
         )
