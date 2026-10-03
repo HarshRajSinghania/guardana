@@ -68,6 +68,64 @@ Each coder lane updates the docs its behaviour changes (usage pages, `docs/provi
 its own commit, technical text restating the code; no CHANGELOG edits (lane 12 and the
 release write those).
 
+### Per lane
+
+- **2 (D4).** `target/failure.py` (new): `describe_failure`, `FailureRemedies`, the request/target
+  classification. `endpoint.py`: `EndpointUnreachable`, `read_with_retry` timeouts. `runner.py`:
+  `_run_rule` (re-raise `JudgeUnavailableError` first), `_RuleOutcome` stop + error, `Runner.run`
+  precedence, quoting from new `Runner` fields. `verify.py` (`secrets`, `remedies`, stopped
+  result), `probe.py` (`run_target_probe` stops), `monitor.py`, `evaluator/config.py`
+  (`Judge.ask` names `EndpointUnreachable`), `cli/_errors.py`, `cli/probe.py`, `cli/monitor.py`,
+  `cli/recipe.py` (partial artifact). Tests that move: `test_errors_cli.py` (400 → 2),
+  `test_exit_codes.py`, `test_probe_cli.py`, `test_monitor_cli.py`, `test_runner_concurrency.py`,
+  `test_verify_surface.py`, `test_provider_conformance.py` (timeout). Docs: `exit-codes.md`,
+  `design/exit-codes.md`, `usage-probe.md`, `providers.md` ("Every HTTP transport"),
+  `python-api.md`, `usage-monitor.md`, `profiles.md` (beside `fail_on_error`).
+- **3 (D1 matching, D2, D3).** `target/decline.py` (new: `Decline`, `DeclineReading`,
+  `RequestDeclined`), `adapter.py` (`AdapterConfig` keys, `Fetch` → status and body, matching,
+  `HTTPError` re-raised over the read body, `send_with_metadata`), `connection.py`
+  (`_ADAPTER_KEYS`, `load_adapter(for_judge=)`), `endpoint.py` (`ChatReply.meta`,
+  `MetadataReportingTransport`, `EndpointTarget.chat_reply`), `protocols.py`
+  (`ChatWithMetadata`), `evaluator/config.py` (judge adapter refuses the two keys), the fake
+  provider's adapter shape. Keeping and recordings are lane 10's. Docs: `usage-probe.md`
+  (guarded endpoint), `providers.md` (retried statuses), `profiles.md` (judge `adapter:`).
+- **4 (D10, D11).** `supply_chain/{notebook_payload,pickle_opcode,onnx_graph,keras_lambda,
+  chat_template,model_format,saved_model_ops}.py`, `report/location.py`. Tests:
+  `test_unexamined_components.py`, `test_pickle_opcode.py`, `test_pickle_archive_budget.py`,
+  `test_suffix_case.py`, the per-format unreadable tests. Docs: `usage-scan.md`,
+  `model-formats.md`, `usage-testing.md` (pickle summary), `FEATURES.md` lines on unscanned
+  files; `generate_docs.py`; `guardana scan packages` stays at zero.
+- **5 (D7, D8).** `core/recipe.py`, `cli/recipe.py`, `schemas/recipe-v3.schema.json`,
+  `schemas/recipe-lock-v2.schema.json`, `test_recipe*.py`, `test_recipe_documents.py`, the
+  round-trip registry. Docs: `usage-recipe.md`.
+- **6 (D13 packs).** `registry.py` (taxonomy owners, snapshot), `pack/discover.py`
+  (`Registered.taxonomy_owners`, `check_pack`), `cli/pack.py` (`_registered`). Docs:
+  `usage-pack.md`.
+- **7 (D13 MCP).** `_mcp_http.py` (pinned connection, discovery-only flag,
+  `AddressRefusedError`), `_mcp_authorization.py` (`_fetch`, local decided once). Tests with a
+  local server and a patched resolver. Docs: `threat-model.md` (the rebinding residual risk).
+- **8 (D13 collector).** `server/cli/main.py`, `server/cli/codes.py`, `test_collector_cli.py`.
+  Docs: `usage-collector.md`.
+- **9 (D5).** `usage.py` (`reserve` pacing, `sleep=`), the `apply_budgets` that refuse
+  ceilings, `cli/_budget_flags.py`, `cli/config.py`, `core/plan.py` and `cli/plan.py` (floor,
+  refusal), `schemas/plan-v4.schema.json` and the plan schema constant. Docs: `profiles.md`
+  (budgets), `usage-probe.md`, `usage-plan.md`, `usage-monitor.md`, `usage-grade.md` (flags).
+- **10 (D1 grading, D3 kept).** `exchange.py` (`decline`), `evaluator/base.py` (`grade`,
+  `grade_decline`, `read_decline`), the six overriding evaluators, `assessment.from_verdict`
+  (`reason=`), `rule/{yaml_rule,suite_rule,scenario_rule}.py`, `suite.py` (correction), rules
+  `output/secrets.py` and `seeded/*`, `keeping.py`, `recording.py` (format 3,
+  `schemas/recording-v3.schema.json`), `target/recorded.py`, `promotion.py`, `cli/case.py`,
+  `core/inspect.py`. Docs: `writing-rules.md`, `extending.md` (evaluators), `usage-probe.md`,
+  `usage-grade.md`, `usage-case.md`, `usage-target.md`. Example suites (`custom_rule`) green.
+- **11 (D6, D9).** `runner.py` (empty target and graded share, one function each that
+  `build_plan` also calls for the empty target), `core/plan.py`, `profile/model.py`
+  (`FailOn.min_graded_share`, `OMITTED_WHEN_DEFAULT`), `profile/loader.py`, `cli/plan.py`
+  (note), `cli/config.py`. Tests flipped: the empty-directory tests in `test_scan_cli.py`,
+  `test_exit_codes.py`, `test_output_warns_about_format.py`, `test_plugin_trust_default.py`,
+  `test_plan_refuses_a_run_that_cannot_pass.py`, `test_diff_left_scan_cli.py`,
+  `test_assert_secure.py`, `test_file_scope.py`. Docs: `profiles.md`, `usage-scan.md`,
+  `usage-plan.md`, `README.md` (empty directory line), `product-status.md`.
+
 ## Done-criteria
 
 - [ ] full gate green, verdict lines read (`scripts/ci_local.sh --quiet`)
