@@ -429,7 +429,7 @@ instead of a model.</p>
 <tr>
 <td><code>--a2a TEXT</code></td>
 <td>none</td>
-<td>Examine an <strong>A2A agent</strong> at this http(s) URL instead of a chat model — see <a href="#probing-an-a2a-agent">Probing an A2A agent</a>. Refused with the endpoint and MCP flags (exit <code>3</code>)</td>
+<td>Examine an <strong>A2A agent</strong> instead of a chat model: the http(s) URL of its card (ending in <code>.json</code>) or its origin; any other path is refused (exit <code>3</code>) — see <a href="#probing-an-a2a-agent">Probing an A2A agent</a>. Refused with the endpoint and MCP flags (exit <code>3</code>)</td>
 </tr>
 <tr>
 <td><code>--a2a-token-env TEXT</code></td>
@@ -545,9 +545,12 @@ sessions to every client that asks for them.</li>
 only the new revision in <code>server/discover</code> and still answer <code>initialize</code>. When
 discovery lists no older revision, the checks that need it send one <code>initialize</code> over
 the <code>2025-11-25</code> wire, with your token when you gave one. A result naming <code>2025-11-25</code>
-makes the server dual-era, graded over that revision; a JSON-RPC error, <code>400</code>, <code>404</code> or
-<code>405</code> makes it modern-only; a <code>401</code> or <code>403</code> leaves it unknown, and <code>session_binding</code>
-reports <code>inconclusive</code> naming <code>--mcp-token-env</code>.</li>
+makes the server dual-era, graded over that revision; JSON-RPC <code>-32601</code> or <code>-32022</code>, or a
+<code>400</code>, <code>404</code> or <code>405</code> carrying no JSON-RPC error, makes it modern-only. A <code>401</code> or <code>403</code>
+leaves it unknown, and <code>session_binding</code> reports <code>inconclusive</code> naming <code>--mcp-token-env</code>;
+so does any other answer — a timeout, a rate limit, a server error, another JSON-RPC
+error — naming what came back, because one failed request does not show which revisions
+a server offers.</li>
 <li><strong>No revision in common is an outcome, never a pass.</strong> The authorization checks
 report <code>inconclusive</code> naming both version lists, and the manifest checks
 report the same sentence as an error, so the run is indeterminate under the default
@@ -637,7 +640,7 @@ saying plainly when it could not reach a verdict:</p>
 </tr>
 <tr>
 <td><code>guardana.mcp.task_identity</code></td>
-<td>One <code>tasks/list</code> sent without a credential lists no task, since a fresh anonymous session owns none; on a server that serves tools to anyone, listed task ids are not a counter, repeated or short. A refused listing is the conforming answer. An empty one on a gated server is confirmed with one listing as the operator: a task there shows the anonymous caller was kept from it; without <code>--mcp-token-env</code>, or with no task to show, the check is <code>inconclusive</code>. A server that declares no tasks and answers <code>tasks/list</code> as an unknown method is skipped <code>not_offered</code>, a coverage gap</td>
+<td>One <code>tasks/list</code> sent without a credential lists no task, since a fresh anonymous session owns none; on a server that serves tools to anyone, listed task ids are not a counter, repeated or short. A refused listing is the conforming answer. An empty one on a gated server is confirmed with one listing as the operator: a task there shows the anonymous caller was kept from it; without <code>--mcp-token-env</code>, or with no task to show, the check is <code>inconclusive</code>. An operator's session refused with <code>401</code> or <code>403</code> is <code>inconclusive</code> too. A server that declares no tasks and answers <code>tasks/list</code> as an unknown method is skipped <code>not_offered</code>, a coverage gap; when what it declares could not be read at all, the check is <code>inconclusive</code> instead</td>
 </tr>
 </tbody>
 </table></div>
@@ -680,8 +683,9 @@ conversation's opening:</p>
 <ul>
 <li><strong>The URL</strong> (HTTP only): the server must answer at one of the entry's <code>remotes</code>. Scheme
 and host compare lowercased, a default port and one trailing <code>/</code> are dropped, the query
-compares verbatim, a fragment is ignored, and a <code>{variable}</code> in a published URL stands
-for one or more characters other than <code>/</code>. An entry without remotes publishes none.
+compares on its own and verbatim, a fragment is ignored, and a <code>{variable}</code> in a published
+URL stands for one or more characters other than <code>/</code>, <code>?</code> and <code>#</code>, never for part of the
+query. An entry without remotes publishes none.
 A URL it does not publish is <code>medium</code>.</li>
 <li><strong>The version</strong> (HTTP and stdio): the version the server reports in <code>serverInfo</code> or
 discovery <code>_meta</code> must equal the entry's. A different one is <code>low</code>, worded as a
@@ -743,16 +747,20 @@ what was graded before it (<a href="#when-the-target-fails-part-way">below</a>):
 <p>The checks' own requests — the listing without a credential, the forged token, the
 session samples — stop the run only when no reply arrives, or when they meet <code>-32022</code>
 once a revision is agreed: any other status is what they observe. A discovery document
-never stops the run. An stdio command that cannot be started exits <code>4</code> before any rule,
-with nothing saved, and <code>--write-mcp-pin</code> against a server that fails exits <code>4</code> without
-writing a pin.</p>
+never stops the run. A <code>404</code> to the announcement that opens the conversation's session
+re-opens it once, as a <code>404</code> to a request does. An stdio server's own requests are
+answered — <code>ping</code> with an empty result, anything else as an unknown method — so a server
+waiting on one does not stall the run; its notifications are ignored. An stdio command that
+cannot be started exits <code>4</code> before any rule, with nothing saved, and <code>--write-mcp-pin</code>
+against a server that fails exits <code>4</code> without writing a pin.</p>
 <h3 id="cost">Cost</h3>
 <p>An MCP probe sends these requests: one <code>server/discover</code> to settle the
 revision, a listing without a credential (preceded by a handshake where the server
 still expects one), up to five discovery fetches, a listing with the forged token,
 a handful of handshakes to sample session ids, one <code>initialize</code> to ask whether a
-modern server still offers <code>2025-11-25</code>, one <code>tasks/list</code>, and a
-<code>notifications/initialized</code> after each accepted handshake. Every one is
+modern server still offers <code>2025-11-25</code>, one <code>tasks/list</code> (and up to three more requests
+— a handshake, its announcement and a listing — for your own listing when the anonymous one
+is empty), and a <code>notifications/initialized</code> after each accepted handshake. Every one is
 counted, so <code>--max-requests</code> bounds it, and a run that hits the ceiling exits <code>6</code>
 with an <code>indeterminate</code> gate rather than reporting the checks it never reached as
 clean.</p>
@@ -777,7 +785,9 @@ tasks. The second variable without the first, or both holding the same value, is
 (exit <code>3</code>). Without them the checks that need two callers report <code>inconclusive</code> and name
 both flags.</p>
 <p><strong>Where it sends.</strong> The card is the <code>--a2a</code> URL itself when its path ends in <code>.json</code>,
-otherwise <code>/.well-known/agent-card.json</code> on its origin. Every later request goes to the
+otherwise <code>/.well-known/agent-card.json</code> on its origin. A URL with any other path is
+refused (exit <code>3</code>): pass the agent card's URL or the agent's origin, since the origin's
+card may describe another agent than the path. Every later request goes to the
 card's first <code>JSONRPC</code> interface for protocol version <code>1.0</code>. That interface must be on the
 origin you named: an interface elsewhere, or no JSON-RPC 1.0 interface, sends nothing
 further, and every check that needs the agent reports <code>inconclusive</code> naming what the card
@@ -787,9 +797,12 @@ offers (&quot;run --a2a against that origin&quot;). A credential never leaves th
 <li>without a credential: <code>GetTask</code> for a random id, <code>ListTasks</code> for one task, and
 <code>GetExtendedAgentCard</code> when the card declares an extended card;</li>
 <li>as the first caller: <code>ListTasks</code> for up to five tasks;</li>
-<li>as the second caller: <code>GetTask</code> on up to three of the first caller's tasks.</li>
+<li>as the second caller: <code>GetTask</code> on up to three of the first caller's tasks;</li>
+<li>without a credential again: <code>GetTask</code> on one of the first caller's tasks.</li>
 </ul>
-<p>The two callers' requests are sent only when both tokens are given.</p>
+<p>The two callers' requests, and the anonymous read of a listed task, are sent only when
+both tokens are given. Every finding records the JSON-RPC interface it was examined
+through, without credentials.</p>
 <p><strong>Never</strong> <code>SendMessage</code>, <code>CancelTask</code>, a subscription or a push-notification
 configuration: Guardana creates no task and changes nothing on the agent. Task ids the
 agent reveals are held in memory and withheld from everything the run writes, like a
@@ -831,15 +844,15 @@ checks that need a credential report <code>inconclusive</code>, naming the schem
 <tbody>
 <tr>
 <td><code>guardana.a2a.agent_card</code></td>
-<td>The card has every required field (<code>name</code>, <code>description</code>, <code>supportedInterfaces</code>, <code>version</code>, <code>capabilities</code>, <code>defaultInputModes</code>, <code>defaultOutputModes</code>, <code>skills</code>), every scheme a requirement names is declared, and its JSON-RPC 1.0 interface is not plain <code>http</code> unless that interface's own host is loopback or private. One <code>medium</code> finding lists every defect</td>
+<td>The card has every required field (<code>name</code>, <code>description</code>, <code>supportedInterfaces</code>, <code>version</code>, <code>capabilities</code>, <code>defaultInputModes</code>, <code>defaultOutputModes</code>, <code>skills</code>), every scheme a requirement names is declared, and its JSON-RPC 1.0 interface is not plain <code>http</code> unless that interface's own host is loopback or private — on the agent's host, whatever the port, judged by the addresses the run's connections reached; on another host, by its URL alone, and then worded &quot;not shown to be loopback or private&quot;. One <code>medium</code> finding lists every defect</td>
 </tr>
 <tr>
 <td><code>guardana.a2a.caller_identity</code></td>
-<td>The agent does not answer a caller presenting nothing when the card requires a credential (<code>high</code>), or when it declares no security (<code>high</code>, <code>low</code> on a loopback or private address); and it never serves its extended card anonymously (<code>high</code>). An optional requirement makes an anonymous answer what the card declared. An agent that neither refused nor answered any anonymous request is <code>inconclusive</code></td>
+<td>The agent does not answer a caller presenting nothing when the card requires a credential (<code>high</code>), or when it declares no security (<code>high</code>, <code>low</code> on a loopback or private address); and it never serves its extended card anonymously (<code>high</code>). An optional requirement makes an anonymous answer what the card declared. An agent that neither refused nor answered any anonymous request is <code>inconclusive</code> (under an optional requirement, only when it was sent the extended-card request), and so is one whose card requires a credential and that answered an anonymous request with &quot;task not found&quot; instead of refusing it, naming the method</td>
 </tr>
 <tr>
 <td><code>guardana.a2a.task_visibility</code></td>
-<td>An anonymous <code>ListTasks</code> lists no task, and the second caller cannot read a task the first caller listed as its own (<code>high</code> each). An anonymous listing answered with an error that is neither a refusal nor a result is <code>inconclusive</code></td>
+<td>An anonymous <code>ListTasks</code> lists no task, and neither the second caller nor a caller presenting no credential can read a task the first caller listed as its own (<code>high</code> each). An anonymous listing or read answered with an error that is neither a refusal nor a result is <code>inconclusive</code></td>
 </tr>
 </tbody>
 </table></div>
@@ -848,7 +861,8 @@ from &quot;not yours&quot;, and a random id exists for nobody. An agent that ans
 <code>ListTasks</code> it was sent as an operation it does not support (<code>-32004</code>, or <code>-32601</code> once it
 answered with an A2A error code) has no listing to grade: <code>task_visibility</code> is skipped
 <code>not_offered</code>, a coverage gap that <code>fail_on.fail_on_skipped</code> and <code>--preset release</code> turn
-into an indeterminate run.</p>
+into an indeterminate run. The terminal report names each <code>not_offered</code> skip in its summary
+line and prints no <code>✓</code> over one.</p>
 <p><strong>When the agent fails.</strong> The card and the first caller's request are the conversation, and
 fail as an MCP server's does: no reply, <code>404</code>, <code>408</code>, <code>425</code>, <code>429</code>, <code>5xx</code>, a reply that is
 not JSON-RPC, and <code>401</code> or <code>403</code> to the first caller's token stop the run (exit <code>4</code>),
@@ -860,7 +874,7 @@ Once the agent answered a result or an A2A error code, the run records
 <p><strong>Not verified.</strong> The card's signatures are not checked: the card is graded on what it
 declares. The HTTP+JSON and gRPC bindings are not spoken, and an interface on another
 origin is not followed.</p>
-<p>A whole A2A probe sends at most eight requests; <code>guardana plan probe --a2a URL</code> prices it
+<p>A whole A2A probe sends at most nine requests; <code>guardana plan probe --a2a URL</code> prices it
 before anything is sent.</p>
 <h2 id="probing-a-guarded-endpoint">Probing a guarded endpoint</h2>
 <p><code>--provider</code> speaks the raw model wire (OpenAI/Ollama/TGI). But the thing you most

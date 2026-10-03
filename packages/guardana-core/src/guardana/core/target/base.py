@@ -159,7 +159,9 @@ class Target(ABC):
 def examined_by_rules_only(target: Target) -> bool:
     """Whether a run examines `target` with its rules alone, in one pass.
 
-    A target no rule can chat with has no system prompt to plant a canary in, so there
-    are no probe passes to split it into; `verify` and `plan` both ask this.
+    A target no rule can chat with and none can plant a system prompt in has no canary
+    to plant, so there are no probe passes to split it into; `verify` and `plan` both
+    ask this. Either capability alone means a planting pass may be needed.
     """
-    return Capability.CHAT not in target.capabilities()
+    declared = target.capabilities()
+    return Capability.CHAT not in declared and Capability.PLANT_SYSTEM_PROMPT not in declared

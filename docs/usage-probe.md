@@ -137,9 +137,12 @@ Three consequences worth knowing:
   only the new revision in `server/discover` and still answer `initialize`. When
   discovery lists no older revision, the checks that need it send one `initialize` over
   the `2025-11-25` wire, with your token when you gave one. A result naming `2025-11-25`
-  makes the server dual-era, graded over that revision; a JSON-RPC error, `400`, `404` or
-  `405` makes it modern-only; a `401` or `403` leaves it unknown, and `session_binding`
-  reports `inconclusive` naming `--mcp-token-env`.
+  makes the server dual-era, graded over that revision; JSON-RPC `-32601` or `-32022`, or a
+  `400`, `404` or `405` carrying no JSON-RPC error, makes it modern-only. A `401` or `403`
+  leaves it unknown, and `session_binding` reports `inconclusive` naming `--mcp-token-env`;
+  so does any other answer — a timeout, a rate limit, a server error, another JSON-RPC
+  error — naming what came back, because one failed request does not show which revisions
+  a server offers.
 - **No revision in common is an outcome, never a pass.** The authorization checks
   report `inconclusive` naming both version lists, and the manifest checks
   report the same sentence as an error, so the run is indeterminate under the default
@@ -207,7 +210,7 @@ saying plainly when it could not reach a verdict:
 | `guardana.mcp.discovery_target` | Every discovery address the server advertises is one a client may follow |
 | `guardana.mcp.issuer_identification` | The authorization server advertises `authorization_response_iss_parameter_supported`, without which a client cannot detect an authorization-server mix-up (RFC 9207) |
 | `guardana.mcp.cache_scope` | A tool listing the server gates behind a credential is not also declared `cacheScope: "public"`, which would invite any shared gateway to serve it to a caller the server would have refused |
-| `guardana.mcp.task_identity` | One `tasks/list` sent without a credential lists no task, since a fresh anonymous session owns none; on a server that serves tools to anyone, listed task ids are not a counter, repeated or short. A refused listing is the conforming answer. An empty one on a gated server is confirmed with one listing as the operator: a task there shows the anonymous caller was kept from it; without `--mcp-token-env`, or with no task to show, the check is `inconclusive`. A server that declares no tasks and answers `tasks/list` as an unknown method is skipped `not_offered`, a coverage gap |
+| `guardana.mcp.task_identity` | One `tasks/list` sent without a credential lists no task, since a fresh anonymous session owns none; on a server that serves tools to anyone, listed task ids are not a counter, repeated or short. A refused listing is the conforming answer. An empty one on a gated server is confirmed with one listing as the operator: a task there shows the anonymous caller was kept from it; without `--mcp-token-env`, or with no task to show, the check is `inconclusive`. An operator's session refused with `401` or `403` is `inconclusive` too. A server that declares no tasks and answers `tasks/list` as an unknown method is skipped `not_offered`, a coverage gap; when what it declares could not be read at all, the check is `inconclusive` instead |
 
 **Two of them need `--mcp-token-env` to say anything**, and say so rather than
 going quiet: whether a session authenticates on its own cannot be tested without a
@@ -257,8 +260,9 @@ conversation's opening:
 
 - **The URL** (HTTP only): the server must answer at one of the entry's `remotes`. Scheme
   and host compare lowercased, a default port and one trailing `/` are dropped, the query
-  compares verbatim, a fragment is ignored, and a `{variable}` in a published URL stands
-  for one or more characters other than `/`. An entry without remotes publishes none.
+  compares on its own and verbatim, a fragment is ignored, and a `{variable}` in a published
+  URL stands for one or more characters other than `/`, `?` and `#`, never for part of the
+  query. An entry without remotes publishes none.
   A URL it does not publish is `medium`.
 - **The version** (HTTP and stdio): the version the server reports in `serverInfo` or
   discovery `_meta` must equal the entry's. A different one is `low`, worded as a
@@ -287,9 +291,12 @@ what was graded before it ([below](#when-the-target-fails-part-way)):
 The checks' own requests — the listing without a credential, the forged token, the
 session samples — stop the run only when no reply arrives, or when they meet `-32022`
 once a revision is agreed: any other status is what they observe. A discovery document
-never stops the run. An stdio command that cannot be started exits `4` before any rule,
-with nothing saved, and `--write-mcp-pin` against a server that fails exits `4` without
-writing a pin.
+never stops the run. A `404` to the announcement that opens the conversation's session
+re-opens it once, as a `404` to a request does. An stdio server's own requests are
+answered — `ping` with an empty result, anything else as an unknown method — so a server
+waiting on one does not stall the run; its notifications are ignored. An stdio command that
+cannot be started exits `4` before any rule, with nothing saved, and `--write-mcp-pin`
+against a server that fails exits `4` without writing a pin.
 
 ### Cost
 
@@ -297,8 +304,9 @@ An MCP probe sends these requests: one `server/discover` to settle the
 revision, a listing without a credential (preceded by a handshake where the server
 still expects one), up to five discovery fetches, a listing with the forged token,
 a handful of handshakes to sample session ids, one `initialize` to ask whether a
-modern server still offers `2025-11-25`, one `tasks/list`, and a
-`notifications/initialized` after each accepted handshake. Every one is
+modern server still offers `2025-11-25`, one `tasks/list` (and up to three more requests
+— a handshake, its announcement and a listing — for your own listing when the anonymous one
+is empty), and a `notifications/initialized` after each accepted handshake. Every one is
 counted, so `--max-requests` bounds it, and a run that hits the ceiling exits `6`
 with an `indeterminate` gate rather than reporting the checks it never reached as
 clean.

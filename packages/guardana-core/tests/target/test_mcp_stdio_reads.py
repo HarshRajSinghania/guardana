@@ -302,3 +302,47 @@ def test_a_discovery_that_times_out_leaves_the_stream_for_the_handshake() -> Non
 
     assert [tool.name for tool in conversation.tools] == ["read"]
     assert conversation.protocol_version == LEGACY_VERSION
+
+
+_ASKS_FIRST = """
+import json, sys
+asked = json.loads(sys.stdin.readline())
+sys.stdout.write(json.dumps({"jsonrpc": "2.0", "method": "notifications/message", "params": {}}))
+sys.stdout.write("\\n" + json.dumps({"jsonrpc": "2.0", "id": "s-1", "method": METHOD}) + "\\n")
+sys.stdout.flush()
+answered = json.loads(sys.stdin.readline())
+reply = {"jsonrpc": "2.0", "id": asked["id"], "result": {"tools": [], "answered": answered}}
+sys.stdout.write(json.dumps(reply) + "\\n")
+sys.stdout.flush()
+"""
+"""Sends a notification and a request of its own, and replies only once that is answered."""
+
+
+def test_a_server_waiting_for_its_ping_is_answered_and_then_replies() -> None:
+    transport = StdioMcpTransport(_child(_ASKS_FIRST.replace("METHOD", '"ping"')), timeout=2.0)
+    try:
+        outcome = _request_in_background(transport)
+    finally:
+        transport.close()
+
+    # The first line the server reads after its own request is the answer to it, so
+    # the notification before that request was not answered.
+    assert outcome == [{"tools": [], "answered": {"jsonrpc": "2.0", "id": "s-1", "result": {}}}]
+
+
+def test_any_other_server_request_is_answered_as_an_unknown_method() -> None:
+    transport = StdioMcpTransport(
+        _child(_ASKS_FIRST.replace("METHOD", '"roots/list"')), timeout=2.0
+    )
+    try:
+        outcome = _request_in_background(transport)
+    finally:
+        transport.close()
+
+    assert len(outcome) == 1
+    reply = outcome[0]
+    assert isinstance(reply, dict)
+    answered = reply["answered"]
+    assert answered["id"] == "s-1"
+    assert answered["error"]["code"] == -32601
+    assert "result" not in answered

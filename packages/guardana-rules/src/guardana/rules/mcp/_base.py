@@ -61,18 +61,19 @@ class McpReporting(Rule):
         )
 
     def unreachable(self, view: McpAuthorizationView) -> Finding | None:
-        """Return the verdict to report when the server never answered, or None.
+        """Return the verdict to report when the server could not be examined, or None.
 
-        Every rule here calls this first. Silence from a rule means *the invariant
-        holds*, so a rule that examined a server it could not reach and said nothing
-        would be claiming the invariant holds on a server it never saw — and a
-        report where three rules said "not established" while three said nothing at
-        all would invite reading the second three as clean.
+        Every rule here calls this first. A server that sent no reply stops the run
+        before any rule grades it; this is the server that answered with something no
+        observation can be made from — a revision guardana does not speak, a status
+        that is neither a session nor a refusal — and the reason is quoted. Silence
+        from a rule means *the invariant holds*, so a rule that said nothing here would
+        be claiming the invariant holds on a server it never examined.
         """
         error = view.anonymous.error
         if error is None:
             return None
-        return self.unverified(view, f"the server could not be reached, so {self.claim}: {error}")
+        return self.unverified(view, f"the server could not be examined, so {self.claim}: {error}")
 
 
 class McpAuthorizationRule(McpReporting):

@@ -1,5 +1,4 @@
 from collections.abc import Iterator, Sequence
-from os.path import commonprefix
 
 from guardana.core.report import Finding
 from guardana.core.rule import RuleMeta
@@ -127,7 +126,7 @@ class McpSessionBindingRule(McpAuthorizationRule):
         if counts_up(ids, ordered=True):
             yield self.finding(
                 view,
-                f"session ids differ only by an increasing number after the shared prefix "
-                f"{commonprefix(list(ids))!r}, so the next one is predictable",
+                "session ids differ only by an increasing number after a shared prefix, so "
+                "the next one is predictable",
                 severity=Severity.CRITICAL,
             )

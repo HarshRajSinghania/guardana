@@ -51,7 +51,7 @@ def test_a_dual_era_server_is_graded_over_the_era_that_still_has_sessions() -> N
     reported = findings(RULE, server, credential=CREDENTIAL)
 
     assert [f.severity for f in reported] == [Severity.CRITICAL]
-    assert "'mcp-session-100'" in summaries(reported)[0]
+    assert "increasing number after a shared prefix" in summaries(reported)[0]
 
 
 def test_a_modern_server_that_answers_anonymously_is_still_reported() -> None:
@@ -153,3 +153,24 @@ def test_a_legacy_server_answering_an_older_revision_leaves_every_rule_inconclus
 
         assert outcomes(reported) == ["inconclusive"], rule.meta.id
         assert f"answered initialize with {OLDER}" in summaries(reported)[0]
+        assert "could not be examined" in summaries(reported)[0]
+        assert "could not be reached" not in summaries(reported)[0]
+
+
+class _UnprocessableHandshake(ScriptedMcpServer):
+    """A legacy server that answers every `initialize` with `422`."""
+
+    def __call__(self, url: str, **kwargs: object) -> RawReply:
+        reply = super().__call__(url, **kwargs)  # type: ignore[arg-type]
+        if self.bodies and self.bodies[-1].get("method") == "initialize":
+            return RawReply(422, {}, b'{"detail": "unprocessable"}')
+        return reply
+
+
+def test_a_server_that_answered_but_could_not_be_examined_is_never_called_unreached() -> None:
+    reported = findings(McpUnauthenticatedAccessRule(), _UnprocessableHandshake(ROUTABLE))
+
+    assert outcomes(reported) == ["inconclusive"]
+    assert "could not be examined" in summaries(reported)[0]
+    assert "HTTP 422" in summaries(reported)[0]
+    assert "could not be reached" not in summaries(reported)[0]

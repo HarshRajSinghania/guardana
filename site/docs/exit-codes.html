@@ -426,9 +426,10 @@ unknown <code>--provider</code>, a <code>--system-prompt-file</code> or <code>--
 not <code>POST</code>. On <code>probe --mcp</code> the same holds for an stdio command given without
 <code>--allow-exec</code>, which starts nothing, an <code>--mcp-token-env</code> naming an unset or empty
 variable, and an <code>--mcp-registry-entry</code> that cannot be read or is not an entry; on
-<code>probe --a2a</code>, for an unset token variable, a second caller's variable without the first,
-or two variables holding the same value. None of them is <code>5</code>, which is reserved for
-Guardana's own defects.</p>
+<code>probe --a2a</code> and <code>plan probe --a2a</code>, for an agent URL whose path is neither an agent card
+(ending in <code>.json</code>) nor the origin; and on <code>probe --a2a</code>, for an unset token variable, a
+second caller's variable without the first, or two variables holding the same value. None
+of them is <code>5</code>, which is reserved for Guardana's own defects.</p>
 <p><code>recipe lock</code> and <code>recipe run</code> exit <code>4</code>, writing no lock and sending nothing, when the
 installed target the recipe names fails to connect while it is being built.
 <code>recipe lock</code> exits <code>0</code> once it wrote the lock, <code>1</code>, writing nothing, when a regression

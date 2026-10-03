@@ -11,9 +11,10 @@ authorization-server metadata it serves does not advertise RFC 9207 `iss`
 (`issuer_identification`). They are pinned as exactly that, so any other finding fails.
 """
 
+import importlib
 import json
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -68,14 +69,26 @@ class Run:
         skips = self.document["run"]["result_summary"].get("rules_skipped", [])
         return [s for s in skips if s["rule_id"] == rule_id]
 
+    def errors(self, rule_id: str) -> list[dict[str, Any]]:
+        """The errors the run recorded against one rule."""
+        return [e for e in self.document["errors"] if e["source"] == rule_id]
+
     def summaries(self, rule_id: str) -> list[str]:
-        """Every evidence line one rule wrote, findings first."""
+        """Every evidence line one rule wrote, findings first, then any error it raised."""
         reported = self.findings(rule_id) + self.unverified(rule_id)
-        return [f["evidence"]["summary"] for f in reported]
+        return [f["evidence"]["summary"] for f in reported] + [
+            e["reason"] for e in self.errors(rule_id)
+        ]
+
+    def ran(self, rule_id: str) -> bool:
+        """Whether the run lists the rule as run and recorded no error against it."""
+        run = self.document["run"]["result_summary"]["rules_run"]
+        return rule_id in run and not self.errors(rule_id)
 
     def silent(self, rule_id: str) -> bool:
-        """Whether a rule ran and said nothing: no finding, no open question, no skip."""
-        return not (self.findings(rule_id) or self.unverified(rule_id) or self.skipped(rule_id))
+        """Whether a rule ran and said nothing: no finding, open question, skip or error."""
+        reported = self.findings(rule_id) or self.unverified(rule_id) or self.skipped(rule_id)
+        return self.ran(rule_id) and not reported
 
     @property
     def finding_rules(self) -> set[str]:
@@ -156,6 +169,35 @@ def test_a_gated_server_probed_without_a_credential_leaves_the_credentialed_ques
     assert not run.findings(_TASKS)
 
 
+def test_a_dual_era_server_whose_legacy_probe_failed_leaves_its_sessions_inconclusive(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    run = _probe(mcp.dual_era_failing_first_handshake, tmp_path, monkeypatch, credential=True)
+
+    assert run.code == 0, run.stderr
+    assert run.protocols == {"mcp": _MODERN}
+    (said,) = run.unverified("guardana.mcp.session_binding")
+    assert "HTTP 503 carrying JSON-RPC error -32603" in said["evidence"]["summary"]
+
+
+def test_a_rule_that_raised_is_never_read_as_silent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def broken(self: object, view: object) -> Iterator[object]:
+        raise RuntimeError("examine failed")
+
+    # Looked up now rather than imported at collection: another test may have dropped
+    # the rule modules, and the run loads whichever class `sys.modules` holds.
+    rules = importlib.import_module("guardana.rules.mcp.task_identity")
+    monkeypatch.setattr(rules.McpTaskIdentityRule, "examine", broken)
+
+    run = _probe(mcp.dual_era_gated, tmp_path, monkeypatch, credential=True)
+
+    assert run.errors(_TASKS)
+    assert not run.silent(_TASKS)
+    assert run.code == 2, run.stderr
+
+
 def test_an_open_server_is_reported_as_open_on_loopback_and_offers_no_tasks(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -175,6 +217,7 @@ def test_a_server_accepting_any_token_fails_audience_validation(
 ) -> None:
     run = _probe(mcp.accepting_any_token, tmp_path, monkeypatch, credential=True)
 
+    assert run.code == 1, run.stderr
     assert [f["severity"] for f in run.findings("guardana.mcp.token_audience")] == ["CRITICAL"]
 
 
@@ -191,19 +234,44 @@ def test_a_public_cache_hint_on_a_gated_listing_fires_only_where_the_revision_ca
 ) -> None:
     run = _probe(factory, tmp_path, monkeypatch, credential=True)
 
+    assert run.code == 0, run.stderr
     cache = run.findings("guardana.mcp.cache_scope")
     assert [f["severity"] for f in cache] == (["MEDIUM"] if fires else [])
     if not fires:
         assert run.silent("guardana.mcp.cache_scope")
 
 
-def test_an_owner_bound_task_listing_on_a_gated_server_is_silent(
+def test_an_owner_bound_task_listing_refused_to_an_anonymous_caller_is_silent(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     run = _probe(mcp.legacy_tasks_owner_bound, tmp_path, monkeypatch, credential=True)
 
+    assert run.code == 0, run.stderr
+    assert run.silent(_TASKS), run.summaries(_TASKS)
+
+
+def test_an_empty_anonymous_listing_beside_the_operators_task_is_silent_and_withholds_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    run = _probe(mcp.legacy_tasks_listed_by_owner, tmp_path, monkeypatch, credential=True)
+
+    assert run.code == 0, run.stderr
+    # Silent only because the operator's own listing held a task: with none it is
+    # inconclusive (below), so the task id below was listed to the run.
     assert run.silent(_TASKS), run.summaries(_TASKS)
     assert mcp.OWNED_TASK not in json.dumps(run.document)
+
+
+def test_an_empty_anonymous_listing_with_no_task_for_the_operator_either_is_inconclusive(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    run = _probe(
+        mcp.legacy_tasks_listed_by_owner_none_stored, tmp_path, monkeypatch, credential=True
+    )
+
+    assert run.code == 0, run.stderr
+    assert not run.findings(_TASKS)
+    assert ["until a task exists" in line for line in run.summaries(_TASKS)] == [True]
 
 
 def test_counting_task_ids_listed_to_anyone_on_an_open_server_are_two_highs(
@@ -211,6 +279,7 @@ def test_counting_task_ids_listed_to_anyone_on_an_open_server_are_two_highs(
 ) -> None:
     run = _probe(mcp.legacy_tasks_listed_to_anyone, tmp_path, monkeypatch, credential=False)
 
+    assert run.code == 1, run.stderr
     reported = run.findings(_TASKS)
     assert [f["severity"] for f in reported] == ["HIGH", "HIGH"]
     assert f"lists {len(mcp.COUNTING_TASKS)} task(s)" in reported[0]["evidence"]["summary"]
@@ -222,6 +291,7 @@ def test_an_open_task_listing_with_nothing_stored_leaves_the_ids_ungraded(
 ) -> None:
     run = _probe(mcp.legacy_tasks_none_stored, tmp_path, monkeypatch, credential=False)
 
+    assert run.code == 0, run.stderr
     assert not run.findings(_TASKS)
     assert ["cannot be graded" in line for line in run.summaries(_TASKS)] == [True]
 
@@ -231,6 +301,7 @@ def test_the_modern_tasks_extension_is_inconclusive_as_unlisted(
 ) -> None:
     run = _probe(mcp.modern_tasks_extension, tmp_path, monkeypatch, credential=False)
 
+    assert run.code == 0, run.stderr
     assert not run.findings(_TASKS)
     assert run.summaries(_TASKS) == [
         "the server issues task ids only to a tools/call, which guardana never sends"
@@ -249,6 +320,7 @@ def test_authorization_server_metadata_naming_another_issuer_or_none_fires(
 ) -> None:
     run = _probe(factory, tmp_path, monkeypatch, credential=True)
 
+    assert run.code == 1, run.stderr
     reported = run.findings("guardana.mcp.authorization_discovery")
     assert [f["severity"] for f in reported] == ["HIGH"]
     assert said in reported[0]["evidence"]["summary"]
@@ -306,6 +378,7 @@ def test_a_registry_entry_is_compared_with_the_url_and_the_reported_version(  # 
 ) -> None:
     run = _probe(factory, tmp_path, monkeypatch, credential=True, entry=entry)
 
+    assert run.code == 0, run.stderr
     assert [f["severity"] for f in run.findings(_REGISTRY)] == severities, run.summaries(_REGISTRY)
     assert len(run.unverified(_REGISTRY)) == inconclusive
     assert not run.skipped(_REGISTRY)

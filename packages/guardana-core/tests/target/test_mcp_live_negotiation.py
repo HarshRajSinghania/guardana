@@ -315,6 +315,92 @@ def test_a_legacy_handshake_answered_in_another_revision_names_it() -> None:
     assert f"answered initialize with {OLDER}" in offer.unsettled
 
 
+class _AnswersTheLegacyProbe(ScriptedMcpServer):
+    """A dual-era server whose `initialize` is answered with the test's status and body."""
+
+    def __init__(self, url: str, *, status: int, error: int | None, **settings: object) -> None:
+        super().__init__(url, **settings)  # type: ignore[arg-type]
+        self.status = status
+        self.error = error
+
+    def __call__(self, url: str, **kwargs: object) -> RawReply:
+        body, _ = _sent(kwargs)
+        if body.get("method") != "initialize":
+            return super().__call__(url, **kwargs)  # type: ignore[arg-type]
+        self.bodies.append(body)
+        if self.error is None:
+            return RawReply(self.status, {}, b"")
+        error = {"code": self.error, "message": "no"}
+        payload = {"jsonrpc": "2.0", "id": 1, "error": error}
+        return RawReply(self.status, {}, json.dumps(payload).encode())
+
+
+@pytest.mark.parametrize(
+    ("status", "error"),
+    [
+        pytest.param(200, -32601, id="200-method-not-found"),
+        pytest.param(404, -32601, id="404-method-not-found"),
+        pytest.param(400, -32022, id="400-unsupported-version"),
+        pytest.param(200, -32022, id="200-unsupported-version"),
+        pytest.param(400, None, id="400-no-json-rpc"),
+        pytest.param(404, None, id="404-no-json-rpc"),
+        pytest.param(405, None, id="405-no-json-rpc"),
+    ],
+)
+def test_a_legacy_probe_refused_as_an_unknown_era_is_modern_only(
+    status: int, error: int | None
+) -> None:
+    server = _AnswersTheLegacyProbe(
+        ROUTABLE,
+        status=status,
+        error=error,
+        tools=TOOLS,
+        protocol_versions=[LATEST_VERSION, LEGACY_VERSION],
+        discovers=[LATEST_VERSION],
+    )
+
+    offer = _target(server).authorization().legacy_offer
+
+    assert offer.modern_only
+    assert offer.unsettled is None
+
+
+@pytest.mark.parametrize(
+    ("status", "error", "said"),
+    [
+        pytest.param(503, -32603, "HTTP 503 carrying JSON-RPC error -32603", id="503-internal"),
+        pytest.param(200, -32603, "HTTP 200 carrying JSON-RPC error -32603", id="200-internal"),
+        pytest.param(400, -32603, "HTTP 400 carrying JSON-RPC error -32603", id="400-internal"),
+        pytest.param(404, -32000, "HTTP 404 carrying JSON-RPC error -32000", id="404-server"),
+        pytest.param(408, None, "HTTP 408", id="408"),
+        pytest.param(425, None, "HTTP 425", id="425"),
+        pytest.param(429, None, "HTTP 429", id="429"),
+        pytest.param(500, None, "HTTP 500", id="500"),
+        pytest.param(503, None, "HTTP 503", id="503"),
+    ],
+)
+def test_a_legacy_probe_that_failed_leaves_the_era_unknown(
+    status: int, error: int | None, said: str
+) -> None:
+    server = _AnswersTheLegacyProbe(
+        ROUTABLE,
+        status=status,
+        error=error,
+        tools=TOOLS,
+        protocol_versions=[LATEST_VERSION, LEGACY_VERSION],
+        discovers=[LATEST_VERSION],
+    )
+    view = _target(server).authorization()
+
+    offer = view.legacy_offer
+
+    assert not offer.modern_only
+    assert offer.wire is None
+    assert offer.unsettled is not None
+    assert said in offer.unsettled
+    assert view.sessions.no_protocol_sessions is None
+
+
 def test_a_listed_legacy_revision_guardana_does_not_speak_is_named_without_asking() -> None:
     server = ScriptedMcpServer(ROUTABLE, tools=TOOLS, protocol_versions=[LATEST_VERSION, OLDER])
 

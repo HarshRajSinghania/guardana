@@ -375,7 +375,7 @@ run they are pricing would use, so both take the same plugin-trust flags
 <tr>
 <td><code>--a2a TEXT</code></td>
 <td>none</td>
-<td><code>plan probe</code> only: price an A2A agent at this http(s) URL instead of a model endpoint — see <a href="#pricing-an-a2a-agent">Pricing an A2A agent</a>. Refused with the endpoint flags and <code>--mcp</code> (exit <code>3</code>)</td>
+<td><code>plan probe</code> only: price an A2A agent, named by the http(s) URL of its card (ending in <code>.json</code>) or its origin, instead of a model endpoint; any other path is refused (exit <code>3</code>) — see <a href="#pricing-an-a2a-agent">Pricing an A2A agent</a>. Refused with the endpoint flags and <code>--mcp</code> (exit <code>3</code>)</td>
 </tr>
 <tr>
 <td><code>--provider [openai|ollama|tgi]</code></td>
@@ -554,10 +554,10 @@ stated out loud.</p>
 <pre><code class="language-bash">guardana plan probe --a2a https://agent.example.com
 </code></pre>
 <pre><code class="language-text">3 rule(s) would run, 27 skipped.
-requests: at least 3, at most 13
+requests: at least 3, at most 14
 </code></pre>
-<p>The three A2A rules declare thirteen requests between them; a run shares the card and
-each read, and sends at most eight. No token variable is read, so a plan needs no
+<p>The three A2A rules declare fourteen requests between them; a run shares the card and
+each read, and sends at most nine. No token variable is read, so a plan needs no
 secret.</p>
 <h2 id="pricing-a-grade">Pricing a grade</h2>
 <p><code>plan grade RECORDING</code> previews <a href="usage-grade.html"><code>guardana grade</code></a>: it selects the rules

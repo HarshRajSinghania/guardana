@@ -129,12 +129,15 @@ In order, first match wins:
 - **Remembered:** a request-scoped failure of the conversation is cached and re-raised by every
   later reader without sending again, so a `400` costs one request, not one per rule.
 - A `404` in the conversation while a legacy session is in force re-opens the session once, as
-  the `2025-11-25` binding requires; a second `404` stops the run.
+  the `2025-11-25` binding requires — to a request, or to the `notifications/initialized` that
+  announces the conversation's handshake; a second `404` stops the run.
 - `negotiate()` still falls back to `initialize` on whatever its `server/discover` probe meets —
   `McpError`, `EndpointError`, `URLError`, `OSError` — and never on `BudgetExhausted`, which
   stops the run as a budget stop. Over stdio, requests carry increasing ids, a timed-out
   `server/discover` does not break the stream, and a reply to an id nobody awaits is discarded
-  (at most 16 such lines per request, then `UnreadableReply`). An stdio server that exited,
+  (at most 16 such lines per request, then `UnreadableReply`). A server's own request is
+  answered — `ping` with `{}`, anything else with JSON-RPC `-32601` — so a server waiting on it
+  does not stall to the deadline; its notifications are ignored. An stdio server that exited,
   closed its output or did not answer a later request within the read timeout is
   `EndpointUnreachable`; an over-long or non-JSON line is `UnreadableReply`; a command that
   could not be started exits `4` with its message, before any rule.
@@ -182,8 +185,11 @@ a run whose conversation works).
   listed no legacy revision, the sections that need the legacy era (`sessions`, `tasks`) buy one
   `initialize` over `LEGACY_WIRE`, with the operator's credential when configured, cached for
   the run: a result naming `2025-11-25` → dual-era, `legacy_wire` is `LEGACY_WIRE`; a result
-  naming another revision → a legacy revision Guardana does not speak; a JSON-RPC error, `400`,
-  `404` or `405` → modern-only; `401` or `403` → unknown. `legacy_wire` is never anything but
+  naming another revision → a legacy revision Guardana does not speak; JSON-RPC `-32601` or
+  `-32022` at any status, or `400`, `404` or `405` carrying no JSON-RPC error → modern-only;
+  `401` or `403` → unknown, and so is every other answer — `408`, `425`, `429`, `5xx`, another
+  JSON-RPC error such as a `503` carrying `-32603` — because one failed request says nothing
+  about which era the server answers. `legacy_wire` is never anything but
   `LEGACY_WIRE`. `session_binding` is silent only on a server observed to be modern-only; a
   legacy revision Guardana does not speak, or an unknown answer, is inconclusive, naming the
   revision or `--mcp-token-env`.
@@ -260,7 +266,10 @@ Evidence holds counts, never an id.
 
 **The rule** decides before yielding:
 
-1. The server could not be reached or shares no revision → inconclusive (`unreachable()`).
+1. The server answered with nothing an observation can be made from — a revision Guardana does
+   not speak, a status that is neither a session nor a refusal — or shares no revision →
+   inconclusive, "the server could not be examined", quoting why (`unreachable()`). A server
+   that sent no reply stops the run before this (decision 2).
 2. `answered` with at least one task → HIGH: "lists `<n>` task(s) to a caller who presented no
    credential" — a fresh anonymous session owns none, so they are somebody else's. On a server
    that served tools anonymously, and at least two ids whose structure `id_structure` names, a
@@ -270,14 +279,19 @@ Evidence holds counts, never an id.
    visible to a caller without a credential, so whether task ids can be guessed — the only
    guard a server without authentication has — cannot be graded". On a gated server the
    empty answer cannot tell owner binding from "no task exists yet", so with a credential
-   configured one `tasks/list` is sent as the operator (in the conversation's session over the
-   legacy wire): a task there beside the empty anonymous listing → silent; none, or no
-   credential → inconclusive, naming `--mcp-token-env` or the missing task.
+   configured one `tasks/list` is sent as the operator: over the legacy wire in the
+   conversation's session when the conversation is legacy, in a session opened with the
+   credential when a dual-era server's conversation is modern, over the modern wire otherwise.
+   A task there beside the empty anonymous listing → silent; none, no credential, or the
+   operator's session refused with `401` or `403` → inconclusive, naming `--mcp-token-env`, the
+   missing task or the refusal.
 4. `refused` → silent.
 5. `unknown_method`: `offer` `none` → `raise NotOffered("the server declares no tasks and answers
    tasks/list as an unknown method", missing=("tasks",))`; `unlisted` → inconclusive, "the
    server issues task ids only to a tools/call, which guardana never sends"; `listing` →
-   inconclusive, "the server declares tasks.list and answers it as an unknown method".
+   inconclusive, "the server declares tasks.list and answers it as an unknown method";
+   unknown — neither era's declarations were read, as when a `-32022` settled the era without
+   `server/discover` — → inconclusive, never `none`.
 6. `other` → inconclusive, quoting the status.
 
 `id_structure(ids, *, ordered: bool) -> str | None` moves out of `session_binding` into
@@ -285,7 +299,8 @@ Evidence holds counts, never an id.
 `ordered=True` keeps the issue order (sessions); `ordered=False` sorts the numeric tails first
 (a listing's order is the server's). Meta: `INSPECT_AUTHORIZATION` (over stdio a
 `missing_capability` skip), taxonomy `MCP07:2025`, `MCP10:2025`, `ASI03:2026`, one request
-and up to two more when the operator's listing is needed, read-only.
+and up to three more when the operator's listing is needed (`initialize`,
+`notifications/initialized`, `tasks/list`), read-only.
 
 Rejected: grading the operator's own listing (owner-bound ids need not be random, so a finding
 there would accuse a conforming server); trusting the declaration alone (a server that declares
@@ -323,8 +338,9 @@ entry publishes, so the entry is an input the operator supplies — never fetche
 - The rule, URL half (HTTP only): the server URL matches no `remotes[].url` → MEDIUM, "the server
   at `<display_url>` is not a remote its registry entry `<name>` publishes" (an entry without
   remotes publishes none). URLs compare with scheme and host lowercased, the default port
-  dropped, one trailing `/` of the path dropped, the query verbatim and the fragment ignored; a
-  `{variable}` in a published URL matches one or more characters other than `/`. Version half:
+  dropped, one trailing `/` of the path dropped, the query compared on its own and verbatim and
+  the fragment ignored; a `{variable}` in a published URL matches one or more characters other
+  than `/`, `?` and `#`, so it never stands for any part of the query. Version half:
   a reported version that differs → LOW, worded as self-reported; none reported → inconclusive,
   "the server reports no version to compare with `<version>`". Taxonomy `MCP09:2025`,
   `MCP04:2025`, `ASI04:2026`; no request beyond the opening.
@@ -442,6 +458,9 @@ SDK's; the fixture writes only the policy under test, through the SDK's seams:
 | accepting any token | `token_audience` fires |
 | modern and dual-era, gated, `cacheScope: public` on `tools/list` | `cache_scope` fires; the legacy one is silent |
 | legacy `tasks.list`, owner-bound, gated | silent |
+| legacy `tasks.list` answered to anyone, owner-bound, tools gated, one task stored for the operator | silent, through the operator's listing; the task id never in `run.json` |
+| the same, no task stored | inconclusive, "until a task exists" |
+| dual-era, gated, its first `initialize` answered `503` with JSON-RPC `-32603` | `session_binding` inconclusive, naming the status and the code |
 | legacy `tasks.list` listing to anonymous callers, with counting ids, open | two HIGH |
 | open legacy `tasks.list`, no task stored | inconclusive |
 | modern with the tasks extension | inconclusive (`unlisted`) |

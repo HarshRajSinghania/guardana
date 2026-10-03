@@ -54,7 +54,7 @@ class RegistryEntry:
     """The parts of a registry `server.json` a run compares: name, version and remote URLs.
 
     Other keys are ignored. `remotes` are the published URLs, each of which may hold a
-    `{variable}` standing for one or more characters other than `/`.
+    `{variable}` standing for one or more characters other than `/`, `?` and `#`.
     """
 
     name: str
@@ -132,8 +132,12 @@ def _remotes(raw: object, source: str) -> tuple[str, ...]:
     return tuple(urls)
 
 
-def _canonical(url: str) -> str | None:
-    """Spell a URL the one way two equal ones share, or None when it is not a URL."""
+def _canonical(url: str) -> tuple[str, str] | None:
+    """Spell a URL the one way two equal ones share, as its address and its query.
+
+    None when it is not a URL. The query is kept apart, so a `{variable}` in the address
+    can never stand for any part of it.
+    """
     parts = _URL.fullmatch(url)
     if parts is None:
         return None
@@ -142,20 +146,23 @@ def _canonical(url: str) -> str | None:
     host, colon, port = authority.rpartition(":")
     if colon and "]" not in port and port == _DEFAULT_PORTS.get(scheme):
         authority = host
-    path = parts["path"]
-    path = path.removesuffix("/")
-    query = parts["query"]
-    return f"{scheme}://{authority}{path}" + (f"?{query}" if query else "")
+    path = parts["path"].removesuffix("/")
+    return f"{scheme}://{authority}{path}", parts["query"] or ""
 
 
-def _matches(published: str, reached: str) -> bool:
-    """Match a reached URL against a published one whose `{variable}`s stand for `[^/]+`."""
+def _matches(published: str, reached: tuple[str, str]) -> bool:
+    """Match a reached URL against a published one; a `{variable}` stands for `[^/?#]+`.
+
+    Variables stand only in the address; the queries compare verbatim.
+    """
     canonical = _canonical(published)
     if canonical is None:
         return False
-    literal = _VARIABLE.split(canonical)
-    pattern = "[^/]+".join(re.escape(piece) for piece in literal)
-    return re.fullmatch(pattern, reached, re.DOTALL) is not None
+    address, query = canonical
+    if query != reached[1]:
+        return False
+    pattern = "[^/?#]+".join(re.escape(piece) for piece in _VARIABLE.split(address))
+    return re.fullmatch(pattern, reached[0], re.DOTALL) is not None
 
 
 __all__ = ["MAX_ENTRY_BYTES", "RegistryEntry", "RegistryEntryError", "ReportedServer"]

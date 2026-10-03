@@ -18,6 +18,7 @@ import threading
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field, replace
 from enum import StrEnum
+from urllib.error import HTTPError
 from urllib.parse import SplitResult, urlsplit, urlunsplit
 
 from guardana.core.target._mcp_client import (
@@ -61,8 +62,10 @@ _SESSION_SAMPLES = 3
 _HTTP_ERROR = 400
 _SUCCESS = range(200, 300)
 _NOT_THE_ERA = frozenset({400, 404, 405})
-"""Statuses a server gives a handshake it does not implement at all."""
+"""Statuses a server gives a handshake it does not implement, when no JSON-RPC error says more."""
 _METHOD_NOT_FOUND = -32601
+_NOT_THE_ERA_CODES = (_METHOD_NOT_FOUND, UNSUPPORTED_PROTOCOL_VERSION)
+"""JSON-RPC errors that refuse the handshake era itself, whatever the status."""
 _TASKS_EXTENSION = "io.modelcontextprotocol/tasks"
 
 # A token nobody could mistake for a credential, and nobody could mistake for
@@ -128,7 +131,7 @@ class Tasks:
     `ids` stay in memory for a rule to read the structure of; nothing that records a
     run holds them, and the target withholds every one it learned from what is written.
     `offer` is read only for an `UNKNOWN_METHOD` answer, the one answer the declarations
-    change the meaning of, and is None otherwise.
+    change the meaning of, and is None otherwise, or when no declaration could be read.
 
     `operator` is what one more `tasks/list`, presenting the operator's credential, was
     shown. It is asked only when a server that refused its tools to a caller presenting
@@ -547,7 +550,7 @@ class _Probe:
             )
         if anonymous.error is not None:
             return ForeignToken(
-                not_attempted_because=f"the server could not be reached: {anonymous.error}"
+                not_attempted_because=f"the server could not be examined: {anonymous.error}"
             )
         token = forged_token()
         session: str | None = None
@@ -615,7 +618,7 @@ class _Probe:
         operator's own listing, when a credential is configured (`Tasks.operator`).
         """
         if anonymous.error is not None:
-            return Tasks(error=f"the server could not be reached: {anonymous.error}")
+            return Tasks(error=f"the server could not be examined: {anonymous.error}")
         negotiation = self._negotiation()
         wire, session, handshake = negotiation.wire, anonymous.session, None
         if negotiation.era is not Era.LEGACY:
@@ -641,12 +644,18 @@ class _Probe:
 
         Over the handshake era in the conversation's own session when the conversation is
         in that era, else in a session opened here with the credential; over the modern
-        wire with no session.
+        wire with no session. The conversation's handshake refused with `401` or `403`
+        leaves the listing unasked.
         """
         session: str | None = None
         if wire.era is Era.LEGACY:
             if self._negotiation().era is Era.LEGACY:
-                session = self._conversation_session()
+                try:
+                    session = self._conversation_session()
+                except HTTPError as exc:
+                    if exc.code not in REFUSAL_STATUSES:
+                        raise
+                    return Tasks(error=f"the operator's session could not be opened: {exc}")
             else:
                 session, _ = self._open_session(wire, credential=self._credential)
         try:
@@ -688,12 +697,12 @@ class _Probe:
         anonymous: Anonymous,
         handshake: Opening | None,
         offer: Callable[[], "LegacyOffer"],
-    ) -> TaskOffer:
+    ) -> TaskOffer | None:
         """Read what the server declares about tasks, from the cheapest answer that holds it.
 
         Handshake-era declarations come from an anonymous handshake when one was answered,
         else from the conversation's opening, else from the legacy probe; modern ones from
-        `server/discover`.
+        `server/discover`. None when neither was read.
         """
         legacy = next(
             (
@@ -719,9 +728,11 @@ class _Probe:
         """Settle whether the server still answers `initialize`, asking when discovery did not say.
 
         One handshake over the `2025-11-25` wire, with the operator's credential when
-        one is configured: a result naming that revision is a dual-era server; a
-        JSON-RPC error, `400`, `404` or `405` is a modern-only one; a refusal says who
-        may ask, not which era answers, and leaves it unknown.
+        one is configured: a result naming that revision is a dual-era server; JSON-RPC
+        `-32601` or `-32022` at any status, or `400`, `404` or `405` carrying no JSON-RPC
+        error, is a modern-only one. A refusal says who may ask, not which era answers,
+        and any other answer — a timeout, a rate limit, a server error, another JSON-RPC
+        error — is a failure of this one request; both leave it unknown.
         """
         negotiation = self._negotiation()
         if negotiation.legacy_wire is not None:
@@ -744,19 +755,24 @@ class _Probe:
                 unsettled=f"the legacy handshake was refused with HTTP {reply.status}{advice}"
             )
         payload = reply.json_object()
-        if error_member(payload) is not None or reply.status in _NOT_THE_ERA:
+        error = error_member(payload)
+        code = error.get("code") if error is not None else None
+        if code in _NOT_THE_ERA_CODES or (error is None and reply.status in _NOT_THE_ERA):
             return LegacyOffer(modern_only=True)
-        result = payload.get("result") if payload is not None else None
+        result = payload.get("result") if payload is not None and error is None else None
         if reply.status in _SUCCESS and isinstance(result, dict):
             opening = opening_in(result)
             refusal = handshake_refusal(opening.version)
             if refusal is not None:
                 return LegacyOffer(opening=opening, unsettled=refusal)
             return LegacyOffer(wire=LEGACY_WIRE, opening=opening)
+        answered = f"HTTP {reply.status}"
+        if error is not None:
+            answered = f"{answered} carrying JSON-RPC error {code}"
         return LegacyOffer(
             unsettled=(
-                f"the legacy handshake was answered with HTTP {reply.status}, which is neither "
-                f"a result nor a refusal of the era"
+                f"the legacy handshake was answered with {answered}, which is neither a "
+                f"result nor a refusal of the era"
             )
         )
 
@@ -790,7 +806,7 @@ class _Probe:
     def _cannot_establish_a_session(self, anonymous: Anonymous) -> str | None:
         """Say why no session can be opened at all, or None when one can."""
         if anonymous.error is not None:
-            return f"the server could not be reached: {anonymous.error}"
+            return f"the server could not be examined: {anonymous.error}"
         if self._credential is None and not anonymous.open_to_anyone:
             # Reporting "the server issues no session id" here would blame the
             # server for the operator's missing credential — a true sentence about
@@ -1055,8 +1071,14 @@ def _task_listing(reply: RawReply) -> Tasks:
 
 def _offer_in(
     legacy: Mapping[str, object] | None, modern: Mapping[str, object] | None
-) -> TaskOffer:
-    """Say what the declarations offer: a legacy listing, tasks without one, or none."""
+) -> TaskOffer | None:
+    """Say what the declarations offer: a legacy listing, tasks without one, or none.
+
+    None when neither era's declarations were read: unknown declarations never declare
+    no tasks.
+    """
+    if legacy is None and modern is None:
+        return None
     declared = legacy.get("tasks") if legacy is not None else None
     if isinstance(declared, Mapping) and "list" in declared:
         return TaskOffer.LISTING

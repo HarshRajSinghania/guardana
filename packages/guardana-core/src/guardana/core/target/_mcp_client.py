@@ -73,9 +73,11 @@ _QUOTED_BODY_BYTES = 4096
 _STALE_LINES = 16
 """How many replies to no pending request an stdio server may send per request; more is unreadable.
 
-A line carrying `method` is the server's own request or notification, not a reply, and is
-skipped without counting; the request's deadline bounds how long those can go on.
+A line carrying `method` is the server's own request or notification, not a reply: a request
+is answered and a notification skipped, neither counted; the request's deadline bounds how
+long those can go on.
 """
+_METHOD_NOT_FOUND = -32601
 
 REFUSAL_STATUSES = frozenset({401, 403})
 """The statuses that mean a server decided this caller may not ask; no other status does."""
@@ -394,7 +396,9 @@ class StdioMcpTransport:
     bounded amount of memory and time. Each request carries its own id, and a line
     answering another one is discarded, so a reply that arrived late is never read as
     the answer to the request after it. A line carrying `method` is the server asking
-    or notifying, whatever id it carries, and is skipped.
+    or notifying, whatever id it carries: a request is answered — `ping` with an empty
+    result, anything else as an unknown method, so a server waiting on its own request
+    is never left to stall — and a notification is skipped.
     """
 
     def __init__(
@@ -434,6 +438,8 @@ class StdioMcpTransport:
         while stale <= _STALE_LINES:
             payload = self._read_payload(deadline)
             if "method" in payload:
+                if "id" in payload:
+                    self._answer(payload)
                 continue
             if payload.get("id") != asked:
                 stale += 1
@@ -460,6 +466,15 @@ class StdioMcpTransport:
     def notify(self, method: str) -> None:
         """Write one notification line; nothing is read for it."""
         self._write(self._wire.notification(method))
+
+    def _answer(self, asked: Mapping[str, object]) -> None:
+        """Answer one of the server's own requests: `ping` with `{}`, anything else as unknown."""
+        answer: dict[str, object] = {"jsonrpc": "2.0", "id": asked.get("id")}
+        if asked.get("method") == "ping":
+            answer["result"] = {}
+        else:
+            answer["error"] = {"code": _METHOD_NOT_FOUND, "message": "Method not found"}
+        self._write(json.dumps(answer).encode("utf-8"))
 
     def _write(self, line: bytes) -> None:
         if self._process.stdin is None or self._process.stdout is None:
@@ -751,16 +766,43 @@ def settled_request(  # noqa: PLR0913 — the conversation, the request, and its
                 transport.notify(INITIALIZED)
             return transport.request(method, params)
         except SessionExpired:
-            opening = initialize(transport)
-            if handshake_refusal(opening.version) is not None and agreed is not None:
-                answered = (opening.version,) if opening.version else ()
-                raise changed(ref, agreed, answered) from None
-            transport.notify(INITIALIZED)
+            _reopen(transport, agreed, ref)
             return transport.request(method, params)
     except McpProtocolError as exc:
-        if exc.code == UNSUPPORTED_PROTOCOL_VERSION and agreed is not None:
-            raise changed(ref, agreed, exc.supported_versions()) from exc
+        _stop_if_changed(exc, agreed, ref)
         raise
+
+
+def announce_opening(transport: McpTransport, negotiation: Negotiation, ref: str) -> None:
+    """Announce an accepted handshake, opening a new session once if it expired.
+
+    The same once-per-run re-open, and the same stop for a changed revision, as
+    `settled_request`.
+    """
+    agreed = negotiation.settled_version
+    try:
+        try:
+            transport.notify(INITIALIZED)
+        except SessionExpired:
+            _reopen(transport, agreed, ref)
+    except McpProtocolError as exc:
+        _stop_if_changed(exc, agreed, ref)
+        raise
+
+
+def _reopen(transport: McpTransport, agreed: str | None, ref: str) -> None:
+    """Open and announce a new session for one that expired; a new revision stops the run."""
+    opening = initialize(transport)
+    if handshake_refusal(opening.version) is not None and agreed is not None:
+        answered = (opening.version,) if opening.version else ()
+        raise changed(ref, agreed, answered) from None
+    transport.notify(INITIALIZED)
+
+
+def _stop_if_changed(exc: McpProtocolError, agreed: str | None, ref: str) -> None:
+    """Raise `TargetChanged` when `exc` refuses the agreed revision; return otherwise."""
+    if exc.code == UNSUPPORTED_PROTOCOL_VERSION and agreed is not None:
+        raise changed(ref, agreed, exc.supported_versions()) from exc
 
 
 def list_manifest(

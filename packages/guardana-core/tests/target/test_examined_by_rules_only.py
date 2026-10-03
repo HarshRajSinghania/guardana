@@ -1,7 +1,8 @@
 """Which targets a run examines with its rules alone, decided in one place for `verify` and `plan`.
 
-A target nothing can chat with has no prompt to plant and no probe pass to split into,
-so every built-in protocol server is examined by rules only and every chat target is not.
+A target nothing can chat with or plant a prompt in has no probe pass to split into, so
+every built-in protocol server is examined by rules only, and every chat target and every
+target taking a planted prompt is not.
 """
 
 from collections.abc import Callable
@@ -15,10 +16,12 @@ from guardana.core.recording import Recording
 from guardana.core.target import (
     A2aAgentTarget,
     ArtifactTarget,
+    Capability,
     EndpointTarget,
     McpServerTarget,
     RecordedTarget,
     Target,
+    TargetKind,
     examined_by_rules_only,
 )
 from guardana.core.testing import (
@@ -79,3 +82,20 @@ def test_a_target_a_rule_can_chat_with_is_probed_in_passes(build: Callable[[], T
 
 def test_an_artifact_set_is_examined_by_rules_only(tmp_path: Path) -> None:
     assert examined_by_rules_only(ArtifactTarget(tmp_path))
+
+
+class _PlantsWithoutChat(Target):
+    """A pack target that takes a planted system prompt and declares no chat."""
+
+    kind = TargetKind.ENDPOINT
+
+    def capabilities(self) -> set[Capability]:
+        return {Capability.PLANT_SYSTEM_PROMPT}
+
+    @property
+    def ref(self) -> str:
+        return "pack://plants-without-chat"
+
+
+def test_a_target_taking_a_planted_prompt_without_chat_is_probed_in_passes() -> None:
+    assert not examined_by_rules_only(_PlantsWithoutChat())

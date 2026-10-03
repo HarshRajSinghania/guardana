@@ -72,7 +72,7 @@ class McpTaskIdentityRule(McpAuthorizationRule):
         return 9
 
     def fixtures(self) -> Iterable[RuleFixture]:
-        """Sample an open listing, a gated one, two empty ones and a server without tasks."""
+        """Sample an open listing, two gated ones, two empty ones and a server without tasks."""
         return materialise(
             (
                 _samples.sample(
@@ -84,6 +84,19 @@ class McpTaskIdentityRule(McpAuthorizationRule):
                 ),
                 _samples.sample(
                     "a gated server listing each caller only its own tasks",
+                    FixtureOutcome.CLEAN,
+                    lambda: _samples.target(
+                        _samples.gated_server(
+                            tasks=_COUNTING,
+                            tasks_owner_bound=True,
+                            tasks_unguarded=True,
+                            task_declaration="listing",
+                        ),
+                        credential=_samples.CREDENTIAL,
+                    ),
+                ),
+                _samples.sample(
+                    "a gated server refusing its task listing to a caller without a credential",
                     FixtureOutcome.CLEAN,
                     lambda: _samples.target(
                         _samples.gated_server(
@@ -208,7 +221,9 @@ class McpTaskIdentityRule(McpAuthorizationRule):
             return
         if tasks.offer is not TaskOffer.NONE:
             yield self.unverified(
-                view, f"tasks/list was answered as an unknown method, so {self.claim}"
+                view,
+                f"tasks/list was answered as an unknown method and what the server declares "
+                f"about tasks was never read, so {self.claim}",
             )
             return
         raise NotOffered(

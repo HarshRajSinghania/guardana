@@ -15,6 +15,7 @@ from guardana.core.target._mcp_client import (
     Negotiation,
     Opening,
     StdioMcpTransport,
+    announce_opening,
     list_manifest,
     modern,
     negotiate,
@@ -22,7 +23,7 @@ from guardana.core.target._mcp_client import (
 )
 from guardana.core.target._mcp_http import DiscoverySender, HttpSender, McpError, RawReply, Sender
 from guardana.core.target._mcp_registry import RegistryEntry, ReportedServer
-from guardana.core.target._mcp_wire import INITIALIZED, Era
+from guardana.core.target._mcp_wire import Era
 from guardana.core.target._url import display_url
 from guardana.core.target.base import Capability, Target, TargetKind
 from guardana.core.usage import TargetUsage, UsageMeter
@@ -324,13 +325,14 @@ class McpServerTarget(Target):
         """Open the conversation, announce its accepted handshake, and return its session id.
 
         None when the conversation has no session: a modern one, or a transport that
-        keeps none. The announcement is sent once, here or before the manifest.
+        keeps none. The announcement is sent once, here or before the manifest; a session
+        it finds expired is opened once more, as a request's would be.
         """
         with self._lock:
-            self._open()
+            negotiation = self._open()
             if self._announce:
                 try:
-                    self._transport.notify(INITIALIZED)
+                    announce_opening(self._transport, negotiation, self._ref)
                 finally:
                     self._announce = False
             raw = self._raw

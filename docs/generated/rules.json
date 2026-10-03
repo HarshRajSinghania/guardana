@@ -89,7 +89,7 @@
       "requires": [
         "inspect_a2a"
       ],
-      "estimated_requests": 8,
+      "estimated_requests": 9,
       "goal": null,
       "taxonomy": [
         {

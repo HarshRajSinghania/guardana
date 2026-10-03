@@ -6,12 +6,13 @@ seams the SDK offers: a replaced handler, a `Server.middleware`, `cache_hints`,
 `extensions`, a `get_capabilities` override, or a static metadata document.
 """
 
+import json
 from collections.abc import Callable, Mapping
 from typing import Any
 
 from mcp import types
 from mcp.server.auth.handlers.metadata import MetadataHandler
-from mcp.server.auth.middleware.bearer_auth import AuthenticatedUser
+from mcp.server.auth.middleware.bearer_auth import AuthenticatedUser, RequireAuthMiddleware
 from mcp.server.auth.provider import AccessToken
 from mcp.server.auth.settings import AuthSettings
 from mcp.server.caching import CacheableMethod, CacheHint
@@ -24,7 +25,7 @@ from sdk_harness import Factory, Origin
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
-from starlette.types import ASGIApp, Receive, Scope, Send
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 MCP_PATH = "/mcp"
 CREDENTIAL = "conformance-operator-token"
@@ -176,15 +177,19 @@ class OAuthMetadataDocument:
         return Route(AUTHORIZATION_SERVER_METADATA, without_issuer, methods=["GET"])
 
 
-def _app(
+def _app(  # noqa: PLR0913 — the server, and one keyword per way its row serves it
     origin: Origin,
     server: Server[Any],
     *,
     tokens: _Tokens | None = _OPERATOR_ONLY,
     metadata: OAuthMetadataDocument | None = None,
     json_response: bool = False,
+    anonymous: frozenset[str] = frozenset(),
 ) -> ASGIApp:
-    """Serve `server` over Streamable HTTP, behind the SDK's bearer middleware unless open."""
+    """Serve `server` over Streamable HTTP, behind the SDK's bearer middleware unless open.
+
+    The JSON-RPC methods in `anonymous` pass the bearer requirement without a credential.
+    """
     if tokens is None:
         return server.streamable_http_app(
             streamable_http_path=MCP_PATH, json_response=json_response
@@ -197,13 +202,18 @@ def _app(
         }
     )
     document = metadata or OAuthMetadataDocument(str(auth.issuer_url))
-    return server.streamable_http_app(
+    app = server.streamable_http_app(
         streamable_http_path=MCP_PATH,
         json_response=json_response,
         auth=auth,
         token_verifier=tokens,
         custom_starlette_routes=[document.route()],
     )
+    if anonymous:
+        for route in app.routes:
+            if isinstance(route, Route) and isinstance(route.app, RequireAuthMiddleware):
+                route.app = _AnonymousMethods(route.app, anonymous)
+    return app
 
 
 def legacy_only_gated(origin: Origin) -> ASGIApp:
@@ -292,6 +302,43 @@ def legacy_tasks_owner_bound(origin: Origin) -> ASGIApp:
     return _app(origin, _tasks_server(lambda caller: owned.get(caller or "", [])))
 
 
+class _AnonymousMethods:
+    """The SDK's bearer requirement on every JSON-RPC method but `methods`, open to anyone."""
+
+    def __init__(self, required: RequireAuthMiddleware, methods: frozenset[str]) -> None:
+        self._required = required
+        self._methods = methods
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["method"] != "POST" or isinstance(scope.get("user"), AuthenticatedUser):
+            await self._required(scope, receive, send)
+            return
+        body, replay = await _body_of(receive)
+        if _method_of(body) in self._methods:
+            await self._required.app(scope, replay, send)
+            return
+        await self._required(scope, replay, send)
+
+
+_LISTING_TO_ANYONE = frozenset({"initialize", "notifications/initialized", "tasks/list"})
+"""What the owner-bound listing servers let a caller presenting nothing send: never `tools/list`."""
+
+
+def legacy_tasks_listed_by_owner(origin: Origin) -> ASGIApp:
+    """Tools gated by `CREDENTIAL`; `tasks/list` answers anyone, showing only the caller's tasks.
+
+    A caller presenting nothing is listed none; the operator is listed `OWNED_TASK`.
+    """
+    owned = {OPERATOR: [_task(OWNED_TASK)]}
+    server = _tasks_server(lambda caller: owned.get(caller or "", []))
+    return _app(origin, server, anonymous=_LISTING_TO_ANYONE)
+
+
+def legacy_tasks_listed_by_owner_none_stored(origin: Origin) -> ASGIApp:
+    """As `legacy_tasks_listed_by_owner`, with no task stored for anyone, the operator included."""
+    return _app(origin, _tasks_server(lambda caller: []), anonymous=_LISTING_TO_ANYONE)
+
+
 def legacy_tasks_listed_to_anyone(origin: Origin) -> ASGIApp:
     """Open, and `tasks/list` shows every caller the same tasks, numbered in order."""
     return _app(
@@ -352,6 +399,61 @@ def stops_answering_after(limit: int) -> Factory:
         return _StopAnswering(_app(origin, _server(), tokens=None), origin, limit)
 
     return build
+
+
+async def _body_of(receive: Receive) -> tuple[bytes, Receive]:
+    """Read a request's whole body, and return it with a `receive` that replays it."""
+    chunks: list[bytes] = []
+    more = True
+    while more:
+        message = await receive()
+        chunks.append(message.get("body", b""))
+        more = bool(message.get("more_body"))
+    body = b"".join(chunks)
+    replayed = False
+
+    async def replay() -> Message:
+        nonlocal replayed
+        if replayed:
+            return await receive()
+        replayed = True
+        return {"type": "http.request", "body": body, "more_body": False}
+
+    return body, replay
+
+
+def _method_of(body: bytes) -> object:
+    try:
+        payload = json.loads(body)
+    except ValueError:
+        return None
+    return payload.get("method") if isinstance(payload, dict) else None
+
+
+class _FailFirstHandshake:
+    """Answer the first `initialize` with `503` and a JSON-RPC internal error; serve the rest."""
+
+    def __init__(self, app: ASGIApp) -> None:
+        self._app = app
+        self._failed = False
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http" or scope["method"] != "POST" or self._failed:
+            await self._app(scope, receive, send)
+            return
+        body, replay = await _body_of(receive)
+        if _method_of(body) != "initialize":
+            await self._app(scope, replay, send)
+            return
+        self._failed = True
+        error = {"code": types.INTERNAL_ERROR, "message": "temporarily overloaded"}
+        response = JSONResponse({"jsonrpc": "2.0", "id": 1, "error": error}, status_code=503)
+        await response(scope, replay, send)
+
+
+def dual_era_failing_first_handshake(origin: Origin) -> ASGIApp:
+    """Both revisions, gated, answering its first `initialize` with `503` and `-32603`."""
+    return _FailFirstHandshake(dual_era_gated(origin))
 
 
 NOW_SUPPORTED = (LEGACY_REVISION,)

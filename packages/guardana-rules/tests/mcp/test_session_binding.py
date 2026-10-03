@@ -1,7 +1,14 @@
 """Session ids: their shape, and whether one authenticates a request on its own."""
 
+import json
+from dataclasses import replace
+
 from _offline import refuse_name_lookups  # noqa: F401 — an autouse fixture
+from guardana.core.plugins import PluginMode, PluginTrust
+from guardana.core.profile import default_profile
 from guardana.core.severity import Severity
+from guardana.core.target import McpServerTarget
+from guardana.core.verify import Verifier
 from guardana.rules.mcp import McpSessionBindingRule
 from mcp_fixtures import CREDENTIAL, findings, guarded, outcomes, summaries
 
@@ -32,7 +39,35 @@ def test_a_counter_is_a_predictable_session_id() -> None:
     reported = findings(RULE, server, credential=CREDENTIAL)
 
     assert [f.severity for f in reported] == [Severity.CRITICAL]
-    assert "'mcp-session-100'" in reported[0].evidence.summary
+    assert "increasing number after a shared prefix" in reported[0].evidence.summary
+    assert "mcp-session" not in reported[0].evidence.summary
+
+
+_COUNTER = [
+    "Zq7XkP2mVt9RwL4nHc6Jd-0001",
+    "Zq7XkP2mVt9RwL4nHc6Jd-0002",
+    "Zq7XkP2mVt9RwL4nHc6Jd-0003",
+]
+
+
+def test_no_part_of_a_learned_session_id_reaches_the_saved_run() -> None:
+    server = guarded(session_ids=_COUNTER)
+    target = McpServerTarget(
+        server.url, credential=CREDENTIAL, sender=server, discovery_sender=server
+    )
+    base = default_profile()
+    profile = replace(base, policy=replace(base.policy, include=(RULE.meta.id,)))
+
+    verification = Verifier(trust=PluginTrust(mode=PluginMode.BUILTINS), profile=profile).run(
+        target
+    )
+
+    saved = json.dumps(verification.document())
+    assert [f.rule_id for f in verification.result.findings] == [RULE.meta.id]
+    assert set(_COUNTER) <= set(target.sent_secrets())
+    for learned in target.sent_secrets()[1:]:
+        for start in range(len(learned) - 7):
+            assert learned[start : start + 8] not in saved, learned[start : start + 8]
 
 
 def test_one_id_handed_to_every_handshake_is_no_identity_at_all() -> None:

@@ -148,6 +148,73 @@ def test_an_empty_anonymous_listing_on_a_gated_server_without_a_credential_is_in
     assert all("Authorization" not in h for h in listings)
 
 
+class _ExpiresTheFirstSession(ScriptedMcpServer):
+    """A server that answers the first announcement of a credentialed session `404`."""
+
+    def __init__(self, url: str, **settings: object) -> None:
+        super().__init__(url, **settings)  # type: ignore[arg-type]
+        self.expired = False
+
+    def __call__(self, url: str, **kwargs: object) -> RawReply:
+        raw = kwargs.get("body")
+        headers = kwargs.get("headers")
+        sent = headers if isinstance(headers, Mapping) else {}
+        body = json.loads(raw) if isinstance(raw, bytes) else {}
+        announced = body.get("method") == "notifications/initialized"
+        if announced and "Mcp-Session-Id" in sent and not self.expired:
+            self.expired = True
+            self.requests.append(("POST", url, dict(sent)))
+            self.bodies.append(body)
+            return RawReply(404, {}, b"")
+        return super().__call__(url, **kwargs)  # type: ignore[arg-type]
+
+
+def test_an_operator_session_that_expired_on_its_announcement_is_opened_once_more() -> None:
+    renewed = "renewed-session-" + "7" * 24
+    server = _ExpiresTheFirstSession(
+        ROUTABLE,
+        tools=TOOLS,
+        credential=CREDENTIAL,
+        tasks=_OWN,
+        tasks_owner_bound=True,
+        tasks_unguarded=True,
+        session_ids=[_CONVERSATION_SESSION, renewed],
+    )
+
+    reported = findings(RULE, server, credential=CREDENTIAL)
+
+    assert reported == []
+    headers, _ = _operator_listing(server)
+    assert headers.get("Mcp-Session-Id") == renewed
+    opened = [
+        h for h, b in _posted(server) if b.get("method") == "initialize" and "Authorization" in h
+    ]
+    assert len(opened) == 2, "the operator's session was opened, then opened once more"
+
+
+@pytest.mark.parametrize("status", [401, 403])
+def test_an_operator_session_refused_at_its_handshake_is_inconclusive(status: int) -> None:
+    server = guarded(tasks=_OWN, tasks_owner_bound=True, tasks_unguarded=True)
+
+    def refusing(url: str, **kwargs: object) -> RawReply:
+        raw = kwargs.get("body")
+        headers = kwargs.get("headers")
+        sent = headers if isinstance(headers, Mapping) else {}
+        if isinstance(raw, bytes) and b'"initialize"' in raw and "Authorization" in sent:
+            return RawReply(status, {}, b"")
+        return server(url, **kwargs)  # type: ignore[arg-type]
+
+    target = McpServerTarget(
+        server.url, credential=CREDENTIAL, sender=refusing, discovery_sender=server
+    )
+
+    reported = list(RULE.run(target, RuleContext()))
+
+    assert outcomes(reported) == ["inconclusive"]
+    assert "the operator's session could not be opened" in summaries(reported)[0]
+    assert f"HTTP Error {status}" in summaries(reported)[0]
+
+
 def test_a_gated_server_whose_operator_lists_no_task_either_is_inconclusive() -> None:
     server = guarded(tasks=[], tasks_owner_bound=True, tasks_unguarded=True)
 
@@ -199,6 +266,28 @@ def test_a_server_declaring_no_tasks_and_not_knowing_the_method_does_not_offer_t
         findings(RULE, _open())
 
     assert raised.value.missing == ("tasks",)
+
+
+class _RefusesDiscoveryToAnyone(ScriptedMcpServer):
+    """A modern server whose `server/discover` answers `401`, so its declarations go unread."""
+
+    def __call__(self, url: str, **kwargs: object) -> RawReply:
+        raw = kwargs.get("body")
+        if isinstance(raw, bytes) and json.loads(raw).get("method") == "server/discover":
+            return RawReply(401, {}, b"")
+        return super().__call__(url, **kwargs)  # type: ignore[arg-type]
+
+
+def test_an_unknown_method_beside_declarations_never_read_is_inconclusive_not_unoffered() -> None:
+    server = _RefusesDiscoveryToAnyone(ROUTABLE, tools=TOOLS, protocol_versions=[_MODERN])
+    target = _target(server)
+
+    reported = list(RULE.run(target, RuleContext()))
+
+    assert target.negotiation().capabilities is None
+    assert target.authorization().tasks.answer is TaskAnswer.UNKNOWN_METHOD
+    assert outcomes(reported) == ["inconclusive"]
+    assert "never read" in summaries(reported)[0]
 
 
 def test_a_declared_listing_answered_as_an_unknown_method_is_inconclusive() -> None:
@@ -287,6 +376,26 @@ def test_the_offer_is_read_only_for_an_unknown_method() -> None:
 
     assert answered.offer is None
     assert unknown.offer is TaskOffer.LISTING
+
+
+def test_the_owner_bound_clean_sample_is_clean_beside_the_operators_tasks() -> None:
+    (sample,) = [
+        fixture
+        for fixture in RULE.fixtures()
+        if fixture.outcome is FixtureOutcome.CLEAN and "its own tasks" in fixture.name
+    ]
+    target = sample.target
+    if not isinstance(target, McpServerTarget):
+        pytest.fail("the sample is not an MCP server")
+
+    reported = list(RULE.run(target, RuleContext()))
+
+    tasks = target.authorization().tasks
+    assert reported == []
+    assert tasks.answer is TaskAnswer.ANSWERED
+    assert tasks.count == 0
+    assert tasks.operator is not None
+    assert tasks.operator.count > 0
 
 
 def test_the_rule_classifies_its_own_samples() -> None:
