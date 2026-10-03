@@ -857,7 +857,7 @@ COUNTER = ["mcp-session-1000", "mcp-session-1001", "mcp-session-1002"]
 
 def probe(**settings):
     server = ScriptedMcpServer(URL, tools=TOOLS, credential="t", session_ids=COUNTER, **settings)
-    target = McpServerTarget(URL, credential="t", sender=server)
+    target = McpServerTarget(URL, credential="t", sender=server, discovery_sender=server)
     reported = list(McpSessionBindingRule().run(target, RuleContext()))
     target.list_tools()
     return target.protocols(), reported

@@ -53,8 +53,8 @@ class McpIssuerIdentificationRule(McpAuthorizationRule):
 
     @property
     def estimated_requests(self) -> int:
-        """The discovery probe, the anonymous pair, and the documented metadata attempts."""
-        return 9
+        """The discovery probe, the anonymous three, then six documented metadata attempts."""
+        return 10
 
     def examine(self, view: McpAuthorizationView) -> Iterator[Finding]:
         """Read the authorization server's metadata and grade what it says about `iss`."""

@@ -13,8 +13,10 @@ import shlex
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from pathlib import Path
+from urllib.error import HTTPError
 
 import typer
+from guardana.cli._errors import EndpointFlag, remedies_for
 from guardana.cli._evaluators import judge_endpoint
 from guardana.cli.exit_codes import ExitCode
 from guardana.core.calibration.store import RecordedCalibration
@@ -25,12 +27,15 @@ from guardana.core.profile.digest import profile_digest
 from guardana.core.redaction import MessageQuoting, RedactionPolicy
 from guardana.core.registry import Registry
 from guardana.core.runner import DEFAULT_ENDPOINT_CONCURRENCY
-from guardana.core.target import McpError, McpServerTarget, private_url_parts
+from guardana.core.target import EndpointError, McpError, McpServerTarget, private_url_parts
+from guardana.core.target.failure import describe_failure
 from guardana.core.verify import Verification, Verifier
 from guardana.rules.agent.mcp_server_manifest import pin_document
 
 _PIN_RULE_ID = "guardana.agent.mcp_server_manifest"
 _HTTP_PREFIXES = ("http://", "https://")
+_REMEDIES = remedies_for((EndpointFlag.MCP_TOKEN_ENV, EndpointFlag.CONCURRENCY))
+"""What a failure message advises: the token variable, and fewer requests at once."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -139,21 +144,36 @@ def build_mcp_target(connection: McpConnection) -> McpServerTarget:
     )
 
 
+def started(connection: McpConnection) -> McpServerTarget:
+    """Build the target, ending the command with exit `4` when its server cannot be started.
+
+    Before any rule: a command that does not run has no manifest to read and no run to keep.
+    """
+    try:
+        return build_mcp_target(connection)
+    except EndpointError as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(code=ExitCode.TARGET_UNAVAILABLE) from exc
+
+
 def write_pin(connection: McpConnection, path: Path) -> int:
     """Write the server's current manifest as the approved one; return how many tools.
 
     A server that cannot be read exits `TARGET_UNAVAILABLE` with one line that withholds
-    the token sent to it, and no pin is written: an approval of a manifest nobody
-    received is not an approval.
+    the token and the session ids sent to it, and no pin is written: an approval of a
+    manifest nobody received is not an approval.
     """
-    target = build_mcp_target(connection)
+    target = started(connection)
     try:
         try:
             tools = target.list_tools()
-        except McpError as exc:
+        except (McpError, EndpointError, HTTPError) as exc:
             quoting = MessageQuoting.of(RedactionPolicy(), target.sent_secrets())
-            said = quoting.spans(str(exc))
-            typer.echo(f"error: could not read the manifest of {target.ref}: {said}", err=True)
+            if isinstance(exc, McpError):
+                said = f"could not read the manifest of {target.ref}: {quoting.spans(str(exc))}"
+            else:
+                said = describe_failure(exc, target.ref, quoting, _REMEDIES)
+            typer.echo(f"error: {said}", err=True)
             raise typer.Exit(code=ExitCode.TARGET_UNAVAILABLE) from exc
         path.write_text(
             json.dumps(pin_document(target.ref, tools), indent=2) + "\n", encoding="utf-8"
@@ -188,7 +208,7 @@ def run_mcp_probe(  # noqa: PLR0913 — a connection, a destination and the run'
         count = write_pin(connection, write_to)
         print(f"Wrote {count} approved tool description(s) to {write_to}")  # noqa: T201 — CLI output
         return None
-    target = build_mcp_target(connection)
+    target = started(connection)
     verifier = Verifier(
         trust=registry.trust or PluginTrust(mode=PluginMode.BUILTINS),
         profile=with_pin(profile, connection.pin),
@@ -196,6 +216,7 @@ def run_mcp_probe(  # noqa: PLR0913 — a connection, a destination and the run'
         calibrations=calibrations,
         concurrency=concurrency,
         judge_endpoint=judge_endpoint,
+        remedies=_REMEDIES,
     )
     try:
         verification = verifier.run(target, source=source, deployment=deployment)
@@ -232,6 +253,7 @@ __all__ = [
     "refuse_userinfo",
     "require_chat_endpoint",
     "run_mcp_probe",
+    "started",
     "with_pin",
     "write_pin",
 ]

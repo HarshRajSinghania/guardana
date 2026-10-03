@@ -447,9 +447,7 @@ class Verifier:
                 keeping.stop_keeping()
             _release(target)
             raise
-        # Read again once the run is over: a target may learn values during it, such as
-        # the task ids an agent revealed, and none of them may reach what the run writes.
-        withheld = tuple(dict.fromkeys((*withheld, *self._withheld(target))))
+        withheld = self._learned(target, withheld)
         return self._finish(
             registry,
             result,
@@ -474,7 +472,7 @@ class Verifier:
     def _withheld(self, target: Target) -> tuple[str, ...]:
         """Return every value the run withholds: the caller's and those the target declares.
 
-        Asked once, before anything is sent: a target that cannot say what it sends would
+        Asked before anything is sent: a target that cannot say what it sends would
         have its credentials saved in what the run records, so it is refused instead.
         """
         try:
@@ -485,6 +483,14 @@ class Verifier:
                 f"({type(exc).__name__}), so the run could not keep them out of what it saves"
             ) from exc
         return (*self.secrets, *declared)
+
+    def _learned(self, target: Target, before: tuple[str, ...]) -> tuple[str, ...]:
+        """Return what the run withholds once it has run: a target learns values while it sends.
+
+        A session id or task id the server handed out is one of them, and a server may
+        echo it into an error, so the target is asked again before anything is written.
+        """
+        return tuple(dict.fromkeys((*before, *self._withheld(target))))
 
     def _fixtures_of(self, target: Target) -> FixturesRecord | None:
         """Return the fixtures the run records, refusing a record that names other fixtures."""
@@ -597,7 +603,7 @@ class Verifier:
 
     def _unreachable(self, exc: BaseException, target: Target, withheld: tuple[str, ...]) -> str:
         """Say why `target` could not be reached, without a value the run withholds, bounded."""
-        quoting = MessageQuoting.of(self.profile.privacy, withheld)
+        quoting = MessageQuoting.of(self.profile.privacy, self._learned(target, withheld))
         return describe_failure(exc, target.ref, quoting, self.remedies)
 
     def _finish(  # noqa: PLR0913 — one value per persisted execution fact

@@ -51,8 +51,8 @@ class McpScopeBreadthRule(McpAuthorizationRule):
 
     @property
     def estimated_requests(self) -> int:
-        """The discovery probe, the anonymous pair, then the documented attempts per document."""
-        return 9
+        """The discovery probe, the anonymous three, then six documented metadata attempts."""
+        return 10
 
     def examine(self, view: McpAuthorizationView) -> Iterator[Finding]:
         """Read the advertised scopes from both metadata documents and the challenge."""

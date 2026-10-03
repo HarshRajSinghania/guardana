@@ -28,6 +28,9 @@ class _Server:
             return {"protocolVersion": "2025-11-25"}
         return {"tools": [{"name": "refund", "description": "Refund an order."}]}
 
+    def notify(self, method: str) -> None:
+        pass
+
     def close(self) -> None:
         return None
 

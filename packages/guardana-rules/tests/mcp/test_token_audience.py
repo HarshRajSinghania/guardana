@@ -4,6 +4,7 @@ from base64 import urlsafe_b64decode as b64decode
 from collections.abc import Mapping
 
 import pytest
+from _offline import refuse_name_lookups  # noqa: F401 — an autouse fixture
 from guardana.core.report import Finding
 from guardana.core.rule import RuleContext
 from guardana.core.severity import Severity
@@ -77,7 +78,9 @@ class _AnsweringTheForgedToken:
 
 
 def _against(server: _AnsweringTheForgedToken) -> list[Finding]:
-    target = McpServerTarget(server.url, credential=CREDENTIAL, sender=server)
+    target = McpServerTarget(
+        server.url, credential=CREDENTIAL, sender=server, discovery_sender=server
+    )
     return list(RULE.run(target, RuleContext()))
 
 

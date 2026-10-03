@@ -65,7 +65,9 @@ def findings(
     rule: Rule, server: ScriptedMcpServer, *, credential: str | None = None
 ) -> list[Finding]:
     """Run one rule against a scripted server and return everything it reported."""
-    target = McpServerTarget(server.url, credential=credential, sender=server)
+    target = McpServerTarget(
+        server.url, credential=credential, sender=server, discovery_sender=server
+    )
     return list(rule.run(target, RuleContext()))
 
 

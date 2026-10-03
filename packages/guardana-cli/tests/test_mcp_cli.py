@@ -31,6 +31,7 @@ from guardana.core.target import (
     TargetKind,
 )
 from guardana.core.target._mcp_client import HttpMcpTransport, open_conversation
+from guardana.core.target._mcp_http import RawReply
 from guardana.core.target._mcp_wire import result_of
 from guardana.core.testing import ScriptedMcpServer
 
@@ -45,7 +46,12 @@ class _Fake:
         pass
 
     def request(self, method: str, params: Mapping[str, object]) -> Mapping[str, object]:
-        return {"protocolVersion": "x"} if method == "initialize" else {"tools": self._tools}
+        return (
+            {"protocolVersion": "2025-11-25"} if method == "initialize" else {"tools": self._tools}
+        )
+
+    def notify(self, method: str) -> None:
+        pass
 
     def close(self) -> None:
         pass
@@ -179,7 +185,7 @@ def test_the_negotiated_revision_reaches_the_run_result(
     )
     monkeypatch.setattr(
         "guardana.cli._mcp_run.build_mcp_target",
-        lambda connection: McpServerTarget(server.url, sender=server),
+        lambda connection: McpServerTarget(server.url, sender=server, discovery_sender=server),
     )
 
     outcome = run_mcp_probe(
@@ -218,7 +224,7 @@ def test_the_documented_jq_path_exists_in_the_document_probe_actually_writes(
     )
     monkeypatch.setattr(
         "guardana.cli._mcp_run.build_mcp_target",
-        lambda connection: McpServerTarget(server.url, sender=server),
+        lambda connection: McpServerTarget(server.url, sender=server, discovery_sender=server),
     )
     written = tmp_path / "run.json"
     result = CliRunner().invoke(
@@ -248,7 +254,7 @@ def test_a_pin_path_never_changes_the_profile_digest_a_run_records(
     server = ScriptedMcpServer("https://93.184.215.14/mcp", tools=_TOOLS["tools"])
     monkeypatch.setattr(
         "guardana.cli._mcp_run.build_mcp_target",
-        lambda connection: McpServerTarget(server.url, sender=server),
+        lambda connection: McpServerTarget(server.url, sender=server, discovery_sender=server),
     )
     (tmp_path / "pins").mkdir()
     pin = tmp_path / "pins" / "mcp.pin.json"
@@ -322,7 +328,7 @@ def test_a_judge_that_cannot_be_reached_during_an_mcp_probe_exits_4(
     server = ScriptedMcpServer("https://93.184.215.14/mcp", tools=_TOOLS["tools"])
     monkeypatch.setattr(
         "guardana.cli._mcp_run.build_mcp_target",
-        lambda connection: McpServerTarget(server.url, sender=server),
+        lambda connection: McpServerTarget(server.url, sender=server, discovery_sender=server),
     )
     monkeypatch.setattr(endpoint_module, "transport_factory", _JudgeUnreachable)
     loaded = rules_loading.load_custom_rules
@@ -361,3 +367,84 @@ def test_a_judge_that_cannot_be_reached_during_an_mcp_probe_exits_4(
     assert "evaluators.llm_judge" in errors[0]
     assert server.url not in errors[0], "the server answered; it must not be blamed"
     assert not written.exists(), "a run whose grading failed writes no verdict"
+
+
+_ANSI = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def _normalised(output: str) -> str:
+    """Flatten styling and wrapping, which differ between a laptop and a CI runner."""
+    return " ".join(_ANSI.sub("", output).replace("│", " ").split())
+
+
+def _gone(url: str, **kwargs: object) -> RawReply:
+    raise McpError(f"could not reach {url}: connection refused")
+
+
+def test_a_server_that_does_not_answer_exits_4_and_keeps_the_stopped_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from guardana.cli.main import app  # noqa: PLC0415
+    from typer.testing import CliRunner  # noqa: PLC0415
+
+    url = "https://93.184.215.14/mcp"
+    monkeypatch.setattr(
+        "guardana.cli._mcp_run.build_mcp_target",
+        lambda connection: McpServerTarget(url, sender=_gone, discovery_sender=_gone),
+    )
+    written = tmp_path / "run.json"
+
+    result = CliRunner().invoke(
+        app, ["probe", "--mcp", url, "--format", "json", "--output", str(written)]
+    )
+
+    assert result.exit_code == 4, result.output
+    document = json.loads(written.read_text(encoding="utf-8"))
+    assert document["run"]["result_summary"]["stopped_by"] == "target_unavailable"
+    errors = [line for line in result.stderr.splitlines() if line.startswith("error: ")]
+    assert errors == [
+        f"error: the MCP server at {url} did not answer: could not reach {url}: connection refused"
+    ]
+
+
+def test_writing_a_pin_against_a_failing_server_exits_4_with_the_targets_words(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    url = "https://93.184.215.14/mcp"
+    issued = "operator-credential-7Q2mZp9XvR4tL8kN"
+
+    def overloaded(url: str, **kwargs: object) -> RawReply:
+        return RawReply(503, {}, f"overloaded, retry later ({issued})".encode())
+
+    monkeypatch.setattr(
+        "guardana.cli._mcp_run.build_mcp_target",
+        lambda connection: McpServerTarget(
+            url, credential=issued, sender=overloaded, discovery_sender=overloaded
+        ),
+    )
+    pin = tmp_path / "pin.json"
+
+    with pytest.raises(typer.Exit) as stopped:
+        write_pin(McpConnection(url), pin)
+
+    assert stopped.value.exit_code == 4
+    said = _normalised(capsys.readouterr().err)
+    assert f"endpoint {url} returned HTTP 503; its body begins: overloaded, retry later" in said
+    assert issued not in said
+    assert not pin.exists()
+
+
+def test_an_stdio_server_that_cannot_be_started_exits_4_before_any_rule(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    with pytest.raises(typer.Exit) as stopped:
+        run_mcp_probe(
+            Registry.discover(PluginTrust(mode=PluginMode.BUILTINS)),
+            Profile(name="t", policy=Policy()),
+            McpConnection("/nonexistent/guardana-test-server --stdio", allow_exec=True),
+            None,
+        )
+
+    assert stopped.value.exit_code == 4
+    said = _normalised(capsys.readouterr().err)
+    assert "error: could not start MCP server '/nonexistent/guardana-test-server'" in said

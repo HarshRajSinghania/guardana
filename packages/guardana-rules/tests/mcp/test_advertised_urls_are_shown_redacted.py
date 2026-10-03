@@ -10,6 +10,7 @@ from collections.abc import Mapping
 from types import SimpleNamespace
 from typing import cast
 
+from _offline import refuse_name_lookups  # noqa: F401 — an autouse fixture
 from guardana.core.report import Finding
 from guardana.core.rule import RuleContext
 from guardana.core.target import Anonymous, Document, McpAuthorizationView, McpServerTarget
@@ -66,7 +67,9 @@ def test_a_refused_redirect_is_shown_without_its_query() -> None:
             discovery=discovery,
         )
 
-    target = McpServerTarget(ROUTABLE, credential=CREDENTIAL, sender=redirecting)
+    target = McpServerTarget(
+        ROUTABLE, credential=CREDENTIAL, sender=redirecting, discovery_sender=redirecting
+    )
     reported = list(McpDiscoveryTargetRule().run(target, RuleContext()))
 
     _clean(reported)

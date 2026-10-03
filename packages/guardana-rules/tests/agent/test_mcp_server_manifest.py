@@ -35,10 +35,13 @@ class _FakeMcp:
 
     def request(self, method: str, params: Mapping[str, object]) -> Mapping[str, object]:
         if method == "initialize":
-            return {"protocolVersion": "2025-06-18"}
+            return {"protocolVersion": "2025-11-25"}
         if method == "tools/list":
             return {"tools": [{"name": n, "description": d} for n, d in self._tools]}
         raise McpError(f"unexpected MCP method {method!r}")
+
+    def notify(self, method: str) -> None:
+        pass
 
     def close(self) -> None:
         self.closed = True

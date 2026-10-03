@@ -6,6 +6,7 @@ meter that under-counts makes every declared cost agree with it and stay wrong.
 """
 
 import pytest
+from _offline import refuse_name_lookups  # noqa: F401 — an autouse fixture
 from guardana.core.budget import BudgetExhausted, Budgets
 from guardana.core.target import McpError, McpServerTarget
 from guardana.core.testing import ScriptedMcpServer
@@ -32,6 +33,9 @@ class _Manifest:
             return {}
         return {"protocolVersion": "2025-11-25"} if method == "initialize" else {"tools": TOOLS}
 
+    def notify(self, method: str) -> None:
+        self.calls.append(method)
+
     def close(self) -> None:
         return None
 
@@ -45,7 +49,12 @@ def test_the_meter_counts_every_call_that_left_the_machine() -> None:
 
     target.list_tools()
 
-    assert transport.calls == ["server/discover", "initialize", "tools/list"]
+    assert transport.calls == [
+        "server/discover",
+        "initialize",
+        "notifications/initialized",
+        "tools/list",
+    ]
     assert target.usage().requests == len(transport.calls)
 
 
@@ -65,32 +74,32 @@ def test_a_request_ceiling_stops_a_run_before_it_sends_the_next_one() -> None:
 
 def test_an_unread_section_of_the_observation_costs_nothing() -> None:
     server = ScriptedMcpServer(ROUTABLE, tools=TOOLS)
-    target = McpServerTarget(ROUTABLE, sender=server)
+    target = McpServerTarget(ROUTABLE, sender=server, discovery_sender=server)
 
     assert target.authorization().anonymous.open_to_anyone
 
-    assert len(server.requests) == 3, "reading one section bought the whole probe"
+    assert len(server.requests) == 4, "reading one section bought the whole probe"
 
 
 def test_a_section_read_twice_is_bought_once() -> None:
     server = ScriptedMcpServer(ROUTABLE, tools=TOOLS)
-    target = McpServerTarget(ROUTABLE, sender=server)
+    target = McpServerTarget(ROUTABLE, sender=server, discovery_sender=server)
     view = target.authorization()
 
     for _ in range(5):
         assert view.anonymous.open_to_anyone
 
-    assert len(server.requests) == 3
+    assert len(server.requests) == 4
 
 
 def test_the_view_is_shared_between_callers() -> None:
     server = ScriptedMcpServer(ROUTABLE, tools=TOOLS)
-    target = McpServerTarget(ROUTABLE, sender=server)
+    target = McpServerTarget(ROUTABLE, sender=server, discovery_sender=server)
 
     assert target.authorization().anonymous.open_to_anyone
     assert target.authorization().anonymous.open_to_anyone
 
-    assert len(server.requests) == 3
+    assert len(server.requests) == 4
 
 
 def test_authorization_over_stdio_is_refused_rather_than_answered_emptily() -> None:

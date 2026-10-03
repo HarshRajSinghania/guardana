@@ -37,15 +37,19 @@ _METHOD_NOT_FOUND = -32601
 class ScriptedMcpServer:
     """An MCP server double reached the way the real one is: through a sender.
 
-    Pass an instance as `McpServerTarget(..., sender=server)` and every request the
-    target would have put on the network arrives here instead.
+    Pass an instance as both senders, `McpServerTarget(..., sender=server,
+    discovery_sender=server)`, and every request the target would have put on the
+    network arrives here instead — the server's own requests and the discovery
+    documents alike.
 
     ```python
     open_server = ScriptedMcpServer(url, tools=[{"name": "read", "description": "…"}])
-    assert list(rule.run(McpServerTarget(url, sender=open_server), RuleContext()))
+    target = McpServerTarget(url, sender=open_server, discovery_sender=open_server)
+    assert list(rule.run(target, RuleContext()))
 
     guarded = ScriptedMcpServer(url, credential="s3cret", tools=[…])
-    assert not list(rule.run(McpServerTarget(url, sender=guarded), RuleContext()))
+    target = McpServerTarget(url, sender=guarded, discovery_sender=guarded)
+    assert not list(rule.run(target, RuleContext()))
     ```
 
     `protocol_versions` chooses the era. Left unset, this is a **legacy** server: it
@@ -54,6 +58,10 @@ class ScriptedMcpServer:
     advertises exactly those revisions through `server/discover` — one modern entry
     for a modern-only server, both for a dual-era one, and a revision this client
     does not speak to exercise the case where there is no conversation to have.
+
+    `discovers` is what `server/discover` lists when it differs from what the server
+    answers: a server listing only modern revisions while still answering `initialize`
+    is dual-era, and only the legacy handshake tells.
     """
 
     def __init__(  # noqa: PLR0913 — one keyword per behaviour a real server varies in
@@ -71,6 +79,7 @@ class ScriptedMcpServer:
         protocol_versions: Sequence[str] | None = None,
         cache_scope: str | None = None,
         ttl_ms: int | None = None,
+        discovers: Sequence[str] | None = None,
     ) -> None:
         self.url = url
         self.tools = list(tools)
@@ -84,6 +93,7 @@ class ScriptedMcpServer:
         self.protocol_versions = list(protocol_versions) if protocol_versions is not None else None
         self.cache_scope = cache_scope
         self.ttl_ms = ttl_ms
+        self.discovers = list(discovers) if discovers is not None else None
         self.requests: list[tuple[str, str, dict[str, str]]] = []
         self.bodies: list[Mapping[str, Any]] = []
         """Every JSON-RPC request this server was sent, parsed.
@@ -110,8 +120,8 @@ class ScriptedMcpServer:
         `alongside` and `discovery` are accepted and ignored: they exist so the real
         sender can guard each redirect hop and pin each discovery connection, and
         this double neither redirects nor connects. Taking them keeps the signature
-        the one the `Sender` protocol publishes, so a double cannot drift out of the
-        contract it stands in for.
+        the one the `DiscoverySender` protocol publishes, so one double serves as both
+        senders and cannot drift out of the contract it stands in for.
         """
         sent = dict(headers or {})
         self.requests.append((method, url, sent))
@@ -126,6 +136,9 @@ class ScriptedMcpServer:
             return rejected
         if not self._authorized(sent):
             return _reply(401, {}, headers=self._challenge_headers())
+        if "id" not in request:
+            # A notification: accepted, and nothing answers it.
+            return RawReply(status=202, headers={}, body=b"")
         return self._json_rpc(str(request.get("method")), _era_of_request(request))
 
     @property
@@ -177,8 +190,9 @@ class ScriptedMcpServer:
         return _reply(200, {}, era=era)
 
     def _discovery(self) -> dict[str, Any]:
+        listed = self.discovers if self.discovers is not None else self.protocol_versions
         return {
-            "supportedVersions": list(self.protocol_versions or ()),
+            "supportedVersions": list(listed or ()),
             "capabilities": {"tools": {}},
             "_meta": {"io.modelcontextprotocol/serverInfo": {"name": "scripted", "version": "0"}},
             **self._caching(),

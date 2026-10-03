@@ -70,8 +70,8 @@ class McpCacheScopeRule(McpReporting):
 
     @property
     def estimated_requests(self) -> int:
-        """The discovery probe, the anonymous pair, and the conversation the manifest needs."""
-        return 5
+        """The discovery probe, the anonymous three, and the handshake, notification and listing."""
+        return 7
 
     def run(self, target: Target, ctx: RuleContext) -> Iterable[Finding]:
         """Read both halves — the declaration and who the server refuses — and grade the pair.

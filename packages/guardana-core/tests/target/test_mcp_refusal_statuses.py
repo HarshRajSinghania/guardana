@@ -9,6 +9,7 @@ import json
 from collections.abc import Mapping
 
 import pytest
+from _offline import refuse_name_lookups  # noqa: F401 — an autouse fixture
 from guardana.core.target import McpServerTarget
 from guardana.core.target._mcp_client import carries_tools
 from guardana.core.target._mcp_http import DiscoveryScope, RawReply
@@ -92,7 +93,9 @@ def test_a_server_error_to_an_anonymous_caller_is_recorded_as_unanswered(
     status: int, modern: bool
 ) -> None:
     server = _FailingWithoutCredential(status, modern=modern)
-    target = McpServerTarget(ROUTABLE, credential="operator-supplied-token", sender=server)
+    target = McpServerTarget(
+        ROUTABLE, credential="operator-supplied-token", sender=server, discovery_sender=server
+    )
 
     anonymous = target.authorization().anonymous
 
@@ -104,7 +107,9 @@ def test_a_server_error_to_an_anonymous_caller_is_recorded_as_unanswered(
 @pytest.mark.parametrize("modern", [False, True], ids=["legacy", "modern"])
 def test_an_authorization_refusal_to_an_anonymous_caller_is_not_an_error(modern: bool) -> None:
     server = _FailingWithoutCredential(401, modern=modern)
-    target = McpServerTarget(ROUTABLE, credential="operator-supplied-token", sender=server)
+    target = McpServerTarget(
+        ROUTABLE, credential="operator-supplied-token", sender=server, discovery_sender=server
+    )
 
     anonymous = target.authorization().anonymous
 

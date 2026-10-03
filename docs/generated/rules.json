@@ -282,7 +282,7 @@
       "requires": [
         "list_tools"
       ],
-      "estimated_requests": 3,
+      "estimated_requests": 4,
       "goal": null,
       "taxonomy": [
         {
@@ -565,7 +565,7 @@
       "requires": [
         "inspect_authorization"
       ],
-      "estimated_requests": 9,
+      "estimated_requests": 10,
       "goal": null,
       "taxonomy": [
         {
@@ -608,7 +608,7 @@
         "inspect_authorization",
         "list_tools"
       ],
-      "estimated_requests": 5,
+      "estimated_requests": 7,
       "goal": null,
       "taxonomy": [
         {
@@ -650,7 +650,7 @@
       "requires": [
         "inspect_authorization"
       ],
-      "estimated_requests": 9,
+      "estimated_requests": 10,
       "goal": null,
       "taxonomy": [
         {
@@ -692,7 +692,7 @@
       "requires": [
         "inspect_authorization"
       ],
-      "estimated_requests": 9,
+      "estimated_requests": 10,
       "goal": null,
       "taxonomy": [
         {
@@ -734,7 +734,7 @@
       "requires": [
         "inspect_authorization"
       ],
-      "estimated_requests": 9,
+      "estimated_requests": 10,
       "goal": null,
       "taxonomy": [
         {
@@ -776,7 +776,7 @@
       "requires": [
         "inspect_authorization"
       ],
-      "estimated_requests": 7,
+      "estimated_requests": 9,
       "goal": null,
       "taxonomy": [
         {
@@ -811,7 +811,7 @@
       "requires": [
         "inspect_authorization"
       ],
-      "estimated_requests": 5,
+      "estimated_requests": 7,
       "goal": null,
       "taxonomy": [
         {
@@ -853,7 +853,7 @@
       "requires": [
         "inspect_authorization"
       ],
-      "estimated_requests": 3,
+      "estimated_requests": 4,
       "goal": null,
       "taxonomy": [
         {

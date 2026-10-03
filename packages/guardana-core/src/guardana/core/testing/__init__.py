@@ -49,7 +49,8 @@ not — without either being real:
     from guardana.core.testing import ScriptedMcpServer
 
     open_to_anyone = ScriptedMcpServer(url, tools=[{"name": "read", "description": "..."}])
-    assert list(MyRule().run(McpServerTarget(url, sender=open_to_anyone), RuleContext()))
+    target = McpServerTarget(url, sender=open_to_anyone, discovery_sender=open_to_anyone)
+    assert list(MyRule().run(target, RuleContext()))
 
 **A scripted A2A agent** stands in for a live one, so a rule about whom an agent answers
 can be driven against an agent that tells its callers apart — and one that does not:

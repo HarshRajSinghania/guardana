@@ -1,20 +1,34 @@
-"""Reading a reply from a server this process started: bounded in size and in time.
+"""Reading a reply from a server this process started: bounded in size, in time and in lines.
 
-The child is the code under test. One that writes a line without end, or never
-writes at all, must cost a bounded amount of memory and a bounded wait, and end in
-an error the run reports — never a scan that hangs or a reply read whole first.
+The child is the code under test. One that writes a line without end, never writes,
+or writes lines answering nothing must cost a bounded amount of memory, a bounded
+wait and a bounded number of lines, and end in a failure that stops the run — never
+a scan that hangs, a reply read whole first, or a late answer read as the next one.
 """
 
 import sys
 import threading
 
 import pytest
-from guardana.core.target import McpError
-from guardana.core.target._mcp_client import StdioMcpTransport
+from _offline import refuse_name_lookups  # noqa: F401 — an autouse fixture
+from guardana.core.target import EndpointUnreachable, UnreadableReply
+from guardana.core.target._mcp_client import StdioMcpTransport, open_conversation
 from guardana.core.target._mcp_http import MAX_RESPONSE_BYTES
+from guardana.core.target._mcp_wire import LEGACY_VERSION
 
-_REPLY = '{"jsonrpc": "2.0", "id": 1, "result": {"tools": []}}\\n'
 _GRACE_SECONDS = 15
+
+_ECHO = """
+import json, sys, time
+for line in sys.stdin:
+    asked = json.loads(line)
+    if "id" not in asked:
+        continue
+    reply = {"jsonrpc": "2.0", "id": asked["id"], "result": {"tools": [], "seen": asked["id"]}}
+    sys.stdout.write(json.dumps(reply) + "\\n")
+    sys.stdout.flush()
+"""
+"""Answers every request with its own id, and says which id it saw."""
 
 
 def _child(source: str) -> list[str]:
@@ -28,7 +42,7 @@ def _request_in_background(transport: StdioMcpTransport) -> list[object]:
     def ask() -> None:
         try:
             outcome.append(transport.request("tools/list", {}))
-        except McpError as exc:
+        except Exception as exc:
             outcome.append(exc)
 
     worker = threading.Thread(target=ask, daemon=True)
@@ -38,12 +52,28 @@ def _request_in_background(transport: StdioMcpTransport) -> list[object]:
     return outcome
 
 
+def test_each_request_carries_its_own_increasing_id() -> None:
+    transport = StdioMcpTransport(_child(_ECHO))
+    try:
+        first = transport.request("tools/list", {})
+        second = transport.request("tools/list", {})
+    finally:
+        transport.close()
+
+    assert first["seen"] == 1
+    assert second["seen"] == 2
+
+
 def test_two_replies_written_together_answer_two_requests() -> None:
+    replies = (
+        '{"jsonrpc": "2.0", "id": 1, "result": {"tools": []}}\\n'
+        '{"jsonrpc": "2.0", "id": 2, "result": {"tools": []}}\\n'
+    )
     transport = StdioMcpTransport(
         _child(
             "import sys, time\n"
             "sys.stdin.readline()\n"
-            f"sys.stdout.write('{_REPLY}{_REPLY}')\n"
+            f"sys.stdout.write('{replies}')\n"
             "sys.stdout.flush()\n"
             "time.sleep(30)\n"
         )
@@ -58,7 +88,7 @@ def test_two_replies_written_together_answer_two_requests() -> None:
     assert second == {"tools": []}
 
 
-def test_a_line_past_the_cap_is_refused_before_it_ends() -> None:
+def test_a_line_past_the_cap_is_unreadable_before_it_ends() -> None:
     transport = StdioMcpTransport(
         _child(
             "import sys, time\n"
@@ -73,11 +103,32 @@ def test_a_line_past_the_cap_is_refused_before_it_ends() -> None:
         transport.close()
 
     assert len(outcome) == 1
-    assert isinstance(outcome[0], McpError)
+    assert isinstance(outcome[0], UnreadableReply)
     assert "exceeds" in str(outcome[0])
 
 
-def test_a_server_that_never_answers_is_an_error_after_the_deadline() -> None:
+def test_a_line_that_is_not_json_is_unreadable_and_the_stream_stays_failed() -> None:
+    transport = StdioMcpTransport(
+        _child(
+            "import sys, time\n"
+            "sys.stdin.readline()\n"
+            "sys.stdout.write('server starting up\\n')\n"
+            'sys.stdout.write(\'{"jsonrpc": "2.0", "id": 2, "result": {"tools": []}}\\n\')\n'
+            "sys.stdout.flush()\n"
+            "time.sleep(30)\n"
+        ),
+        ref="mcp+stdio://child",
+    )
+    try:
+        with pytest.raises(UnreadableReply, match=r"mcp\+stdio://child sent a line"):
+            transport.request("tools/list", {})
+        with pytest.raises(UnreadableReply):
+            transport.request("tools/list", {})
+    finally:
+        transport.close()
+
+
+def test_a_server_that_never_answers_is_unreachable_after_the_deadline() -> None:
     transport = StdioMcpTransport(_child("import time\ntime.sleep(60)\n"), timeout=0.5)
     try:
         outcome = _request_in_background(transport)
@@ -85,38 +136,109 @@ def test_a_server_that_never_answers_is_an_error_after_the_deadline() -> None:
         transport.close()
 
     assert len(outcome) == 1
-    assert isinstance(outcome[0], McpError)
+    assert isinstance(outcome[0], EndpointUnreachable)
     assert "0.5 seconds" in str(outcome[0])
 
 
-def test_a_server_that_exits_without_answering_is_an_error() -> None:
+def test_a_server_that_exits_without_answering_is_unreachable() -> None:
     transport = StdioMcpTransport(_child("import sys\nsys.stdin.readline()\n"))
     try:
-        with pytest.raises(McpError, match="closed its output"):
+        with pytest.raises(EndpointUnreachable, match="closed its output"):
             transport.request("tools/list", {})
     finally:
         transport.close()
 
 
-def test_after_a_failed_read_the_conversation_stays_failed() -> None:
-    # The rest of an oversized line, or a late reply, would otherwise be read as
-    # the answer to the next request. This child answers only once a second request
-    # arrives, so a transport that carried on would read that answer.
+def test_a_command_that_cannot_be_started_is_unreachable_by_name() -> None:
+    with pytest.raises(EndpointUnreachable, match="could not start MCP server"):
+        StdioMcpTransport(["/nonexistent/guardana-test-server"])
+
+
+def test_a_late_reply_is_discarded_never_read_as_the_answer_to_the_next_request() -> None:
+    # The child answers the first request only once the second arrives, so a transport
+    # that took the next line as its answer would read the first request's reply.
     transport = StdioMcpTransport(
         _child(
             "import sys, time\n"
             "sys.stdin.readline()\n"
             "sys.stdin.readline()\n"
-            f"sys.stdout.write('{_REPLY}')\n"
+            'sys.stdout.write(\'{"jsonrpc": "2.0", "id": 1, "result": {"tools": []}}\\n\')\n'
             "sys.stdout.flush()\n"
             "time.sleep(30)\n"
         ),
         timeout=0.3,
     )
     try:
-        with pytest.raises(McpError, match="within"):
+        with pytest.raises(EndpointUnreachable, match="within"):
             transport.request("tools/list", {})
-        with pytest.raises(McpError, match="within"):
+        with pytest.raises(EndpointUnreachable, match="within"):
             transport.request("tools/list", {})
     finally:
         transport.close()
+
+
+def test_lines_answering_nobody_are_discarded_up_to_a_bound_then_unreadable() -> None:
+    stale = '{"jsonrpc": "2.0", "id": 99, "result": {}}\\n'
+    transport = StdioMcpTransport(
+        _child(
+            "import sys, time\n"
+            "sys.stdin.readline()\n"
+            f"sys.stdout.write('{stale}' * 40)\n"
+            "sys.stdout.flush()\n"
+            "time.sleep(30)\n"
+        )
+    )
+    try:
+        with pytest.raises(UnreadableReply, match="answering no request"):
+            transport.request("tools/list", {})
+    finally:
+        transport.close()
+
+
+def test_a_few_lines_answering_nobody_do_not_hide_the_reply_after_them() -> None:
+    stale = '{"jsonrpc": "2.0", "method": "notifications/message", "params": {}}\\n'
+    reply = '{"jsonrpc": "2.0", "id": 1, "result": {"tools": []}}\\n'
+    transport = StdioMcpTransport(
+        _child(
+            "import sys, time\n"
+            "sys.stdin.readline()\n"
+            f"sys.stdout.write('{stale}' * 3 + '{reply}')\n"
+            "sys.stdout.flush()\n"
+            "time.sleep(30)\n"
+        )
+    )
+    try:
+        assert transport.request("tools/list", {}) == {"tools": []}
+    finally:
+        transport.close()
+
+
+def test_a_discovery_that_times_out_leaves_the_stream_for_the_handshake() -> None:
+    # A legacy server that never answers `server/discover` answers it late, after the
+    # client has moved on: the late line is discarded and the handshake is read.
+    transport = StdioMcpTransport(
+        _child(
+            "import json, sys\n"
+            "discover = json.loads(sys.stdin.readline())\n"
+            "initialize = json.loads(sys.stdin.readline())\n"
+            "late = {'jsonrpc': '2.0', 'id': discover['id'], 'error': "
+            "{'code': -32601, 'message': 'Method not found'}}\n"
+            "opened = {'jsonrpc': '2.0', 'id': initialize['id'], 'result': "
+            f"{{'protocolVersion': '{LEGACY_VERSION}', 'capabilities': {{}}}}}}\n"
+            "sys.stdout.write(json.dumps(late) + '\\n' + json.dumps(opened) + '\\n')\n"
+            "sys.stdout.flush()\n"
+            "assert 'id' not in json.loads(sys.stdin.readline())\n"
+            "listing = json.loads(sys.stdin.readline())\n"
+            "sys.stdout.write(json.dumps({'jsonrpc': '2.0', 'id': listing['id'], "
+            "'result': {'tools': [{'name': 'read'}]}}) + '\\n')\n"
+            "sys.stdout.flush()\n"
+        ),
+        timeout=0.5,
+    )
+    try:
+        conversation = open_conversation(transport)
+    finally:
+        transport.close()
+
+    assert [tool.name for tool in conversation.tools] == ["read"]
+    assert conversation.protocol_version == LEGACY_VERSION

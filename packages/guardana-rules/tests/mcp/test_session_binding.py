@@ -1,5 +1,6 @@
 """Session ids: their shape, and whether one authenticates a request on its own."""
 
+from _offline import refuse_name_lookups  # noqa: F401 — an autouse fixture
 from guardana.core.severity import Severity
 from guardana.rules.mcp import McpSessionBindingRule
 from mcp_fixtures import CREDENTIAL, findings, guarded, outcomes, summaries

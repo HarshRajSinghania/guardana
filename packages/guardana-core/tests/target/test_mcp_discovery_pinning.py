@@ -15,6 +15,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import ClassVar
 
 import pytest
+from _offline import refuse_name_lookups  # noqa: F401 — an autouse fixture
 from guardana.core.target import McpServerTarget, _mcp_authorization, _mcp_http
 from guardana.core.target._mcp_http import (
     AddressRefusedError,
@@ -529,7 +530,7 @@ def test_discovery_beside_a_server_whose_name_resolves_inside_is_held_to_the_pub
         )
     )
 
-    view = McpServerTarget(url, sender=captured).authorization()
+    view = McpServerTarget(url, sender=captured, discovery_sender=captured).authorization()
 
     refused = [document for document in view.refused_addresses if document.url == advertised]
     assert len(refused) == 1
@@ -573,7 +574,7 @@ def test_a_document_whose_host_rebinds_before_the_connect_is_recorded_as_refused
         )
     )
 
-    view = McpServerTarget(url, sender=wire).authorization()
+    view = McpServerTarget(url, sender=wire, discovery_sender=wire).authorization()
 
     refused = [document for document in view.refused_addresses if document.url == advertised]
     assert len(refused) == 1
@@ -593,7 +594,7 @@ def test_a_document_whose_host_does_not_resolve_is_unreadable_not_refused(
             url, credential="operator", challenge=f'Bearer resource_metadata="{advertised}"'
         )
     )
-    view = McpServerTarget(url, sender=wire).authorization()
+    view = McpServerTarget(url, sender=wire, discovery_sender=wire).authorization()
 
     document = view._probe._fetch(advertised, _LOCAL)
 
@@ -620,7 +621,7 @@ def test_whether_the_server_is_local_is_decided_once_per_discovery(
     )
     captured = _Recording(server)
 
-    view = McpServerTarget(url, sender=captured).authorization()
+    view = McpServerTarget(url, sender=captured, discovery_sender=captured).authorization()
     assert view.authorization_server is not None
 
     fetches = [scope for method, scope in captured.scopes if method == "GET"]

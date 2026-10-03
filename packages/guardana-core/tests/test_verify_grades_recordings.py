@@ -181,7 +181,7 @@ def test_an_unreadable_recording_is_refused(tmp_path: Path) -> None:
 
 def test_keeping_refuses_an_endpoint_that_cannot_keep_before_anything_is_sent() -> None:
     server = ScriptedMcpServer("https://93.184.215.14/mcp", tools=[{"name": "t"}])
-    target = McpServerTarget(server.url, sender=server)
+    target = McpServerTarget(server.url, sender=server, discovery_sender=server)
 
     with pytest.raises(UnsupportedTargetError, match="keep_exchanges"):
         Verifier(trust=_BUILTINS, profile=_profile("guardana.mcp.*")).run(target)

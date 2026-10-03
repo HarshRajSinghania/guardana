@@ -4,9 +4,10 @@ import socket
 from collections.abc import Mapping
 
 import pytest
+from _offline import refuse_name_lookups  # noqa: F401 — an autouse fixture
 from guardana.core.rule import RuleContext
 from guardana.core.severity import Severity
-from guardana.core.target import McpServerTarget
+from guardana.core.target import EndpointUnreachable, McpServerTarget
 from guardana.core.target._mcp_http import DiscoveryScope, RawReply
 from guardana.rules.mcp import McpUnauthenticatedAccessRule
 from mcp_fixtures import (
@@ -70,13 +71,13 @@ def test_a_name_that_resolves_privately_does_not_lower_the_severity(
     assert asked == []
 
 
-def test_a_server_that_could_not_be_reached_is_inconclusive_not_silence() -> None:
-    target = McpServerTarget("https://93.184.215.14/mcp", sender=unreachable)
+def test_a_server_that_could_not_be_reached_stops_the_run_rather_than_reading_as_silence() -> None:
+    target = McpServerTarget(
+        "https://93.184.215.14/mcp", sender=unreachable, discovery_sender=unreachable
+    )
 
-    reported = list(RULE.run(target, RuleContext()))
-
-    assert outcomes(reported) == ["inconclusive"]
-    assert "could not be reached" in summaries(reported)[0]
+    with pytest.raises(EndpointUnreachable, match="did not answer"):
+        list(RULE.run(target, RuleContext()))
 
 
 def test_a_server_error_to_an_anonymous_caller_is_inconclusive_not_silence() -> None:
@@ -93,7 +94,7 @@ def test_a_server_error_to_an_anonymous_caller_is_inconclusive_not_silence() -> 
     ) -> RawReply:
         return RawReply(status=500, headers={}, body=b"")
 
-    target = McpServerTarget(ROUTABLE, sender=failing)
+    target = McpServerTarget(ROUTABLE, sender=failing, discovery_sender=failing)
     reported = list(RULE.run(target, RuleContext()))
 
     assert outcomes(reported) == ["inconclusive"]

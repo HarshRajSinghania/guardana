@@ -1,5 +1,6 @@
 """Whether a protected server publishes an authorization surface a client can use."""
 
+from _offline import refuse_name_lookups  # noqa: F401 — an autouse fixture
 from guardana.rules.mcp import McpAuthorizationDiscoveryRule
 from mcp_fixtures import (
     CONFORMING_AUTHORIZATION,

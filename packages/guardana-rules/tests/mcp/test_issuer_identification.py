@@ -1,5 +1,6 @@
 """Whether a client here could tell an authorization-server mix-up from a normal flow."""
 
+from _offline import refuse_name_lookups  # noqa: F401 — an autouse fixture
 from guardana.rules.mcp import McpIssuerIdentificationRule
 from mcp_fixtures import (
     CONFORMING_AUTHORIZATION,
@@ -54,14 +55,13 @@ def test_an_unreadable_metadata_document_is_inconclusive_rather_than_silent() ->
     assert "guardana.mcp.authorization_discovery" in summaries(reported)[0]
 
 
-def test_an_unreachable_server_is_inconclusive() -> None:
-    from guardana.core.rule import RuleContext  # noqa: PLC0415
-    from guardana.core.target import McpServerTarget  # noqa: PLC0415
-    from mcp_fixtures import ROUTABLE, unreachable  # noqa: PLC0415
+def test_a_server_sharing_no_revision_is_inconclusive() -> None:
+    from guardana.core.testing import ScriptedMcpServer  # noqa: PLC0415
+    from mcp_fixtures import ROUTABLE  # noqa: PLC0415
 
-    target = McpServerTarget(ROUTABLE, sender=unreachable)
+    server = ScriptedMcpServer(ROUTABLE, protocol_versions=["2031-01-01"])
 
-    reported = list(RULE.run(target, RuleContext()))
+    reported = findings(RULE, server)
 
     assert outcomes(reported) == ["inconclusive"]
-    assert "could not be reached" in summaries(reported)[0]
+    assert "no revision in common" in summaries(reported)[0]

@@ -35,19 +35,22 @@ class McpSessionBindingRule(McpAuthorizationRule):
     invented from them would be worse than none — it looks for structure: the same
     id handed to everybody, a counter, or an id short enough to enumerate.
 
-    **Silent against a server that offers no revision with sessions in it.** MCP
-    `2026-07-28` removed protocol sessions, so a server implementing only modern
+    **Silent against a server observed to offer no revision with sessions in it.**
+    MCP `2026-07-28` removed protocol sessions, so a server implementing only modern
     revisions has none to mint, none to guess and none to authenticate with: the
-    invariant holds, and silence is what this codebase says when it does. Reporting
-    `inconclusive` there would have failed the build of the team that upgraded
-    correctly, which is an accusation rather than a verdict. Which revision was
-    negotiated is recorded in `coverage.protocols`, where a `diff` reads it as the
-    reach changing rather than as the system changing.
+    invariant holds, and silence is what this codebase says when it does. Observed,
+    not read: a server whose discovery lists only modern revisions is asked whether
+    it still answers the `2025-11-25` handshake, and a refusal that says who may ask
+    rather than which era answers, or a legacy revision guardana does not speak, is
+    inconclusive. Which revision was negotiated is recorded in `coverage.protocols`,
+    where a `diff` reads it as the reach changing rather than as the system changing.
 
     A **dual-era** server is graded exactly as before, whichever era the run
     negotiated. It still hands a session to every legacy client it serves, and a
     counter there is a live defect that the modern half of the same server cannot
-    show. See `docs/design/mcp-protocol-eras.md`.
+    show. A handshake answered with an error before any id was collected is
+    inconclusive too: that is sampling that stopped, not a server issuing no session
+    id. See `docs/design/protocol-conformance.md`.
     """
 
     meta = RuleMeta(
@@ -65,8 +68,12 @@ class McpSessionBindingRule(McpAuthorizationRule):
 
     @property
     def estimated_requests(self) -> int:
-        """The discovery probe, the anonymous pair, a handshake per sample, and the stripped one."""
-        return 7
+        """The discovery probe, the anonymous three, three handshakes, a notification, one stripped.
+
+        Over a modern server the anonymous probe is one request and the legacy probe adds
+        one, which stays below the handshake era's nine.
+        """
+        return 9
 
     def examine(self, view: McpAuthorizationView) -> Iterator[Finding]:
         """Grade the session ids, then the request that carried one without a credential."""
@@ -76,6 +83,16 @@ class McpSessionBindingRule(McpAuthorizationRule):
             return
         sessions = view.sessions
         if sessions.no_protocol_sessions is not None:
+            return
+        if sessions.unsettled_offer is not None:
+            yield self.unverified(
+                view,
+                f"whether the server offers a revision with sessions was not settled: "
+                f"{sessions.unsettled_offer}",
+            )
+            return
+        if sessions.sampling_error is not None:
+            yield self.unverified(view, f"session sampling stopped: {sessions.sampling_error}")
             return
         yield from self._shape(view, sessions.ids)
         if sessions.stripped_credential:

@@ -53,7 +53,7 @@ def _target(kind: TargetKind, tmp_path: Path) -> Target:
         (tmp_path / "app.py").write_text("print('hello')\n", encoding="utf-8")
         return ArtifactTarget(tmp_path)
     server = ScriptedMcpServer("https://93.184.215.14/mcp", tools=[{"name": "t"}])
-    return McpServerTarget(server.url, sender=server)
+    return McpServerTarget(server.url, sender=server, discovery_sender=server)
 
 
 @pytest.mark.parametrize(

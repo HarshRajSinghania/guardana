@@ -26,6 +26,7 @@ import json
 import socket
 import ssl
 import threading
+import warnings
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from http.client import HTTPConnection, HTTPMessage, HTTPResponse, HTTPSConnection
@@ -240,12 +241,34 @@ def _origin(parts: SplitResult) -> tuple[str, str, int | None]:
 
 
 class Sender(Protocol):
-    """The one seam every MCP request goes through. Substituted whole in tests.
+    """The seam the server's own requests go through: the conversation and the probes.
 
-    Both the JSON-RPC transport and the authorization observer take one, so a
-    scripted server doubles the whole client rather than half of it — a double that
-    covered only one of the two would leave the other reaching the network from a
-    unit test, which is how a suite starts depending on DNS.
+    Raise `McpError` when no reply arrived — the server could not be reached, the
+    connection broke, a redirect went somewhere a client must not follow — and return
+    a `RawReply` for every status, `401` and `500` included: which status came back is
+    the observation, and an exception for one would lose it. Discovery documents go
+    through a `DiscoverySender` instead, so a transport supplied here cannot skip the
+    guard on addresses the server chose by ignoring a keyword it was never sent.
+    """
+
+    def __call__(
+        self,
+        url: str,
+        *,
+        method: str = "POST",
+        body: bytes | None = None,
+        headers: Mapping[str, str] | None = None,
+    ) -> RawReply:
+        """Send one request and return the reply, whatever status it carries."""
+        raise NotImplementedError
+
+
+class DiscoverySender(Protocol):
+    """The seam authorization discovery goes through: documents at addresses the server named.
+
+    `alongside` is the server under test and `discovery` marks the fetch as discovery;
+    an implementation must honour `discovery`, connecting only to an address the guard
+    accepted, because the server chose the address. `guardana.core.target.send` does.
     """
 
     def __call__(  # noqa: PLR0913 — one keyword per thing a request may vary in
@@ -262,7 +285,7 @@ class Sender(Protocol):
         raise NotImplementedError
 
 
-def send(  # noqa: PLR0913 — the keywords the `Sender` protocol publishes
+def send(  # noqa: PLR0913 — the keywords the `DiscoverySender` protocol publishes
     url: str,
     *,
     method: str = "POST",
@@ -306,7 +329,9 @@ def send(  # noqa: PLR0913 — the keywords the `Sender` protocol publishes
 
 
 class HttpSender:
-    """The `Sender` that reaches the network, remembering where the server's own requests went.
+    """The built-in sender, remembering where the server's own requests went.
+
+    It serves as both the `Sender` and the `DiscoverySender` of a target.
 
     A server's own name is the one thing in a discovery that the server controls
     end to end, so whether it is local is never decided by looking the name up
@@ -319,7 +344,7 @@ class HttpSender:
         self._lock = threading.Lock()
         self._peers: dict[tuple[str, str, int | None], list[_Address | None]] = {}
 
-    def __call__(  # noqa: PLR0913 — the keywords the `Sender` protocol publishes
+    def __call__(  # noqa: PLR0913 — the keywords the `DiscoverySender` protocol publishes
         self,
         url: str,
         *,
@@ -356,7 +381,7 @@ class HttpSender:
             self._peers.setdefault(_origin(urlsplit(url)), []).append(peer)
 
 
-def server_is_local(url: str, sender: "Sender") -> bool:
+def server_is_local(url: str, sender: Sender) -> bool:
     """Say whether the server under test is local, without a new lookup of its name.
 
     Local when the operator's URL names it by an inside address or as `localhost`,
@@ -383,8 +408,12 @@ def _named_local(url: str) -> bool:
 
 
 def _inside(address: _Address) -> bool:
-    """Whether an address is inside some network rather than reachable on the internet."""
-    return not _unmapped(address).is_global
+    """Whether an address is inside some network rather than reachable on the internet.
+
+    An address whose embedded IPv4 address cannot be read is not inside: unknown is not local.
+    """
+    judged = _judged(address)
+    return judged is not None and not judged.is_global
 
 
 def _send(  # noqa: PLR0913 — the `Sender` keywords and the peer recorder
@@ -537,7 +566,9 @@ def refusal_for(url: str, *, local_target: bool) -> str | None:
 def _refused_address(host: str, addresses: Sequence[_Address], *, local_target: bool) -> str | None:
     """Say why any of a host's addresses must not be reached, or None when all of them may be."""
     for resolved in addresses:
-        address = _unmapped(resolved)
+        address = _judged(resolved)
+        if address is None:
+            return f"{resolved} embeds an IPv4 address guardana cannot judge"
         # `::1` sits inside the reserved `::/8`, and loopback is judged by the rule below.
         reserved = address.is_reserved and not address.is_loopback
         if address in _CLOUD_METADATA or address.is_link_local or address.is_multicast or reserved:
@@ -550,14 +581,33 @@ def _refused_address(host: str, addresses: Sequence[_Address], *, local_target: 
     return None
 
 
-def _unmapped(address: _Address) -> _Address:
-    """Read an IPv4-mapped IPv6 address as the IPv4 address it reaches.
+_IPV4_COMPATIBLE = ipaddress.IPv6Network("::/96")
+_NAT64 = ipaddress.IPv6Network("64:ff9b::/96")
+_UNREADABLE_EMBEDDINGS = (
+    ipaddress.IPv6Network("64:ff9b:1::/48"),
+    ipaddress.IPv6Network("2001::/32"),
+)
+"""NAT64 local-use and Teredo: an IPv4 address travels inside, in a form not read here."""
+_LOW_32_BITS = 0xFFFFFFFF
 
-    The socket reaches the IPv4 host either way, and how the mapped form is
-    classified differs between Python versions.
+
+def _judged(address: _Address) -> _Address | None:
+    """Return the address a check judges: the IPv4 address an IPv6 address carries, or itself.
+
+    The socket reaches the embedded IPv4 host, and how the wrapping forms are classified
+    differs between Python releases, so every check reads the IPv4 address instead.
+    None when the address embeds one in a form that cannot be read.
     """
-    if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped is not None:
+    if isinstance(address, ipaddress.IPv4Address):
+        return address
+    if address.ipv4_mapped is not None:
         return address.ipv4_mapped
+    if any(address in network for network in _UNREADABLE_EMBEDDINGS):
+        return None
+    if address in _NAT64 or (address in _IPV4_COMPATIBLE and int(address) > 1):
+        return ipaddress.IPv4Address(int(address) & _LOW_32_BITS)
+    if address.sixtofour is not None:
+        return address.sixtofour
     return address
 
 
@@ -755,13 +805,18 @@ def _verifying_context() -> ssl.SSLContext:
 
 
 def is_local_address(url: str) -> bool:
-    """Say whether this address is inside the machine or its private network.
+    """Say whether this address is inside the machine or its private network. Deprecated.
 
-    Read by the rule that grades an unauthenticated server: one on `127.0.0.1` is
-    how everybody develops and reporting it as `high` teaches people to ignore the
-    rule, while the same server on a routable address is handing its tool manifest
-    to anonymous callers.
+    Resolves the name again, which the server under test answers;
+    `McpAuthorizationView.server_is_local` decides from the addresses a run reached.
     """
+    warnings.warn(
+        "guardana.core.target.is_local_address is deprecated and will be removed before "
+        "1.0; McpAuthorizationView.server_is_local says whether a server is local from the "
+        "addresses a run reached.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     host = urlsplit(url).hostname
     if not host:
         return False

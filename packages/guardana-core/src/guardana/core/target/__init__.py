@@ -3,6 +3,7 @@ from guardana.core.target._mcp_authorization import (
     Discovery,
     Document,
     ForeignToken,
+    LegacyOffer,
     McpAuthorizationView,
     Sessions,
     challenge_parameters,
@@ -11,9 +12,11 @@ from guardana.core.target._mcp_authorization import (
 )
 from guardana.core.target._mcp_http import (
     DiscoveryScope,
+    DiscoverySender,
     Sender,
     is_local_address,
     same_origin,
+    send,
 )
 from guardana.core.target._url import display_url, private_url_parts
 from guardana.core.target.a2a import (
@@ -44,10 +47,12 @@ from guardana.core.target.endpoint import (
     EndpointUnreachable,
     MetadataReportingTransport,
     SendsSecrets,
+    TargetChanged,
     ToolCall,
     ToolCallingTransport,
     ToolCallReply,
     ToolSpec,
+    UnreadableReply,
 )
 from guardana.core.target.mcp import (
     CacheHints,
@@ -56,6 +61,7 @@ from guardana.core.target.mcp import (
     McpError,
     McpServerTarget,
     McpTool,
+    Opening,
 )
 from guardana.core.target.protocols import (
     A2aInspector,
@@ -99,6 +105,7 @@ __all__ = [
     "DeclineReading",
     "Discovery",
     "DiscoveryScope",
+    "DiscoverySender",
     "Document",
     "EndpointError",
     "EndpointTarget",
@@ -107,6 +114,7 @@ __all__ = [
     "FileReader",
     "ForeignToken",
     "HttpAdapterTransport",
+    "LegacyOffer",
     "LocatorError",
     "McpAuthorizationView",
     "McpConversation",
@@ -114,6 +122,7 @@ __all__ = [
     "McpServerTarget",
     "McpTool",
     "MetadataReportingTransport",
+    "Opening",
     "RecordedTarget",
     "ReplyUnavailable",
     "RequestDeclined",
@@ -124,6 +133,7 @@ __all__ = [
     "Sessions",
     "SystemPromptPlanter",
     "Target",
+    "TargetChanged",
     "TargetKind",
     "ToolCall",
     "ToolCallReply",
@@ -133,6 +143,7 @@ __all__ = [
     "ToolSpec",
     "TraceReader",
     "TraceTarget",
+    "UnreadableReply",
     "capability_for",
     "challenge_parameters",
     "dimensions_of",
@@ -142,4 +153,5 @@ __all__ = [
     "private_url_parts",
     "same_origin",
     "scopes_in",
+    "send",
 ]

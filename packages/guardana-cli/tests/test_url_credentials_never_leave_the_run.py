@@ -227,7 +227,9 @@ def test_an_mcp_query_is_sent_but_never_saved(
     server = ScriptedMcpServer(url, tools=_TOOLS)
     monkeypatch.setattr(
         "guardana.cli._mcp_run.build_mcp_target",
-        lambda connection: McpServerTarget(connection.address, sender=server),
+        lambda connection: McpServerTarget(
+            connection.address, sender=server, discovery_sender=server
+        ),
     )
     written = tmp_path / "run.json"
 
@@ -258,7 +260,10 @@ def test_an_mcp_token_the_server_echoes_in_its_manifest_is_never_saved_or_shown(
     monkeypatch.setattr(
         "guardana.cli._mcp_run.build_mcp_target",
         lambda connection: McpServerTarget(
-            connection.address, credential=connection.credential, sender=server
+            connection.address,
+            credential=connection.credential,
+            sender=server,
+            discovery_sender=server,
         ),
     )
     written = tmp_path / "run.json"
@@ -289,19 +294,22 @@ def test_an_mcp_token_the_server_echoes_in_its_manifest_is_never_saved_or_shown(
     [["--format", "json"], ["--write-mcp-pin", "pin.json"]],
     ids=["probe", "write-pin"],
 )
-def test_an_mcp_token_the_server_echoes_in_an_unusable_reply_is_never_shown(
+def test_an_mcp_token_the_server_echoes_in_a_refusal_is_never_shown(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, command: list[str]
 ) -> None:
     token = f"mcp-{_MARKER}-7Q2mZp9XvR4tL8kN"
 
     def echoing(url: str, **kwargs: object) -> RawReply:
-        return RawReply(200, {"Content-Type": "text/plain"}, f"no such token {token}".encode())
+        return RawReply(400, {"Content-Type": "text/plain"}, f"no such token {token}".encode())
 
     monkeypatch.setenv("ACME_MCP_TOKEN", token)
     monkeypatch.setattr(
         "guardana.cli._mcp_run.build_mcp_target",
         lambda connection: McpServerTarget(
-            connection.address, credential=connection.credential, sender=echoing
+            connection.address,
+            credential=connection.credential,
+            sender=echoing,
+            discovery_sender=echoing,
         ),
     )
     monkeypatch.chdir(tmp_path)
@@ -313,6 +321,42 @@ def test_an_mcp_token_the_server_echoes_in_an_unusable_reply_is_never_shown(
     assert result.exit_code != 0, result.output
     assert "no such token" in _plain(result.output)
     assert not _leaked(result, tmp_path / "pin.json")
+
+
+@pytest.mark.parametrize(
+    "command",
+    [["--format", "json", "--output", "run.json"], ["--write-mcp-pin", "pin.json"]],
+    ids=["probe", "write-pin"],
+)
+def test_an_unreadable_mcp_reply_is_named_by_its_size_and_never_quoted(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, command: list[str]
+) -> None:
+    token = f"mcp-{_MARKER}-7Q2mZp9XvR4tL8kN"
+
+    def echoing(url: str, **kwargs: object) -> RawReply:
+        return RawReply(200, {"Content-Type": "text/plain"}, f"no such token {token}".encode())
+
+    monkeypatch.setenv("ACME_MCP_TOKEN", token)
+    monkeypatch.setattr(
+        "guardana.cli._mcp_run.build_mcp_target",
+        lambda connection: McpServerTarget(
+            connection.address,
+            credential=connection.credential,
+            sender=echoing,
+            discovery_sender=echoing,
+        ),
+    )
+    monkeypatch.chdir(tmp_path)
+
+    result = runner.invoke(
+        app, ["probe", "--mcp", _MCP_SERVER, "--mcp-token-env", "ACME_MCP_TOKEN", *command]
+    )
+
+    assert result.exit_code == 4, result.output
+    assert "not JSON-RPC (HTTP 200, 46 bytes)" in _plain(result.output)
+    assert "no such token" not in _plain(result.output)
+    assert not _leaked(result, tmp_path / "pin.json")
+    assert not _leaked(result, tmp_path / "run.json")
 
 
 def test_an_mcp_query_never_reaches_the_collector_as_the_source(
@@ -339,7 +383,9 @@ def test_an_mcp_query_never_reaches_the_collector_as_the_source(
     monkeypatch.setattr(reporting_module, "HttpReporter", _Collector)
     monkeypatch.setattr(
         "guardana.cli._mcp_run.build_mcp_target",
-        lambda connection: McpServerTarget(connection.address, sender=server),
+        lambda connection: McpServerTarget(
+            connection.address, sender=server, discovery_sender=server
+        ),
     )
 
     result = runner.invoke(
@@ -358,7 +404,9 @@ def test_a_pin_written_for_an_mcp_query_url_holds_no_secret(
     server = ScriptedMcpServer(url, tools=_TOOLS)
     monkeypatch.setattr(
         "guardana.cli._mcp_run.build_mcp_target",
-        lambda connection: McpServerTarget(connection.address, sender=server),
+        lambda connection: McpServerTarget(
+            connection.address, sender=server, discovery_sender=server
+        ),
     )
     pin = tmp_path / "pin.json"
 

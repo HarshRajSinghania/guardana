@@ -341,9 +341,11 @@ def test_an_mcp_probe_has_a_knowable_ceiling_and_actually_spends_far_less() -> N
     # would spend *alone*, which is what `plan` has to sum because it cannot know
     # which rule runs first; the observation is bought once and shared, so a real
     # run spends a fraction of it. The ceiling stays honest — it is an upper bound —
-    # and this pins how loose it is allowed to get.
+    # and this pins how loose it is allowed to get. Every accepted handshake is
+    # followed by a metered `notifications/initialized`, which every rule that may
+    # open a session counts once more.
     ceiling = sum(r.estimated_requests or 0 for r in _mcp_rules())
-    assert ceiling <= 60, (
+    assert ceiling <= 72, (
         f"a full MCP probe can cost {ceiling} requests, which is too many to default to"
     )
 
@@ -360,7 +362,7 @@ def test_an_mcp_probe_has_a_knowable_ceiling_and_actually_spends_far_less() -> N
         authorization_metadata={"code_challenge_methods_supported": ["S256"]},
         session_ids=["a" * 32, "b" * 32, "c" * 32],
     )
-    target = McpServerTarget(url, credential="t", sender=server)
+    target = McpServerTarget(url, credential="t", sender=server, discovery_sender=server)
     for rule in _mcp_rules():
         list(rule.run(target, _CTX))
 
@@ -436,8 +438,11 @@ def test_the_mcp_rule_declares_the_one_listing_it_makes() -> None:
 
         def request(self, method: str, params: Mapping[str, object]) -> Mapping[str, object]:
             if method == "initialize":
-                return {"protocolVersion": "x"}
+                return {"protocolVersion": "2025-11-25"}
             return {"tools": [{"name": "read", "description": "reads a file"}]}
+
+        def notify(self, method: str) -> None:
+            pass
 
         def close(self) -> None:
             return None
@@ -607,7 +612,7 @@ def test_no_mcp_rule_grades_with_an_evaluator_it_did_not_declare() -> None:
     server = ScriptedMcpServer(url, tools=[{"name": "read", "description": "reads"}])
     for rule in _mcp_rules():
         tally: Counter[str] = Counter()
-        target = McpServerTarget(url, sender=server)
+        target = McpServerTarget(url, sender=server, discovery_sender=server)
         with suppress(RuleError):
             list(rule.run(target, _counting_context(tally)))
         assert not _over(rule.graded_verdicts, tally), rule.meta.id

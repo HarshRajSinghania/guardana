@@ -5,6 +5,7 @@ place where the code reached a confident answer it had not earned, and each is n
 pinned by a test that fails if the answer goes back.
 """
 
+from _offline import refuse_name_lookups  # noqa: F401 — an autouse fixture
 from guardana.core.rule import RuleContext
 from guardana.core.target import McpServerTarget
 from guardana.core.target._mcp_http import RawReply
@@ -81,7 +82,9 @@ def test_the_session_sample_does_not_depend_on_which_rules_ran() -> None:
     # true about the target.
     def verdict(*, read_the_token_probe: bool) -> list[str]:
         server = guarded(session_ids=["one-and-only-session"] * 6, accepts_any_token=True)
-        target = McpServerTarget(ROUTABLE, credential=CREDENTIAL, sender=server)
+        target = McpServerTarget(
+            ROUTABLE, credential=CREDENTIAL, sender=server, discovery_sender=server
+        )
         if read_the_token_probe:
             list(McpTokenAudienceRule().run(target, RuleContext()))
         return [f.evidence.summary for f in McpSessionBindingRule().run(target, RuleContext())]
@@ -119,7 +122,10 @@ def test_an_injected_transport_alone_does_not_claim_an_authorization_surface() -
             pass
 
         def request(self, method: str, params: object) -> dict[str, object]:
-            return {"protocolVersion": "x"} if method == "initialize" else {"tools": []}
+            return {"protocolVersion": "2025-11-25"} if method == "initialize" else {"tools": []}
+
+        def notify(self, method: str) -> None:
+            pass
 
         def close(self) -> None:
             return None

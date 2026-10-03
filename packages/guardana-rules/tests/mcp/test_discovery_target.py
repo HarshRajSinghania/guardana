@@ -1,5 +1,6 @@
 """Addresses a server hands its client, and the ones this client will not follow."""
 
+from _offline import refuse_name_lookups  # noqa: F401 — an autouse fixture
 from guardana.core.testing import ScriptedMcpServer
 from guardana.rules.mcp import McpDiscoveryTargetRule
 from mcp_fixtures import (

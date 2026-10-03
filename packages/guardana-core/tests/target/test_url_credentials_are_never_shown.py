@@ -7,9 +7,9 @@ spelling it always had, because a `ref` is part of a finding's identity.
 """
 
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from io import BytesIO
-from urllib.error import URLError
+from urllib.error import HTTPError, URLError
 
 import pytest
 from guardana.core.reporter import check_collector_url
@@ -194,7 +194,8 @@ def test_the_adapter_default_fetch_names_the_endpoint_without_its_query(
 
 def test_an_mcp_ref_and_its_authorization_view_carry_no_query() -> None:
     url = f"https://93.184.215.14/mcp?key={_MARKER}"
-    target = McpServerTarget(url, sender=ScriptedMcpServer(url))
+    server = ScriptedMcpServer(url)
+    target = McpServerTarget(url, sender=server, discovery_sender=server)
 
     assert _MARKER not in target.ref
     assert _PLACEHOLDER.search(target.ref)
@@ -223,22 +224,34 @@ def test_an_mcp_error_status_names_the_server_without_its_query() -> None:
 
     transport = HttpMcpTransport(f"http://host/mcp?key={_MARKER}", send=refusing)
 
-    with pytest.raises(McpError) as raised:
+    with pytest.raises(HTTPError) as raised:
+        transport.request("tools/list", {})
+
+    assert raised.value.code == 500
+    assert _MARKER not in str(raised.value)
+    assert _MARKER not in raised.value.filename
+    assert _PLACEHOLDER.search(raised.value.filename)
+
+
+def _junk(url: str, **kwargs: object) -> RawReply:
+    return RawReply(status=200, headers={}, body=b"not json")
+
+
+def _gone(url: str, **kwargs: object) -> RawReply:
+    raise McpError(f"could not reach {display_url(url)}: connection refused")
+
+
+@pytest.mark.parametrize("send_it", [_junk, _gone], ids=["unreadable", "unreachable"])
+def test_an_mcp_reply_error_names_the_server_without_its_query(
+    send_it: Callable[..., RawReply],
+) -> None:
+    transport = HttpMcpTransport(f"http://host/mcp?key={_MARKER}", send=send_it)
+
+    with pytest.raises(EndpointError) as raised:
         transport.request("tools/list", {})
 
     assert _MARKER not in str(raised.value)
-
-
-def test_an_mcp_reply_error_names_the_server_without_its_query() -> None:
-    def junk(url: str, **kwargs: object) -> RawReply:
-        return RawReply(status=200, headers={}, body=b"not json")
-
-    transport = HttpMcpTransport(f"http://host/mcp?key={_MARKER}", send=junk)
-
-    with pytest.raises(McpError) as raised:
-        transport.request("tools/list", {})
-
-    assert _MARKER not in str(raised.value)
+    assert _PLACEHOLDER.search(str(raised.value))
 
 
 def test_well_known_addresses_never_carry_the_server_userinfo() -> None:

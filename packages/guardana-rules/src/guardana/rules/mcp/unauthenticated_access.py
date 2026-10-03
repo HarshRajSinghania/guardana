@@ -45,8 +45,8 @@ class McpUnauthenticatedAccessRule(McpAuthorizationRule):
 
     @property
     def estimated_requests(self) -> int:
-        """The discovery probe, then a handshake and a listing, both presenting nothing."""
-        return 3
+        """The discovery probe, then a handshake, its notification and a listing, all anonymous."""
+        return 4
 
     def examine(self, view: McpAuthorizationView) -> Iterator[Finding]:
         """Report an anonymous caller receiving the manifest, or why nobody could tell."""

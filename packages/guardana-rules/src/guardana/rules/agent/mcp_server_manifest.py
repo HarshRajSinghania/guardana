@@ -153,16 +153,16 @@ class McpServerManifestRule(Rule):
 
     @property
     def estimated_requests(self) -> int:
-        """Three: the discovery probe, the handshake it may fall back to, and the listing.
+        """Four: the discovery probe, the fallback handshake, its notification, and the listing.
 
         It said one until the meter was fixed and started counting the `initialize`
         that always went with it. The declaration and the meter were wrong in the
         same direction, which is why the test comparing them stayed green.
 
-        The third is which era the server speaks, asked once and shared with every
+        The first is which era the server speaks, asked once and shared with every
         other rule. A modern server needs no handshake and costs two.
         """
-        return 3
+        return 4
 
     @property
     def graded_verdicts(self) -> Mapping[str, int]:

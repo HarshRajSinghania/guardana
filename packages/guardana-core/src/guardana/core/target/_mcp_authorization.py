@@ -19,10 +19,18 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from urllib.parse import SplitResult, urlsplit, urlunsplit
 
-from guardana.core.target._mcp_client import REFUSAL_STATUSES, Negotiation, carries_tools
+from guardana.core.target._mcp_client import (
+    REFUSAL_STATUSES,
+    Negotiation,
+    Opening,
+    carries_tools,
+    changed,
+    opening_in,
+)
 from guardana.core.target._mcp_http import (
     AddressRefusedError,
     DiscoveryScope,
+    DiscoverySender,
     McpError,
     RawReply,
     RedirectRefusedError,
@@ -30,14 +38,28 @@ from guardana.core.target._mcp_http import (
     refusal_for,
     server_is_local,
 )
-from guardana.core.target._mcp_wire import Era, Wire
+from guardana.core.target._mcp_wire import (
+    INITIALIZED,
+    LEGACY_WIRE,
+    UNSUPPORTED_PROTOCOL_VERSION,
+    Era,
+    McpProtocolError,
+    Wire,
+    error_member,
+    handshake_refusal,
+    newest_legacy,
+)
 from guardana.core.target._url import display_url
+from guardana.core.target.endpoint import EndpointUnreachable
 from guardana.core.usage import UsageMeter
 
 _CLIENT = {"name": "guardana", "version": "0"}
 _CHALLENGE_PARAM = re.compile(r'(\w+)\s*=\s*"([^"]*)"')
 _SESSION_SAMPLES = 3
 _HTTP_ERROR = 400
+_SUCCESS = range(200, 300)
+_NOT_THE_ERA = frozenset({400, 404, 405})
+"""Statuses a server gives a handshake it does not implement at all."""
 
 # A token nobody could mistake for a credential, and nobody could mistake for
 # valid: `alg: none`, an audience naming a domain reserved never to resolve, and a
@@ -143,6 +165,27 @@ class Sessions:
     stripped_listed_tools: bool = False
     not_stripped_because: str | None = None
     no_protocol_sessions: str | None = None
+    sampling_error: str | None = None
+    """Why sampling stopped before any id was collected: an error or a status, not a result."""
+    unsettled_offer: str | None = None
+    """Why it is not known whether the server offers a revision with sessions at all."""
+
+
+@dataclass(frozen=True, slots=True)
+class LegacyOffer:
+    """Whether the server still answers the handshake era, settled by asking rather than reading.
+
+    `wire` is the `2025-11-25` wire when it does: negotiated, listed by `server/discover`,
+    or answered by the legacy probe, whose answer is `opening`. `modern_only` is a server
+    observed to refuse the handshake era. `unsettled` says why neither could be told: a
+    legacy revision guardana does not speak, or a refusal that says who may ask rather
+    than which era answers.
+    """
+
+    wire: Wire | None = None
+    opening: Opening | None = None
+    modern_only: bool = False
+    unsettled: str | None = None
 
 
 class McpAuthorizationView:
@@ -160,11 +203,12 @@ class McpAuthorizationView:
 
     def __init__(self, probe: "_Probe") -> None:
         self._probe = probe
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         self._anonymous: Anonymous | None = None
         self._discovery: Discovery | None = None
         self._foreign_token: ForeignToken | None = None
         self._sessions: Sessions | None = None
+        self._legacy_offer: LegacyOffer | None = None
 
     @property
     def server(self) -> str:
@@ -224,8 +268,25 @@ class McpAuthorizationView:
         anonymous = self.anonymous
         with self._lock:
             if self._sessions is None:
-                self._sessions = self._probe.sessions(anonymous)
+                self._sessions = self._probe.sessions(anonymous, lambda: self.legacy_offer)
             return self._sessions
+
+    @property
+    def legacy_offer(self) -> LegacyOffer:
+        """Whether the server still answers the handshake era, asked once when not yet known."""
+        with self._lock:
+            if self._legacy_offer is None:
+                self._legacy_offer = self._probe.legacy_offer()
+            return self._legacy_offer
+
+    @property
+    def opening(self) -> Opening | None:
+        """What the conversation's `initialize` was answered with, opened on first read.
+
+        None in a modern conversation, which has no handshake; its declarations and
+        identity are on `server/discover`'s answer, in the target's negotiation.
+        """
+        return self._probe.opening()
 
     def _discovered(self) -> Discovery:
         anonymous = self.anonymous
@@ -235,13 +296,17 @@ class McpAuthorizationView:
             return self._discovery
 
 
-def observe(
+def observe(  # noqa: PLR0913 — the target's facts, and the live negotiation it shares
     url: str,
     *,
     credential: str | None,
     meter: UsageMeter,
     send: Sender,
-    negotiation: Negotiation,
+    discovery_send: DiscoverySender,
+    negotiation: Callable[[], Negotiation],
+    resettle: Callable[[tuple[str, ...]], Negotiation],
+    opening: Callable[[], Opening | None],
+    learn: Callable[[str], None],
 ) -> McpAuthorizationView:
     """Open a view onto `url`, sending nothing until a section of it is read.
 
@@ -249,32 +314,53 @@ def observe(
     no protected resource to discover on a server that answered an anonymous
     caller, and no audience validation to demonstrate on one either.
 
-    `negotiation` is the revision the target already settled, shared rather than
-    repeated: asking the same server twice which protocol it speaks would double
-    the one request every run makes before any question is asked.
+    `negotiation` reads the target's one live negotiation rather than a copy, and
+    `resettle` settles it again when a handshake is answered by a modern server
+    before the era was settled: two copies would let the view grade one revision
+    while the conversation spoke another. `opening` reads the conversation's
+    handshake, and `learn` hands the target every session id a probe was issued.
     """
     return McpAuthorizationView(
-        _Probe(url, credential=credential, meter=meter, send=send, negotiation=negotiation)
+        _Probe(
+            url,
+            credential=credential,
+            meter=meter,
+            send=send,
+            discovery_send=discovery_send,
+            negotiation=negotiation,
+            resettle=resettle,
+            opening=opening,
+            learn=learn,
+        )
     )
 
 
 class _Probe:
     """One server, one credential, and the requests needed to observe it."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913 — the arguments `observe` forwards
         self,
         url: str,
         *,
         credential: str | None,
         meter: UsageMeter,
         send: Sender,
-        negotiation: Negotiation,
+        discovery_send: DiscoverySender,
+        negotiation: Callable[[], Negotiation],
+        resettle: Callable[[tuple[str, ...]], Negotiation],
+        opening: Callable[[], Opening | None],
+        learn: Callable[[str], None],
     ) -> None:
         self._url = url
+        self._ref = display_url(url)
         self._credential = credential
         self._meter = meter
         self._send = send
+        self._discovery_send = discovery_send
         self._negotiation = negotiation
+        self._resettle = resettle
+        self._opening_of = opening
+        self._learn = learn
 
     @property
     def url(self) -> str:
@@ -290,27 +376,40 @@ class _Probe:
         """Whether the server is local, from its URL and the connections already made to it."""
         return server_is_local(self._url, self._send)
 
-    def anonymous(self) -> Anonymous:
+    def opening(self) -> Opening | None:
+        """Return the conversation's handshake answer, as the target holds it."""
+        return self._opening_of()
+
+    def anonymous(self) -> Anonymous:  # noqa: PLR0911 — one return per answer recorded
         """Ask for the tool list presenting nothing, and record what came back.
 
-        Two requests over the handshake era, one over the modern one, because a
-        modern conversation has no handshake to open. The `WWW-Authenticate`
-        challenge is read from whichever reply carried it — on a modern server that
-        is the listing itself, which is the only request there was.
+        Three requests over the handshake era — the handshake, the notification that
+        it was accepted, the listing — and one over the modern era, which has no
+        handshake. The `WWW-Authenticate` challenge is read from whichever reply
+        carried it. A handshake answered with a revision other than `2025-11-25` is
+        no conversation to observe, and one refused as a modern server before the era
+        was settled settles it again, once, and asks over the modern wire.
         """
-        if self._negotiation.unsupported is not None:
-            return Anonymous(error=self._negotiation.unsupported)
+        negotiation = self._negotiation()
+        if negotiation.unsupported is not None:
+            return Anonymous(error=negotiation.unsupported)
         challenge: str | None = None
         session: str | None = None
-        if self._negotiation.era is Era.LEGACY:
+        if negotiation.era is Era.LEGACY:
             try:
                 handshake = self._call("initialize", self._opening(), credential=None)
             except McpError as exc:
                 return Anonymous(error=str(exc))
+            if self._settles_again(handshake, negotiation):
+                return self.anonymous()
             challenge = handshake.header("WWW-Authenticate")
             session = self._session_id_of(handshake)
             if handshake.status >= _HTTP_ERROR:
                 return _refused_handshake(handshake.status, challenge)
+            refusal = _answered_revision(handshake)
+            if refusal is not None:
+                return Anonymous(status=handshake.status, challenge=challenge, error=refusal)
+            self._announce(credential=None, session=session)
         try:
             listing = self._call("tools/list", {}, credential=None, session=session)
         except McpError as exc:
@@ -370,7 +469,7 @@ class _Probe:
             )
         token = forged_token()
         session: str | None = None
-        if self._negotiation.era is Era.LEGACY:
+        if self._negotiation().era is Era.LEGACY:
             try:
                 handshake = self._call("initialize", self._opening(), credential=token)
             except McpError as exc:
@@ -378,6 +477,7 @@ class _Probe:
             if handshake.status >= _HTTP_ERROR:
                 return ForeignToken(attempted=True, status=handshake.status)
             session = self._session_id_of(handshake)
+            self._announce(credential=token, session=session)
         try:
             listing = self._call("tools/list", {}, credential=token, session=session)
         except McpError as exc:
@@ -385,31 +485,94 @@ class _Probe:
         listed = carries_tools(listing)
         return ForeignToken(attempted=True, status=listing.status, listed_tools=listed is True)
 
-    def sessions(self, anonymous: Anonymous) -> Sessions:
+    def sessions(  # noqa: PLR0911 — one return per reason the sample ends
+        self, anonymous: Anonymous, offer: Callable[[], "LegacyOffer"]
+    ) -> Sessions:
         """Collect session ids, then try one on its own without the credential that made it.
 
         Bought over the *handshake* era, whichever era the run negotiated. A
         dual-era server settles as modern and has no session in that conversation,
         while still handing one to every legacy client it serves — so asking only
         over the negotiated era would leave a counter for session ids unseen on
-        exactly the servers running through a migration.
+        exactly the servers running through a migration. Whether the handshake era
+        is still offered is asked, through `offer`, when discovery did not say.
         """
-        legacy = self._negotiation.legacy_wire
-        if legacy is None:
-            return Sessions(no_protocol_sessions=self._negotiation.wire.version)
+        negotiation = self._negotiation()
+        legacy = negotiation.legacy_wire
         blocked = self._cannot_establish_a_session(anonymous)
+        if legacy is None:
+            if blocked is not None:
+                return Sessions(not_stripped_because=blocked)
+            offered = offer()
+            if offered.modern_only:
+                return Sessions(no_protocol_sessions=negotiation.wire.version)
+            if offered.wire is None:
+                return Sessions(unsettled_offer=offered.unsettled or "the server named no era")
+            legacy = offered.wire
         if blocked is not None:
             return Sessions(not_stripped_because=blocked)
-        ids = self._sample_session_ids(legacy)
+        ids, sampling_error = self._sample_session_ids(legacy)
         if not ids:
+            if sampling_error is not None:
+                return Sessions(sampling_error=sampling_error)
             return Sessions(not_stripped_because="the server issues no session id")
         declined = self._cannot_strip_the_credential(anonymous)
         if declined is not None:
             return Sessions(ids=ids, not_stripped_because=declined)
         return self._without_the_credential(ids, legacy)
 
+    def legacy_offer(self) -> LegacyOffer:  # noqa: PLR0911 — one return per answer class
+        """Settle whether the server still answers `initialize`, asking when discovery did not say.
+
+        One handshake over the `2025-11-25` wire, with the operator's credential when
+        one is configured: a result naming that revision is a dual-era server; a
+        JSON-RPC error, `400`, `404` or `405` is a modern-only one; a refusal says who
+        may ask, not which era answers, and leaves it unknown.
+        """
+        negotiation = self._negotiation()
+        if negotiation.legacy_wire is not None:
+            return LegacyOffer(wire=negotiation.legacy_wire)
+        listed = newest_legacy(negotiation.supported_versions)
+        if listed is not None:
+            return LegacyOffer(
+                unsettled=(
+                    f"the server lists {listed} of the handshake era, a revision guardana "
+                    f"does not speak"
+                )
+            )
+        try:
+            reply = self._call("initialize", self._opening(LEGACY_WIRE), wire=LEGACY_WIRE)
+        except McpError as exc:
+            return LegacyOffer(unsettled=f"the legacy handshake could not be sent: {exc}")
+        if reply.status in REFUSAL_STATUSES:
+            advice = "" if self._credential is not None else "; pass --mcp-token-env to settle it"
+            return LegacyOffer(
+                unsettled=f"the legacy handshake was refused with HTTP {reply.status}{advice}"
+            )
+        payload = reply.json_object()
+        if error_member(payload) is not None or reply.status in _NOT_THE_ERA:
+            return LegacyOffer(modern_only=True)
+        result = payload.get("result") if payload is not None else None
+        if reply.status in _SUCCESS and isinstance(result, dict):
+            opening = opening_in(result)
+            refusal = handshake_refusal(opening.version)
+            if refusal is not None:
+                return LegacyOffer(opening=opening, unsettled=refusal)
+            return LegacyOffer(wire=LEGACY_WIRE, opening=opening)
+        return LegacyOffer(
+            unsettled=(
+                f"the legacy handshake was answered with HTTP {reply.status}, which is neither "
+                f"a result nor a refusal of the era"
+            )
+        )
+
     def _without_the_credential(self, ids: tuple[str, ...], wire: Wire) -> Sessions:
-        """Send one request carrying the session and not the credential that made it."""
+        """Send one request carrying the session and not the credential that made it.
+
+        The session's own client announces the accepted handshake first, with the
+        credential, as the `2025-11-25` lifecycle asks before any further request.
+        """
+        self._announce(wire=wire, session=ids[-1])
         try:
             listing = self._call("tools/list", {}, wire=wire, credential=None, session=ids[-1])
         except McpError as exc:
@@ -452,8 +615,8 @@ class _Probe:
             )
         return None
 
-    def _sample_session_ids(self, wire: Wire) -> tuple[str, ...]:
-        """Handshake `_SESSION_SAMPLES` times and return the ids those handshakes issued.
+    def _sample_session_ids(self, wire: Wire) -> tuple[tuple[str, ...], str | None]:
+        """Handshake `_SESSION_SAMPLES` times; return the ids issued and why sampling stopped early.
 
         Its own handshakes, deliberately. The sample used to reuse ids recorded by
         the anonymous probe and the forged-token probe, which made the verdict
@@ -465,29 +628,32 @@ class _Probe:
 
         Bounded by attempts rather than by results, so a server that issues no
         session id ends the loop instead of handshaking until the budget stops it.
+        The reason is kept only when the very first handshake was not a result: an
+        error there is not a server that issues no session id.
         """
         sampled: list[str] = []
         for _ in range(_SESSION_SAMPLES):
             try:
-                issued = self._session_id_of(
-                    self._call("initialize", self._opening(wire), wire=wire)
-                )
+                reply = self._call("initialize", self._opening(wire), wire=wire)
             except McpError:
                 break
+            problem = _sampling_problem(reply)
+            if problem is not None:
+                return tuple(sampled), (None if sampled else problem)
+            issued = self._session_id_of(reply)
             if issued is None:
                 break
             sampled.append(issued)
-        return tuple(sampled)
+        return tuple(sampled), None
 
     def _opening(self, wire: Wire | None = None) -> Mapping[str, object]:
         """Build the `initialize` parameters for one era, naming the version that era carries.
 
         Built from the wire rather than from a constant, because the version in the
         body and the version in the `MCP-Protocol-Version` header have to be the
-        same one — a dual-era server offering `2025-06-18` is handshaken at
-        `2025-06-18`, not at whatever this client would have preferred.
+        same one.
         """
-        used = wire if wire is not None else self._negotiation.wire
+        used = wire if wire is not None else self._negotiation().wire
         return {"protocolVersion": used.version, "capabilities": {}, "clientInfo": _CLIENT}
 
     def _call(
@@ -507,16 +673,64 @@ class _Probe:
         modern server reads in `_meta` is the one it reads in the header — a
         disagreement is a `HeaderMismatch` and the probe would grade a rejection it
         caused itself.
+
+        Every status is an observation, with two exceptions that stop the run: no
+        reply at all, and a refusal of the revision the run settled on.
         """
-        used = wire if wire is not None else self._negotiation.wire
+        negotiation = self._negotiation()
+        used = wire if wire is not None else negotiation.wire
         token = self._credential if credential == "" else credential
-        return self._spend(
-            lambda: self._send(
-                self._url,
-                body=used.body(method, params),
-                headers=used.headers(method, credential=token, session=session),
-            )
+        return self._observed(
+            negotiation,
+            used,
+            used.body(method, params),
+            used.headers(method, credential=token, session=session),
         )
+
+    def _announce(
+        self, *, wire: Wire | None = None, credential: str | None = "", session: str | None
+    ) -> None:
+        """Tell the server its handshake was accepted, before the next request of that session."""
+        negotiation = self._negotiation()
+        used = wire if wire is not None else negotiation.wire
+        token = self._credential if credential == "" else credential
+        self._observed(
+            negotiation,
+            used,
+            used.notification(INITIALIZED),
+            used.headers(INITIALIZED, credential=token, session=session),
+        )
+
+    def _observed(
+        self, negotiation: Negotiation, wire: Wire, body: bytes, headers: Mapping[str, str]
+    ) -> RawReply:
+        """Send one probe and return its reply, raising only for no reply or a dropped revision."""
+        try:
+            reply = self._spend(lambda: self._send(self._url, body=body, headers=headers))
+        except (RedirectRefusedError, AddressRefusedError):
+            raise
+        except McpError as exc:
+            raise EndpointUnreachable(
+                f"the MCP server at {self._ref} did not answer: {exc}"
+            ) from exc
+        issued = self._session_id_of(reply)
+        if issued:
+            self._learn(issued)
+        agreed = negotiation.settled_version
+        refused = _revision_refusal(reply)
+        if refused is not None and agreed is not None and wire.version == agreed:
+            raise changed(self._ref, agreed, refused.supported_versions())
+        return reply
+
+    def _settles_again(self, handshake: RawReply, negotiation: Negotiation) -> bool:
+        """Settle the era again when an unsettled handshake was refused by a modern server."""
+        refused = _revision_refusal(handshake)
+        if refused is None or negotiation.settled_version is not None:
+            return False
+        offered = refused.supported_versions()
+        if not offered:
+            return False
+        return self._resettle(offered).settled_version is not None
 
     def _fetch(self, url: str, scope: DiscoveryScope) -> Document:
         """Fetch one discovery document over a connection pinned to an address the guard passed."""
@@ -525,7 +739,7 @@ class _Probe:
             return Document(url=url, refused=refusal)
         try:
             reply = self._spend(
-                lambda: self._send(
+                lambda: self._discovery_send(
                     url,
                     method="GET",
                     headers={"Accept": "application/json"},
@@ -587,6 +801,37 @@ def _refused_because(exc: RedirectRefusedError | AddressRefusedError) -> str:
     if isinstance(exc, RedirectRefusedError):
         return f"it redirected to {display_url(exc.url)}, and {exc.reason}"
     return f"when it was connected to, {exc.reason}"
+
+
+def _revision_refusal(reply: RawReply) -> McpProtocolError | None:
+    """Return the `UnsupportedProtocolVersionError` a reply carries, or None."""
+    error = error_member(reply.json_object())
+    if error is None or error.get("code") != UNSUPPORTED_PROTOCOL_VERSION:
+        return None
+    return McpProtocolError("", code=UNSUPPORTED_PROTOCOL_VERSION, data=error.get("data"))
+
+
+def _answered_revision(reply: RawReply) -> str | None:
+    """Say why a handshake's result opens no conversation, or None when it does or carries none."""
+    payload = reply.json_object()
+    result = payload.get("result") if payload is not None else None
+    if not isinstance(result, dict):
+        return None
+    return handshake_refusal(result.get("protocolVersion"))
+
+
+def _sampling_problem(reply: RawReply) -> str | None:
+    """Say why a sampling handshake was not a result, or None when it was one in `2025-11-25`."""
+    payload = reply.json_object()
+    error = error_member(payload)
+    if error is not None:
+        return f"the handshake was answered with JSON-RPC error {error.get('code')}"
+    if reply.status not in _SUCCESS:
+        return f"the handshake was answered with HTTP {reply.status}"
+    result = payload.get("result") if payload is not None else None
+    if not isinstance(result, dict):
+        return f"the reply to the handshake (HTTP {reply.status}) is not a result"
+    return handshake_refusal(result.get("protocolVersion"))
 
 
 def _refused_handshake(status: int, challenge: str | None) -> Anonymous:
@@ -705,6 +950,7 @@ __all__ = [
     "Discovery",
     "Document",
     "ForeignToken",
+    "LegacyOffer",
     "McpAuthorizationView",
     "Sender",
     "Sessions",
