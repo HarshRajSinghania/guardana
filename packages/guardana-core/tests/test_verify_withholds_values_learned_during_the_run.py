@@ -1,9 +1,8 @@
 """A value a target learns during the run is withheld from what the run writes.
 
-The withheld set used to be read once, before the first request, so a task id an A2A
-agent revealed half way through could reach a saved run through any evidence that
-quoted it. These tests run an A2A target through the `Verifier` and look in the
-document it would save.
+The withheld set is read again after the last request, so a task id an A2A agent
+revealed half way through never reaches a saved run, whatever evidence quoted it. These
+tests run an A2A target through the `Verifier` and look in the document it would save.
 """
 
 import json

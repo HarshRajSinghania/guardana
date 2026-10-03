@@ -154,3 +154,12 @@ class Target(ABC):
                 f"a budget was set, but {type(self).__name__} ({self.ref}) does not enforce "
                 f"budgets — remove the ceiling, or implement apply_budgets on the target"
             )
+
+
+def examined_by_rules_only(target: Target) -> bool:
+    """Whether a run examines `target` with its rules alone, in one pass.
+
+    A target no rule can chat with has no system prompt to plant a canary in, so there
+    are no probe passes to split it into; `verify` and `plan` both ask this.
+    """
+    return Capability.CHAT not in target.capabilities()

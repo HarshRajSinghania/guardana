@@ -94,7 +94,7 @@ class A2aAgentCardRule(A2aRule):
         if (
             interface is not None
             and urlsplit(interface).scheme == "http"
-            and not view.card_host_is_local
+            and not view.jsonrpc_interface_is_local
         ):
             defects.append(
                 "its JSON-RPC 1.0 interface is plain http on a host that is not loopback or private"

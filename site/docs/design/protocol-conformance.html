@@ -580,7 +580,11 @@ second HIGH: &quot;task ids are <code>&lt;structure&gt;</code>; with no authoriz
 the id is all that guards it&quot;.</li>
 <li><code>answered</code> with none: on a server that served tools anonymously → inconclusive, &quot;no task is
 visible to a caller without a credential, so whether task ids can be guessed — the only
-guard a server without authentication has — cannot be graded&quot;; on a gated server → silent.</li>
+guard a server without authentication has — cannot be graded&quot;. On a gated server the
+empty answer cannot tell owner binding from &quot;no task exists yet&quot;, so with a credential
+configured one <code>tasks/list</code> is sent as the operator (in the conversation's session over the
+legacy wire): a task there beside the empty anonymous listing → silent; none, or no
+credential → inconclusive, naming <code>--mcp-token-env</code> or the missing task.</li>
 <li><code>refused</code> → silent.</li>
 <li><code>unknown_method</code>: <code>offer</code> <code>none</code> → <code>raise NotOffered(&quot;the server declares no tasks and answers tasks/list as an unknown method&quot;, missing=(&quot;tasks&quot;,))</code>; <code>unlisted</code> → inconclusive, &quot;the
 server issues task ids only to a tools/call, which guardana never sends&quot;; <code>listing</code> →
@@ -591,8 +595,8 @@ inconclusive, &quot;the server declares tasks.list and answers it as an unknown 
 <code>rules/mcp/_ids.py</code>: a repeated id, an id shorter than 16 characters, or ids that count up.
 <code>ordered=True</code> keeps the issue order (sessions); <code>ordered=False</code> sorts the numeric tails first
 (a listing's order is the server's). Meta: <code>INSPECT_AUTHORIZATION</code> (over stdio a
-<code>missing_capability</code> skip), taxonomy <code>MCP07:2025</code>, <code>MCP10:2025</code>, <code>ASI03:2026</code>, one request,
-read-only.</p>
+<code>missing_capability</code> skip), taxonomy <code>MCP07:2025</code>, <code>MCP10:2025</code>, <code>ASI03:2026</code>, one request
+and up to two more when the operator's listing is needed, read-only.</p>
 <p>Rejected: grading the operator's own listing (owner-bound ids need not be random, so a finding
 there would accuse a conforming server); trusting the declaration alone (a server that declares
 nothing and lists everyone's tasks would never be asked).</p>
@@ -688,7 +692,7 @@ does the same for the session ids it collected.</p>
 <tbody>
 <tr>
 <td><code>guardana.a2a.agent_card</code></td>
-<td>a required field missing (<code>name</code>, <code>description</code>, <code>supportedInterfaces</code>, <code>version</code>, <code>capabilities</code>, <code>defaultInputModes</code>, <code>defaultOutputModes</code>, <code>skills</code>); a requirement naming a scheme <code>securitySchemes</code> does not declare; a JSON-RPC 1.0 interface on plain <code>http</code> with a non-local card host — MEDIUM, one finding listing each</td>
+<td>a required field missing (<code>name</code>, <code>description</code>, <code>supportedInterfaces</code>, <code>version</code>, <code>capabilities</code>, <code>defaultInputModes</code>, <code>defaultOutputModes</code>, <code>skills</code>); a requirement naming a scheme <code>securitySchemes</code> does not declare; a JSON-RPC 1.0 interface on plain <code>http</code> whose own host is not local — MEDIUM, one finding listing each</td>
 <td><code>card_error</code></td>
 <td>—</td>
 <td><code>ASI07:2026</code>, <code>ASI04:2026</code></td>
@@ -696,14 +700,14 @@ does the same for the session ids it collected.</p>
 <tr>
 <td><code>guardana.a2a.caller_identity</code></td>
 <td>security <strong>required</strong> and an anonymous <code>GetTask</code>, <code>ListTasks</code> or <code>GetExtendedAgentCard</code> <code>answered</code> → HIGH; security <strong>none</strong> and one <code>answered</code> → HIGH, LOW when the card host is local; the extended card <code>answered</code> anonymously → HIGH under any security — one finding per shape</td>
-<td><code>unsupported</code>; every anonymous request <code>other</code>; <code>GetTask</code> answered <code>-32601</code> before any A2A code</td>
+<td><code>unsupported</code>; no anonymous request <code>refused</code> or <code>answered</code>; <code>GetTask</code> answered <code>-32601</code> before any A2A code</td>
 <td>—</td>
 <td><code>ASI03:2026</code>, <code>ASI07:2026</code></td>
 </tr>
 <tr>
 <td><code>guardana.a2a.task_visibility</code></td>
 <td>an anonymous <code>ListTasks</code> <code>answered</code> with a task or <code>totalSize</code> above 0 → HIGH; the second caller <code>answered</code> a <code>GetTask</code> for the first caller's task → HIGH</td>
-<td><code>unsupported</code>; the cross-caller half when a credential is missing or could not be sent (naming the two flags or the card's schemes); the first caller listed no task; the second caller <code>refused</code></td>
+<td><code>unsupported</code>; the anonymous <code>ListTasks</code> answered <code>other</code>; the cross-caller half when a credential is missing or could not be sent (naming the two flags or the card's schemes); the first caller listed no task; the second caller <code>refused</code></td>
 <td>every <code>ListTasks</code> sent answered <code>not_offered</code>, at least one sent</td>
 <td><code>ASI03:2026</code>, <code>ASI07:2026</code></td>
 </tr>
@@ -850,7 +854,7 @@ no-op <code>AgentExecutor</code>; a handler subclass whose <code>on_list_tasks</
 <p>Unit tests use <code>ScriptedMcpServer</code> and <code>ScriptedA2aAgent</code> and refuse real name lookups. Each new
 rule ships finding, clean and inconclusive fixtures, so <code>_FULLY_SAMPLED</code> in
 <code>test_builtin_fixture_coverage.py</code> rises by five; <code>test_probe_cost.py</code> gains an A2A run shape (ceiling 20, a whole
-run 8 requests) and <code>REGISTRY_ENTRY</code> in the MCP shape. The MCP ceiling rises from 60 to 79:
+run 8 requests) and <code>REGISTRY_ENTRY</code> in the MCP shape. The MCP ceiling rises from 60 to 82:
 <code>notifications/initialized</code> and the legacy probe are metered, and <code>task_identity</code> and
 <code>registry_entry</code> declare their own; a whole MCP probe still spends at most 20.</p>
 <p>Rejected: hand-written fixtures (Guardana's own reading on both sides); the official MCP

@@ -352,7 +352,7 @@ def test_an_mcp_probe_has_a_knowable_ceiling_and_actually_spends_far_less() -> N
     # followed by a metered `notifications/initialized`, which every rule that may
     # open a session counts once more.
     ceiling = sum(r.estimated_requests or 0 for r in _mcp_rules())
-    assert ceiling <= 79, (
+    assert ceiling <= 82, (
         f"a full MCP probe can cost {ceiling} requests, which is too many to default to"
     )
 
@@ -387,6 +387,7 @@ def _mcp_server(**era: object) -> "ScriptedMcpServer":
         },
         "session_ids": ["a" * 32, "b" * 32, "c" * 32],
         "tasks": ["d" * 32],
+        "tasks_owner_bound": True,
         "tasks_unguarded": True,
         "task_declaration": "listing",
         **era,

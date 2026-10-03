@@ -1,9 +1,8 @@
 """One live negotiation, every handshake checked, and a revision change stopping the run.
 
-The authorization view used to grade a copy of the negotiation taken before any
-handshake, and a handshake answered in a revision Guardana does not speak was recorded
-as if it had been. Each of those is a conversation that did not happen in the revision
-the run reports.
+The authorization view reads the target's own negotiation, never a copy taken before a
+handshake, and a handshake answered in a revision Guardana does not speak is no
+conversation. Every request a run grades was made in the revision the run reports.
 """
 
 import json

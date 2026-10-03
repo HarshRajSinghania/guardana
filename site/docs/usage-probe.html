@@ -637,7 +637,7 @@ saying plainly when it could not reach a verdict:</p>
 </tr>
 <tr>
 <td><code>guardana.mcp.task_identity</code></td>
-<td>One <code>tasks/list</code> sent without a credential lists no task, since a fresh anonymous session owns none; on a server that serves tools to anyone, listed task ids are not a counter, repeated or short. A refused listing, or an empty one on a gated server, is the conforming answer. A server that declares no tasks and answers <code>tasks/list</code> as an unknown method is skipped <code>not_offered</code>, a coverage gap</td>
+<td>One <code>tasks/list</code> sent without a credential lists no task, since a fresh anonymous session owns none; on a server that serves tools to anyone, listed task ids are not a counter, repeated or short. A refused listing is the conforming answer. An empty one on a gated server is confirmed with one listing as the operator: a task there shows the anonymous caller was kept from it; without <code>--mcp-token-env</code>, or with no task to show, the check is <code>inconclusive</code>. A server that declares no tasks and answers <code>tasks/list</code> as an unknown method is skipped <code>not_offered</code>, a coverage gap</td>
 </tr>
 </tbody>
 </table></div>
@@ -831,15 +831,15 @@ checks that need a credential report <code>inconclusive</code>, naming the schem
 <tbody>
 <tr>
 <td><code>guardana.a2a.agent_card</code></td>
-<td>The card has every required field (<code>name</code>, <code>description</code>, <code>supportedInterfaces</code>, <code>version</code>, <code>capabilities</code>, <code>defaultInputModes</code>, <code>defaultOutputModes</code>, <code>skills</code>), every scheme a requirement names is declared, and its JSON-RPC 1.0 interface is not plain <code>http</code> on a host that is not loopback or private. One <code>medium</code> finding lists every defect</td>
+<td>The card has every required field (<code>name</code>, <code>description</code>, <code>supportedInterfaces</code>, <code>version</code>, <code>capabilities</code>, <code>defaultInputModes</code>, <code>defaultOutputModes</code>, <code>skills</code>), every scheme a requirement names is declared, and its JSON-RPC 1.0 interface is not plain <code>http</code> unless that interface's own host is loopback or private. One <code>medium</code> finding lists every defect</td>
 </tr>
 <tr>
 <td><code>guardana.a2a.caller_identity</code></td>
-<td>The agent does not answer a caller presenting nothing when the card requires a credential (<code>high</code>), or when it declares no security (<code>high</code>, <code>low</code> on a loopback or private address); and it never serves its extended card anonymously (<code>high</code>). An optional requirement makes an anonymous answer what the card declared</td>
+<td>The agent does not answer a caller presenting nothing when the card requires a credential (<code>high</code>), or when it declares no security (<code>high</code>, <code>low</code> on a loopback or private address); and it never serves its extended card anonymously (<code>high</code>). An optional requirement makes an anonymous answer what the card declared. An agent that neither refused nor answered any anonymous request is <code>inconclusive</code></td>
 </tr>
 <tr>
 <td><code>guardana.a2a.task_visibility</code></td>
-<td>An anonymous <code>ListTasks</code> lists no task, and the second caller cannot read a task the first caller listed as its own (<code>high</code> each)</td>
+<td>An anonymous <code>ListTasks</code> lists no task, and the second caller cannot read a task the first caller listed as its own (<code>high</code> each). An anonymous listing answered with an error that is neither a refusal nor a result is <code>inconclusive</code></td>
 </tr>
 </tbody>
 </table></div>

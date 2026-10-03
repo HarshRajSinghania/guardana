@@ -853,7 +853,7 @@
       "requires": [
         "inspect_authorization"
       ],
-      "estimated_requests": 6,
+      "estimated_requests": 9,
       "goal": null,
       "taxonomy": [
         {

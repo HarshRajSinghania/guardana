@@ -71,7 +71,11 @@ _DISCOVER = "server/discover"
 _READ_CHUNK = 64 * 1024
 _QUOTED_BODY_BYTES = 4096
 _STALE_LINES = 16
-"""How many lines answering no request an stdio server may send per request; more is unreadable."""
+"""How many replies to no pending request an stdio server may send per request; more is unreadable.
+
+A line carrying `method` is the server's own request or notification, not a reply, and is
+skipped without counting; the request's deadline bounds how long those can go on.
+"""
 
 REFUSAL_STATUSES = frozenset({401, 403})
 """The statuses that mean a server decided this caller may not ask; no other status does."""
@@ -389,7 +393,8 @@ class StdioMcpTransport:
     examination, so a line without end or a reply that never comes has to cost a
     bounded amount of memory and time. Each request carries its own id, and a line
     answering another one is discarded, so a reply that arrived late is never read as
-    the answer to the request after it.
+    the answer to the request after it. A line carrying `method` is the server asking
+    or notifying, whatever id it carries, and is skipped.
     """
 
     def __init__(
@@ -420,13 +425,18 @@ class StdioMcpTransport:
         self._wire = wire
 
     def request(self, method: str, params: Mapping[str, object]) -> Mapping[str, object]:
-        """Write one JSON-RPC line and read lines until the one answering it."""
+        """Write one JSON-RPC line and read lines until the one answering it, in one deadline."""
         self._last_id += 1
         asked = self._last_id
         self._write(self._wire.body(method, params, request_id=asked))
-        for _ in range(_STALE_LINES + 1):
-            payload = self._read_payload()
+        deadline = time.monotonic() + self._timeout
+        stale = 0
+        while stale <= _STALE_LINES:
+            payload = self._read_payload(deadline)
+            if "method" in payload:
+                continue
             if payload.get("id") != asked:
+                stale += 1
                 continue
             error = error_member(payload)
             if error is not None:
@@ -464,12 +474,12 @@ class StdioMcpTransport:
                 f"the MCP server at {self._ref} did not answer: {exc}"
             ) from exc
 
-    def _read_payload(self) -> Mapping[str, object]:
+    def _read_payload(self, deadline: float) -> Mapping[str, object]:
         """Read the next line as a JSON object, or raise what its absence or shape stands for."""
         if self._process.stdout is None:
             raise EndpointUnreachable(f"the MCP server at {self._ref} has no usable pipes")
         try:
-            line = self._read_line(self._process.stdout.fileno())
+            line = self._read_line(self._process.stdout.fileno(), deadline)
         except OSError as exc:
             raise EndpointUnreachable(
                 f"the MCP server at {self._ref} did not answer: {exc}"
@@ -491,7 +501,7 @@ class StdioMcpTransport:
             )
         return payload
 
-    def _read_line(self, fd: int) -> bytes | None:
+    def _read_line(self, fd: int, deadline: float) -> bytes | None:
         """Read one line from the child, or None when it closed its output first.
 
         Raw reads on the descriptor, never the buffered pipe: a buffered read would
@@ -500,7 +510,6 @@ class StdioMcpTransport:
         line when the deadline passes: a late reply is read and discarded later
         rather than the stream being given up.
         """
-        deadline = time.monotonic() + self._timeout
         buffered = self._pending
         with selectors.DefaultSelector() as selector:
             selector.register(fd, selectors.EVENT_READ)

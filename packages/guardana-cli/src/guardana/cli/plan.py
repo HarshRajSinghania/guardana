@@ -59,14 +59,13 @@ from guardana.core.profile import Profile, ProfileError
 from guardana.core.recording import RecordingError, read_recording
 from guardana.core.registry import Registry
 from guardana.core.target import (
-    A2aAgentTarget,
     ArtifactTarget,
     EndpointTarget,
-    McpServerTarget,
     RegistryEntry,
     SeededTarget,
     Target,
     TargetKind,
+    examined_by_rules_only,
 )
 from guardana.core.target.connection import Connection
 from guardana.core.target.endpoint import RETRIES_PER_REQUEST
@@ -616,10 +615,9 @@ def plan_probe(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; thi
         selected.apply_budgets(prof.budgets)
     except BudgetExhausted as exc:
         raise refuse_unenforceable_budget(exc) from exc
-    # A protocol server is probed in one pass; every other target in the passes a probe splits.
     planned = (
         build_plan(registry, prof, selected, judge_meters=judge_meters)
-        if isinstance(selected, McpServerTarget | A2aAgentTarget)
+        if examined_by_rules_only(selected)
         else plan_target_probe(registry, prof, selected, judge_meters=judge_meters)
     )
     _emit(

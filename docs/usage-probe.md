@@ -207,7 +207,7 @@ saying plainly when it could not reach a verdict:
 | `guardana.mcp.discovery_target` | Every discovery address the server advertises is one a client may follow |
 | `guardana.mcp.issuer_identification` | The authorization server advertises `authorization_response_iss_parameter_supported`, without which a client cannot detect an authorization-server mix-up (RFC 9207) |
 | `guardana.mcp.cache_scope` | A tool listing the server gates behind a credential is not also declared `cacheScope: "public"`, which would invite any shared gateway to serve it to a caller the server would have refused |
-| `guardana.mcp.task_identity` | One `tasks/list` sent without a credential lists no task, since a fresh anonymous session owns none; on a server that serves tools to anyone, listed task ids are not a counter, repeated or short. A refused listing, or an empty one on a gated server, is the conforming answer. A server that declares no tasks and answers `tasks/list` as an unknown method is skipped `not_offered`, a coverage gap |
+| `guardana.mcp.task_identity` | One `tasks/list` sent without a credential lists no task, since a fresh anonymous session owns none; on a server that serves tools to anyone, listed task ids are not a counter, repeated or short. A refused listing is the conforming answer. An empty one on a gated server is confirmed with one listing as the operator: a task there shows the anonymous caller was kept from it; without `--mcp-token-env`, or with no task to show, the check is `inconclusive`. A server that declares no tasks and answers `tasks/list` as an unknown method is skipped `not_offered`, a coverage gap |
 
 **Two of them need `--mcp-token-env` to say anything**, and say so rather than
 going quiet: whether a session authenticates on its own cannot be tested without a
@@ -368,9 +368,9 @@ checks that need a credential report `inconclusive`, naming the schemes the card
 
 | Rule | What it establishes |
 |---|---|
-| `guardana.a2a.agent_card` | The card has every required field (`name`, `description`, `supportedInterfaces`, `version`, `capabilities`, `defaultInputModes`, `defaultOutputModes`, `skills`), every scheme a requirement names is declared, and its JSON-RPC 1.0 interface is not plain `http` on a host that is not loopback or private. One `medium` finding lists every defect |
-| `guardana.a2a.caller_identity` | The agent does not answer a caller presenting nothing when the card requires a credential (`high`), or when it declares no security (`high`, `low` on a loopback or private address); and it never serves its extended card anonymously (`high`). An optional requirement makes an anonymous answer what the card declared |
-| `guardana.a2a.task_visibility` | An anonymous `ListTasks` lists no task, and the second caller cannot read a task the first caller listed as its own (`high` each) |
+| `guardana.a2a.agent_card` | The card has every required field (`name`, `description`, `supportedInterfaces`, `version`, `capabilities`, `defaultInputModes`, `defaultOutputModes`, `skills`), every scheme a requirement names is declared, and its JSON-RPC 1.0 interface is not plain `http` unless that interface's own host is loopback or private. One `medium` finding lists every defect |
+| `guardana.a2a.caller_identity` | The agent does not answer a caller presenting nothing when the card requires a credential (`high`), or when it declares no security (`high`, `low` on a loopback or private address); and it never serves its extended card anonymously (`high`). An optional requirement makes an anonymous answer what the card declared. An agent that neither refused nor answered any anonymous request is `inconclusive` |
+| `guardana.a2a.task_visibility` | An anonymous `ListTasks` lists no task, and the second caller cannot read a task the first caller listed as its own (`high` each). An anonymous listing answered with an error that is neither a refusal nor a result is `inconclusive` |
 
 A "task not found" is never graded: the specification asks an agent not to tell "absent"
 from "not yours", and a random id exists for nobody. An agent that answers every

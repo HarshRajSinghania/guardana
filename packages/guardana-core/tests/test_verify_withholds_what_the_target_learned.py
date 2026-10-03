@@ -1,8 +1,7 @@
 """A value the target learned during the run is withheld from what the run writes.
 
-A session id is handed out by the server part-way through a run, so asking the target
-what it sends only before the run missed it; a server that echoed the id into an error
-then had it saved in `run.json`.
+A server hands out a session id part-way through a run and may echo it into an error, so
+the target's secrets are read again after the run, before `run.json` is written.
 """
 
 import json

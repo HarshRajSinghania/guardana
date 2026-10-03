@@ -294,6 +294,16 @@ class A2aView:
         return server_is_local(self._probe.url, self._probe.sender)
 
     @property
+    def jsonrpc_interface_is_local(self) -> bool:
+        """Whether the card's JSON-RPC interface is local, judged by that interface's own host.
+
+        False when the card names no such interface. A host other than the agent's is judged
+        by its URL alone, since no connection reached it.
+        """
+        interface = self.jsonrpc_interface
+        return interface is not None and server_is_local(interface, self._probe.sender)
+
+    @property
     def credential_presented(self) -> bool:
         """Whether the operator supplied a credential for the first caller."""
         return self._probe.credential is not None

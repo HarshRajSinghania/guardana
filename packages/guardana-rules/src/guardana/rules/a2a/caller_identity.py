@@ -18,6 +18,7 @@ from guardana.rules.a2a import _samples
 from guardana.rules.a2a._base import A2aRule
 
 _METHOD_NOT_FOUND = -32601
+_DECISIVE = frozenset({A2aAnswer.REFUSED, A2aAnswer.ANSWERED})
 
 
 class A2aCallerIdentityRule(A2aRule):
@@ -33,7 +34,8 @@ class A2aCallerIdentityRule(A2aRule):
 
     An optional requirement makes an anonymous answer what the card declared. A
     "task not found" is never graded: the specification asks an agent not to tell
-    "absent" from "not yours", and a random id exists for nobody.
+    "absent" from "not yours", and a random id exists for nobody. So an agent that
+    neither refused nor answered any anonymous read is inconclusive, never clean.
     """
 
     meta = RuleMeta(
@@ -53,7 +55,7 @@ class A2aCallerIdentityRule(A2aRule):
         return 4
 
     def fixtures(self) -> Iterable[RuleFixture]:
-        """Sample an unenforced declaration, an enforced one, and an interface elsewhere."""
+        """Sample an unenforced declaration, an enforced one, and two agents it cannot grade."""
         elsewhere = _samples.card(
             supportedInterfaces=[
                 {
@@ -74,6 +76,11 @@ class A2aCallerIdentityRule(A2aRule):
                     "a bearer requirement enforced on every read",
                     FixtureOutcome.CLEAN,
                     _samples.target,
+                ),
+                _samples.sample(
+                    "an agent that neither refuses nor answers a caller presenting nothing",
+                    FixtureOutcome.INCONCLUSIVE,
+                    lambda: _samples.target(enforced=False, errors={"ListTasks": -32004}),
                 ),
                 _samples.sample(
                     "a JSON-RPC interface on another origin",
@@ -145,12 +152,12 @@ class A2aCallerIdentityRule(A2aRule):
                 "A2A defines, so whether it speaks A2A 1.0 at all is unknown",
             )
             return
-        if sent and all(reply.answer is A2aAnswer.OTHER for reply in sent):
+        if not any(reply.answer in _DECISIVE for reply in sent):
             said = "; ".join(f"{reply.method}: {reply.detail}" for reply in sent)
             yield self.unverified(
                 view,
-                f"no anonymous read was refused or answered, so whether the agent answers "
-                f"anyone is unknown ({said})",
+                "the agent neither refused nor answered a caller without a credential, so "
+                "whether it requires one could not be shown" + (f" ({said})" if said else ""),
             )
 
 

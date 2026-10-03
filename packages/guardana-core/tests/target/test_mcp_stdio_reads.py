@@ -213,6 +213,66 @@ def test_a_few_lines_answering_nobody_do_not_hide_the_reply_after_them() -> None
         transport.close()
 
 
+def test_a_server_request_carrying_the_asked_id_is_never_read_as_the_reply() -> None:
+    # A server numbers its own requests, so one may carry the id the client just used.
+    asked = '{"jsonrpc": "2.0", "id": 1, "method": "roots/list"}\\n'
+    reply = '{"jsonrpc": "2.0", "id": 1, "result": {"tools": []}}\\n'
+    transport = StdioMcpTransport(
+        _child(
+            "import sys, time\n"
+            "sys.stdin.readline()\n"
+            f"sys.stdout.write('{asked}' + '{reply}')\n"
+            "sys.stdout.flush()\n"
+            "time.sleep(30)\n"
+        )
+    )
+    try:
+        assert transport.request("tools/list", {}) == {"tools": []}
+    finally:
+        transport.close()
+
+
+def test_notifications_do_not_count_toward_the_lines_answering_nobody() -> None:
+    notification = '{"jsonrpc": "2.0", "method": "notifications/message", "params": {}}\\n'
+    reply = '{"jsonrpc": "2.0", "id": 1, "result": {"tools": []}}\\n'
+    transport = StdioMcpTransport(
+        _child(
+            "import sys, time\n"
+            "sys.stdin.readline()\n"
+            f"sys.stdout.write('{notification}' * 40 + '{reply}')\n"
+            "sys.stdout.flush()\n"
+            "time.sleep(30)\n"
+        )
+    )
+    try:
+        assert transport.request("tools/list", {}) == {"tools": []}
+    finally:
+        transport.close()
+
+
+def test_a_server_that_only_sends_notifications_is_unreachable_after_the_deadline() -> None:
+    notification = '{"jsonrpc": "2.0", "method": "notifications/message", "params": {}}\\n'
+    transport = StdioMcpTransport(
+        _child(
+            "import sys, time\n"
+            "sys.stdin.readline()\n"
+            "while True:\n"
+            f"    sys.stdout.write('{notification}')\n"
+            "    sys.stdout.flush()\n"
+            "    time.sleep(0.01)\n"
+        ),
+        timeout=0.5,
+    )
+    try:
+        outcome = _request_in_background(transport)
+    finally:
+        transport.close()
+
+    assert len(outcome) == 1
+    assert isinstance(outcome[0], EndpointUnreachable)
+    assert "0.5 seconds" in str(outcome[0])
+
+
 def test_a_discovery_that_times_out_leaves_the_stream_for_the_handshake() -> None:
     # A legacy server that never answers `server/discover` answers it late, after the
     # client has moved on: the late line is discarded and the handshake is read.

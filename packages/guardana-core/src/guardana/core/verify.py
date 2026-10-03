@@ -79,7 +79,6 @@ from guardana.core.runner import (
 )
 from guardana.core.subject import SubjectKind
 from guardana.core.target import (
-    A2aAgentTarget,
     ArtifactTarget,
     Capability,
     EndpointError,
@@ -87,11 +86,11 @@ from guardana.core.target import (
     SeededTarget,
     Target,
     TargetKind,
+    examined_by_rules_only,
 )
 from guardana.core.target.adapter import HttpAdapterTransport
 from guardana.core.target.endpoint import EndpointTarget, secrets_sent_by
 from guardana.core.target.failure import FailureRemedies, describe_failure
-from guardana.core.target.mcp import McpServerTarget
 from guardana.core.target.recorded import RecordedTarget
 
 
@@ -215,10 +214,6 @@ def exchanges_path(run: Path) -> Path:
     """Where the exchanges a run kept are written beside it: `run.json` → `run.exchanges.jsonl`."""
     stem = run.stem if run.suffix == ".json" else run.name
     return run.with_name(f"{stem}.exchanges.jsonl")
-
-
-_RULES_ONLY = (McpServerTarget, A2aAgentTarget)
-"""Protocol servers a run examines with its rules alone: nothing to plant, no probe passes."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -570,7 +565,7 @@ class Verifier:
     ) -> tuple[ScanResult, TargetIdentity]:
         records = {key: value.as_record() for key, value in calibrations.items()}
         try:
-            if endpoint and not isinstance(target, _RULES_ONLY):
+            if endpoint and not examined_by_rules_only(target):
                 probed = run_target_probe(
                     registry,
                     self.profile,

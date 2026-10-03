@@ -129,6 +129,11 @@ class Tasks:
     run holds them, and the target withholds every one it learned from what is written.
     `offer` is read only for an `UNKNOWN_METHOD` answer, the one answer the declarations
     change the meaning of, and is None otherwise.
+
+    `operator` is what one more `tasks/list`, presenting the operator's credential, was
+    shown. It is asked only when a server that refused its tools to a caller presenting
+    nothing listed that caller no task and a credential is configured, because an empty
+    listing alone cannot tell tasks bound to their owner from no task at all.
     """
 
     answer: TaskAnswer | None = None
@@ -139,6 +144,7 @@ class Tasks:
     detail: str | None = None
     error: str | None = None
     """Why no listing was asked for or no reply arrived; None when `answer` is set."""
+    operator: "Tasks | None" = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -367,6 +373,7 @@ def observe(  # noqa: PLR0913 — the target's facts, and the live negotiation i
     negotiation: Callable[[], Negotiation],
     resettle: Callable[[tuple[str, ...]], Negotiation],
     opening: Callable[[], Opening | None],
+    conversation_session: Callable[[], str | None],
     learn: Callable[[str], None],
 ) -> McpAuthorizationView:
     """Open a view onto `url`, sending nothing until a section of it is read.
@@ -379,7 +386,8 @@ def observe(  # noqa: PLR0913 — the target's facts, and the live negotiation i
     `resettle` settles it again when a handshake is answered by a modern server
     before the era was settled: two copies would let the view grade one revision
     while the conversation spoke another. `opening` reads the conversation's
-    handshake, and `learn` hands the target every session id a probe was issued.
+    handshake, `conversation_session` opens and announces it and returns its session
+    id, and `learn` hands the target every session and task id a probe was shown.
     """
     return McpAuthorizationView(
         _Probe(
@@ -391,6 +399,7 @@ def observe(  # noqa: PLR0913 — the target's facts, and the live negotiation i
             negotiation=negotiation,
             resettle=resettle,
             opening=opening,
+            conversation_session=conversation_session,
             learn=learn,
         )
     )
@@ -410,6 +419,7 @@ class _Probe:
         negotiation: Callable[[], Negotiation],
         resettle: Callable[[tuple[str, ...]], Negotiation],
         opening: Callable[[], Opening | None],
+        conversation_session: Callable[[], str | None],
         learn: Callable[[str], None],
     ) -> None:
         self._url = url
@@ -421,6 +431,7 @@ class _Probe:
         self._negotiation = negotiation
         self._resettle = resettle
         self._opening_of = opening
+        self._conversation_session = conversation_session
         self._learn = learn
 
     @property
@@ -600,6 +611,8 @@ class _Probe:
         settled on the modern era of a dual-era server, in a session opened here without
         a credential. Over the modern wire otherwise. One page; a cursor is never followed.
         Every task id seen is handed to the target, which withholds it from the record.
+        An empty listing on a server that refused its tools anonymously is followed by the
+        operator's own listing, when a credential is configured (`Tasks.operator`).
         """
         if anonymous.error is not None:
             return Tasks(error=f"the server could not be reached: {anonymous.error}")
@@ -609,33 +622,65 @@ class _Probe:
             offered = offer()
             if offered.wire is not None:
                 wire = offered.wire
-                session, handshake = self._anonymous_session(offered.wire)
+                session, handshake = self._open_session(offered.wire, credential=None)
         try:
             reply = self._call("tasks/list", {}, wire=wire, credential=None, session=session)
         except McpError as exc:
             return Tasks(error=f"the listing could not be sent: {exc}")
-        observed = _task_listing(reply)
-        for task_id in observed.ids:
-            self._learn(task_id)
+        observed = self._listed(reply)
+        if observed.answer is TaskAnswer.ANSWERED:
+            if observed.count or anonymous.open_to_anyone or self._credential is None:
+                return observed
+            return replace(observed, operator=self._operator_tasks(wire))
         if observed.answer is not TaskAnswer.UNKNOWN_METHOD:
             return observed
         return replace(observed, offer=self._task_offer(anonymous, handshake, offer))
 
-    def _anonymous_session(self, wire: Wire) -> tuple[str | None, Opening | None]:
-        """Open a handshake-era session presenting nothing; return its id and what it answered.
+    def _operator_tasks(self, wire: Wire) -> Tasks:
+        """Ask once for the task list presenting the operator's credential, over `wire`.
+
+        Over the handshake era in the conversation's own session when the conversation is
+        in that era, else in a session opened here with the credential; over the modern
+        wire with no session.
+        """
+        session: str | None = None
+        if wire.era is Era.LEGACY:
+            if self._negotiation().era is Era.LEGACY:
+                session = self._conversation_session()
+            else:
+                session, _ = self._open_session(wire, credential=self._credential)
+        try:
+            reply = self._call("tasks/list", {}, wire=wire, session=session)
+        except McpError as exc:
+            return Tasks(error=f"the operator's listing could not be sent: {exc}")
+        return self._listed(reply)
+
+    def _listed(self, reply: RawReply) -> Tasks:
+        """Class a reply to `tasks/list`, handing every task id it showed to the target."""
+        observed = _task_listing(reply)
+        for task_id in observed.ids:
+            self._learn(task_id)
+        return observed
+
+    def _open_session(
+        self, wire: Wire, *, credential: str | None
+    ) -> tuple[str | None, Opening | None]:
+        """Open a handshake-era session presenting `credential`; return its id and its answer.
 
         Neither when the handshake was not a `2025-11-25` result: the listing is then
         sent without a session, and its answer says what the server makes of that.
         """
         try:
-            handshake = self._call("initialize", self._opening(wire), wire=wire, credential=None)
+            handshake = self._call(
+                "initialize", self._opening(wire), wire=wire, credential=credential
+            )
         except McpError:
             return None, None
         opening = _opening_of(handshake)
         if opening is None or handshake_refusal(opening.version) is not None:
             return None, None
         session = self._session_id_of(handshake)
-        self._announce(wire=wire, credential=None, session=session)
+        self._announce(wire=wire, credential=credential, session=session)
         return session, opening
 
     def _task_offer(

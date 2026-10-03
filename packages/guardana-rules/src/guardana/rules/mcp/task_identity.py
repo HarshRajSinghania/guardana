@@ -36,8 +36,11 @@ class McpTaskIdentityRule(McpAuthorizationRule):
     to enumerate are a second finding there. On a server that gates its tools they are
     not, because the context binds the task whatever its id looks like.
 
-    An empty anonymous listing on a gated server, or a refused one, is the conforming
-    answer. On an open server an empty listing leaves the ids ungraded and says so. A
+    A refused anonymous listing is the conforming answer. An empty one on a gated server
+    is conforming only beside a task it hides: one more listing presenting the operator's
+    credential has to show at least one, or the binding is inconclusive, as it is without
+    a credential (`--mcp-token-env`). On an open server an empty listing leaves the ids
+    ungraded and says so. A
     server that declares no tasks and answers `tasks/list` as an unknown method has none
     to grade, which the run records as not offered. The listing is one page; ids are
     read in memory and never written, and evidence holds only counts.
@@ -58,17 +61,18 @@ class McpTaskIdentityRule(McpAuthorizationRule):
 
     @property
     def estimated_requests(self) -> int:
-        """The discovery probe, the anonymous probe, the legacy probe and an anonymous session.
+        """The discovery probe, the anonymous probe, the legacy probe and two sessions.
 
         Over a dual-era server that settled on the modern era: discovery, the anonymous
         listing, the legacy probe, then an anonymous handshake, its notification and the
-        task listing. Over the handshake era the anonymous three, the listing and at most
-        one handshake for the declarations stay below that.
+        task listing, and the same three again presenting the operator's credential. Over
+        the handshake era the anonymous three, the listing and the conversation's
+        handshake, its notification and the operator's listing stay below that.
         """
-        return 6
+        return 9
 
     def fixtures(self) -> Iterable[RuleFixture]:
-        """Sample an open listing, a gated one, an empty open one and a server without tasks."""
+        """Sample an open listing, a gated one, two empty ones and a server without tasks."""
         return materialise(
             (
                 _samples.sample(
@@ -93,6 +97,19 @@ class McpTaskIdentityRule(McpAuthorizationRule):
                     FixtureOutcome.INCONCLUSIVE,
                     lambda: _samples.target(
                         _samples.open_server(tasks=(), task_declaration="listing")
+                    ),
+                ),
+                _samples.sample(
+                    "a gated server listing nobody a task, the operator included",
+                    FixtureOutcome.INCONCLUSIVE,
+                    lambda: _samples.target(
+                        _samples.gated_server(
+                            tasks=(),
+                            tasks_owner_bound=True,
+                            tasks_unguarded=True,
+                            task_declaration="listing",
+                        ),
+                        credential=_samples.CREDENTIAL,
                     ),
                 ),
                 _samples.sample(
@@ -133,6 +150,8 @@ class McpTaskIdentityRule(McpAuthorizationRule):
                     "ids can be guessed — the only guard a server without authentication "
                     "has — cannot be graded",
                 )
+                return
+            yield from self._hidden(view, tasks.operator)
             return
         yield self.finding(
             view,
@@ -145,6 +164,34 @@ class McpTaskIdentityRule(McpAuthorizationRule):
                 view,
                 f"task ids are {structure}; with no authorization context to bind a task "
                 f"to, the id is all that guards it",
+            )
+
+    def _hidden(self, view: McpAuthorizationView, operator: Tasks | None) -> Iterator[Finding]:
+        """Say whether an empty anonymous listing on a gated server hid a task that exists."""
+        empty = "the server lists no task to a caller without a credential"
+        if operator is None:
+            yield self.unverified(
+                view,
+                f"{empty}, which cannot tell tasks bound to their owner from no task at all; "
+                f"pass --mcp-token-env so guardana can list the operator's own tasks",
+            )
+            return
+        if operator.error is not None:
+            yield self.unverified(view, f"{empty}, and {operator.error}")
+            return
+        if operator.answer is not TaskAnswer.ANSWERED:
+            said = operator.detail or f"HTTP {operator.status}"
+            yield self.unverified(
+                view,
+                f"{empty}, and the operator's own tasks/list was answered {operator.answer} "
+                f"({said}), so whether tasks are bound to their owner is unknown",
+            )
+            return
+        if operator.count == 0:
+            yield self.unverified(
+                view,
+                f"{empty} and none to the operator's credential either, so whether tasks are "
+                f"bound to their owner cannot be shown until a task exists",
             )
 
     def _unknown_method(self, view: McpAuthorizationView, tasks: Tasks) -> Iterator[Finding]:

@@ -268,7 +268,11 @@ Evidence holds counts, never an id.
    the id is all that guards it".
 3. `answered` with none: on a server that served tools anonymously → inconclusive, "no task is
    visible to a caller without a credential, so whether task ids can be guessed — the only
-   guard a server without authentication has — cannot be graded"; on a gated server → silent.
+   guard a server without authentication has — cannot be graded". On a gated server the
+   empty answer cannot tell owner binding from "no task exists yet", so with a credential
+   configured one `tasks/list` is sent as the operator (in the conversation's session over the
+   legacy wire): a task there beside the empty anonymous listing → silent; none, or no
+   credential → inconclusive, naming `--mcp-token-env` or the missing task.
 4. `refused` → silent.
 5. `unknown_method`: `offer` `none` → `raise NotOffered("the server declares no tasks and answers
    tasks/list as an unknown method", missing=("tasks",))`; `unlisted` → inconclusive, "the
@@ -280,8 +284,8 @@ Evidence holds counts, never an id.
 `rules/mcp/_ids.py`: a repeated id, an id shorter than 16 characters, or ids that count up.
 `ordered=True` keeps the issue order (sessions); `ordered=False` sorts the numeric tails first
 (a listing's order is the server's). Meta: `INSPECT_AUTHORIZATION` (over stdio a
-`missing_capability` skip), taxonomy `MCP07:2025`, `MCP10:2025`, `ASI03:2026`, one request,
-read-only.
+`missing_capability` skip), taxonomy `MCP07:2025`, `MCP10:2025`, `ASI03:2026`, one request
+and up to two more when the operator's listing is needed, read-only.
 
 Rejected: grading the operator's own listing (owner-bound ids need not be random, so a finding
 there would accuse a conforming server); trusting the declaration alone (a server that declares
@@ -381,9 +385,9 @@ does the same for the session ids it collected.
 
 | rule | fires | inconclusive | not offered | taxonomy |
 |---|---|---|---|---|
-| `guardana.a2a.agent_card` | a required field missing (`name`, `description`, `supportedInterfaces`, `version`, `capabilities`, `defaultInputModes`, `defaultOutputModes`, `skills`); a requirement naming a scheme `securitySchemes` does not declare; a JSON-RPC 1.0 interface on plain `http` with a non-local card host — MEDIUM, one finding listing each | `card_error` | — | `ASI07:2026`, `ASI04:2026` |
-| `guardana.a2a.caller_identity` | security **required** and an anonymous `GetTask`, `ListTasks` or `GetExtendedAgentCard` `answered` → HIGH; security **none** and one `answered` → HIGH, LOW when the card host is local; the extended card `answered` anonymously → HIGH under any security — one finding per shape | `unsupported`; every anonymous request `other`; `GetTask` answered `-32601` before any A2A code | — | `ASI03:2026`, `ASI07:2026` |
-| `guardana.a2a.task_visibility` | an anonymous `ListTasks` `answered` with a task or `totalSize` above 0 → HIGH; the second caller `answered` a `GetTask` for the first caller's task → HIGH | `unsupported`; the cross-caller half when a credential is missing or could not be sent (naming the two flags or the card's schemes); the first caller listed no task; the second caller `refused` | every `ListTasks` sent answered `not_offered`, at least one sent | `ASI03:2026`, `ASI07:2026` |
+| `guardana.a2a.agent_card` | a required field missing (`name`, `description`, `supportedInterfaces`, `version`, `capabilities`, `defaultInputModes`, `defaultOutputModes`, `skills`); a requirement naming a scheme `securitySchemes` does not declare; a JSON-RPC 1.0 interface on plain `http` whose own host is not local — MEDIUM, one finding listing each | `card_error` | — | `ASI07:2026`, `ASI04:2026` |
+| `guardana.a2a.caller_identity` | security **required** and an anonymous `GetTask`, `ListTasks` or `GetExtendedAgentCard` `answered` → HIGH; security **none** and one `answered` → HIGH, LOW when the card host is local; the extended card `answered` anonymously → HIGH under any security — one finding per shape | `unsupported`; no anonymous request `refused` or `answered`; `GetTask` answered `-32601` before any A2A code | — | `ASI03:2026`, `ASI07:2026` |
+| `guardana.a2a.task_visibility` | an anonymous `ListTasks` `answered` with a task or `totalSize` above 0 → HIGH; the second caller `answered` a `GetTask` for the first caller's task → HIGH | `unsupported`; the anonymous `ListTasks` answered `other`; the cross-caller half when a credential is missing or could not be sent (naming the two flags or the card's schemes); the first caller listed no task; the second caller `refused` | every `ListTasks` sent answered `not_offered`, at least one sent | `ASI03:2026`, `ASI07:2026` |
 
 A `not_found` is never graded: the specification asks a server not to tell "does not exist" from
 "not yours", and a random id exists for nobody. An optional requirement makes an anonymous
@@ -452,7 +456,7 @@ SDK's; the fixture writes only the policy under test, through the SDK's seams:
 Unit tests use `ScriptedMcpServer` and `ScriptedA2aAgent` and refuse real name lookups. Each new
 rule ships finding, clean and inconclusive fixtures, so `_FULLY_SAMPLED` in
 `test_builtin_fixture_coverage.py` rises by five; `test_probe_cost.py` gains an A2A run shape (ceiling 20, a whole
-run 8 requests) and `REGISTRY_ENTRY` in the MCP shape. The MCP ceiling rises from 60 to 79:
+run 8 requests) and `REGISTRY_ENTRY` in the MCP shape. The MCP ceiling rises from 60 to 82:
 `notifications/initialized` and the legacy probe are metered, and `task_identity` and
 `registry_entry` declare their own; a whole MCP probe still spends at most 20.
 

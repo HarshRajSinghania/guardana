@@ -1,5 +1,7 @@
 """The three A2A rules, graded against scripted agents built for each shape they name."""
 
+import json
+from collections.abc import Mapping
 from typing import Any
 
 import pytest
@@ -9,6 +11,7 @@ from guardana.core.report import Finding, SkipReason
 from guardana.core.rule import NotOffered, RuleContext
 from guardana.core.severity import Severity
 from guardana.core.target import A2aAgentTarget
+from guardana.core.target._mcp_http import DiscoveryScope, RawReply
 from guardana.core.testing import ScriptedA2aAgent
 from guardana.core.testing.a2a import agent_card
 from guardana.core.verify import Verifier
@@ -85,6 +88,16 @@ def test_a_plain_http_interface_fires_only_on_a_host_that_is_not_local() -> None
         in _run(A2aAgentCardRule(), _target(public, card=_card(public)))[0].evidence.summary
     )
     assert _run(A2aAgentCardRule(), _target(LOCAL, card=_card(LOCAL))) == []
+
+
+def test_a_plain_http_interface_is_judged_by_its_own_host_not_the_cards() -> None:
+    elsewhere = _card("http://public.example/")
+    loopback = _card(PUBLIC, supportedInterfaces=_card(LOCAL)["supportedInterfaces"])
+
+    fired = _run(A2aAgentCardRule(), _target(LOCAL, card=elsewhere))
+
+    assert "plain http" in fired[0].evidence.summary
+    assert _run(A2aAgentCardRule(), _target(card=loopback)) == []
 
 
 def test_a_card_the_agent_would_not_serve_is_inconclusive() -> None:
@@ -169,6 +182,14 @@ def test_every_anonymous_read_answered_otherwise_is_inconclusive() -> None:
     )
 
 
+def test_an_agent_neither_refusing_nor_answering_an_anonymous_read_is_inconclusive() -> None:
+    findings = _run(A2aCallerIdentityRule(), _target(enforced=False, errors={"ListTasks": -32004}))
+
+    assert len(_inconclusive(findings)) == 1
+    assert "neither refused nor answered" in findings[0].evidence.summary
+    assert "GetTask: JSON-RPC error -32001" in findings[0].evidence.summary
+
+
 def test_an_agent_refusing_a2a_1_0_is_inconclusive_for_both_call_rules() -> None:
     target = _target(errors={"GetTask": -32009}, enforced=False)
 
@@ -200,6 +221,41 @@ def test_an_anonymous_listing_showing_a_task_is_high() -> None:
     assert [f.severity for f in _fired(findings)] == [Severity.HIGH]
     assert "1 task(s) to a caller presenting no credential" in findings[0].evidence.summary
     assert len(_inconclusive(findings)) == 1, "the cross-caller half still had no credentials"
+
+
+class _AnonymousListingFails(ScriptedA2aAgent):
+    """Answers an anonymous `ListTasks` with an internal error, and everything else as scripted."""
+
+    def __call__(  # noqa: PLR0913 — the keywords the `Sender` protocol publishes
+        self,
+        url: str,
+        *,
+        method: str = "POST",
+        body: bytes | None = None,
+        headers: Mapping[str, str] | None = None,
+        alongside: str | None = None,
+        discovery: DiscoveryScope | None = None,
+    ) -> RawReply:
+        anonymous = "Authorization" not in (headers or {})
+        if anonymous and body is not None and b'"ListTasks"' in body:
+            error = {"jsonrpc": "2.0", "id": 1, "error": {"code": -32603, "message": "x"}}
+            return RawReply(200, {"Content-Type": "application/json"}, json.dumps(error).encode())
+        return super().__call__(
+            url, method=method, body=body, headers=headers, alongside=alongside, discovery=discovery
+        )
+
+
+def test_an_anonymous_listing_answered_otherwise_leaves_that_half_open() -> None:
+    agent = _AnonymousListingFails(PUBLIC, callers={A: "alice", B: "bob"}, tasks={"alice": [TASK]})
+    target = A2aAgentTarget(PUBLIC, credential=A, other_credential=B, sender=agent)
+
+    findings = _run(A2aTaskVisibilityRule(), target)
+
+    assert _fired(findings) == []
+    assert _inconclusive(findings) == [
+        "whether a caller presenting no credential is shown tasks is unknown: ListTasks met "
+        "JSON-RPC error -32603 (HTTP 200)"
+    ]
 
 
 def test_a_second_caller_who_is_refused_leaves_the_cross_caller_half_open() -> None:

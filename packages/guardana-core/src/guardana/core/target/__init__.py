@@ -34,7 +34,13 @@ from guardana.core.target.a2a import (
 )
 from guardana.core.target.adapter import AdapterConfig, HttpAdapterTransport
 from guardana.core.target.artifact import ArtifactTarget
-from guardana.core.target.base import Capability, LocatorError, Target, TargetKind
+from guardana.core.target.base import (
+    Capability,
+    LocatorError,
+    Target,
+    TargetKind,
+    examined_by_rules_only,
+)
 from guardana.core.target.decline import (
     DeclaredDecline,
     Decline,
@@ -160,6 +166,7 @@ __all__ = [
     "challenge_parameters",
     "dimensions_of",
     "display_url",
+    "examined_by_rules_only",
     "forged_token",
     "is_local_address",
     "private_url_parts",

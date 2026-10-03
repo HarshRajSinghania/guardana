@@ -28,7 +28,8 @@ class A2aTaskVisibilityRule(A2aRule):
 
     The second half needs two credentials for two different callers
     (`--a2a-token-env` and `--a2a-other-token-env`) and a card whose security a bearer
-    token can satisfy; without them it is inconclusive. Only reads are sent; no task is
+    token can satisfy; without them it is inconclusive, and so is the first half when the
+    anonymous `ListTasks` met neither a result nor a refusal. Only reads are sent; no task is
     created. A "task not found" is never graded, since the specification asks an
     agent not to tell "absent" from "not yours". An agent that answers every
     `ListTasks` it was sent as an operation it does not support has no listing to
@@ -104,6 +105,12 @@ class A2aTaskVisibilityRule(A2aRule):
                 view,
                 f"ListTasks shows {_count(listed)} task(s) to a caller presenting no "
                 f"credential, who owns none",
+            )
+        elif listed is not None and listed.answer is A2aAnswer.OTHER:
+            yield self.unverified(
+                view,
+                f"whether a caller presenting no credential is shown tasks is unknown: "
+                f"ListTasks met {listed.detail}",
             )
         yield from self._across(view, callers)
 

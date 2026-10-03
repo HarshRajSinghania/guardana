@@ -1,7 +1,8 @@
 """What a caller presenting no credential is shown by `tasks/list`, and what the ids give away."""
 
 import json
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
+from typing import Any
 
 import pytest
 from _offline import refuse_name_lookups  # noqa: F401 — an autouse fixture
@@ -86,6 +87,104 @@ def test_an_empty_anonymous_listing_on_a_gated_server_is_the_conforming_answer()
     server = guarded(tasks=_RANDOM, tasks_owner_bound=True, tasks_unguarded=True)
 
     assert findings(RULE, server, credential=CREDENTIAL) == []
+
+
+_OWN = [
+    "e2a91c7d-3b4f-4a10-8c2d-9f6e5b4a3c21",
+    "0d8f2b6a-7c1e-4f39-a5b8-6e2d1c9f8a74",
+]
+_CONVERSATION_SESSION = "conversation-session-" + "9" * 24
+
+
+def _posted(server: ScriptedMcpServer) -> list[tuple[dict[str, str], Mapping[str, Any]]]:
+    """Pair each JSON-RPC request's headers with its body, in the order they arrived."""
+    envelopes = [headers for method, _, headers in server.requests if method == "POST"]
+    return list(zip(envelopes, server.bodies, strict=True))
+
+
+def _operator_listing(server: ScriptedMcpServer) -> tuple[dict[str, str], Mapping[str, Any]]:
+    listings = [
+        (headers, body)
+        for headers, body in _posted(server)
+        if body.get("method") == "tasks/list" and "Authorization" in headers
+    ]
+    assert len(listings) == 1, "exactly one tasks/list presents the operator's credential"
+    return listings[0]
+
+
+def test_an_empty_anonymous_listing_beside_the_operators_tasks_shows_owner_binding() -> None:
+    server = guarded(
+        tasks=_OWN,
+        tasks_owner_bound=True,
+        tasks_unguarded=True,
+        session_ids=[_CONVERSATION_SESSION],
+    )
+    target = _target(server, credential=CREDENTIAL)
+
+    reported = list(RULE.run(target, RuleContext()))
+
+    assert reported == []
+    headers, body = _operator_listing(server)
+    assert headers["Authorization"] == f"Bearer {CREDENTIAL}"
+    assert headers.get("Mcp-Session-Id") == _CONVERSATION_SESSION
+    assert "_meta" not in body.get("params", {}), "the listing is written for the legacy wire"
+    session = _CONVERSATION_SESSION
+    in_session = [b.get("method") for h, b in _posted(server) if h.get("Mcp-Session-Id") == session]
+    assert in_session == ["notifications/initialized", "tasks/list"]
+    assert set(_OWN) <= set(target.sent_secrets())
+
+
+def test_an_empty_anonymous_listing_on_a_gated_server_without_a_credential_is_inconclusive() -> (
+    None
+):
+    server = guarded(tasks=_OWN, tasks_owner_bound=True, tasks_unguarded=True)
+
+    reported = findings(RULE, server)
+
+    assert outcomes(reported) == ["inconclusive"]
+    assert "--mcp-token-env" in summaries(reported)[0]
+    listings = [h for h, b in _posted(server) if b.get("method") == "tasks/list"]
+    assert listings
+    assert all("Authorization" not in h for h in listings)
+
+
+def test_a_gated_server_whose_operator_lists_no_task_either_is_inconclusive() -> None:
+    server = guarded(tasks=[], tasks_owner_bound=True, tasks_unguarded=True)
+
+    reported = findings(RULE, server, credential=CREDENTIAL)
+
+    assert outcomes(reported) == ["inconclusive"]
+    assert "until a task exists" in summaries(reported)[0]
+
+
+def test_a_dual_era_operator_listing_goes_over_the_legacy_wire_in_a_session_of_its_own() -> None:
+    server = guarded(
+        protocol_versions=[_MODERN, _LEGACY],
+        tasks=_OWN,
+        tasks_owner_bound=True,
+        tasks_unguarded=True,
+        session_ids=[_CONVERSATION_SESSION],
+    )
+
+    reported = findings(RULE, server, credential=CREDENTIAL)
+
+    assert reported == []
+    headers, body = _operator_listing(server)
+    assert headers.get("Mcp-Session-Id") == _CONVERSATION_SESSION
+    assert "_meta" not in body.get("params", {})
+
+
+def test_a_modern_only_operator_listing_goes_over_the_modern_wire() -> None:
+    server = guarded(
+        protocol_versions=[_MODERN], tasks=_OWN, tasks_owner_bound=True, tasks_unguarded=True
+    )
+
+    reported = findings(RULE, server, credential=CREDENTIAL)
+
+    assert reported == []
+    headers, body = _operator_listing(server)
+    assert "Mcp-Session-Id" not in headers
+    assert "_meta" in body.get("params", {})
 
 
 def test_an_empty_anonymous_listing_on_an_open_server_cannot_grade_the_ids() -> None:

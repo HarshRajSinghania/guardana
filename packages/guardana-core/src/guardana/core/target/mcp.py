@@ -22,7 +22,7 @@ from guardana.core.target._mcp_client import (
 )
 from guardana.core.target._mcp_http import DiscoverySender, HttpSender, McpError, RawReply, Sender
 from guardana.core.target._mcp_registry import RegistryEntry, ReportedServer
-from guardana.core.target._mcp_wire import Era
+from guardana.core.target._mcp_wire import INITIALIZED, Era
 from guardana.core.target._url import display_url
 from guardana.core.target.base import Capability, Target, TargetKind
 from guardana.core.usage import TargetUsage, UsageMeter
@@ -117,8 +117,8 @@ class McpServerTarget(Target):
         self._registry_entry = registry_entry
         self._lock = threading.RLock()
         self._learned: list[str] = []
-        raw = self._connect(url, command, allow_exec, transport)
-        self._transport: McpTransport = MeteredTransport(raw, self._meter)
+        self._raw = self._connect(url, command, allow_exec, transport)
+        self._transport: McpTransport = MeteredTransport(self._raw, self._meter)
         self._negotiation: Negotiation | None = None
         self._opening: Opening | None = None
         self._opened = False
@@ -320,6 +320,22 @@ class McpServerTarget(Target):
         self._opened = True
         return settled
 
+    def _conversation_session(self) -> str | None:
+        """Open the conversation, announce its accepted handshake, and return its session id.
+
+        None when the conversation has no session: a modern one, or a transport that
+        keeps none. The announcement is sent once, here or before the manifest.
+        """
+        with self._lock:
+            self._open()
+            if self._announce:
+                try:
+                    self._transport.notify(INITIALIZED)
+                finally:
+                    self._announce = False
+            raw = self._raw
+            return raw.session_id if isinstance(raw, HttpMcpTransport) else None
+
     def _resettle(self, offered: tuple[str, ...]) -> Negotiation:
         """Settle again on what a modern server named, unless the era is already settled."""
         with self._lock:
@@ -361,6 +377,7 @@ class McpServerTarget(Target):
                     negotiation=self.negotiation,
                     resettle=self._resettle,
                     opening=self.opening,
+                    conversation_session=self._conversation_session,
                     learn=self._learn,
                 )
             return self._authorization
