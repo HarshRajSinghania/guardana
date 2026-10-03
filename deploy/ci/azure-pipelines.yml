@@ -13,7 +13,7 @@ pool:
   vmImage: ubuntu-latest
 
 variables:
-  guardanaImage: ghcr.io/guardana/guardana:0.38
+  guardanaImage: ghcr.io/guardana/guardana:0.39
   guardanaPath: "."
   guardanaArgs: ""
 

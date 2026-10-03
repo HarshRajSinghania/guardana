@@ -97,6 +97,11 @@ left for the owner, or are design gaps already documented elsewhere.
   neither request); **older handshake revisions** (`2025-06-18`, `2025-03-26`) are reported
   as sharing no revision.
 - **`is_local_address`** warns as deprecated; remove it before 1.0.
+- **A legacy session re-opened once** adds an `initialize` and its announcement that the
+  rules' `estimated_requests` do not count, so `plan probe --mcp` can price a run below what it
+  sends; the meter still holds `--max-requests`.
+- **The `conformance` dependency group** (`mcp`, `a2a-sdk`) is pinned exactly: a Dependabot
+  bump of either moves what the conformance suite means and is read as a test change.
 
 ## Left by the guarded-application release (0.38.0)
 

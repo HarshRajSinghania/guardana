@@ -134,12 +134,12 @@ jobs:
       security-events: write   # to upload SARIF
     steps:
       - uses: actions/checkout@v4
-      - uses: guardana/guardana@v0.38   # moving tag → latest 0.38.x
+      - uses: guardana/guardana@v0.39   # moving tag → latest 0.39.x
         # with:
         #   args: --preset ci --baseline guardana-baseline.yaml
 ```
 
-Both `actions/checkout@v4` and `guardana/guardana@v0.38` are moving tags. Replace them with full commit SHAs if your workflow requires pinned actions. The published Guardana Action pins the actions it calls by SHA; that does not pin these two references in your workflow. A pre-commit hook and templates for GitLab, Jenkins, and Azure DevOps are in [`docs/integrations.md`](docs/integrations.md).
+Both `actions/checkout@v4` and `guardana/guardana@v0.39` are moving tags. Replace them with full commit SHAs if your workflow requires pinned actions. The published Guardana Action pins the actions it calls by SHA; that does not pin these two references in your workflow. A pre-commit hook and templates for GitLab, Jenkins, and Azure DevOps are in [`docs/integrations.md`](docs/integrations.md).
 
 ### Tests and Python
 

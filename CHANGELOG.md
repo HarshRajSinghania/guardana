@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.39.0] - 2026-10-04 — MCP and A2A probes with explicit coverage and saved stops
+
+### Changed — breaking
+
+- **An MCP server that fails to answer or fails part-way stops the run with `stopped_by: target_unavailable` and exit `4`.** The run saves what was graded. This covers refused connections, failed lookups, timeouts, resets, closed stdio output, `401`, `403` or `407` with a `--mcp-token-env` token, `404`, `408`, `425`, `429`, `5xx`, and a non-JSON-RPC `2xx`. Discovery documents never stop a run; another `4xx` remains a rule error and is sent once.
+- **An MCP server that rejects an agreed revision mid-run stops the run with `stopped_by: target_changed` and exit `4`.** A `-32022` after the revision was settled triggers the stop, so one run cannot hold evidence from two revisions.
+- **A legacy MCP server that answers `initialize` with a revision other than `2025-11-25` shares no revision with Guardana.** For an answer such as `2025-06-18`, authorization checks are inconclusive, the manifest check reports an error, and no revision is recorded.
+- **Guardana tries one `initialize` when `server/discover` lists no legacy revision.** `guardana.mcp.session_binding` grades sessions when the server accepts it and is inconclusive when the answer cannot be settled. Guardana sends `notifications/initialized` after each accepted `initialize` followed by a request. MCP rules declare more requests, so `plan probe --mcp` shows higher ceilings.
+- **`Sender` in `guardana.core.target` no longer takes `alongside` or `discovery`.** Discovery documents use a separate `discovery_sender` (`DiscoverySender`). `McpServerTarget(url, sender=...)` without `discovery_sender=` raises `ValueError`; pass the same `ScriptedMcpServer` as both, or use `guardana.core.target.send` for the built-in pinned client.
+- **The MCP discovery guard checks the embedded IPv4 address before every address check.** This covers IPv4-mapped, IPv4-compatible, NAT64 (`64:ff9b::/96`) and 6to4 (`2002::/16`) forms. A NAT64 form of a global address is accepted; 6to4 and NAT64 forms of inside or cloud metadata addresses are refused. NAT64 local-use (`64:ff9b:1::/48`) and Teredo (`2001::/32`) are always refused.
+- **`guardana.mcp.authorization_discovery` fires when authorization-server metadata has a missing or mismatched `issuer`.** The value must be identical to the issuer the document was fetched for; clients must not use a document that fails this check.
+- **Runs use schema `17` ([`run-v17.schema.json`](schemas/run-v17.schema.json)).** It records the `not_offered` skip reason and the `target_changed` stop. Schema-16 runs migrate on read; 0.38 refuses schema `17`, so upgrade readers before opening new runs.
+- **`probe --mcp COMMAND` without `--allow-exec` now exits `3`.** This is an invalid configuration rather than exit `5`. An `--a2a` URL whose path is neither the origin nor a card URL ending in `.json` is also refused with exit `3`.
+
+### Added
+
+- **A rule can raise `NotOffered` from `guardana.core.rule` when the target lacks what it examines.** The run records a `not_offered` skip and the human report names it in the summary. `fail_on_skipped` and `--preset release` refuse this coverage gap; `guardana rule test` reports it as its own outcome.
+- **`guardana.mcp.task_identity` checks task listings and task-id patterns without a credential.** It sends one `tasks/list` and fires when tasks are visible or ids on a server without authentication follow a pattern. An empty listing on a gated server gets one operator listing. A server that declares no tasks and treats `tasks/list` as unknown is skipped `not_offered`.
+- **`guardana.mcp.registry_entry` checks a locally supplied registry `server.json`.** With `--mcp-registry-entry FILE` on `probe` or `plan probe`, it compares the server URL with `remotes` and the reported version with `version`. Guardana reads the entry from a local file and never fetches it.
+- **`probe --a2a URL` and `plan probe --a2a` examine A2A v1 agents through read-only JSON-RPC requests.** `--a2a-token-env` and `--a2a-other-token-env` supply credentials only to the named origin. The checks read the agent card, `GetTask`, `ListTasks` and `GetExtendedAgentCard` through `guardana.a2a.agent_card`, `guardana.a2a.caller_identity` and `guardana.a2a.task_visibility`. Guardana sends neither `SendMessage` nor `CancelTask`; card signatures are not verified.
+- **`ScriptedA2aAgent` in `guardana.core.testing` doubles an A2A agent in tests.** It serves the same testing role for A2A as `ScriptedMcpServer` does for MCP.
+- **A conformance suite checks MCP and A2A support against servers built on the protocol owners' SDKs.** It uses `mcp` 2.3.0 and `a2a-sdk` 1.2.1 for MCP `2025-11-25` and `2026-07-28` and A2A v1. The SDKs belong to the dev-only `conformance` dependency group; no shipped module imports them.
+
+### Changed
+
+- **`guardana.core.target.is_local_address` is deprecated and emits a `DeprecationWarning`.** It is scheduled for removal before 1.0. `McpAuthorizationView.server_is_local` reports locality from the addresses reached during a run.
+- **`guardana.mcp.session_binding` treats a session sampling stopped by an error as inconclusive.** It no longer claims the server issues no session id in that case, and it quotes no part of a session id.
+- **MCP stdio requests use increasing ids and handle late replies.** A timed-out `server/discover` leaves the stream usable, replies to ids nobody awaits are discarded, and Guardana answers a server's `ping`.
+- **`Verifier` reads the target's secrets again after the run.** Session ids and task ids handed out during the run are withheld from `run.json`.
+- **MCP and A2A credential failure messages name the matching token option.** They point to `--mcp-token-env` or `--a2a-token-env` when a credential is refused.
+
 ## [0.38.0] - 2026-10-03 — a guarded application and honest outcomes
 
 ### Changed — breaking

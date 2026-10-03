@@ -18,12 +18,12 @@ guardana config explain
 ## `doctor` — what this installation is
 
 ```text
-✓ guardana-core: 0.38.0
-✓ guardana-rules: 0.38.0
-✓ guardana-cli: 0.38.0
-✓ guardana-report: 0.38.0
+✓ guardana-core: 0.39.0
+✓ guardana-rules: 0.39.0
+✓ guardana-cli: 0.39.0
+✓ guardana-report: 0.39.0
 ✓ plugin trust: builtins (not stated, the default)
-✓ rules discovered: 53
+✓ rules discovered: 58
 ✓ evaluators discovered: 10
 ✓ target schemes: none (installed targets are Python-only)
 ✓ installed packs: no third-party Guardana entry points are installed; 2 built-in Guardana entry point(s)

@@ -2,12 +2,12 @@
 title: "Protocol conformance against servers Guardana did not write"
 nav_order: 91
 summary: "both MCP revisions and one A2A v1 agent checked against servers built on the protocol owners' own SDKs, task listings and registry entries graded, a server that lacks what a rule examines recorded as missing coverage, and an MCP server that fails part-way stopping the run it leaves"
-status: accepted
+status: implemented
 ---
 
 # Protocol conformance against servers Guardana did not write
 
-**Status:** accepted, implemented — ships in the next release · **Written:** 2026-10-03 · **Serves:** ROADMAP v0.39
+**Status:** implemented in 0.39.0 · **Written:** 2026-10-03 · **Serves:** ROADMAP v0.39
 (F7) and the MCP items the backlog lists under the guarded-application release · **Amends:**
 [`mcp-protocol-eras.md`](mcp-protocol-eras.md) (how a legacy revision is detected, version
 handling), [`guarded-applications.md`](guarded-applications.md) decision 4 (MCP servers join
