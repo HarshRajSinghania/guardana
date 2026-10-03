@@ -361,12 +361,21 @@ find the file: <code>configs/[redacted:openai-key:…]/settings.py:12</code>.</l
 </ul>
 <p>An error message about a <code>--target</code> locator prints it without userinfo, without a
 fragment and with its query replaced by a placeholder, whatever the scheme.</p>
+<p>A run also withholds the values its target sends to authenticate, which no pattern may
+recognise: the API key, an adapter's values read from <code>${VAR}</code>, the value of each
+adapter header named for a credential (<code>Authorization</code>, <code>Proxy-Authorization</code>, <code>Cookie</code>,
+<code>*-Key</code>, <code>*-Token</code>, <code>*-Secret</code>) with the token after a scheme word such as <code>Bearer</code>, what
+an installed target declares with <a href="extending.html#adding-a-target"><code>sent_secrets()</code></a>, and
+what the command resolved or the Python API's <code>secrets</code> name. Each value of four
+characters or more is shown as <code>[redacted:credential]</code> in findings, rationales, every
+other text the redactor walks, recorded failures and kept exchanges, in every evidence
+mode and before the policy's own patterns run. A literal header such as <code>Content-Type: application/json</code> is not withheld.</p>
 <p>When an endpoint answers with an error status, the message quotes the start of its
-body under the run's own policy, with the API key and every adapter header value the
-run sends shown as <code>[redacted:credential]</code>. Under <code>metadata_only</code> it gives the status
-and the body's size only. A reply Guardana cannot use, an unreachable endpoint and a
-judge's failure are quoted the same way; under <code>metadata_only</code> the message names the
-failure and gives its size only.</p>
+body under the run's own policy, with those values withheld. Under <code>metadata_only</code> it
+gives the status and the body's size only, and so does a target whose declaration of
+what it sends fails. A reply Guardana cannot use, an unreachable endpoint and a judge's
+failure are quoted the same way; under <code>metadata_only</code> the message names the failure and
+gives its size only.</p>
 <h2 id="redaction-is-never-silent">Redaction is never silent</h2>
 <p>A finding whose evidence was changed says so, in the text a reader sees:</p>
 <pre><code class="language-text">▲ [HIGH] guardana.supply_chain.hardcoded_secret
@@ -452,7 +461,9 @@ exposes; whether to keep them is the operator's decision for their data.</p>
 <ul>
 <li>Every input and reply passes this policy's redactor before it is written: matched
 spans are replaced, with no size bound, because a truncated reply would be graded
-wrongly later. Secrets are removed at every mode, <code>full</code> included.</li>
+wrongly later. Secrets are removed at every mode, <code>full</code> included, and so is every
+value the target sends to authenticate, from replies and metadata alike; a metadata
+value that held one is left out.</li>
 <li>A reply the redactor changed is marked <code>altered</code>, and <code>grade</code> never grades it: a reply
 that leaked a secret cannot be regraded into a pass.</li>
 <li><code>keep_exchanges: true</code> with <code>evidence_mode: metadata_only</code> is refused at load time:

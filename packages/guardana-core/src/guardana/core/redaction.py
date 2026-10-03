@@ -137,6 +137,10 @@ and an optional twelve-hex digest. Nothing that fits inside it is a secret, an
 address or an IP, because none of those are twelve lower-case hex characters.
 """
 
+_SENT_VALUE_PLACEHOLDER = "[redacted:credential]"
+_SHORTEST_SECRET = 4
+"""A shorter sent value is not withheld, as it would blank ordinary text wherever it occurs."""
+
 _TRUNCATED_MARKER = re.compile(re.escape(_TRUNCATED).replace(re.escape("{limit}"), r"\d+"))
 _WITHHELD_REASON_MARKER = re.compile(re.escape(_WITHHELD_REASON))
 
@@ -224,10 +228,19 @@ class EvidenceRedactor:
     Silent redaction produces a second kind of dishonest report: one that looks
     complete and is not. So a finding whose evidence was changed says so in the
     text a reader sees, for the same reason `unverified` exists.
+
+    `secrets` are values the run sends to authenticate. No pattern may recognise
+    them, so each is replaced as written, in every mode and before any pattern runs;
+    one shorter than four characters is left alone, as it would blank ordinary text.
     """
 
-    def __init__(self, policy: RedactionPolicy | None = None) -> None:
+    def __init__(
+        self, policy: RedactionPolicy | None = None, *, secrets: Iterable[str] = ()
+    ) -> None:
         self._policy = policy if policy is not None else RedactionPolicy()
+        kept = {value for value in secrets if len(value) >= _SHORTEST_SECRET}
+        # Longest first, so a value holding a shorter one is replaced whole.
+        self._secrets = tuple(sorted(kept, key=len, reverse=True))
         self._custom = tuple(
             (f"custom-{index}", re.compile(pattern))
             for index, pattern in enumerate(self._policy.custom_patterns)
@@ -237,6 +250,11 @@ class EvidenceRedactor:
     def policy(self) -> RedactionPolicy:
         """The policy in force, for recording in the manifest."""
         return self._policy
+
+    @property
+    def secrets(self) -> tuple[str, ...]:
+        """The sent values this redactor withholds as written, the longest first."""
+        return self._secrets
 
     def redact_text(self, text: str) -> str:
         """Apply the policy to one piece of text."""
@@ -404,6 +422,8 @@ class EvidenceRedactor:
         twice produce the same text as redacting once.
         """
         text = without_lone_surrogates(text)
+        for value in self._secrets:
+            text = text.replace(value, _SENT_VALUE_PLACEHOLDER)
         claimed = [(m.start(), m.end(), m.group(0)) for m in _ALREADY_REDACTED.finditer(text)]
         starts = [start for start, _, _ in claimed]
         for label, pattern in patterns:
@@ -454,23 +474,21 @@ every comparison.
 """
 
 
-_SENT_VALUE_PLACEHOLDER = "[redacted:credential]"
-_SHORTEST_SECRET = 4
-"""A shorter value is not withheld from a quote, which it would blank wherever it occurs."""
-
-
 @dataclass(frozen=True, slots=True)
 class MessageQuoting:
     """How a message quotes what an endpoint said: under the run's policy, without its secrets."""
 
     redactor: EvidenceRedactor
-    secrets: tuple[str, ...]
 
     @classmethod
     def of(cls, privacy: RedactionPolicy, secrets: Iterable[str] = ()) -> "MessageQuoting":
-        """Withhold every secret long enough to tell apart, the longest first."""
-        kept = {value for value in secrets if len(value) >= _SHORTEST_SECRET}
-        return cls(EvidenceRedactor(privacy), tuple(sorted(kept, key=len, reverse=True)))
+        """Quote under `privacy`, withholding `secrets` as `EvidenceRedactor` does."""
+        return cls(EvidenceRedactor(privacy, secrets=secrets))
+
+    @property
+    def secrets(self) -> tuple[str, ...]:
+        """The values a quote never holds, the longest first."""
+        return self.redactor.secrets
 
     @property
     def withholds_text(self) -> bool:
@@ -479,8 +497,6 @@ class MessageQuoting:
 
     def spans(self, text: str) -> str:
         """Replace each secret the run sends, then each span the policy removes."""
-        for value in self.secrets:
-            text = text.replace(value, _SENT_VALUE_PLACEHOLDER)
         return self.redactor.redact_spans(text)
 
     def detail(self, text: str) -> str:

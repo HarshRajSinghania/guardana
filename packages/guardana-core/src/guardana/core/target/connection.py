@@ -410,7 +410,9 @@ def _through_adapter(
         adapter, url=connection.url, environ=environ, spelling=names, for_judge=for_judge
     )
     try:
-        transport = HttpAdapterTransport(loaded.config, source_digest=loaded.digest)
+        transport = HttpAdapterTransport(
+            loaded.config, source_digest=loaded.digest, secrets=loaded.secret_values
+        )
     except EndpointError as exc:
         raise ConnectionConfigError(f"invalid adapter {adapter}: {exc}") from exc
     return ResolvedConnection(

@@ -16,7 +16,7 @@ decline rather than the model's reply, `retry_statuses` the statuses asked again
 
 import io
 import json
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from email.message import Message
 from functools import partial
@@ -47,6 +47,8 @@ from guardana.core.target.endpoint import (
 _MAX_RESPONSE_BYTES = 8 * 1024 * 1024
 _ALLOWED_SCHEMES = frozenset({"http", "https"})
 _SUCCESS = range(200, 300)
+_CREDENTIAL_HEADERS = frozenset({"authorization", "proxy-authorization", "cookie"})
+_CREDENTIAL_SUFFIXES = ("-key", "-token", "-secret")
 
 # Only the statuses that say the request was not acted on. An application may have
 # written, sent or charged something before answering 500, 502 or 504, and sending
@@ -252,6 +254,9 @@ class HttpAdapterTransport:
     on the first attempt. A `MetadataReportingTransport`, and never a
     `UsageReportingTransport`: an adapted endpoint reports no token counts, and claiming
     it did would let a token ceiling through unenforced.
+
+    `secrets` are the values its headers read from the environment, which it declares
+    as sent (`sent_secrets`) beside its credential headers.
     """
 
     def __init__(
@@ -261,6 +266,7 @@ class HttpAdapterTransport:
         fetch: Fetch | None = None,
         timeout: float | None = None,
         source_digest: str | None = None,
+        secrets: Iterable[str] = (),
     ) -> None:
         scheme = urlsplit(config.url).scheme
         if scheme not in _ALLOWED_SCHEMES:
@@ -276,6 +282,7 @@ class HttpAdapterTransport:
                 f"the probe would never reach the endpoint"
             )
         self._config = config
+        self._secrets = tuple(secrets)
         self.source_digest = source_digest
         """The SHA-256 of the adapter file as written, when it was read from one."""
         if fetch is None:
@@ -305,13 +312,16 @@ class HttpAdapterTransport:
         return self.send_with_metadata(base_url, model, messages, api_key).text
 
     def sent_secrets(self) -> tuple[str, ...]:
-        """Return every header value this adapter sends, and the credential after a scheme word.
+        """Return the values this adapter sends to authenticate.
 
-        Every header counts, because a literal one may hold a key as surely as one read
-        from a variable. In `Bearer <token>` the token alone counts too, since an
-        endpoint may echo it without the scheme.
+        Those its headers read from the environment (`secrets`), the value of each header
+        named for a credential (`Authorization`, `Proxy-Authorization`, `Cookie`, `*-Key`,
+        `*-Token`, `*-Secret`), and in `Bearer <token>` the token alone, since an endpoint
+        may echo it without the scheme. Any other literal header, such as a content type,
+        is not one: withheld, it would blank ordinary text wherever it appears.
         """
-        values = self._config.headers.values()
+        named = (value for name, value in self._config.headers.items() if _names_credential(name))
+        values = (*self._secrets, *named)
         credentials = (value.split()[-1] for value in values if len(value.split()) > 1)
         return (*values, *credentials)
 
@@ -394,6 +404,12 @@ class HttpAdapterTransport:
             if value is not None:
                 meta[name] = value
         return meta
+
+
+def _names_credential(header: str) -> bool:
+    """Whether a header's name says it carries a credential, compared as HTTP compares names."""
+    folded = header.casefold()
+    return folded in _CREDENTIAL_HEADERS or folded.endswith(_CREDENTIAL_SUFFIXES)
 
 
 def _json_headers(headers: Mapping[str, str]) -> dict[str, str]:

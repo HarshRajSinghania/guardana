@@ -43,7 +43,7 @@ from guardana.core.target.adapter import FetchedReply
 from guardana.core.target.endpoint import UrllibTransport
 from guardana.core.target.failure import FailureRemedies
 from guardana.core.testing._fake_provider import FakeProvider, delayed, openai_reply
-from guardana.core.verify import TargetUnavailableError, Verifier
+from guardana.core.verify import TargetUnavailableError, UnsupportedTargetError, Verifier
 
 _KEY = "acme-live-0123456789abcdef"
 _UNPATTERNED_KEY = "gw-live-7Q2mZp9XvR4tL8kN3bW6"
@@ -424,3 +424,58 @@ def test_a_target_the_python_api_could_not_reach_is_said_without_its_key_and_bou
     assert "[redacted:credential]" in said
     assert len(said) <= 500
     assert said.startswith("could not reach endpoint http://x")
+
+
+class _DeclaresBadly(_EchoesKey):
+    """A plugin transport that refuses as `_EchoesKey` does and declares what it sends badly."""
+
+    def __init__(self, status: int, declared: object) -> None:
+        super().__init__(status)
+        self._declared = declared
+
+    def sent_secrets(self) -> tuple[str, ...]:
+        """Return the declaration as given, or raise it."""
+        if isinstance(self._declared, Exception):
+            raise self._declared
+        return self._declared  # type: ignore[return-value]
+
+
+def test_a_declaration_holding_other_than_text_keeps_its_text_and_the_run_goes_on() -> None:
+    registry = Registry()
+    registry.register_rule(_Asking("only"))
+    transport = _DeclaresBadly(400, (_UNPATTERNED_KEY, 42, None))
+
+    result = Runner(registry=registry, profile=_PROFILE).run(
+        EndpointTarget("http://x", "m", api_key=_UNPATTERNED_KEY, transport=transport)
+    )
+
+    assert "bad body for key [redacted:credential]" in result.errors[0].reason
+
+
+def test_a_declaration_that_raises_gives_the_status_and_size_and_no_body() -> None:
+    registry = Registry()
+    registry.register_rule(_Asking("only"))
+    transport = _DeclaresBadly(400, RuntimeError(f"cannot list {_UNPATTERNED_KEY}"))
+
+    result = Runner(registry=registry, profile=_PROFILE).run(
+        EndpointTarget("http://x", "m", api_key=_UNPATTERNED_KEY, transport=transport)
+    )
+
+    (error,) = result.errors
+    assert error.stage == "request"
+    assert error.reason == (
+        "endpoint http://x#m rejected the request (HTTP 400); its body (57 bytes) is not "
+        "shown under evidence mode metadata_only"
+    )
+
+
+def test_the_python_api_refuses_a_target_that_cannot_say_what_it_sends_before_sending() -> None:
+    registry = Registry()
+    registry.register_rule(_Asking("only"))
+    target = EndpointTarget(
+        "http://x", "m", transport=_DeclaresBadly(400, RuntimeError("no declaration"))
+    )
+
+    with pytest.raises(UnsupportedTargetError, match="could not say which values it sends"):
+        Verifier(trust=PluginTrust(mode=PluginMode.BUILTINS), registry=registry).run(target)
+    assert target.usage().requests == 0

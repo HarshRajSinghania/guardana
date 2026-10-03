@@ -225,9 +225,10 @@ class Verifier:
     redacts evidence. `rule_paths` load local YAML rules beside the profile's own
     `rules.paths`; `rules` and `evaluators` register objects built in code.
     `calibrations` default to the files the profile names. `concurrency` bounds an
-    endpoint run, as `probe --concurrency` does. `secrets` are the values the target
-    sends to authenticate, withheld from every failure the run records, and `remedies`
-    is what such a failure advises.
+    endpoint run, as `probe --concurrency` does. `secrets` are values the target sends
+    to authenticate beside those it declares itself (`SendsSecrets`); both are withheld
+    from every failure, finding and kept exchange the run records. `remedies` is what a
+    recorded failure advises.
 
     `registry` is for a caller that assembled its own: nothing is discovered or loaded
     into it, so it cannot be combined with `rule_paths`, `rules` or `evaluators`, and
@@ -282,7 +283,7 @@ class Verifier:
     """
 
     secrets: tuple[str, ...] = field(default=(), repr=False)
-    """The values the target sends to authenticate; no recorded failure quotes one."""
+    """Values the target sends to authenticate beside those it declares; none is saved."""
 
     remedies: FailureRemedies = field(default_factory=FailureRemedies)
     """What a recorded failure advises for a refused credential and for a rate limit."""
@@ -410,6 +411,7 @@ class Verifier:
             )
         fixtures = self._fixtures_of(target)
         keeping = self._keeps(target)
+        withheld = self._withheld(target)
         spent = target.usage()
         if spent is not None and spent.requests:
             raise TargetReusedError(
@@ -431,7 +433,9 @@ class Verifier:
                 keeping.keep_exchanges(keeper)
             planned = self._kept_plan(registry, target) if keeper is not None else None
             started_at = datetime.now(UTC)
-            result, identity = self._execute(target, registry, calibrations, endpoint=endpoint)
+            result, identity = self._execute(
+                target, registry, calibrations, endpoint=endpoint, withheld=withheld
+            )
         except (CalibrationError, UnenforceableBudgetError, RecordingRefusedError):
             # Each is refused before the first request, which leaves the target unused.
             if keeping is not None:
@@ -456,7 +460,23 @@ class Verifier:
             fixtures=fixtures,
             demanded=self.demanded_rules | demanded_by_fixtures(registry, target, fixtures),
             unchecked=unchecked_fixtures(registry, target, fixtures),
+            withheld=withheld,
         )
+
+    def _withheld(self, target: Target) -> tuple[str, ...]:
+        """Return every value the run withholds: the caller's and those the target declares.
+
+        Asked once, before anything is sent: a target that cannot say what it sends would
+        have its credentials saved in what the run records, so it is refused instead.
+        """
+        try:
+            declared = secrets_sent_by(target)
+        except Exception as exc:
+            raise UnsupportedTargetError(
+                f"{target.ref} could not say which values it sends to authenticate "
+                f"({type(exc).__name__}), so the run could not keep them out of what it saves"
+            ) from exc
+        return (*self.secrets, *declared)
 
     def _fixtures_of(self, target: Target) -> FixturesRecord | None:
         """Return the fixtures the run records, refusing a record that names other fixtures."""
@@ -532,6 +552,7 @@ class Verifier:
         calibrations: Mapping[str, RecordedCalibration],
         *,
         endpoint: bool,
+        withheld: tuple[str, ...],
     ) -> tuple[ScanResult, TargetIdentity]:
         records = {key: value.as_record() for key, value in calibrations.items()}
         try:
@@ -560,15 +581,14 @@ class Verifier:
         except JudgeUnavailableError as exc:
             raise JudgeUnreachableError(str(exc)) from exc
         except (URLError, EndpointError) as exc:
-            raise TargetUnavailableError(self._unreachable(exc, target)) from exc
+            raise TargetUnavailableError(self._unreachable(exc, target, withheld)) from exc
         except OSError as exc:
             if not endpoint:
                 raise
-            raise TargetUnavailableError(self._unreachable(exc, target)) from exc
+            raise TargetUnavailableError(self._unreachable(exc, target, withheld)) from exc
 
-    def _unreachable(self, exc: BaseException, target: Target) -> str:
-        """Say why `target` could not be reached, without a secret it sends, bounded."""
-        withheld = (*self.secrets, *secrets_sent_by(target))
+    def _unreachable(self, exc: BaseException, target: Target, withheld: tuple[str, ...]) -> str:
+        """Say why `target` could not be reached, without a value the run withholds, bounded."""
         quoting = MessageQuoting.of(self.profile.privacy, withheld)
         return describe_failure(exc, target.ref, quoting, self.remedies)
 
@@ -592,6 +612,7 @@ class Verifier:
         fixtures: FixturesRecord | None = None,
         demanded: frozenset[str] = frozenset(),
         unchecked: tuple[CoverageShortfall, ...] = (),
+        withheld: tuple[str, ...] = (),
     ) -> Verification:
         """Relativize, redact, apply the baseline, gate and describe — in that order.
 
@@ -602,7 +623,8 @@ class Verifier:
         stop_messages = target_failures(result)
         if relative_to is not None:
             result = relativize_findings(result, relative_to)
-        result = EvidenceRedactor(self.profile.privacy).redact_result(result)
+        redactor = EvidenceRedactor(self.profile.privacy, secrets=withheld)
+        result = redactor.redact_result(result)
         if baseline is not None:
             result = apply_baseline(result, baseline.active())
         result = replace(
@@ -620,6 +642,7 @@ class Verifier:
             if kept is None
             else self._kept_recording(
                 kept,
+                redactor,
                 run_id=run_id,
                 subject=reference,
                 started_at=started_at,
@@ -664,6 +687,7 @@ class Verifier:
     def _kept_recording(  # noqa: PLR0913 — the facts the sidecar's origin states
         self,
         kept: tuple[ExchangeKeeper, dict[str, int]],
+        redactor: EvidenceRedactor,
         *,
         run_id: str,
         subject: str,
@@ -677,7 +701,7 @@ class Verifier:
         writes no sidecar and records no `exchanges`.
         """
         keeper, planned = kept
-        recorded = keeper.recorded(EvidenceRedactor(self.profile.privacy))
+        recorded = keeper.recorded(redactor)
         if not recorded:
             return None
         recording = Recording(

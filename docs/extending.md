@@ -458,6 +458,25 @@ and two installed packs cannot claim the same one. Repeat non-secret settings as
 target rather than putting them in shell history. `guardana doctor` lists every
 loaded custom scheme.
 
+A target that authenticates to what it tests declares the values it sends, because a
+key that no built-in pattern recognises would otherwise be saved wherever the endpoint
+echoes it. Implement `sent_secrets()`, returning a tuple of strings
+(`guardana.core.target.SendsSecrets`):
+
+```python
+class AcmeGatewayTarget(Target):
+    def sent_secrets(self) -> tuple[str, ...]:
+        return (self._token,)
+```
+
+`EndpointTarget` and every target built on it already declare their API key and
+whatever their transport declares; a transport declares its own the same way. A run
+replaces each declared value of four characters or more with `[redacted:credential]`
+in its findings, the failures it records and the exchanges it keeps, in every evidence
+mode, before its own patterns run. An item that is not a string is ignored. `Verifier`
+refuses a target whose `sent_secrets()` raises before anything is sent, and a failure the
+runner records for such a target gives only the status and the size of the reply.
+
 Endpoint targets that want Guardana to run canary rules also implement
 `SystemPromptPlanter.planting(system_prompt)`. Each planted view must preserve
 one shared usage meter and budget across the whole probe. Without that protocol,

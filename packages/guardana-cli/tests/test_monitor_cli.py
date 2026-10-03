@@ -338,3 +338,27 @@ def test_a_later_cycle_that_failed_is_said_without_the_key_and_bounded(
     assert "[redacted:credential]" in warning
     assert warning.startswith("warning: monitor cycle 1 failed, continuing: could not reach")
     assert len(warning) <= 600
+
+
+def test_a_cycle_warning_survives_a_target_whose_secret_declaration_fails(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """When the target cannot say what it sends, the warning quotes nothing of the reply."""
+
+    def declaration() -> tuple[str, ...]:
+        raise RuntimeError("plugin declaration failed")
+
+    warn = monitor_module._cycle_failure_warning(
+        "http://example.test/v1#m",
+        default_profile().privacy,
+        declaration,
+    )
+    rejected = HTTPError(
+        "http://example.test/v1", 400, "Bad Request", Message(), io.BytesIO(b"echoed-key-abcdef")
+    )
+
+    warn(2, rejected)
+
+    said = capsys.readouterr().err
+    assert "monitor cycle 2 failed" in said
+    assert "echoed-key-abcdef" not in said

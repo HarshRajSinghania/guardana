@@ -85,12 +85,22 @@ without anyone naming it. Two kinds of string are treated differently:
 An error message about a `--target` locator prints it without userinfo, without a
 fragment and with its query replaced by a placeholder, whatever the scheme.
 
+A run also withholds the values its target sends to authenticate, which no pattern may
+recognise: the API key, an adapter's values read from `${VAR}`, the value of each
+adapter header named for a credential (`Authorization`, `Proxy-Authorization`, `Cookie`,
+`*-Key`, `*-Token`, `*-Secret`) with the token after a scheme word such as `Bearer`, what
+an installed target declares with [`sent_secrets()`](extending.md#adding-a-target), and
+what the command resolved or the Python API's `secrets` name. Each value of four
+characters or more is shown as `[redacted:credential]` in findings, rationales, every
+other text the redactor walks, recorded failures and kept exchanges, in every evidence
+mode and before the policy's own patterns run. A literal header such as `Content-Type: application/json` is not withheld.
+
 When an endpoint answers with an error status, the message quotes the start of its
-body under the run's own policy, with the API key and every adapter header value the
-run sends shown as `[redacted:credential]`. Under `metadata_only` it gives the status
-and the body's size only. A reply Guardana cannot use, an unreachable endpoint and a
-judge's failure are quoted the same way; under `metadata_only` the message names the
-failure and gives its size only.
+body under the run's own policy, with those values withheld. Under `metadata_only` it
+gives the status and the body's size only, and so does a target whose declaration of
+what it sends fails. A reply Guardana cannot use, an unreachable endpoint and a judge's
+failure are quoted the same way; under `metadata_only` the message names the failure and
+gives its size only.
 
 ## Redaction is never silent
 
@@ -205,7 +215,9 @@ exposes; whether to keep them is the operator's decision for their data.
 
 - Every input and reply passes this policy's redactor before it is written: matched
   spans are replaced, with no size bound, because a truncated reply would be graded
-  wrongly later. Secrets are removed at every mode, `full` included.
+  wrongly later. Secrets are removed at every mode, `full` included, and so is every
+  value the target sends to authenticate, from replies and metadata alike; a metadata
+  value that held one is left out.
 - A reply the redactor changed is marked `altered`, and `grade` never grades it: a reply
   that leaked a secret cannot be regraded into a pass.
 - `keep_exchanges: true` with `evidence_mode: metadata_only` is refused at load time:

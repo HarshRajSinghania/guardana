@@ -13,7 +13,7 @@ from guardana.core.inventory import observe
 from guardana.core.manifest.records import CalibrationRecord, SuiteSummary
 from guardana.core.observation import Observation, ObservationKind
 from guardana.core.profile.model import Profile
-from guardana.core.redaction import MessageQuoting
+from guardana.core.redaction import EvidenceMode, MessageQuoting
 from guardana.core.registry import Registry
 from guardana.core.regression import broken_pairs
 from guardana.core.report import CheckError, Finding, ScanResult, StopReason, split_ref
@@ -578,6 +578,20 @@ class Runner:
             shortfalls=ctx.shortfalls(),
         )
 
+    def _quoting(self, target: Target) -> MessageQuoting:
+        """Quote under the run's policy, withholding the run's and the target's secrets.
+
+        A target that cannot say what it sends is quoted by status and size alone, since
+        any text it returned might hold a value it failed to name.
+        """
+        privacy = self.profile.privacy
+        try:
+            declared = secrets_sent_by(target)
+        except Exception:
+            sizes_only = replace(privacy, mode=EvidenceMode.METADATA_ONLY, keep_exchanges=False)
+            return MessageQuoting.of(sizes_only, self.secrets)
+        return MessageQuoting.of(privacy, (*self.secrets, *declared))
+
     def _failed_send(
         self,
         rule: Rule,
@@ -594,10 +608,7 @@ class Runner:
         withholds the values the target declares sending as well as the run's own.
         """
         scope = failure_scope(exc)
-        withheld = (*self.secrets, *secrets_sent_by(target))
-        reason = describe_failure(
-            exc, target.ref, MessageQuoting.of(self.profile.privacy, withheld), self.remedies
-        )
+        reason = describe_failure(exc, target.ref, self._quoting(target), self.remedies)
         findings, unverified = produced
         return _RuleOutcome(
             rule.meta.id,

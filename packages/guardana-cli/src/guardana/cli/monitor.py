@@ -42,7 +42,12 @@ from guardana.core.monitor import (
     TargetStoppedError,
 )
 from guardana.core.profile import Profile, ProfileError
-from guardana.core.redaction import EvidenceRedactor, MessageQuoting, RedactionPolicy
+from guardana.core.redaction import (
+    EvidenceMode,
+    EvidenceRedactor,
+    MessageQuoting,
+    RedactionPolicy,
+)
 from guardana.core.registry import Registry
 from guardana.core.report import ScanResult
 from guardana.core.runner import DEFAULT_ENDPOINT_CONCURRENCY
@@ -89,6 +94,15 @@ def alert_handler(
     return handle
 
 
+def _quoting(privacy: RedactionPolicy, secrets: Callable[[], Iterable[str]]) -> MessageQuoting:
+    """Quote under `privacy` without `secrets`; when they cannot be read, quote nothing at all."""
+    try:
+        return MessageQuoting.of(privacy, secrets())
+    except Exception:  # a target's declaration is plugin code
+        withheld = replace(privacy, mode=EvidenceMode.METADATA_ONLY, keep_exchanges=False)
+        return MessageQuoting.of(withheld)
+
+
 def _cycle_failure_warning(
     ref: str, privacy: RedactionPolicy, secrets: Callable[[], Iterable[str]]
 ) -> Callable[[int, Exception], None]:
@@ -101,8 +115,7 @@ def _cycle_failure_warning(
         if isinstance(exc, TargetStoppedError):
             said = str(exc)
         else:
-            quoting = MessageQuoting.of(privacy, secrets())
-            said = describe_failure(exc, ref, quoting, _REMEDIES)
+            said = describe_failure(exc, ref, _quoting(privacy, secrets), _REMEDIES)
         typer.echo(f"warning: monitor cycle {cycle} failed, continuing: {said}", err=True)
 
     return warn

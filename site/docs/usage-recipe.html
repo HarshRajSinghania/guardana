@@ -397,8 +397,9 @@ beside <code>target</code>, and kept exchanges — <code>output.exchanges: true<
 <code>privacy.keep_exchanges</code> — with a target that keeps none (only the built-in endpoint and a
 pack's target built on it keep exchanges). The <code>Target</code> contract forbids building a target
 from contacting it; a target that connects while it is built and fails exits <code>4</code>, as it does
-for <code>plan probe</code>. The run records <code>source: target</code>, and the target's own options carry no
-secret, so no message withholds one.</p>
+for <code>plan probe</code>. The run records <code>source: target</code>. Its options carry no secret; what the
+target declares it sends to authenticate (<a href="extending.html#adding-a-target"><code>sent_secrets()</code></a>) is
+withheld from every finding, failure and kept exchange the run saves.</p>
 <h2 id="the-lock">The lock</h2>
 <p><code>guardana recipe lock</code> builds the plan of the recipe's run without sending a request and
 without reading a key, and writes <code>guardana-recipe.lock.yaml</code> beside the recipe. It pins:</p>

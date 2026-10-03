@@ -110,6 +110,42 @@ def test_a_connection_through_an_adapter_carries_its_transport_and_digest(
     assert resolved.adapter_digest is not None
 
 
+def test_an_adapter_declares_the_values_it_reads_and_the_credential_headers_and_no_other(
+    tmp_path: Path,
+) -> None:
+    headers = (
+        "headers:\n"
+        "  Content-Type: application/json\n"
+        "  X-Org: acme\n"
+        "  X-Tenant: tenant-${TENANT_ID}\n"
+        "  authorization: Bearer literal-token-123\n"
+        "  X-Gateway-TOKEN: gt-abc\n"
+        "  Api-Key: k-1234\n"
+        "  X-Signing-Secret: s-5678\n"
+        "  Proxy-Authorization: Basic cHJveHk6cHc=\n"
+        "  Cookie: sid=abc123\n"
+    )
+    resolved = resolve_connection(
+        Connection(_URL, "m", adapter=_adapter(tmp_path, headers + _BODY)),
+        sending=True,
+        environ={"TENANT_ID": "998877"},
+    )
+
+    assert isinstance(resolved.transport, HttpAdapterTransport)
+    assert set(resolved.transport.sent_secrets()) == {
+        "tenant-998877",
+        "998877",
+        "Bearer literal-token-123",
+        "literal-token-123",
+        "gt-abc",
+        "k-1234",
+        "s-5678",
+        "Basic cHJveHk6cHc=",
+        "cHJveHk6cHc=",
+        "sid=abc123",
+    }
+
+
 @pytest.mark.parametrize(
     ("connection", "complaint"),
     [

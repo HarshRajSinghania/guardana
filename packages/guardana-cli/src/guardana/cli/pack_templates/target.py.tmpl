@@ -13,6 +13,12 @@ class __CLASS__Target(Target):
 
     Declares `READ_FILES` and implements every method that capability promises.
     A declaration the runner selects rules by must have a surface behind it.
+
+    It reads files and sends nothing, so it declares no secret. A target that
+    authenticates to what it tests, and is not built on `EndpointTarget`, also
+    implements `sent_secrets()` (`guardana.core.target.SendsSecrets`), returning every
+    value it sends; the run then withholds each from its findings, failures and kept
+    exchanges.
     """
 
     kind = TargetKind.ARTIFACT

@@ -2,7 +2,7 @@ import copy
 import json
 import math
 import re
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from contextvars import ContextVar
 from dataclasses import dataclass, field, replace
 from http.client import HTTPException, HTTPMessage, HTTPResponse
@@ -182,8 +182,20 @@ class SendsSecrets(Protocol):
 
 
 def secrets_sent_by(sender: object) -> tuple[str, ...]:
-    """Return what `sender` declares it sends to authenticate; nothing when it declares none."""
-    return sender.sent_secrets() if isinstance(sender, SendsSecrets) else ()
+    """Return the text `sender` declares it sends to authenticate; nothing when it declares none.
+
+    The declaration may come from a plugin, so an item that is not text is left out and a
+    single text returned whole is one value. A declaration that is no collection raises
+    `TypeError`, and whatever the call itself raises propagates.
+    """
+    if not isinstance(sender, SendsSecrets):
+        return ()
+    declared: object = sender.sent_secrets()
+    if isinstance(declared, str):
+        return (declared,)
+    if not isinstance(declared, Iterable):
+        raise TypeError(f"sent_secrets() returned {type(declared).__name__}, not a tuple")
+    return tuple(value for value in declared if isinstance(value, str))
 
 
 @dataclass(frozen=True, slots=True)
@@ -878,7 +890,6 @@ class EndpointTarget(Target):
                     self._base_url, self._model, history, self._api_key
                 )
             )
-            reply = replace(reply, meta=valid_metadata(reply.meta))
         elif isinstance(transport, UsageReportingTransport):
             reply = self._spend(
                 lambda: transport.send_reporting_usage(
@@ -895,7 +906,7 @@ class EndpointTarget(Target):
         # request was sent and cost something, and the run should say it does not know
         # how much instead of implying it was free.
         self._meter.record_reply(reply.usage)
-        return reply
+        return replace(reply, meta=valid_metadata(reply.meta))
 
     def offer_tools(
         self, messages: Sequence[ChatMessage], tools: Sequence[ToolSpec]

@@ -6,6 +6,8 @@ becomes an observation. Each is checked here at the redactor itself; the rendere
 seam is pinned in `guardana-report`.
 """
 
+from dataclasses import astuple, replace
+
 import pytest
 from guardana.core import redaction
 from guardana.core.assessment import Assessment, AssessmentStatus
@@ -208,3 +210,31 @@ def test_a_broad_custom_pattern_leaves_rule_ids_and_framework_references_alone()
     assert redacted.rule_id == finding.rule_id
     assert redacted.taxonomy == finding.taxonomy
     assert "ABC12" not in redacted.evidence.summary
+
+
+_SENT = "gw-live-7Q2mZp9XvR4tL8kN3bW6"
+"""A key no built-in pattern recognises, so only its declaration as sent withholds it."""
+
+
+@pytest.mark.parametrize("mode", list(EvidenceMode))
+def test_a_value_the_target_sends_is_withheld_from_every_text_in_every_mode(
+    mode: EvidenceMode,
+) -> None:
+    finding = replace(_finding(_SENT), evidence=Evidence(summary=f"leaked {_SENT}", detail=_SENT))
+    redactor = EvidenceRedactor(RedactionPolicy(mode=mode), secrets=(_SENT,))
+
+    cleaned = redactor.redact_result(_result(findings=(finding,)))
+
+    (seen,) = cleaned.findings
+    assert seen.verdict is not None
+    texts = (seen.title, seen.target_ref, seen.verdict.rationale, *astuple(seen.evidence))
+    assert all(_SENT not in text for text in texts)
+    assert seen.title == "judge quoted [redacted:credential]"
+    assert seen.target_ref == "configs/[redacted:credential]/settings.py:12"
+    assert EvidenceRedactor(RedactionPolicy(mode=mode)).redact_result(cleaned) == cleaned
+
+
+def test_a_sent_value_too_short_to_tell_apart_is_not_withheld() -> None:
+    redactor = EvidenceRedactor(_REDACTED, secrets=("abc",))
+
+    assert redactor.redact_spans("abc def") == "abc def"

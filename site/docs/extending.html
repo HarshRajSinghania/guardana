@@ -728,6 +728,21 @@ and two installed packs cannot claim the same one. Repeat non-secret settings as
 <code>--target-option key=value</code>; name secrets by environment variable inside your
 target rather than putting them in shell history. <code>guardana doctor</code> lists every
 loaded custom scheme.</p>
+<p>A target that authenticates to what it tests declares the values it sends, because a
+key that no built-in pattern recognises would otherwise be saved wherever the endpoint
+echoes it. Implement <code>sent_secrets()</code>, returning a tuple of strings
+(<code>guardana.core.target.SendsSecrets</code>):</p>
+<pre><code class="language-python">class AcmeGatewayTarget(Target):
+    def sent_secrets(self) -&gt; tuple[str, ...]:
+        return (self._token,)
+</code></pre>
+<p><code>EndpointTarget</code> and every target built on it already declare their API key and
+whatever their transport declares; a transport declares its own the same way. A run
+replaces each declared value of four characters or more with <code>[redacted:credential]</code>
+in its findings, the failures it records and the exchanges it keeps, in every evidence
+mode, before its own patterns run. An item that is not a string is ignored. <code>Verifier</code>
+refuses a target whose <code>sent_secrets()</code> raises before anything is sent, and a failure the
+runner records for such a target gives only the status and the size of the reply.</p>
 <p>Endpoint targets that want Guardana to run canary rules also implement
 <code>SystemPromptPlanter.planting(system_prompt)</code>. Each planted view must preserve
 one shared usage meter and budget across the whole probe. Without that protocol,

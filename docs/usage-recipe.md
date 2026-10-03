@@ -88,8 +88,9 @@ beside `target`, and kept exchanges — `output.exchanges: true` or the profile'
 `privacy.keep_exchanges` — with a target that keeps none (only the built-in endpoint and a
 pack's target built on it keep exchanges). The `Target` contract forbids building a target
 from contacting it; a target that connects while it is built and fails exits `4`, as it does
-for `plan probe`. The run records `source: target`, and the target's own options carry no
-secret, so no message withholds one.
+for `plan probe`. The run records `source: target`. Its options carry no secret; what the
+target declares it sends to authenticate ([`sent_secrets()`](extending.md#adding-a-target)) is
+withheld from every finding, failure and kept exchange the run saves.
 
 ## The lock
 

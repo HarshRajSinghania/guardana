@@ -349,7 +349,7 @@ verification.save(Path(&quot;run.json&quot;))  # the document `--format json --o
 </tr>
 <tr>
 <td><code>secrets</code>, <code>remedies</code></td>
-<td>The values your target sends to authenticate, as a tuple of strings, and a <code>FailureRemedies(auth=..., rate_limited=...)</code> from <code>guardana.core.target.failure</code>: what a recorded failure advises for a refused credential and for a sustained rate limit. A failure the run records quotes the start of the endpoint's reply under the profile's privacy policy and never holds one of <code>secrets</code>. Empty and generic advice by default.</td>
+<td>Values your target sends to authenticate beyond those it declares itself, as a tuple of strings, and a <code>FailureRemedies(auth=..., rate_limited=...)</code> from <code>guardana.core.target.failure</code>: what a recorded failure advises for a refused credential and for a sustained rate limit. An <code>EndpointTarget</code> declares its API key and what its transport declares, and any target can declare its own with <code>sent_secrets()</code> (<a href="extending.html#adding-a-target">extending</a>); pass here only what the target does not declare. Each of these values, <code>secrets</code> and declared alike, is replaced by <code>[redacted:credential]</code> in the findings, the recorded failures and the kept exchanges, in every evidence mode. A recorded failure quotes the start of the endpoint's reply under the profile's privacy policy. Empty and generic advice by default.</td>
 </tr>
 <tr>
 <td><code>fixtures</code></td>
