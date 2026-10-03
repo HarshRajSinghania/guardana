@@ -11,10 +11,14 @@ Found by running `probe --mcp --max-request 3` against a live server and reading
 the output rather than the exit code.
 """
 
+import json
 from dataclasses import replace
 
+import pytest
 from guardana.core.assessment import Assessment
+from guardana.core.gate import GateOutcome
 from guardana.core.report import ScanResult, StopReason
+from guardana.core.testing import manifest_for
 from guardana.report import HumanRenderer, get_renderer
 
 _STOPPED = ScanResult(
@@ -113,3 +117,27 @@ def test_a_complete_run_has_no_stop_error_in_junit() -> None:
 
     assert 'errors="0"' in xml
     assert "run stopped early" not in xml
+
+
+_TARGET_STOPPED = replace(_STOPPED, stopped_by=StopReason.TARGET_UNAVAILABLE)
+
+
+@pytest.mark.parametrize("name", ["human", "junit", "sarif", "json"])
+def test_a_run_its_target_stopped_is_named_by_every_renderer(name: str) -> None:
+    manifest = manifest_for(_TARGET_STOPPED, gate=GateOutcome.INDETERMINATE)
+
+    text = get_renderer(name, run=manifest).render(_TARGET_STOPPED)
+
+    assert "target_unavailable" in text
+    assert "✓" not in text
+
+
+def test_sarif_describes_the_exit_code_of_a_run_its_target_stopped() -> None:
+    manifest = manifest_for(_TARGET_STOPPED, gate=GateOutcome.INDETERMINATE)
+
+    sarif = json.loads(get_renderer("sarif", run=manifest).render(_TARGET_STOPPED))
+
+    [invocation] = sarif["runs"][0]["invocations"]
+    assert invocation["exitCode"] == 4
+    assert invocation["exitCodeDescription"] == "target became unavailable, coverage partial"
+    assert invocation["executionSuccessful"] is False

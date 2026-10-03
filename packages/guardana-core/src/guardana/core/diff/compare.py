@@ -316,6 +316,10 @@ _STOP_EXPLANATIONS = {
     StopReason.INTERRUPTED: (
         "was interrupted, so what it did not reach is unknown rather than absent"
     ),
+    StopReason.TARGET_UNAVAILABLE: (
+        "stopped because the target became unavailable, so what it did not reach is unknown "
+        "rather than absent — make the target answer before reading this comparison"
+    ),
 }
 
 

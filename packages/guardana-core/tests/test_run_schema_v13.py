@@ -153,8 +153,15 @@ def test_the_execution_identity_survives_being_saved_and_read_back(
     assert manifest_from_dict(manifest_to_dict(manifest)) == manifest
 
 
-@pytest.mark.parametrize("reason", list(UnmeasuredReason))
-def test_every_unmeasured_reason_survives_being_saved_and_read_back(
+_V13_REASONS = (
+    UnmeasuredReason.NOT_RECORDED,
+    UnmeasuredReason.REPLY_ALTERED,
+    UnmeasuredReason.DECLINED,
+)
+
+
+@pytest.mark.parametrize("reason", _V13_REASONS)
+def test_every_v13_unmeasured_reason_survives_being_saved_and_read_back(
     reason: UnmeasuredReason, tmp_path: Path
 ) -> None:
     result = scan_result()

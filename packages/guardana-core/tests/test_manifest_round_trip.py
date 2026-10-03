@@ -119,6 +119,7 @@ def _fully_populated() -> RunManifest:
             max_input_tokens=50_000,
             max_output_tokens=25_000,
             max_duration_seconds=90.5,
+            max_requests_per_minute=30,
             trials=3,
         ),
         usage=RunUsage(

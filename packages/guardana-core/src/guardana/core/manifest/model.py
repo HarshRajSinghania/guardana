@@ -15,7 +15,7 @@ from guardana.core.manifest.records import (
 from guardana.core.manifest.settings import ConfigurationRef, ExecutionSettings, PrivacyRecord
 from guardana.core.manifest.usage import RunUsage
 
-MANIFEST_SCHEMA_VERSION = 15
+MANIFEST_SCHEMA_VERSION = 16
 """Version of the run document, moved independently of the CLI.
 
 A run written by 0.7.3 and one written by 0.9.0 are the same document if the
@@ -67,6 +67,12 @@ Version 14 records the recipe a run was started from and what it declared answer
 Version 15 records the fixtures file a run was given (`fixtures`), the
 `seed_not_reached` shortfall kind and whether each evaluator is deterministic
 (`evaluators[].deterministic`).
+
+Version 16 records a run its target stopped (`stopped_by: target_unavailable`), the
+`empty_target` and `ungraded_cases` shortfall kinds, a case the application declined
+(`assessments[].reason: target_declined`), a recipe that named an installed target
+(`recipe.source: target`) and the pace requests were held to
+(`execution.max_requests_per_minute`).
 """
 
 

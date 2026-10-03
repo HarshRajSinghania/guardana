@@ -143,6 +143,9 @@ recipe" or "the OpenAI wire". `inspect` prints no `recipe:` line for it.
 A schema-14 run migrates to schema 15 with `fixtures: null`: no earlier build took a fixtures
 file, so the run was given none.
 
+A schema-15 run migrates to schema 16 with `execution.max_requests_per_minute: null`: no
+earlier build paced its requests, so the run set no rate.
+
 One thing *is* recovered: the **title** of a framework reference, which version 3
 onward records beside its framework and id. It is looked up from the installed
 catalogue for the exact `(framework, id)` pair the document already carries, so
@@ -175,8 +178,8 @@ parametrised over every field a version-1 run could be missing.
 ## The document
 
 The saved-run schema lives at
-[`schemas/run-v15.schema.json`](../schemas/run-v15.schema.json), identified by
-`https://guardana.dev/schemas/run/v15.schema.json`, and the site serves every schema
+[`schemas/run-v16.schema.json`](../schemas/run-v16.schema.json), identified by
+`https://guardana.dev/schemas/run/v16.schema.json`, and the site serves every schema
 at the URL its identifier names. The version is in the identifier,
 so a consumer can tell which contract it is holding before parsing anything; it
 changes whenever the change is not backwards-compatible. A test validates what
@@ -210,12 +213,18 @@ tenant, and `run.evaluators[].deterministic`, whether an evaluator declares its 
 fact with no error rate to measure. A version-14 run reads every evaluator as not
 deterministic. `run inspect` prints `deterministic — no error rate` for such an evaluator
 under `graded by:`, and `confidence not measured` for a judge with no calibration.
+Version 16 records `target_unavailable` in `result_summary.stopped_by`, a run its target
+stopped part-way; the `empty_target` coverage shortfall, a file target with no file to scan,
+and `ungraded_cases`, a rule that graded too few of the cases it attempted;
+`target_declined` in `assessments[].reason`, a case the application declined that the
+evaluator cannot grade; `target` in `run.recipe.source`, a recipe that named an installed
+target; and `run.execution.max_requests_per_minute`, the pace a run's requests were held to.
 
 Top level:
 
 | Key | What it is |
 |---|---|
-| `schema_version` | `15`. Stated once, for the whole document. |
+| `schema_version` | `16`. Stated once, for the whole document. |
 | `run` | the manifest — everything below |
 | `findings` / `unverified` / `waived` / `errors` / `observations` | the problem, evidence and inventory channels |
 | `assessments` | what the run *measured*, pass included — see [assessments](#assessments) |
@@ -240,7 +249,7 @@ Inside `run`:
 | `privacy` | which evidence policy was in force |
 | `exchanges` | for a probe that kept its exchanges ([`probe --keep-exchanges`](usage-probe.md#keeping-the-exchanges)), `{digest, count, altered}`: the SHA-256 of the sidecar file, how many exchanges it holds and how many replies redaction changed; `null` otherwise |
 | `recording` | for a run [`guardana grade`](usage-grade.md) wrote, what the recording says of itself: `{name, version, subject, verbatim, origin}`, with `origin` `{run_id, target, started_at, stopped_by, gate}` when a probe kept it; declared, not verified. `null` otherwise |
-| `recipe` | for a run started from a recipe, `{name, digest, lock_digest, kind, source, unpinned}`: the recipe's name, the SHA-256 of the recipe file and of the lock the run was held to (`null` when none was read), what the team declared answered (`kind`: `application` or `model_harness`), how the run reached it (`source`: `connection` or `recording`) and the rule ids it ran that the lock does not pin. `kind` is declared, not verified. `null` otherwise |
+| `recipe` | for a run started from a recipe, `{name, digest, lock_digest, kind, source, unpinned}`: the recipe's name, the SHA-256 of the recipe file and of the lock the run was held to (`null` when none was read), what the team declared answered (`kind`: `application` or `model_harness`), how the run reached it (`source`: `connection`, `recording` or `target`) and the rule ids it ran that the lock does not pin. `kind` is declared, not verified. `null` otherwise |
 | `fixtures` | for a run given a [fixtures file](usage-fixtures.md), `{name, digest, data, tenants, counts, markers}`: the file's `name`, the SHA-256 of its bytes, `data` as `{declared: "synthetic"}` — the team's statement, recorded and never verified —, the tenants it declares, `{documents, records, tools}` it declares, and the version of the algorithm that derived its markers. `null` otherwise |
 
 Three conventions hold everywhere in it:
@@ -304,7 +313,7 @@ system improved, the test got weaker, or the sample changed.
 | `value`, `unit`, `direction`, `threshold` | the numeric reading, which way is better, and the bound applied on *this* run |
 | `confidence` | how much the assessor trusts itself, when it can say. Never invented |
 | `trial` | which attempt at the case this was, from `1`, for a rule that can repeat; `null` for a rule that cannot, and for a run saved before trials existed. Not part of a case's identity: two runs pair on `case_id` |
-| `reason` | why a trial was not measured: `not_recorded` (a recording held no reply for it; status `error`), `reply_altered` (the recorded reply was changed by redaction or not kept verbatim; status `inconclusive`) or `declined` (the evaluator returned no verdict; status `inconclusive`). `null` for a measured trial, and for a run saved before schema 13 |
+| `reason` | why a trial was not measured: `not_recorded` (a recording held no reply for it; status `error`), `reply_altered` (the recorded reply was changed by redaction or not kept verbatim; status `inconclusive`) `declined` (the evaluator returned no verdict; status `inconclusive`) or `target_declined` (the application declined the request and the evaluator cannot grade a decline; status `inconclusive`). `null` for a measured trial, and for a run saved before schema 13 |
 | `dataset` | which versioned corpus the case came from. For a YAML rule this is its declaration digest, so an edited expectation makes the two runs incomparable rather than making the model look worse |
 
 `run.result_summary` carries `assessments` and `measured` as two numbers rather

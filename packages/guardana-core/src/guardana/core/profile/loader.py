@@ -38,7 +38,13 @@ _ALLOWED_FAIL_ON_KEYS = frozenset(
     {"severity", "min_confidence", "fail_on_inconclusive", "fail_on_error", "fail_on_skipped"}
 )
 _ALLOWED_BUDGET_KEYS = frozenset(
-    {"max_requests", "max_input_tokens", "max_output_tokens", "max_duration"}
+    {
+        "max_requests",
+        "max_input_tokens",
+        "max_output_tokens",
+        "max_duration",
+        "max_requests_per_minute",
+    }
 )
 EVALUATOR_BLOCK_KEYS: Mapping[str, frozenset[str]] = {
     "llm_judge": frozenset(
@@ -227,6 +233,7 @@ def _budgets(raw: dict[str, Any], path: Path) -> Budgets:
         max_input_tokens=_positive_int(raw, "max_input_tokens", path),
         max_output_tokens=_positive_int(raw, "max_output_tokens", path),
         max_duration_seconds=seconds,
+        max_requests_per_minute=_positive_int(raw, "max_requests_per_minute", path),
     )
 
 

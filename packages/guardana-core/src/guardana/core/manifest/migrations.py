@@ -401,6 +401,22 @@ def migrate_v14(document: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def migrate_v15(document: Mapping[str, Any]) -> dict[str, Any]:
+    """Rewrite a schema-15 saved run as a schema-16 one, recomputing nothing.
+
+    **`run.execution.max_requests_per_minute`** arrives null, overwriting whatever the
+    document holds: no version-15 build paced its requests, so the run set no rate.
+    """
+    run = _mapping(document.get("run"), "run")
+    execution = _mapping(run.get("execution"), "run.execution")
+    return {
+        **document,
+        "schema_version": 16,
+        "$schema": schema_url(16),
+        "run": {**run, "execution": {**execution, "max_requests_per_minute": None}},
+    }
+
+
 _PER_CLASS_CALIBRATION = (
     "assessor",
     "judge_identity",

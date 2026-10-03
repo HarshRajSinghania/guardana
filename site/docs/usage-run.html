@@ -384,6 +384,8 @@ no earlier schema recorded a recipe or the provider wire, so both are unknown, n
 recipe&quot; or &quot;the OpenAI wire&quot;. <code>inspect</code> prints no <code>recipe:</code> line for it.</p>
 <p>A schema-14 run migrates to schema 15 with <code>fixtures: null</code>: no earlier build took a fixtures
 file, so the run was given none.</p>
+<p>A schema-15 run migrates to schema 16 with <code>execution.max_requests_per_minute: null</code>: no
+earlier build paced its requests, so the run set no rate.</p>
 <p>One thing <em>is</em> recovered: the <strong>title</strong> of a framework reference, which version 3
 onward records beside its framework and id. It is looked up from the installed
 catalogue for the exact <code>(framework, id)</code> pair the document already carries, so
@@ -408,8 +410,8 @@ published was the file. There is now a test that validates the <em>artifact</em>
 parametrised over every field a version-1 run could be missing.</p>
 <h2 id="the-document">The document</h2>
 <p>The saved-run schema lives at
-<a href="https://github.com/guardana/guardana/blob/main/schemas/run-v15.schema.json"><code>schemas/run-v15.schema.json</code></a>, identified by
-<code>https://guardana.dev/schemas/run/v15.schema.json</code>, and the site serves every schema
+<a href="https://github.com/guardana/guardana/blob/main/schemas/run-v16.schema.json"><code>schemas/run-v16.schema.json</code></a>, identified by
+<code>https://guardana.dev/schemas/run/v16.schema.json</code>, and the site serves every schema
 at the URL its identifier names. The version is in the identifier,
 so a consumer can tell which contract it is holding before parsing anything; it
 changes whenever the change is not backwards-compatible. A test validates what
@@ -441,7 +443,13 @@ Version 15 records <code>run.fixtures</code>, the fixtures file a run was given,
 tenant, and <code>run.evaluators[].deterministic</code>, whether an evaluator declares its verdict a
 fact with no error rate to measure. A version-14 run reads every evaluator as not
 deterministic. <code>run inspect</code> prints <code>deterministic — no error rate</code> for such an evaluator
-under <code>graded by:</code>, and <code>confidence not measured</code> for a judge with no calibration.</p>
+under <code>graded by:</code>, and <code>confidence not measured</code> for a judge with no calibration.
+Version 16 records <code>target_unavailable</code> in <code>result_summary.stopped_by</code>, a run its target
+stopped part-way; the <code>empty_target</code> coverage shortfall, a file target with no file to scan,
+and <code>ungraded_cases</code>, a rule that graded too few of the cases it attempted;
+<code>target_declined</code> in <code>assessments[].reason</code>, a case the application declined that the
+evaluator cannot grade; <code>target</code> in <code>run.recipe.source</code>, a recipe that named an installed
+target; and <code>run.execution.max_requests_per_minute</code>, the pace a run's requests were held to.</p>
 <p>Top level:</p>
 <div class="table-wrap"><table>
 <thead>
@@ -453,7 +461,7 @@ under <code>graded by:</code>, and <code>confidence not measured</code> for a ju
 <tbody>
 <tr>
 <td><code>schema_version</code></td>
-<td><code>15</code>. Stated once, for the whole document.</td>
+<td><code>16</code>. Stated once, for the whole document.</td>
 </tr>
 <tr>
 <td><code>run</code></td>
@@ -544,7 +552,7 @@ under <code>graded by:</code>, and <code>confidence not measured</code> for a ju
 </tr>
 <tr>
 <td><code>recipe</code></td>
-<td>for a run started from a recipe, <code>{name, digest, lock_digest, kind, source, unpinned}</code>: the recipe's name, the SHA-256 of the recipe file and of the lock the run was held to (<code>null</code> when none was read), what the team declared answered (<code>kind</code>: <code>application</code> or <code>model_harness</code>), how the run reached it (<code>source</code>: <code>connection</code> or <code>recording</code>) and the rule ids it ran that the lock does not pin. <code>kind</code> is declared, not verified. <code>null</code> otherwise</td>
+<td>for a run started from a recipe, <code>{name, digest, lock_digest, kind, source, unpinned}</code>: the recipe's name, the SHA-256 of the recipe file and of the lock the run was held to (<code>null</code> when none was read), what the team declared answered (<code>kind</code>: <code>application</code> or <code>model_harness</code>), how the run reached it (<code>source</code>: <code>connection</code>, <code>recording</code> or <code>target</code>) and the rule ids it ran that the lock does not pin. <code>kind</code> is declared, not verified. <code>null</code> otherwise</td>
 </tr>
 <tr>
 <td><code>fixtures</code></td>
@@ -632,7 +640,7 @@ system improved, the test got weaker, or the sample changed.</p>
 </tr>
 <tr>
 <td><code>reason</code></td>
-<td>why a trial was not measured: <code>not_recorded</code> (a recording held no reply for it; status <code>error</code>), <code>reply_altered</code> (the recorded reply was changed by redaction or not kept verbatim; status <code>inconclusive</code>) or <code>declined</code> (the evaluator returned no verdict; status <code>inconclusive</code>). <code>null</code> for a measured trial, and for a run saved before schema 13</td>
+<td>why a trial was not measured: <code>not_recorded</code> (a recording held no reply for it; status <code>error</code>), <code>reply_altered</code> (the recorded reply was changed by redaction or not kept verbatim; status <code>inconclusive</code>) <code>declined</code> (the evaluator returned no verdict; status <code>inconclusive</code>) or <code>target_declined</code> (the application declined the request and the evaluator cannot grade a decline; status <code>inconclusive</code>). <code>null</code> for a measured trial, and for a run saved before schema 13</td>
 </tr>
 <tr>
 <td><code>dataset</code></td>

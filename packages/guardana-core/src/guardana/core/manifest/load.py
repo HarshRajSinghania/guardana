@@ -268,6 +268,7 @@ def _execution(raw: object) -> ExecutionSettings:
         max_input_tokens=_optional_int(block, "max_input_tokens"),
         max_output_tokens=_optional_int(block, "max_output_tokens"),
         max_duration_seconds=_optional_number(block, "max_duration_seconds"),
+        max_requests_per_minute=_optional_int(block, "max_requests_per_minute"),
         trials=_execution_trials(block.get("trials")),
     )
 

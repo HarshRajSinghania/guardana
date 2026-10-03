@@ -126,6 +126,7 @@ def _execution(execution: ExecutionSettings) -> dict[str, object]:
         "max_input_tokens": execution.max_input_tokens,
         "max_output_tokens": execution.max_output_tokens,
         "max_duration_seconds": execution.max_duration_seconds,
+        "max_requests_per_minute": execution.max_requests_per_minute,
         "trials": execution.trials,
     }
 

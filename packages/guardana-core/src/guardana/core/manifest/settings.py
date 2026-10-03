@@ -67,6 +67,7 @@ class ExecutionSettings:
     max_input_tokens: int | None = None
     max_output_tokens: int | None = None
     max_duration_seconds: float | None = None
+    max_requests_per_minute: int | None = None
     trials: int = 1
     """How many attempts at every case the operator asked for.
 

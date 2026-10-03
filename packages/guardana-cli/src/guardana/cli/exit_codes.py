@@ -67,9 +67,9 @@ class ExitCode(IntEnum):
 def code_for(outcome: GateOutcome, stopped_by: StopReason | None = None) -> ExitCode:
     """Map a run's verdict to its exit code.
 
-    Delegates to the engine, which owns the codes that describe a *result*, so the
-    two cannot drift. The codes for situations with no result at all — invalid
-    usage, an unreachable target, an internal error — belong to the CLI and are
-    raised where they happen.
+    Delegates to the engine, which owns the codes that describe a *result*, a run its
+    target stopped included, so the two cannot drift. The codes for situations with
+    no result at all — invalid usage, a target that failed before anything could be
+    saved, an internal error — belong to the CLI and are raised where they happen.
     """
     return ExitCode(exit_code_for(outcome, stopped_by))

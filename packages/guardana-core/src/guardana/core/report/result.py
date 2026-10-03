@@ -52,7 +52,7 @@ class ScanResult:
     errors: tuple[CheckError, ...] = ()
     observations: tuple[Observation, ...] = ()
     coverage_shortfall: tuple[CoverageShortfall, ...] = ()
-    """Coverage the operator demanded and this run did not get. Never a pass.
+    """Coverage the verdict needed and this run did not get. Never a pass.
 
     The one channel with no policy toggle in front of it, and that is what it is
     for: `fail_on_skipped` defaults to off because most skips are ordinary, so a
@@ -154,7 +154,7 @@ class ScanResult:
             # one result per planted canary, and a budget that ran out during the
             # third pass leaves the first two looking complete. Dropping it here
             # would hand the merged report a completeness it does not have.
-            stopped_by=next((r.stopped_by for r in results if r.stopped_by is not None), None),
+            stopped_by=_merged_stop([r.stopped_by for r in results]),
             # Summed across passes: probe builds one target per planted canary, and
             # the run's bill is all of them. One unmetered pass makes the total
             # unknown rather than partial — see `total`.
@@ -229,6 +229,18 @@ class ScanResult:
         score: a broken judge otherwise reports a perfect rate over two cases.
         """
         return tuple(a for a in self.assessments if a.status is AssessmentStatus.INCONCLUSIVE)
+
+
+def _merged_stop(stops: Sequence[StopReason | None]) -> StopReason | None:
+    """Return the stop a merged run records: the target's, else the first one recorded.
+
+    A target that went away outranks a budget that ran out alongside it, because a
+    larger budget would not have let the run finish.
+    """
+    recorded = [stop for stop in stops if stop is not None]
+    if StopReason.TARGET_UNAVAILABLE in recorded:
+        return StopReason.TARGET_UNAVAILABLE
+    return recorded[0] if recorded else None
 
 
 def _merged_scope(scopes: Sequence[FileScope | None]) -> FileScope | None:

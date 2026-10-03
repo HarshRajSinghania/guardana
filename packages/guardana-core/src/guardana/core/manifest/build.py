@@ -395,6 +395,7 @@ def build_run_manifest(  # noqa: PLR0913 — a manifest is assembled from indepe
             max_input_tokens=profile.budgets.max_input_tokens,
             max_output_tokens=profile.budgets.max_output_tokens,
             max_duration_seconds=profile.budgets.max_duration_seconds,
+            max_requests_per_minute=profile.budgets.max_requests_per_minute,
             # Only an endpoint run makes attempts at a sampled reply; a file scan or a
             # trace given a profile that says `trials: 5` asked for nothing it could do.
             trials=profile.trials if target_kind is TargetKind.ENDPOINT else 1,

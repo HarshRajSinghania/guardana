@@ -164,6 +164,7 @@ def run_manifest() -> RunManifest:
             max_input_tokens=50_000,
             max_output_tokens=25_000,
             max_duration_seconds=90.5,
+            max_requests_per_minute=30,
             trials=3,
         ),
         usage=RunUsage(
@@ -306,6 +307,16 @@ def run_manifest() -> RunManifest:
                     name="documents/acme-loyalty as globex",
                     detail="the control of globex's own document returned no marker",
                 ),
+                CoverageShortfall(
+                    kind=ShortfallKind.EMPTY_TARGET,
+                    name="model/",
+                    detail="holds no file to scan",
+                ),
+                CoverageShortfall(
+                    kind=ShortfallKind.UNGRADED_CASES,
+                    name="guardana.prompt.jailbreak",
+                    detail="graded 0 of 4 case attempts",
+                ),
             ),
         ),
         exchanges=ExchangesRecord(digest="sha256:" + "ef" * 32, count=12, altered=2),
@@ -442,8 +453,35 @@ def scan_result() -> ScanResult:
     )
 
 
+_ONLY_IN_V16 = frozenset({str(ShortfallKind.EMPTY_TARGET), str(ShortfallKind.UNGRADED_CASES)})
+
+
+def saved_run_at_v15(document: dict[str, Any]) -> dict[str, Any]:
+    """Rewrite a document this build wrote into the shape a version-15 build wrote."""
+    run = document["run"]
+    coverage = run["coverage"]
+    return {
+        **document,
+        "schema_version": 15,
+        "$schema": "https://guardana.dev/schemas/run/v15.schema.json",
+        "run": {
+            **run,
+            "execution": {
+                k: v for k, v in run["execution"].items() if k != "max_requests_per_minute"
+            },
+            "coverage": {
+                **coverage,
+                "shortfall": [
+                    gap for gap in coverage["shortfall"] if gap["kind"] not in _ONLY_IN_V16
+                ],
+            },
+        },
+    }
+
+
 def saved_run_at_v14(document: dict[str, Any]) -> dict[str, Any]:
     """Rewrite a document this build wrote into the shape a version-14 build wrote."""
+    document = saved_run_at_v15(document)
     run = document["run"]
     coverage = run["coverage"]
     return {

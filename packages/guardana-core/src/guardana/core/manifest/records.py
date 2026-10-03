@@ -657,6 +657,8 @@ class SubjectSource(StrEnum):
 
     CONNECTION = "connection"
     RECORDING = "recording"
+    TARGET = "target"
+    """An installed target the recipe named by its locator."""
 
 
 @dataclass(frozen=True, slots=True)

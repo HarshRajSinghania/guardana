@@ -49,6 +49,13 @@ class UnmeasuredReason(StrEnum):
     DECLINED = "declined"
     """The evaluator returned inconclusive."""
 
+    TARGET_DECLINED = "target_declined"
+    """The application declined the request, and the evaluator cannot grade a decline.
+
+    Status `INCONCLUSIVE`. Distinct from `DECLINED`: the evaluator was never handed reply
+    text to decide on, so this is what the target did, not what the evaluator could not tell.
+    """
+
 
 class Direction(StrEnum):
     """Which way is better, for a numeric measurement.

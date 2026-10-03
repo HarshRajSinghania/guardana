@@ -20,13 +20,19 @@ class StopReason(StrEnum):
 
     Recorded on the result rather than left to the exit code alone: a report
     written to disk outlives the process that wrote it, and one that does not say
-    it was cut short reads as a complete pass over the target. Both members mean
-    the same thing to a gate — the run is not entitled to a verdict — and differ
-    in who cut it short, which is what the operator needs to know to act.
+    it was cut short reads as a complete pass over the target. Every member means
+    the same thing to a gate — the run is not entitled to a verdict — and differs
+    in what cut it short, which is what the operator needs to know to act.
     """
 
     BUDGET_EXHAUSTED = "budget_exhausted"
     INTERRUPTED = "interrupted"
+    TARGET_UNAVAILABLE = "target_unavailable"
+    """The target stopped answering part-way: it refused the credentials, failed, or went away.
+
+    It outranks `BUDGET_EXHAUSTED` when pooled rules stop for both reasons, because a
+    larger budget would not have let the run finish.
+    """
 
 
 class GateOutcome(StrEnum):
@@ -176,16 +182,21 @@ _OUTCOME_EXIT_CODES = {
     GateOutcome.FAIL: 1,
     GateOutcome.INDETERMINATE: 2,
 }
-_STOP_EXIT_CODES = {StopReason.BUDGET_EXHAUSTED: 6, StopReason.INTERRUPTED: 7}
+_STOP_EXIT_CODES = {
+    StopReason.TARGET_UNAVAILABLE: 4,
+    StopReason.BUDGET_EXHAUSTED: 6,
+    StopReason.INTERRUPTED: 7,
+}
 
 
 def exit_code_for(outcome: GateOutcome, stopped_by: StopReason | None = None) -> int:
     """Return the exit code that describes this result. Defined here so it is defined once.
 
     The engine owns the codes that describe a *result* — `0` passed, `1` failed,
-    `2` could not tell, `6` the budget ran out, `7` the run was interrupted. The
-    CLI owns the codes for situations where there is no result at all (`3`
-    invalid configuration, `4` target unavailable, `5` internal error).
+    `2` could not tell, `4` the target stopped the run, `6` the budget ran out, `7`
+    the run was interrupted. The CLI owns the codes for situations where there is
+    no result at all (`3` invalid configuration, `5` internal error), and raises `4`
+    itself when the target fails before a run has a result to save.
 
     A stop outranks the verdict: a run cut short is reported as cut short, not as
     the verdict its partial counts happen to produce. That ordering is why

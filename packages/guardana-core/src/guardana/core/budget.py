@@ -8,7 +8,9 @@ did not finish, with its own exit code and its own field in the result.
 """
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+
+from guardana.core.redaction import OMITTED_WHEN_DEFAULT
 
 _UNITS = {"s": 1.0, "m": 60.0, "h": 3600.0}
 _DURATION = re.compile(r"^(\d+(?:\.\d+)?)([smh]?)$")
@@ -55,6 +57,8 @@ class Budgets:
     max_input_tokens: int | None = None
     max_output_tokens: int | None = None
     max_duration_seconds: float | None = None
+    max_requests_per_minute: int | None = field(default=None, metadata={OMITTED_WHEN_DEFAULT: True})
+    """The pace requests may be sent at, so a rate-limited target is not run into its limit."""
 
     @property
     def bounds_tokens(self) -> bool:
@@ -70,5 +74,6 @@ class Budgets:
                 self.max_input_tokens is not None,
                 self.max_output_tokens is not None,
                 self.max_duration_seconds is not None,
+                self.max_requests_per_minute is not None,
             )
         )
