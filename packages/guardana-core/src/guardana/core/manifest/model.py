@@ -15,7 +15,7 @@ from guardana.core.manifest.records import (
 from guardana.core.manifest.settings import ConfigurationRef, ExecutionSettings, PrivacyRecord
 from guardana.core.manifest.usage import RunUsage
 
-MANIFEST_SCHEMA_VERSION = 16
+MANIFEST_SCHEMA_VERSION = 17
 """Version of the run document, moved independently of the CLI.
 
 A run written by 0.7.3 and one written by 0.9.0 are the same document if the
@@ -73,6 +73,9 @@ Version 16 records a run its target stopped (`stopped_by: target_unavailable`), 
 (`assessments[].reason: target_declined`), a recipe that named an installed target
 (`recipe.source: target`) and the pace requests were held to
 (`execution.max_requests_per_minute`).
+
+Version 17 records a rule the target does not offer (`rules_skipped[].reason:
+not_offered`) and a run whose target changed under it (`stopped_by: target_changed`).
 """
 
 

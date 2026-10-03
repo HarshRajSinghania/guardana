@@ -19,6 +19,7 @@ from guardana.core.report import Evidence, Finding
 from guardana.core.report.shortfall import CoverageShortfall, ShortfallKind
 from guardana.core.rule import (
     FixtureOutcome,
+    NotOffered,
     Rule,
     RuleContext,
     RuleFixture,
@@ -27,6 +28,7 @@ from guardana.core.rule import (
     YamlRule,
     load_yaml_rules,
 )
+from guardana.core.rule.fixture import DEMANDED_OUTCOMES
 from guardana.core.rule.verify import FixtureVerdict, verify_rule
 from guardana.core.severity import Severity
 from guardana.core.target import Capability, EndpointTarget, Target, TargetKind
@@ -262,7 +264,7 @@ def test_a_yaml_rule_declares_fixtures_as_data(tmp_path: Path) -> None:
     verification = verify_rule(rule, RuleContext(evaluators={"canary": CanaryEvaluator()}))
 
     assert verification.is_proven, [f.detail for f in verification.failed] + list(verification.gaps)
-    assert len(verification.results) == len(FixtureOutcome)
+    assert len(verification.results) == len(DEMANDED_OUTCOMES)
 
 
 @pytest.mark.parametrize(
@@ -337,3 +339,62 @@ def test_a_hand_built_yaml_rule_can_still_hold_finished_fixtures() -> None:
     verification = verify_rule(rule, RuleContext(evaluators={"canary": CanaryEvaluator()}))
 
     assert verification.is_proven, [r.detail for r in verification.results]
+
+
+class _NotOffering(_Rule):
+    """A rule that finds the examined capability absent on the sample `c`."""
+
+    def run(self, target: Target, ctx: RuleContext) -> Iterable[Finding]:
+        reply = getattr(getattr(target, "transport", None), "scripted", ("",))[0]
+        if reply == "c":
+            raise NotOffered("the sample offers nothing to examine", missing=("tasks",))
+        yield from super().run(target, ctx)
+
+
+def test_a_rule_that_raised_not_offered_is_observed_as_not_offered() -> None:
+    rule = _NotOffering(
+        [_finding()], [RuleFixture("absent", _endpoint("c"), FixtureOutcome.NOT_OFFERED)]
+    )
+
+    (result,) = verify_rule(rule).results
+
+    assert result.observed is FixtureOutcome.NOT_OFFERED
+    assert result.verdict is FixtureVerdict.PASSED
+
+
+def test_not_offered_is_never_read_as_inconclusive() -> None:
+    rule = _NotOffering(
+        [_finding()], [RuleFixture("absent", _endpoint("c"), FixtureOutcome.INCONCLUSIVE)]
+    )
+
+    (result,) = verify_rule(rule).results
+
+    assert result.verdict is FixtureVerdict.FAILED
+    assert result.observed is FixtureOutcome.NOT_OFFERED
+
+
+def test_not_offered_after_a_finding_errors_the_sample() -> None:
+    class _Late(_Rule):
+        def run(self, target: Target, ctx: RuleContext) -> Iterable[Finding]:
+            yield _finding()
+            raise NotOffered("too late")
+
+    (result,) = verify_rule(
+        _Late([], [RuleFixture("late", _endpoint("a"), FixtureOutcome.NOT_OFFERED)])
+    ).results
+
+    assert result.verdict is FixtureVerdict.ERRORED
+    assert result.detail == "raised NotOffered after reporting"
+
+
+def test_a_rule_need_not_declare_a_not_offered_sample() -> None:
+    samples = [
+        RuleFixture("fires", _endpoint("a"), FixtureOutcome.FINDING),
+        RuleFixture("silent", _endpoint("b"), FixtureOutcome.CLEAN),
+        RuleFixture("declines", _endpoint(""), FixtureOutcome.INCONCLUSIVE),
+    ]
+
+    verification = verify_rule(_Rule([_finding()], samples))
+
+    assert verification.gaps == ()
+    assert verification.is_proven

@@ -46,6 +46,17 @@ class FixtureOutcome(StrEnum):
     give the wrong one under exactly the circumstances that matter.
     """
 
+    NOT_OFFERED = "not_offered"
+    """The rule must raise `NotOffered`: the sample lacks what the rule examines.
+
+    Optional: a rule is not asked to declare such a sample, and one that raised it is
+    never read as `inconclusive`.
+    """
+
+
+DEMANDED_OUTCOMES = (FixtureOutcome.FINDING, FixtureOutcome.CLEAN, FixtureOutcome.INCONCLUSIVE)
+"""The outcomes every rule must declare a sample of before its fixtures prove anything."""
+
 
 @dataclass(frozen=True, slots=True)
 class RuleFixture:

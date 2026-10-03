@@ -34,6 +34,13 @@ class SkipReason(StrEnum):
     Only a recorded target produces it. The check did not happen, so it is a coverage gap.
     """
 
+    NOT_OFFERED = "not_offered"
+    """The rule found, while it ran, that the target does not offer what it examines.
+
+    Raised by the rule as `NotOffered` before it reported anything. The check did not
+    happen, so it is a coverage gap.
+    """
+
 
 @dataclass(frozen=True, slots=True)
 class SkippedRule:

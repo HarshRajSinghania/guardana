@@ -17,9 +17,10 @@ from guardana.core.redaction import EvidenceMode, MessageQuoting
 from guardana.core.registry import Registry
 from guardana.core.regression import broken_pairs
 from guardana.core.report import CheckError, Finding, ScanResult, StopReason, split_ref
+from guardana.core.report.check_error import bounded_reason
 from guardana.core.report.shortfall import CoverageShortfall, ShortfallKind
 from guardana.core.report.skipped import SkippedRule, SkipReason
-from guardana.core.rule.base import Rule, RuleContext
+from guardana.core.rule.base import NOT_OFFERED_AFTER_REPORTING, NotOffered, Rule, RuleContext
 from guardana.core.rule.suite_rule import SuiteRule
 from guardana.core.safety import permits
 from guardana.core.source import UnreadSource
@@ -32,7 +33,7 @@ from guardana.core.target import (
     TargetKind,
 )
 from guardana.core.target._scoped import RuleScoped
-from guardana.core.target.endpoint import secrets_sent_by
+from guardana.core.target.endpoint import TargetChanged, secrets_sent_by
 from guardana.core.target.failure import (
     FailureRemedies,
     FailureScope,
@@ -168,6 +169,9 @@ class _RuleOutcome:
     shortfalls: tuple[CoverageShortfall, ...] = ()
     """The coverage this rule reported it could not get, through `RuleContext.shortfall`."""
 
+    skipped: SkippedRule | None = None
+    """Set when the rule raised `NotOffered` before reporting anything; it did not run."""
+
     stopped_by: StopReason | None = None
     """Set when the run ran out of budget, or its target failed, part-way through this rule.
 
@@ -180,8 +184,8 @@ class _RuleOutcome:
 
     @property
     def ran(self) -> bool:
-        """Whether the rule completed — an errored or cut-off rule did not."""
-        return self.error is None and self.stopped_by is None
+        """Whether the rule completed — an errored, cut-off or not-offered rule did not."""
+        return self.error is None and self.stopped_by is None and self.skipped is None
 
 
 def pre_run_errors(
@@ -322,7 +326,8 @@ class Runner:
         # the target that has to hold it. A target that cannot enforce it refuses
         # here rather than letting the run proceed under a ceiling nothing watches.
         target.apply_budgets(self.profile.budgets)
-        plan, skipped = select_rules(self.registry, self.profile, target)
+        plan, selection_skips = select_rules(self.registry, self.profile, target)
+        skipped = list(selection_skips)
 
         findings: list[Finding] = []
         unverified: list[Finding] = []
@@ -362,6 +367,8 @@ class Runner:
                 errors.append(outcome.error)
                 if outcome.error.stage == FailureScope.REQUEST:
                     refused.add(outcome.rule_id)
+            elif outcome.skipped is not None:
+                skipped.append(outcome.skipped)
             else:
                 ran.append(outcome.rule_id)
                 examined.update(outcome.examined)
@@ -550,6 +557,8 @@ class Runner:
             # A judge is not the target under test: its failure says nothing about the
             # target, so it ends the run rather than being recorded as the target's.
             raise
+        except NotOffered as exc:
+            return _not_offered(rule, target, ctx, exc, (findings, unverified))
         except (URLError, EndpointError) as exc:
             # Narrowed to connection failures on purpose — a rule that merely opens a
             # missing local file raises OSError too, and reporting a healthy endpoint
@@ -629,8 +638,53 @@ class Runner:
             suite=ctx.concluded(),
             raised=type(exc),
             shortfalls=ctx.shortfalls(),
-            stopped_by=StopReason.TARGET_UNAVAILABLE if scope is FailureScope.TARGET else None,
+            stopped_by=_target_stop(exc) if scope is FailureScope.TARGET else None,
         )
+
+
+def _not_offered(
+    rule: Rule,
+    target: Target,
+    ctx: RuleContext,
+    exc: NotOffered,
+    produced: tuple[list[Finding], list[Finding]],
+) -> _RuleOutcome:
+    """Record a rule the target does not offer as a skip, or as an error once it reported.
+
+    A rule that already yielded a finding or recorded a measurement, a shortfall or a
+    suite's conclusion has examined something, so its claim that the target offers
+    nothing is its error, and what it reported is kept.
+    """
+    findings, unverified = produced
+    if findings or unverified or ctx.recorded() or ctx.shortfalls() or ctx.concluded():
+        return _RuleOutcome(
+            rule.meta.id,
+            tuple(findings),
+            tuple(unverified),
+            ctx.recorded(),
+            error=CheckError(source=rule.meta.id, stage="run", reason=NOT_OFFERED_AFTER_REPORTING),
+            suite=ctx.concluded(),
+            raised=type(exc),
+            shortfalls=ctx.shortfalls(),
+        )
+    return _RuleOutcome(
+        rule.meta.id,
+        skipped=SkippedRule(
+            rule_id=rule.meta.id,
+            reason=SkipReason.NOT_OFFERED,
+            missing=exc.missing,
+            detail=bounded_reason(f"{target.ref}: {exc.detail}"),
+        ),
+    )
+
+
+def _target_stop(exc: URLError | EndpointError) -> StopReason:
+    """Return the stop a failure of the target records: changed under the run, or failed."""
+    return (
+        StopReason.TARGET_CHANGED
+        if isinstance(exc, TargetChanged)
+        else StopReason.TARGET_UNAVAILABLE
+    )
 
 
 def select_rules(
@@ -835,7 +889,7 @@ def _unanswered(outcome: _RuleOutcome, target: Target, ctx: RuleContext) -> _Rul
     ):
         reason = f"{reason}; then: {outcome.error.reason}"
     error = CheckError(source=outcome.rule_id, stage="run", reason=reason)
-    return replace(outcome, error=error, raised=None)
+    return replace(outcome, error=error, raised=None, skipped=None)
 
 
 _UNANSWERED = frozenset({UnmeasuredReason.NOT_RECORDED, UnmeasuredReason.REPLY_ALTERED})
@@ -980,19 +1034,19 @@ def target_failures(result: ScanResult) -> tuple[str, ...]:
     Empty unless the run was stopped by its target. Read by whoever reports the stop, so
     a command and a library caller name the same cause the saved run records.
     """
-    if result.stopped_by is not StopReason.TARGET_UNAVAILABLE:
+    if result.stopped_by is None or not result.stopped_by.by_target:
         return ()
     reasons = (error.reason for error in result.errors if error.stage == FailureScope.TARGET)
     return tuple(dict.fromkeys(reasons))
 
 
 def _outranking(held: StopReason | None, met: StopReason) -> StopReason:
-    """Return the stop a run records once a rule met `met`: the target's, else the first.
+    """Return the stop a run records once a rule met `met`: the higher ranked, else the first.
 
-    A target that failed outranks a budget that ran out alongside it, because a larger
-    budget would not have let the run finish.
+    See `StopReason.rank`: a target that failed outranks one that changed, which outranks
+    a budget that ran out alongside it.
     """
-    if held is None or met is StopReason.TARGET_UNAVAILABLE:
+    if held is None or met.rank > held.rank:
         return met
     return held
 

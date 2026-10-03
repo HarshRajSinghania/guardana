@@ -15,13 +15,8 @@ from typing import Any
 import pytest
 from _documents import (
     run_manifest,
-    saved_run_at_v9,
-    saved_run_at_v10,
-    saved_run_at_v11,
-    saved_run_at_v12,
-    saved_run_at_v13,
-    saved_run_at_v14,
     saved_run_at_v15,
+    saved_run_at_v16,
     scan_result,
 )
 from guardana.core.assessment import Assessment, AssessmentStatus, UnmeasuredReason
@@ -31,7 +26,7 @@ from guardana.core.manifest.load import ManifestLoadError, manifest_from_dict
 from guardana.core.manifest.migrations import migrate_v15
 from guardana.core.manifest.serialize import manifest_to_dict
 from guardana.core.manifest.summary import summarize
-from guardana.core.report.load import load_report, migrate_forward
+from guardana.core.report.load import load_report
 from guardana.core.report.serialize import run_to_dict
 from guardana.core.report.shortfall import ShortfallKind
 from jsonschema import Draft202012Validator
@@ -40,6 +35,9 @@ _SCHEMAS = Path(__file__).resolve().parents[3] / "schemas"
 
 
 def _errors(document: dict[str, Any], version: int = 16) -> list[str]:
+    """Validate `document` against a run schema, a current one in the shape version 16 wrote."""
+    if document["schema_version"] == 17:
+        document = saved_run_at_v16(document)
     schema = json.loads((_SCHEMAS / f"run-v{version}.schema.json").read_text(encoding="utf-8"))
     return [error.message for error in Draft202012Validator(schema).iter_errors(document)]
 
@@ -162,8 +160,11 @@ def test_every_unmeasured_reason_survives_being_saved_and_read_back(
     assert load_report(_write(saved, tmp_path)).result.assessments == (changed,)
 
 
-@pytest.mark.parametrize("reason", list(StopReason))
-def test_every_stop_reason_survives_being_saved_and_read_back(
+_V16_STOPS = (StopReason.BUDGET_EXHAUSTED, StopReason.INTERRUPTED, StopReason.TARGET_UNAVAILABLE)
+
+
+@pytest.mark.parametrize("reason", _V16_STOPS)
+def test_every_v16_stop_reason_survives_being_saved_and_read_back(
     reason: StopReason, tmp_path: Path
 ) -> None:
     manifest = run_manifest()
@@ -295,29 +296,6 @@ def test_a_loaded_v15_run_says_it_was_migrated_and_records_no_rate(tmp_path: Pat
 
     assert report.manifest.migrated_from == 15
     assert report.manifest.execution.max_requests_per_minute is None
-
-
-@pytest.mark.parametrize(
-    ("version", "shape"),
-    [
-        (15, saved_run_at_v15),
-        (14, saved_run_at_v14),
-        (13, saved_run_at_v13),
-        (12, saved_run_at_v12),
-        (11, saved_run_at_v11),
-        (10, saved_run_at_v10),
-        (9, saved_run_at_v9),
-    ],
-    ids=["v15", "v14", "v13", "v12", "v11", "v10", "v9"],
-)
-def test_every_older_version_reaches_16_through_the_chain(
-    version: int, shape: Callable[[dict[str, Any]], dict[str, Any]]
-) -> None:
-    migrated = migrate_forward(shape(_document()), version)
-
-    assert migrated["schema_version"] == 16
-    assert not _errors(migrated)
-    assert _run(migrated)["execution"]["max_requests_per_minute"] is None
 
 
 def test_a_summary_that_records_the_target_stop_reads_back_unchanged() -> None:

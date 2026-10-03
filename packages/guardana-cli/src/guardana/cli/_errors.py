@@ -21,10 +21,18 @@ class EndpointFlag(StrEnum):
     ADAPTER = "--adapter"
     API_KEY_ENV = "--api-key-env"
     CONCURRENCY = "--concurrency"
+    MCP_TOKEN_ENV = "--mcp-token-env"  # noqa: S105 — a flag name, not a credential
+    A2A_TOKEN_ENV = "--a2a-token-env"  # noqa: S105 — a flag name, not a credential
+
+
+_TOKEN_FLAGS = (EndpointFlag.MCP_TOKEN_ENV, EndpointFlag.A2A_TOKEN_ENV)
 
 
 def _auth_advice(accepts: Collection[EndpointFlag]) -> str:
     """Spell the auth remedies for a rejected request, naming only accepted flags."""
+    tokens = [flag for flag in _TOKEN_FLAGS if flag in accepts]
+    if tokens:
+        return f" ({' or '.join(tokens)} names the variable holding the bearer token)"
     knobs = [flag for flag in (EndpointFlag.ADAPTER, EndpointFlag.API_KEY_ENV) if flag in accepts]
     if knobs == [EndpointFlag.ADAPTER, EndpointFlag.API_KEY_ENV]:
         return " (an --adapter's headers, or --api-key-env)"

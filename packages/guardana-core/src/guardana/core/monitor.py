@@ -175,7 +175,7 @@ class Monitor:
                 sleep(self.config.interval_seconds)
             try:
                 result = self.scan()
-                if result.stopped_by is StopReason.TARGET_UNAVAILABLE:
+                if result.stopped_by is not None and result.stopped_by.by_target:
                     raise TargetStoppedError(result)
             except _TRANSIENT as exc:
                 if isinstance(exc, TargetStoppedError) and self._proved_failure(exc.result):

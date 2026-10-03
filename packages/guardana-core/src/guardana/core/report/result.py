@@ -232,15 +232,15 @@ class ScanResult:
 
 
 def _merged_stop(stops: Sequence[StopReason | None]) -> StopReason | None:
-    """Return the stop a merged run records: the target's, else the first one recorded.
+    """Return the stop a merged run records: the highest ranked, else the first one recorded.
 
-    A target that went away outranks a budget that ran out alongside it, because a
-    larger budget would not have let the run finish.
+    A target that went away outranks one that changed, which outranks a budget that ran
+    out alongside it, because a larger budget would not have let the run finish.
     """
     recorded = [stop for stop in stops if stop is not None]
-    if StopReason.TARGET_UNAVAILABLE in recorded:
-        return StopReason.TARGET_UNAVAILABLE
-    return recorded[0] if recorded else None
+    if not recorded:
+        return None
+    return max(recorded, key=lambda stop: stop.rank)
 
 
 def _merged_scope(scopes: Sequence[FileScope | None]) -> FileScope | None:

@@ -129,7 +129,7 @@ _EXIT_CODE_DESCRIPTIONS = {
     0: "run completed, policy passed",
     1: "run completed, policy failed",
     2: "result indeterminate",
-    4: "target became unavailable, coverage partial",
+    4: "target became unavailable or changed under the run, coverage partial",
     6: "budget exhausted, coverage partial",
     7: "run interrupted, partial evidence written",
 }

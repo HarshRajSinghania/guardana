@@ -207,6 +207,7 @@ def _render(
 _LEFT_OUT = (
     "from a suite (its outcome is a pass rate, not one reply's label)",
     "inconclusive (no measurable label)",
+    "not offered (the sample lacks what the rule examines)",
     "from a rule that declares no expectation or more than one",
     "not a single scripted reply (a conversation or an agent run)",
     "not classified as declared",
@@ -215,6 +216,7 @@ _LEFT_OUT = (
 (
     _SUITE,
     _INCONCLUSIVE,
+    _NOT_OFFERED,
     _NOT_ONE_EXPECTATION,
     _NOT_ONE_REPLY,
     _NOT_VERIFIED,
@@ -252,6 +254,8 @@ def _write_corpus(
                 left_out[_SUITE] += 1
             elif fixture.outcome is FixtureOutcome.INCONCLUSIVE:
                 left_out[_INCONCLUSIVE] += 1
+            elif fixture.outcome is FixtureOutcome.NOT_OFFERED:
+                left_out[_NOT_OFFERED] += 1
             elif len(expectations) != 1:
                 left_out[_NOT_ONE_EXPECTATION] += 1
             elif reply is None:

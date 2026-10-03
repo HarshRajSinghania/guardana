@@ -13,7 +13,7 @@ from urllib.error import HTTPError
 
 from guardana.core.redaction import MessageQuoting
 from guardana.core.report.check_error import bounded_reason
-from guardana.core.target.endpoint import EndpointUnreachable
+from guardana.core.target.endpoint import EndpointUnreachable, TargetChanged, UnreadableReply
 
 _CREDENTIAL_STATUSES = frozenset({401, 403, 407})
 _RATE_LIMITED = 429
@@ -21,6 +21,8 @@ _TARGET_STATUSES = frozenset({*_CREDENTIAL_STATUSES, 404, 408, 425, _RATE_LIMITE
 _CLIENT_ERROR = range(400, 500)
 _BODY_READ_BYTES = 4096
 _BODY_SHOWN_CHARS = 200
+_SAID_BY_THE_TARGET = (EndpointUnreachable, UnreadableReply, TargetChanged)
+"""Failures whose message already names the target and says what happened."""
 
 
 class FailureScope(StrEnum):
@@ -87,14 +89,16 @@ def describe_failure(
 
     `401`, `403` and `407` give the credential remedy and `429` the rate-limit one; any
     other status quotes the start of the body, which is where an endpoint says what it
-    refused. A failure without a status says the endpoint could not be reached. The
+    refused. A target that did not answer, sent an unreadable reply or changed under the
+    run is quoted in its own words; any other failure without a status says the endpoint
+    could not be reached. The
     quote never holds one of the run's secrets, and under `metadata_only` only sizes
     are given. The message is cut, after its secrets are withheld, to the length a
     recorded reason may have.
     """
     if isinstance(exc, HTTPError):
         said = _status_message(exc, ref, quoting, remedies)
-    elif isinstance(exc, EndpointUnreachable):
+    elif isinstance(exc, _SAID_BY_THE_TARGET):
         said = _said(exc, quoting)
     else:
         said = f"could not reach endpoint {ref}: {_said(exc, quoting)}"

@@ -84,6 +84,14 @@ _SKIPPED = SkippedRule(
 )
 
 
+_NOT_OFFERED = SkippedRule(
+    rule_id="guardana.mcp.task_identity",
+    reason=SkipReason.NOT_OFFERED,
+    missing=("tasks",),
+    detail="http://mcp.invalid/mcp: the server lists no tasks",
+)
+
+
 _SUITE = SuiteSummary(
     dataset="support-answers@2026.09",
     dataset_digest="sha256:adad",
@@ -192,7 +200,7 @@ def run_manifest() -> RunManifest:
             errors=4,
             observations=5,
             rules_run=("guardana.prompt.system_prompt_leak.canary", "guardana.prompt.jailbreak"),
-            rules_skipped=(_SKIPPED,),
+            rules_skipped=(_SKIPPED, _NOT_OFFERED),
             max_severity="HIGH",
             gate=GateOutcome.FAIL,
             stopped_by=StopReason.BUDGET_EXHAUSTED,
@@ -406,7 +414,7 @@ def scan_result() -> ScanResult:
     return ScanResult(
         findings=(_finding("guardana.prompt.system_prompt_leak.canary", "the canary leaked"),),
         rules_run=("guardana.prompt.system_prompt_leak.canary", "guardana.prompt.jailbreak"),
-        rules_skipped=(_SKIPPED,),
+        rules_skipped=(_SKIPPED, _NOT_OFFERED),
         unverified=(_finding("guardana.prompt.jailbreak", "the judge could not be reached"),),
         waived=(_finding("guardana.supply_chain.pickle", "accepted in the baseline"),),
         errors=(
@@ -453,11 +461,34 @@ def scan_result() -> ScanResult:
     )
 
 
+def saved_run_at_v16(document: dict[str, Any]) -> dict[str, Any]:
+    """Rewrite a document this build wrote into the shape a version-16 build wrote."""
+    run = document["run"]
+    summary = run["result_summary"]
+    return {
+        **document,
+        "schema_version": 16,
+        "$schema": "https://guardana.dev/schemas/run/v16.schema.json",
+        "run": {
+            **run,
+            "result_summary": {
+                **summary,
+                "rules_skipped": [
+                    skip
+                    for skip in summary["rules_skipped"]
+                    if skip["reason"] != str(SkipReason.NOT_OFFERED)
+                ],
+            },
+        },
+    }
+
+
 _ONLY_IN_V16 = frozenset({str(ShortfallKind.EMPTY_TARGET), str(ShortfallKind.UNGRADED_CASES)})
 
 
 def saved_run_at_v15(document: dict[str, Any]) -> dict[str, Any]:
     """Rewrite a document this build wrote into the shape a version-15 build wrote."""
+    document = saved_run_at_v16(document)
     run = document["run"]
     coverage = run["coverage"]
     return {

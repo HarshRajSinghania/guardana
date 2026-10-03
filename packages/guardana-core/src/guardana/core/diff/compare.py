@@ -320,6 +320,10 @@ _STOP_EXPLANATIONS = {
         "stopped because the target became unavailable, so what it did not reach is unknown "
         "rather than absent — make the target answer before reading this comparison"
     ),
+    StopReason.TARGET_CHANGED: (
+        "stopped because the target changed under it, no longer accepting the protocol "
+        "revision the run agreed, so what it did not reach is unknown rather than absent"
+    ),
 }
 
 

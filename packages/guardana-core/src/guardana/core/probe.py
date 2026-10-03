@@ -16,7 +16,7 @@ from guardana.core.manifest.records import CalibrationRecord
 from guardana.core.plan import RunPlan, build_plan
 from guardana.core.profile import Profile
 from guardana.core.registry import Registry
-from guardana.core.report import ScanResult, StopReason
+from guardana.core.report import ScanResult
 from guardana.core.report.skipped import SkippedRule, SkipReason
 from guardana.core.rule import Rule
 from guardana.core.runner import (
@@ -167,7 +167,7 @@ def run_target_probe(  # noqa: PLR0913 — the probe's inputs, keyword-only afte
         results.append(result)
         if index == 0 and split.skips:
             results.append(ScanResult((), (), split.skips))
-        if result.stopped_by is StopReason.TARGET_UNAVAILABLE:
+        if result.stopped_by is not None and result.stopped_by.by_target:
             break
 
     merged = ScanResult.merged(results)

@@ -126,3 +126,18 @@ def test_a_cycle_the_budget_stopped_is_still_sampled() -> None:
 
     assert (summary.cycles, summary.unsampled) == (2, 0)
     assert summary.exit_code == 6
+
+
+def test_a_cycle_its_target_changed_under_warns_and_is_not_sampled() -> None:
+    warned: list[tuple[int, Exception]] = []
+
+    summary = _monitor(
+        _scans(_CLEAN, _stopped(StopReason.TARGET_CHANGED, findings=()), _CLEAN), 3
+    ).run(
+        lambda _a: None,
+        on_error=lambda cycle, exc: warned.append((cycle, exc)),
+        sleep=lambda _s: None,
+    )
+
+    assert [(cycle, str(exc)) for cycle, exc in warned] == [(1, _REASON)]
+    assert (summary.cycles, summary.unsampled, summary.exit_code) == (2, 1, 0)

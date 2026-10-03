@@ -73,6 +73,20 @@ class EndpointUnreachable(EndpointError):  # noqa: N818 — named for what the r
     """
 
 
+class UnreadableReply(EndpointError):  # noqa: N818 — named for what the run meets
+    """A reply arrived that is not one the protocol allows: not JSON-RPC, over-long, malformed.
+
+    Its message names the target and the reply's size, never its content.
+    """
+
+
+class TargetChanged(EndpointError):  # noqa: N818 — named for what the run meets
+    """The target still answers but stopped accepting what the run agreed with it.
+
+    Its message names the target, the agreement it dropped and what it offers instead.
+    """
+
+
 _T = TypeVar("_T")
 
 _BEFORE_RETRY: ContextVar[Callable[[], None] | None] = ContextVar("_BEFORE_RETRY", default=None)

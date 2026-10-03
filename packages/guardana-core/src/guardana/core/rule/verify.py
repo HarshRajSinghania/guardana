@@ -14,8 +14,8 @@ from dataclasses import dataclass, replace
 from enum import StrEnum
 
 from guardana.core.regression import Breach, Regraded, UnprovableError, regrade
-from guardana.core.rule.base import Rule, RuleContext
-from guardana.core.rule.fixture import FixtureOutcome, RuleFixture
+from guardana.core.rule.base import NOT_OFFERED_AFTER_REPORTING, NotOffered, Rule, RuleContext
+from guardana.core.rule.fixture import DEMANDED_OUTCOMES, FixtureOutcome, RuleFixture
 from guardana.core.rule.suite_rule import SuiteRule
 
 
@@ -114,8 +114,9 @@ def verify_rule(rule: Rule, ctx: RuleContext | None = None) -> RuleVerification:
 
     Each fixture runs in a fresh copy of the context, so what one sample recorded or
     reported never counts in another. A fixture is classified as a run reads it: a
-    finding is `finding`, and a coverage shortfall or an inconclusive verdict without
-    one is `inconclusive`.
+    finding is `finding`, a coverage shortfall or an inconclusive verdict without one
+    is `inconclusive`, and `NotOffered` raised before anything was reported is
+    `not_offered`. No rule is asked to declare a `not_offered` sample.
 
     A suite's regression pairs are regraded with the context's evaluators, sending
     nothing; a suite whose evaluator cannot do that says so in `unprovable`.
@@ -146,7 +147,7 @@ def _gaps(rule_id: str, fixtures: Sequence[RuleFixture]) -> tuple[str, ...]:
             f"classifies anything correctly — an unsampled rule is an unchecked rule",
         )
     declared = {fixture.outcome for fixture in fixtures}
-    missing = [outcome for outcome in FixtureOutcome if outcome not in declared]
+    missing = [outcome for outcome in DEMANDED_OUTCOMES if outcome not in declared]
     if not missing:
         return ()
     return (
@@ -158,8 +159,20 @@ def _gaps(rule_id: str, fixtures: Sequence[RuleFixture]) -> tuple[str, ...]:
 def _run_fixture(rule: Rule, fixture: RuleFixture, ctx: RuleContext) -> FixtureResult:
     """Run one fixture, converting anything it throws into an error rather than a failure."""
     subject = fixture.rule if fixture.rule is not None else rule
+    findings: list[object] = []
     try:
-        findings = list(subject.run(fixture.target, ctx))
+        findings.extend(subject.run(fixture.target, ctx))
+    except NotOffered:
+        if findings or ctx.recorded() or ctx.shortfalls() or ctx.concluded():
+            return FixtureResult(
+                rule.meta.id,
+                fixture.name,
+                fixture.outcome,
+                None,
+                FixtureVerdict.ERRORED,
+                NOT_OFFERED_AFTER_REPORTING,
+            )
+        return _judged(rule, fixture, FixtureOutcome.NOT_OFFERED)
     except Exception as exc:  # a rule with an ordinary bug, or a target that would not answer
         return FixtureResult(
             rule.meta.id,
@@ -171,6 +184,14 @@ def _run_fixture(rule: Rule, fixture: RuleFixture, ctx: RuleContext) -> FixtureR
         )
     gaps = ctx.shortfalls()
     observed = _observed(findings, declined=bool(gaps))
+    shortfall = f" (shortfall: {'; '.join(g.name for g in gaps)})" if gaps else ""
+    return _judged(rule, fixture, observed, shortfall)
+
+
+def _judged(
+    rule: Rule, fixture: RuleFixture, observed: FixtureOutcome, note: str = ""
+) -> FixtureResult:
+    """Compare what one fixture produced with what it declared."""
     if observed is fixture.outcome:
         return FixtureResult(
             rule.meta.id, fixture.name, fixture.outcome, observed, FixtureVerdict.PASSED
@@ -181,8 +202,7 @@ def _run_fixture(rule: Rule, fixture: RuleFixture, ctx: RuleContext) -> FixtureR
         fixture.outcome,
         observed,
         FixtureVerdict.FAILED,
-        f"expected {fixture.outcome}, got {observed}"
-        + (f" (shortfall: {'; '.join(g.name for g in gaps)})" if gaps else ""),
+        f"expected {fixture.outcome}, got {observed}{note}",
     )
 
 

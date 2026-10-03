@@ -20,6 +20,25 @@ if TYPE_CHECKING:
     from guardana.core.rule.fixture import RuleFixture
 
 
+class NotOffered(Exception):  # noqa: N818 — named for what the target does
+    """Raised by a rule, before it reports anything, when the target lacks what it examines.
+
+    The run records the rule as skipped `not_offered`, a coverage gap, rather than as a
+    check that ran. It means "this target has none of what I examine"; an inconclusive
+    verdict means "I asked and could not tell". Raised after the rule reported a finding
+    or a measurement, it is an error of the rule.
+    """
+
+    def __init__(self, detail: str, *, missing: tuple[str, ...] = ()) -> None:
+        super().__init__(detail)
+        self.detail = detail
+        self.missing = missing
+
+
+NOT_OFFERED_AFTER_REPORTING = "raised NotOffered after reporting"
+"""The error a rule records when it raised `NotOffered` after reporting something."""
+
+
 @dataclass(frozen=True, slots=True)
 class RuleMeta:
     """Everything the engine knows about a rule before running it.
@@ -364,8 +383,9 @@ class Rule(ABC):
     def run(self, target: Target, ctx: RuleContext) -> Iterable[Finding]:
         """Check `target` and yield a finding per problem found.
 
-        Yield nothing when the target is clean. Raise `RuleError` when the rule
-        cannot run at all — the runner records it as skipped instead of failing
-        the whole scan.
+        Yield nothing when the target is clean. Raise `NotOffered`, before yielding
+        anything, when the target does not offer what the rule examines. Raise
+        `RuleError` when the rule cannot run at all — the runner records it as an
+        error instead of failing the whole scan.
         """
         raise NotImplementedError

@@ -146,6 +146,9 @@ file, so the run was given none.
 A schema-15 run migrates to schema 16 with `execution.max_requests_per_minute: null`: no
 earlier build paced its requests, so the run set no rate.
 
+A schema-16 run migrates to schema 17 with only its version changed: schema 17 adds the
+`not_offered` skip reason and the `target_changed` stop, and no earlier build wrote either.
+
 One thing *is* recovered: the **title** of a framework reference, which version 3
 onward records beside its framework and id. It is looked up from the installed
 catalogue for the exact `(framework, id)` pair the document already carries, so
@@ -178,8 +181,8 @@ parametrised over every field a version-1 run could be missing.
 ## The document
 
 The saved-run schema lives at
-[`schemas/run-v16.schema.json`](../schemas/run-v16.schema.json), identified by
-`https://guardana.dev/schemas/run/v16.schema.json`, and the site serves every schema
+[`schemas/run-v17.schema.json`](../schemas/run-v17.schema.json), identified by
+`https://guardana.dev/schemas/run/v17.schema.json`, and the site serves every schema
 at the URL its identifier names. The version is in the identifier,
 so a consumer can tell which contract it is holding before parsing anything; it
 changes whenever the change is not backwards-compatible. A test validates what
@@ -219,12 +222,16 @@ and `ungraded_cases`, a rule that graded too few of the cases it attempted;
 `target_declined` in `assessments[].reason`, a case the application declined that the
 evaluator cannot grade; `target` in `run.recipe.source`, a recipe that named an installed
 target; and `run.execution.max_requests_per_minute`, the pace a run's requests were held to.
+Version 17 records `not_offered` in `result_summary.rules_skipped[].reason`, a rule that
+found while it ran that the target does not offer what it examines, and `target_changed` in
+`result_summary.stopped_by`, a run whose target stopped accepting the protocol revision the
+run agreed with it.
 
 Top level:
 
 | Key | What it is |
 |---|---|
-| `schema_version` | `16`. Stated once, for the whole document. |
+| `schema_version` | `17`. Stated once, for the whole document. |
 | `run` | the manifest — everything below |
 | `findings` / `unverified` / `waived` / `errors` / `observations` | the problem, evidence and inventory channels |
 | `assessments` | what the run *measured*, pass included — see [assessments](#assessments) |

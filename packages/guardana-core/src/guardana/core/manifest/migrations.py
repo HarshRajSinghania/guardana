@@ -417,6 +417,16 @@ def migrate_v15(document: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def migrate_v16(document: Mapping[str, Any]) -> dict[str, Any]:
+    """Rewrite a schema-16 saved run as a schema-17 one, recomputing nothing.
+
+    Only the version moves: schema 17 adds the `not_offered` skip reason and the
+    `target_changed` stop, and no version-16 build wrote either.
+    """
+    _mapping(document.get("run"), "run")
+    return {**document, "schema_version": 17, "$schema": schema_url(17)}
+
+
 _PER_CLASS_CALIBRATION = (
     "assessor",
     "judge_identity",

@@ -452,6 +452,15 @@ which has no switch, so the run is `indeterminate` unless a finding fails it; an
 inconclusive verdict alone would sit behind `fail_on_inconclusive`, which defaults off.
 Yield an inconclusive verdict for it too, so `rule test` sees the decline.
 
+**Say when the target has none of what you examine.** A rule that finds, while it runs,
+that the target does not offer the capability it checks — a server that lists no tasks —
+raises `NotOffered(detail, missing=(...))` from `guardana.core.rule` before it yields
+anything. The run records it as skipped `not_offered`, a coverage gap that
+`fail_on_skipped` and `--preset release` refuse, and `rule test` reports the sample as
+`not_offered`. Inconclusive means "I asked and could not tell"; `NotOffered` means "this
+target has none of what I examine". Raised after the rule yielded a finding or recorded a
+measurement, it is an error of the rule.
+
 **Price and skip against the target.** A rule whose request count depends on what the
 target holds overrides `estimated_requests_for(target)`, which `plan` reads; it defaults to
 `estimated_requests`. A rule with nothing to check on a target returns the reason, a

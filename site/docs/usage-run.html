@@ -388,6 +388,8 @@ recipe&quot; or &quot;the OpenAI wire&quot;. <code>inspect</code> prints no <cod
 file, so the run was given none.</p>
 <p>A schema-15 run migrates to schema 16 with <code>execution.max_requests_per_minute: null</code>: no
 earlier build paced its requests, so the run set no rate.</p>
+<p>A schema-16 run migrates to schema 17 with only its version changed: schema 17 adds the
+<code>not_offered</code> skip reason and the <code>target_changed</code> stop, and no earlier build wrote either.</p>
 <p>One thing <em>is</em> recovered: the <strong>title</strong> of a framework reference, which version 3
 onward records beside its framework and id. It is looked up from the installed
 catalogue for the exact <code>(framework, id)</code> pair the document already carries, so
@@ -412,8 +414,8 @@ published was the file. There is now a test that validates the <em>artifact</em>
 parametrised over every field a version-1 run could be missing.</p>
 <h2 id="the-document">The document</h2>
 <p>The saved-run schema lives at
-<a href="https://github.com/guardana/guardana/blob/main/schemas/run-v16.schema.json"><code>schemas/run-v16.schema.json</code></a>, identified by
-<code>https://guardana.dev/schemas/run/v16.schema.json</code>, and the site serves every schema
+<a href="https://github.com/guardana/guardana/blob/main/schemas/run-v17.schema.json"><code>schemas/run-v17.schema.json</code></a>, identified by
+<code>https://guardana.dev/schemas/run/v17.schema.json</code>, and the site serves every schema
 at the URL its identifier names. The version is in the identifier,
 so a consumer can tell which contract it is holding before parsing anything; it
 changes whenever the change is not backwards-compatible. A test validates what
@@ -451,7 +453,11 @@ stopped part-way; the <code>empty_target</code> coverage shortfall, a file targe
 and <code>ungraded_cases</code>, a rule that graded too few of the cases it attempted;
 <code>target_declined</code> in <code>assessments[].reason</code>, a case the application declined that the
 evaluator cannot grade; <code>target</code> in <code>run.recipe.source</code>, a recipe that named an installed
-target; and <code>run.execution.max_requests_per_minute</code>, the pace a run's requests were held to.</p>
+target; and <code>run.execution.max_requests_per_minute</code>, the pace a run's requests were held to.
+Version 17 records <code>not_offered</code> in <code>result_summary.rules_skipped[].reason</code>, a rule that
+found while it ran that the target does not offer what it examines, and <code>target_changed</code> in
+<code>result_summary.stopped_by</code>, a run whose target stopped accepting the protocol revision the
+run agreed with it.</p>
 <p>Top level:</p>
 <div class="table-wrap"><table>
 <thead>
@@ -463,7 +469,7 @@ target; and <code>run.execution.max_requests_per_minute</code>, the pace a run's
 <tbody>
 <tr>
 <td><code>schema_version</code></td>
-<td><code>16</code>. Stated once, for the whole document.</td>
+<td><code>17</code>. Stated once, for the whole document.</td>
 </tr>
 <tr>
 <td><code>run</code></td>

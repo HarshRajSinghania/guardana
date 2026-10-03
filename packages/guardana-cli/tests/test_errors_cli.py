@@ -8,7 +8,7 @@ from urllib.error import HTTPError, URLError
 import guardana.cli._endpoint as endpoint_module
 import pytest
 import typer
-from guardana.cli._errors import EndpointFlag, run_against_endpoint
+from guardana.cli._errors import EndpointFlag, remedies_for, run_against_endpoint
 from guardana.cli.exit_codes import ExitCode
 from guardana.cli.main import app
 from guardana.core.profile import default_profile
@@ -88,6 +88,20 @@ def test_advice_never_names_a_flag_the_command_does_not_take(
     assert "rejected the request (HTTP 401)" in err
     assert "--adapter" not in err
     assert "--api-key-env" in err
+    assert "token-env" not in err
+
+
+@pytest.mark.parametrize(
+    "flag", [EndpointFlag.MCP_TOKEN_ENV, EndpointFlag.A2A_TOKEN_ENV], ids=["mcp", "a2a"]
+)
+def test_a_refused_credential_names_the_token_flag_of_the_command(flag: EndpointFlag) -> None:
+    advice = remedies_for((flag,)).auth
+
+    assert f"{flag} names the variable holding the bearer token" in advice
+    assert "--api-key-env" not in advice
+    assert "--adapter" not in advice
+    other = {EndpointFlag.MCP_TOKEN_ENV, EndpointFlag.A2A_TOKEN_ENV} - {flag}
+    assert all(str(o) not in advice for o in other)
 
 
 @pytest.mark.parametrize(

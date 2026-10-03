@@ -30,9 +30,32 @@ class StopReason(StrEnum):
     TARGET_UNAVAILABLE = "target_unavailable"
     """The target stopped answering part-way: it refused the credentials, failed, or went away.
 
-    It outranks `BUDGET_EXHAUSTED` when pooled rules stop for both reasons, because a
-    larger budget would not have let the run finish.
+    It outranks every other stop when pooled rules stop for several reasons, because
+    neither a larger budget nor a server that kept its revision would have let the run
+    finish.
     """
+
+    TARGET_CHANGED = "target_changed"
+    """The target still answers but stopped accepting what the run agreed with it.
+
+    An MCP server that drops the protocol revision negotiated for the run is the case:
+    `TARGET_UNAVAILABLE` would name the wrong cause. It outranks `BUDGET_EXHAUSTED` and
+    `INTERRUPTED`, and `TARGET_UNAVAILABLE` outranks it.
+    """
+
+    @property
+    def by_target(self) -> bool:
+        """Whether the target under test cut the run short, so every later request would meet it."""
+        return self in _TARGET_STOPS
+
+    @property
+    def rank(self) -> int:
+        """How this stop ranks against another in the same run; equal ranks keep the first."""
+        return _STOP_RANKS.get(self, 0)
+
+
+_STOP_RANKS = {StopReason.TARGET_UNAVAILABLE: 2, StopReason.TARGET_CHANGED: 1}
+_TARGET_STOPS = frozenset(_STOP_RANKS)
 
 
 class GateOutcome(StrEnum):
@@ -184,6 +207,7 @@ _OUTCOME_EXIT_CODES = {
 }
 _STOP_EXIT_CODES = {
     StopReason.TARGET_UNAVAILABLE: 4,
+    StopReason.TARGET_CHANGED: 4,
     StopReason.BUDGET_EXHAUSTED: 6,
     StopReason.INTERRUPTED: 7,
 }
@@ -193,10 +217,10 @@ def exit_code_for(outcome: GateOutcome, stopped_by: StopReason | None = None) ->
     """Return the exit code that describes this result. Defined here so it is defined once.
 
     The engine owns the codes that describe a *result* — `0` passed, `1` failed,
-    `2` could not tell, `4` the target stopped the run, `6` the budget ran out, `7`
-    the run was interrupted. The CLI owns the codes for situations where there is
-    no result at all (`3` invalid configuration, `5` internal error), and raises `4`
-    itself when the target fails before a run has a result to save.
+    `2` could not tell, `4` the target stopped or changed under the run, `6` the
+    budget ran out, `7` the run was interrupted. The CLI owns the codes for situations
+    where there is no result at all (`3` invalid configuration, `5` internal error), and
+    raises `4` itself when the target fails before a run has a result to save.
 
     A stop outranks the verdict: a run cut short is reported as cut short, not as
     the verdict its partial counts happen to produce. That ordering is why

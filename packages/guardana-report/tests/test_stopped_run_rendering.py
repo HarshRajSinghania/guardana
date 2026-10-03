@@ -119,25 +119,31 @@ def test_a_complete_run_has_no_stop_error_in_junit() -> None:
     assert "run stopped early" not in xml
 
 
-_TARGET_STOPPED = replace(_STOPPED, stopped_by=StopReason.TARGET_UNAVAILABLE)
+_TARGET_STOPS = (StopReason.TARGET_UNAVAILABLE, StopReason.TARGET_CHANGED)
 
 
+@pytest.mark.parametrize("stop", _TARGET_STOPS)
 @pytest.mark.parametrize("name", ["human", "junit", "sarif", "json"])
-def test_a_run_its_target_stopped_is_named_by_every_renderer(name: str) -> None:
-    manifest = manifest_for(_TARGET_STOPPED, gate=GateOutcome.INDETERMINATE)
+def test_a_run_its_target_stopped_is_named_by_every_renderer(name: str, stop: StopReason) -> None:
+    stopped = replace(_STOPPED, stopped_by=stop)
+    manifest = manifest_for(stopped, gate=GateOutcome.INDETERMINATE)
 
-    text = get_renderer(name, run=manifest).render(_TARGET_STOPPED)
+    text = get_renderer(name, run=manifest).render(stopped)
 
-    assert "target_unavailable" in text
+    assert str(stop) in text
     assert "✓" not in text
 
 
-def test_sarif_describes_the_exit_code_of_a_run_its_target_stopped() -> None:
-    manifest = manifest_for(_TARGET_STOPPED, gate=GateOutcome.INDETERMINATE)
+@pytest.mark.parametrize("stop", _TARGET_STOPS)
+def test_sarif_describes_the_exit_code_of_a_run_its_target_stopped(stop: StopReason) -> None:
+    stopped = replace(_STOPPED, stopped_by=stop)
+    manifest = manifest_for(stopped, gate=GateOutcome.INDETERMINATE)
 
-    sarif = json.loads(get_renderer("sarif", run=manifest).render(_TARGET_STOPPED))
+    sarif = json.loads(get_renderer("sarif", run=manifest).render(stopped))
 
     [invocation] = sarif["runs"][0]["invocations"]
     assert invocation["exitCode"] == 4
-    assert invocation["exitCodeDescription"] == "target became unavailable, coverage partial"
+    assert invocation["exitCodeDescription"] == (
+        "target became unavailable or changed under the run, coverage partial"
+    )
     assert invocation["executionSuccessful"] is False

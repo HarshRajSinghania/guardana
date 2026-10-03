@@ -16,7 +16,7 @@ import pytest
 from guardana.core.evaluator.keyword import KeywordEvaluator
 from guardana.core.evaluator.tool_call import ToolCallEvaluator
 from guardana.core.rule import Rule, RuleContext, RuleLoadError, load_yaml_rules
-from guardana.core.rule.fixture import FixtureOutcome
+from guardana.core.rule.fixture import DEMANDED_OUTCOMES, FixtureOutcome
 from guardana.core.rule.verify import FixtureVerdict, verify_rule
 from guardana.core.target import EndpointTarget
 from guardana.core.target.endpoint import ChatMessage, ToolCall, ToolCallReply, ToolSpec
@@ -221,7 +221,7 @@ def test_a_declarative_rule_of_every_shape_proves_all_three_outcomes(
     assert verification.is_proven, [r.detail for r in verification.results] + list(
         verification.gaps
     )
-    assert {r.expected for r in verification.results} == set(FixtureOutcome)
+    assert {r.expected for r in verification.results} == set(DEMANDED_OUTCOMES)
 
 
 @pytest.mark.parametrize("source", [_GRADED_EARLY, _TRAJECTORY, _MEMORY])

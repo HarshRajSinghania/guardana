@@ -163,6 +163,24 @@ def test_fixtures_become_a_corpus_calibrate_can_measure(tmp_path: Path) -> None:
     assert "left out: 1 inconclusive (no measurable label)" in result.output
 
 
+def test_a_not_offered_sample_carries_no_label(tmp_path: Path) -> None:
+    """A sample that lacks what the rule examines says nothing about a reply's verdict."""
+    corpus = tmp_path / "mine.jsonl"
+    absent = '  - name: absent\n    reply: "no tools here"\n    outcome: not_offered\n'
+
+    result = _run(
+        "acme.*",
+        "--rules",
+        str(_rules_dir(tmp_path, _ALL_THREE + absent)),
+        "--write-corpus",
+        str(corpus),
+    )
+
+    lines = [line for line in corpus.read_text(encoding="utf-8").splitlines() if line.strip()]
+    assert len(lines) == 2, result.output
+    assert "1 not offered (the sample lacks what the rule examines)" in result.output
+
+
 def test_a_row_carries_the_prompt_the_rule_sent(tmp_path: Path) -> None:
     """`guardana calibrate` reads these files, and grades the exchange a row carries.
 

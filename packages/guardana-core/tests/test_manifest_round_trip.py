@@ -154,6 +154,12 @@ def _fully_populated() -> RunManifest:
                     missing=("list_tools",),
                     detail="the target exposes no tool surface",
                 ),
+                SkippedRule(
+                    rule_id="guardana.mcp.task_identity",
+                    reason=SkipReason.NOT_OFFERED,
+                    missing=("tasks",),
+                    detail="http://mcp.invalid/mcp: the server lists no tasks",
+                ),
             ),
             max_severity="HIGH",
             gate=GateOutcome.FAIL,
