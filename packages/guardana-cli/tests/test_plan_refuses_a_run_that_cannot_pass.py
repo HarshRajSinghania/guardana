@@ -53,6 +53,7 @@ def _plan(monkeypatch: pytest.MonkeyPatch, command: str, tmp_path: Path, *args: 
     if command == "probe":
         head = ["plan", "probe", "--url", "http://model.test", "--model", "m"]
     else:
+        (tmp_path / "requirements.txt").write_text("requests==2.32.3\n", encoding="utf-8")
         head = ["plan", "scan", str(tmp_path)]
     return runner.invoke(app, [*head, *args])
 
@@ -285,6 +286,37 @@ def test_a_preset_without_those_switches_prints_neither_note(
     stderr = _plain(result.stderr)
     assert _DECLINES_NOTE not in stderr
     assert _ENDPOINT_NOTE not in stderr
+
+
+@pytest.mark.parametrize("preset", ["ci", "release"])
+def test_a_scan_plan_of_a_directory_with_no_file_exits_3_and_says_so(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, preset: str
+) -> None:
+    monkeypatch.setattr(endpoint_module, "transport_factory", _RefusesToBeCalled)
+    empty = tmp_path / "empty"
+    empty.mkdir()
+
+    result = runner.invoke(app, ["plan", "scan", str(empty), "--preset", preset])
+
+    assert result.exit_code == ExitCode.INVALID_USAGE, result.output
+    assert "holds no file to scan" in _plain(result.stderr)
+
+
+_FLOOR_NOTE = "min_graded_share is set — only the run can tell how many cases each rule grades"
+
+
+@pytest.mark.parametrize("command", ["scan", "probe"])
+def test_a_graded_share_floor_is_named_as_what_only_the_run_can_check(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, command: str
+) -> None:
+    profile = _profile(tmp_path, "name: t\nfail_on:\n  min_graded_share: 0.8\n")
+
+    floored = _plan(monkeypatch, command, tmp_path, "--profile", str(profile))
+    unset = _plan(monkeypatch, command, tmp_path)
+
+    assert floored.exit_code == ExitCode.OK, floored.output
+    assert _FLOOR_NOTE in _plain(floored.stderr)
+    assert _FLOOR_NOTE not in _plain(unset.stderr)
 
 
 @pytest.fixture

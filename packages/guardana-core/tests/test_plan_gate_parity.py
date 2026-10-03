@@ -100,6 +100,12 @@ class _GradedByNobody(Rule):
         return ()
 
 
+@pytest.fixture(autouse=True)
+def _a_file_to_scan(tmp_path: Path) -> None:
+    """Give every scanned directory a file, so only the scenario decides the outcome."""
+    (tmp_path / "requirements.txt").write_text("requests==2.32.3\n", encoding="utf-8")
+
+
 def _registry(*rules: Rule, load_error: bool = False) -> Registry:
     registry = Registry()
     for rule in rules:
@@ -149,6 +155,16 @@ def test_the_plan_and_the_gate_agree_on_what_is_known_before_the_run(
     plan_refuses, run_refuses = _both_ways(registry, preset(preset_name), tmp_path)
 
     assert (plan_refuses, run_refuses) == (refused[preset_name], refused[preset_name])
+
+
+@pytest.mark.parametrize("preset_name", ["release", "ci"])
+def test_the_plan_and_the_gate_both_refuse_a_directory_with_no_file(
+    tmp_path: Path, preset_name: str
+) -> None:
+    empty = tmp_path / "empty"
+    empty.mkdir()
+
+    assert _both_ways(_registry(_Clean()), preset(preset_name), empty) == (True, True)
 
 
 def test_a_planned_skip_carries_the_reason_and_words_the_run_records(tmp_path: Path) -> None:

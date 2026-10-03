@@ -305,7 +305,7 @@ def _summary(result: ScanResult) -> str:
     if result.errors:
         summary += f" {len(result.errors)} check(s) could not run."
     if result.coverage_shortfall:
-        summary += f" {len(result.coverage_shortfall)} coverage demand(s) unmet."
+        summary += f" {len(result.coverage_shortfall)} piece(s) of coverage missing."
     if result.assessments:
         # Both numbers, never the rate. "12 measured" beside "40 cases" is what
         # stops a pass rate over the three cases a broken judge still graded from

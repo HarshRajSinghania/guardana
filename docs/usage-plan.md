@@ -289,7 +289,8 @@ on stderr, one line per cause:
 - **no rule would run** — the profile, the flags and the target select none, and a
   run that verifies nothing reports no verdict;
 - **a coverage shortfall** — a check the run's fixtures demand that it would not select,
-  or a graded recording whose run stopped;
+  a graded recording whose run stopped, or, for `plan scan`, a path that holds no file
+  other than `.guardanaignore` files (`empty_target`, the shortfall `scan` records);
 - **a rule it would skip while `fail_on.fail_on_skipped` is on** — a capability the
   target does not declare, or a safety mode that refuses the rule;
 - **a file under `calibrations:` that would stop the run** — missing, unreadable, or
@@ -328,6 +329,16 @@ note: fail_on_skipped is on — an endpoint may turn out not to support what it 
 ```
 
 The second note appears for `plan probe` only.
+
+How many cases each rule grades is known only after the run too. A rule that attempted
+cases and graded none is an `ungraded_cases` shortfall whatever the profile says, and
+`fail_on.min_graded_share` raises that bar per rule
+([profiles](profiles.md#full-schema)). When the key is set, every plan says on stderr that
+the floor is checked after the run:
+
+```text
+note: min_graded_share is set — only the run can tell how many cases each rule grades, so a rule below 80% is checked after it
+```
 
 A selected rule that grades with an evaluator nobody configured is refused by the plan in
 the words the run would record. The plan finds the evaluator through the rule's declared

@@ -62,13 +62,15 @@ and nothing else, so canary passes, tool offers and MCP checks cannot be graded 
 pack's own endpoint target cannot keep exchanges. A reply redaction changed is never graded
 again. `grade` sends nothing to the collector.
 
-### A release gate cannot see a target that holds nothing
+### A release gate cannot see a target that holds the wrong files
 
 `--preset release` fails when a selected check is skipped or reaches no verdict, and a
 preset cannot narrow which rules run: a chat endpoint skips every MCP rule, so
 `probe --preset release` needs a profile that selects the rules the endpoint serves
-([profiles](profiles.md#release-complete-coverage-or-no-pass)). `scan` of an empty
-directory runs every artifact rule over no file and passes under every preset.
+([profiles](profiles.md#release-complete-coverage-or-no-pass)). A `scan` of a path that
+holds no file other than `.guardanaignore` files is `indeterminate` (exit `2`) under every
+preset, and `plan scan` refuses it, but a scan cannot tell a directory that holds the wrong
+files from the one the build meant to produce.
 
 ### `monitor` is scheduled, not passive
 

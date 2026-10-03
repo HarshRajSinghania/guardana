@@ -310,6 +310,7 @@ def test_a_scan_plan_never_prices_a_judge_a_shared_profile_configures(tmp_path: 
     )
     scanned = tmp_path / "project"
     scanned.mkdir()
+    (scanned / "requirements.txt").write_text("requests==2.32.3\n", encoding="utf-8")
 
     def plan(profile: Path, *extra: str) -> tuple[int, str]:
         result = runner.invoke(

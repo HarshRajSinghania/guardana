@@ -5,7 +5,7 @@ from pathlib import Path
 
 from guardana.core.budget import Budgets
 from guardana.core.plugins import PluginTrust
-from guardana.core.redaction import RedactionPolicy
+from guardana.core.redaction import OMITTED_WHEN_DEFAULT, RedactionPolicy
 from guardana.core.safety import Impact
 from guardana.core.severity import Severity
 from guardana.core.trace.model import Dimension
@@ -31,6 +31,13 @@ class FailOn:
     On, it says "I am paying for this coverage and I want to know when I did not
     get it", which is the setting a team uses once they have decided what their
     provider must support.
+    """
+
+    min_graded_share: float | None = field(default=None, metadata={OMITTED_WHEN_DEFAULT: True})
+    """The least share of a rule's attempted cases it must grade, in `(0, 1]`; None for none.
+
+    Checked per rule after the run, never over the whole run: a rule graded nowhere would
+    otherwise hide behind one graded everywhere. A rule below it is a coverage shortfall.
     """
 
 

@@ -390,6 +390,14 @@ system-prompt leak, output-secrets) are not selected by <code>scan</code> — th
 live model, so use <code>guardana probe</code> for those. A local endpoint rule loaded
 with <code>--rules</code> or <code>rules.paths</code> does not run either, and <code>scan</code> prints a note
 naming it.</p>
+<h2 id="a-path-with-no-file-to-scan">A path with no file to scan</h2>
+<p>A scan whose path holds no file other than <code>.guardanaignore</code> files is a coverage
+shortfall named <code>empty_target</code>, naming the scanned path: the directory is empty, or
+<code>rules.paths_exclude</code>, <code>.guardanaignore</code> and the directories every scan skips removed
+every file. The run is <code>indeterminate</code> (exit <code>2</code>) under every preset, and
+<code>guardana plan scan</code> refuses the same path with exit <code>3</code>. Any other file counts as read,
+a <code>.DS_Store</code> included; a single-file path is never empty. A third-party file target
+(<code>--target scheme://locator</code>) that lists no file is the same shortfall.</p>
 <h2 id="model-files-no-rule-reads">Model files no rule reads</h2>
 <p>Every model file the scan observes must be read by a rule that ran. One that no rule
 read is a coverage shortfall named <code>unexamined_component</code>, one per format, so the run
@@ -523,8 +531,10 @@ as <code>scan</code> itself would.</p>
 <p><code>scan</code> exits <code>1</code> (and CI treats the step as failed) when any finding's
 severity is at or above the active profile's <code>fail_on.severity</code> <strong>and</strong>
 either it has no verdict (a static check) or its verdict's <code>confidence</code> is
-at or above <code>fail_on.min_confidence</code>. Otherwise it exits <code>0</code>. This is the
-same <code>gate()</code> policy logic <code>probe</code> uses — see <a href="profiles.html"><code>profiles.md</code></a>.</p>
+at or above <code>fail_on.min_confidence</code>. It exits <code>2</code> when the run is <code>indeterminate</code>: a
+check could not run, a model file no rule read, or a path with no file to scan.
+Otherwise it exits <code>0</code>. This is the same <code>gate()</code> policy logic <code>probe</code> uses — see
+<a href="profiles.html"><code>profiles.md</code></a> and <a href="exit-codes.html"><code>exit-codes.md</code></a>.</p>
 <pre><code class="language-bash">guardana scan . || echo &quot;gate failed — see findings above&quot;
 </code></pre>
 <h2 id="forwarding-to-a-collector">Forwarding to a collector</h2>

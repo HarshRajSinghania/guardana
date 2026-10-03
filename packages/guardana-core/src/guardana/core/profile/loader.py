@@ -35,7 +35,14 @@ _ALLOWED_RULES_KEYS = frozenset({"include", "exclude", "paths", "paths_exclude"}
 _ALLOWED_TRACE_KEYS = frozenset({"require"})
 _ALLOWED_PLUGINS_KEYS = frozenset({"mode", "allow"})
 _ALLOWED_FAIL_ON_KEYS = frozenset(
-    {"severity", "min_confidence", "fail_on_inconclusive", "fail_on_error", "fail_on_skipped"}
+    {
+        "severity",
+        "min_confidence",
+        "fail_on_inconclusive",
+        "fail_on_error",
+        "fail_on_skipped",
+        "min_graded_share",
+    }
 )
 _ALLOWED_BUDGET_KEYS = frozenset(
     {
@@ -195,7 +202,26 @@ def _fail_on(raw: dict[str, Any], path: Path) -> FailOn:
         fail_on_inconclusive=fail_on_inconclusive,
         fail_on_error=fail_on_error,
         fail_on_skipped=fail_on_skipped,
+        min_graded_share=_graded_share(raw.get("min_graded_share"), path),
     )
+
+
+def _graded_share(value: object, path: Path) -> float | None:
+    """Read the floor on a rule's graded share, refusing anything outside `(0, 1]`.
+
+    Zero is refused with the rest: a floor nothing can fall below is not a floor, and a
+    team that wrote one believes the run is held to it.
+    """
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        raise ProfileError(f"invalid profile {path}: fail_on.min_graded_share must be a number")
+    share = float(value)
+    if not 0.0 < share <= 1.0:
+        raise ProfileError(
+            f"invalid profile {path}: fail_on.min_graded_share must be in (0, 1], got {value}"
+        )
+    return share
 
 
 def _positive_int(raw: dict[str, Any], key: str, path: Path) -> int | None:

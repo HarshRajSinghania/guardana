@@ -298,7 +298,7 @@ class EvidenceRedactor:
         return self._record(error)
 
     def redact_shortfall(self, gap: "CoverageShortfall") -> "CoverageShortfall":
-        """Return this unmet coverage demand with its sentence brought within the policy.
+        """Return this coverage shortfall with its sentence brought within the policy.
 
         The detail is Guardana's own prose, which is why it is tempting to leave
         alone — and it is prose *about the user's material*: it quotes a target ref

@@ -49,9 +49,23 @@ def test_a_stop_outranks_the_verdict_it_would_otherwise_have_had() -> None:
 
 
 def test_a_clean_scan_exits_zero(tmp_path: Path) -> None:
+    (tmp_path / "app.py").write_text("print('hello')\n", encoding="utf-8")
+
     result = runner.invoke(app, ["scan", str(tmp_path)])
 
     assert result.exit_code == ExitCode.OK
+
+
+def test_a_scan_of_a_directory_with_no_file_exits_two(tmp_path: Path) -> None:
+    result = runner.invoke(app, ["scan", str(tmp_path)])
+
+    assert result.exit_code == ExitCode.INDETERMINATE
+
+
+def test_a_plan_of_a_scan_of_a_directory_with_no_file_exits_three(tmp_path: Path) -> None:
+    result = runner.invoke(app, ["plan", "scan", str(tmp_path)])
+
+    assert result.exit_code == ExitCode.INVALID_USAGE
 
 
 def test_a_scan_with_a_blocking_finding_exits_one() -> None:

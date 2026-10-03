@@ -366,12 +366,14 @@ question, which errors rather than passes. A probe keeps the chat exchanges of i
 and nothing else, so canary passes, tool offers and MCP checks cannot be graded again, and a
 pack's own endpoint target cannot keep exchanges. A reply redaction changed is never graded
 again. <code>grade</code> sends nothing to the collector.</p>
-<h3 id="a-release-gate-cannot-see-a-target-that-holds-nothing">A release gate cannot see a target that holds nothing</h3>
+<h3 id="a-release-gate-cannot-see-a-target-that-holds-the-wrong-files">A release gate cannot see a target that holds the wrong files</h3>
 <p><code>--preset release</code> fails when a selected check is skipped or reaches no verdict, and a
 preset cannot narrow which rules run: a chat endpoint skips every MCP rule, so
 <code>probe --preset release</code> needs a profile that selects the rules the endpoint serves
-(<a href="profiles.html#release-complete-coverage-or-no-pass">profiles</a>). <code>scan</code> of an empty
-directory runs every artifact rule over no file and passes under every preset.</p>
+(<a href="profiles.html#release-complete-coverage-or-no-pass">profiles</a>). A <code>scan</code> of a path that
+holds no file other than <code>.guardanaignore</code> files is <code>indeterminate</code> (exit <code>2</code>) under every
+preset, and <code>plan scan</code> refuses it, but a scan cannot tell a directory that holds the wrong
+files from the one the build meant to produce.</p>
 <h3 id="monitor-is-scheduled-not-passive"><code>monitor</code> is scheduled, not passive</h3>
 <p>It re-runs checks on an interval. It does not observe production traffic, cannot
 see what your real users are doing, and is not an inline control. Watching live

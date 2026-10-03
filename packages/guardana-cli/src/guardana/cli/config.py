@@ -40,6 +40,7 @@ def _resolved(profile: Profile, files: ProfileFiles) -> dict[str, object]:
             "fail_on_inconclusive": fail_on.fail_on_inconclusive,
             "fail_on_error": fail_on.fail_on_error,
             "fail_on_skipped": fail_on.fail_on_skipped,
+            "min_graded_share": fail_on.min_graded_share,
         },
         "budgets": {
             "max_requests": budgets.max_requests,

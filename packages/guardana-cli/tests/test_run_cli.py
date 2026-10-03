@@ -44,6 +44,7 @@ def _write_v1(tmp_path: Path, name: str = "old.json") -> Path:
 
 
 def _scan_run(tmp_path: Path) -> Path:
+    (tmp_path / "notes.txt").write_text("nothing to see\n", encoding="utf-8")
     out = tmp_path / "run.json"
     result = runner.invoke(app, ["scan", str(tmp_path), "--format", "json", "--output", str(out)])
     assert result.exit_code == 0, result.output

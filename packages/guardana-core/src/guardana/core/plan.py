@@ -100,9 +100,10 @@ class RunPlan:
     """
 
     shortfall: tuple[CoverageShortfall, ...] = field(default=(), metadata={"in_document": False})
-    """The coverage shortfall the run would record whatever its rules find: a stopped
-    recording's, and each check its fixtures demand that it would not select. It has no
-    switch, so a plan carrying one cannot pass.
+    """The coverage shortfall the run would record whatever its rules find: a file target
+    with no file to scan, a stopped recording's, and each check its fixtures demand that it
+    would not select. It has no switch, so a plan carrying one cannot pass. A rule that
+    grades too few of its cases is known only after the run, so it is not here.
     """
 
     @property
@@ -206,6 +207,7 @@ def build_plan(  # noqa: PLR0913 — what is run, against what, and how the run 
     out not to support tool calls will skip more rules than this predicted.
     """
     from guardana.core.runner import (  # noqa: PLC0415 — runner is downstream
+        empty_target,
         incomplete_recording,
         pre_run_errors,
         reported_once,
@@ -277,6 +279,7 @@ def build_plan(  # noqa: PLR0913 — what is run, against what, and how the run 
         else _price_judges(graded, registry.evaluators(), judge_meters),
         errors=errors,
         shortfall=(
+            *empty_target(target),
             *incomplete_recording(target),
             *unfinished_demands(demanded, foreseen, profile.policy),
             *unchecked_fixtures(registry, target, None),

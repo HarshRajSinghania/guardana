@@ -38,8 +38,11 @@ demanded was not there** — a dimension named in `trace.require`, or one an ass
 in a security contract needs — or **a suite declined**: too few of its cases were
 measured, its judge's error could not be corrected, ungraded trials leave its pass
 rate on both sides of its bar, a corrected rate clears the bar while the raw rate and
-the corrected lower limit do not, or the suite raised before it concluded. If indeterminate and clean shared a code, a broken
-setup would read as a green build.
+the corrected lower limit do not, or the suite raised before it concluded — or **coverage
+no run can do without was not there**: a scanned path held no file other than
+`.guardanaignore` files (`empty_target`), or a rule attempted cases and graded none of
+them, or fewer than `fail_on.min_graded_share` (`ungraded_cases`). If indeterminate and
+clean shared a code, a broken setup would read as a green build.
 
 The second of those is worth stating on its own, because it is the one that looks
 like a completed run. An endpoint answering every request with an empty message — a

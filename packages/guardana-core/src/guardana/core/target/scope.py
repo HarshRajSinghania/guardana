@@ -32,6 +32,10 @@ IGNORED_DIRECTORIES: tuple[str, ...] = (
 """Directory names every file scan skips wherever they occur, matched as glob patterns."""
 
 
+IGNORE_FILE = ".guardanaignore"
+"""The file whose glob patterns a directory scan excludes, read at the scanned root."""
+
+
 class ExcludeSource(StrEnum):
     """Where an exclude pattern came from, so the person who can change it is named."""
 

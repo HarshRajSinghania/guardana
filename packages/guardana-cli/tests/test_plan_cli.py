@@ -70,6 +70,7 @@ def test_an_mcp_plan_names_no_retries(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_a_scan_plan_lists_the_rules_it_would_run(tmp_path: Path) -> None:
+    (tmp_path / "requirements.txt").write_text("requests==2.32.3\n", encoding="utf-8")
     result = runner.invoke(app, ["plan", "scan", str(tmp_path), "--format", "json"])
 
     payload = json.loads(result.output)

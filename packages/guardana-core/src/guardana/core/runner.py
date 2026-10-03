@@ -2,10 +2,10 @@ import reprlib
 import threading
 from collections.abc import Collection, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field, replace
-from pathlib import Path
+from pathlib import Path, PurePath
 from urllib.error import URLError
 
-from guardana.core.assessment import Assessment, UnmeasuredReason
+from guardana.core.assessment import Assessment, AssessmentStatus, UnmeasuredReason
 from guardana.core.budget import BudgetExhausted
 from guardana.core.evaluator.config import JudgeUnavailableError
 from guardana.core.gate import GateOutcome, gate, gate_outcome
@@ -39,7 +39,7 @@ from guardana.core.target.failure import (
     failure_scope,
 )
 from guardana.core.target.protocols import FileReader, TraceReader, unmet_surfaces
-from guardana.core.target.scope import FileScope, ReportsFileScope
+from guardana.core.target.scope import IGNORE_FILE, FileScope, ReportsFileScope
 
 DEFAULT_ENDPOINT_CONCURRENCY = 1
 """Rules run one at a time unless a caller asks for more.
@@ -73,6 +73,71 @@ def incomplete_recording(target: Target) -> tuple[CoverageShortfall, ...]:
             ),
         ),
     )
+
+
+def empty_target(target: Target, scope: FileScope | None = None) -> tuple[CoverageShortfall, ...]:
+    """Return the shortfall of a file target whose scope holds no file but ignore files.
+
+    A scan that read nothing found nothing, which is not the target found clean. Any other
+    file counts, whatever it is: the scan read it. `scope` is the listing the caller already
+    took, so the run does not list the target twice; None lists it here. `Runner.run` and
+    `build_plan` both read this, so a plan refuses what the run cannot pass.
+    """
+    if not isinstance(target, FileReader):
+        return ()
+    listed = scope if scope is not None else _file_scope(target)
+    files = () if listed is None else listed.files
+    if any(PurePath(path).name != IGNORE_FILE for path in files):
+        return ()
+    return (
+        CoverageShortfall(
+            kind=ShortfallKind.EMPTY_TARGET,
+            name=target.ref,
+            detail=(
+                f"{target.ref} holds no file to scan — check the path, or the excludes "
+                f"that removed every file"
+            ),
+        ),
+    )
+
+
+def ungraded_cases(
+    assessments: Mapping[str, Sequence[Assessment]], floor: float | None
+) -> tuple[CoverageShortfall, ...]:
+    """Return a shortfall per rule that graded none of its case attempts, or fewer than `floor`.
+
+    Graded is `measured`; attempted is every assessment that is not `skipped`, so a rule
+    whose every case was skipped is not checked. A rule that attempted cases and graded
+    none established nothing, with or without a floor. `assessments` maps each rule id to
+    what it recorded, in rule order.
+    """
+    gaps: list[CoverageShortfall] = []
+    for rule_id, recorded in assessments.items():
+        attempted = [a for a in recorded if a.status is not AssessmentStatus.SKIPPED]
+        if not attempted:
+            continue
+        graded = sum(1 for a in attempted if a.status is AssessmentStatus.MEASURED)
+        if graded == 0:
+            detail = (
+                f"graded 0 of {len(attempted)} case attempt(s): every one was declined or "
+                f"could not be decided, so the check established nothing"
+            )
+        elif floor is not None and graded / len(attempted) < floor:
+            detail = (
+                f"graded {graded} of {len(attempted)} case attempts "
+                f"({_percent_down(graded, len(attempted))}), below the floor of {floor * 100:g}%"
+            )
+        else:
+            continue
+        gaps.append(CoverageShortfall(ShortfallKind.UNGRADED_CASES, rule_id, detail))
+    return tuple(gaps)
+
+
+def _percent_down(part: int, whole: int) -> str:
+    """Write `part / whole` as a percentage to a tenth, rounded down so it never reaches a floor."""
+    tenths = part * 1000 // whole
+    whole_percent, tenth = divmod(tenths, 10)
+    return f"{whole_percent}%" if tenth == 0 else f"{whole_percent}.{tenth}%"
 
 
 @dataclass(frozen=True, slots=True)
@@ -259,6 +324,7 @@ class Runner:
         executed: list[str] = []
         examined: set[str] = set()
         assessments: list[Assessment] = []
+        by_rule: dict[str, tuple[Assessment, ...]] = {}
         suites: dict[str, SuiteSummary] = {}
         reported: list[CoverageShortfall] = []
         stopped_by: StopReason | None = None
@@ -272,6 +338,7 @@ class Runner:
             # Kept from a cut-off rule, like its findings: a case measured before
             # the ceiling was measured. The rule still stays out of `rules_run`.
             assessments.extend(outcome.assessments)
+            by_rule[outcome.rule_id] = outcome.assessments
             # Kept from a rule that did not finish too: a control that failed before the
             # rule stopped failed, and the stop alone would not say which item it was.
             reported.extend(outcome.shortfalls)
@@ -326,7 +393,9 @@ class Runner:
             # `diff` and the collector holding a conclusion with no cause.
             coverage_shortfall=(
                 *_coverage_shortfall(self.profile, target),
+                *empty_target(target, scope),
                 *incomplete_recording(target),
+                *ungraded_cases(by_rule, self.profile.policy.fail_on.min_graded_share),
                 *_unexamined_components(target, observations, examined),
                 *reported,
             ),
@@ -908,10 +977,12 @@ __all__ = [
     "DEFAULT_ENDPOINT_CONCURRENCY",
     "GateOutcome",
     "Runner",
+    "empty_target",
     "gate",
     "gate_outcome",
     "incomplete_recording",
     "refused_by_this_run",
     "safety_refusal",
     "target_failures",
+    "ungraded_cases",
 ]

@@ -3,6 +3,7 @@ import os
 import pickle
 from pathlib import Path
 
+import pytest
 from guardana.cli.exit_codes import ExitCode
 from guardana.cli.main import app
 from guardana.core import __version__
@@ -181,15 +182,44 @@ def test_scanning_a_path_that_does_not_exist_is_a_usage_error(tmp_path: Path) ->
     assert "does not exist" in result.output
 
 
-def test_scanning_an_empty_directory_is_still_a_clean_pass(tmp_path: Path) -> None:
-    # The distinction that makes the test above meaningful: nothing to find is a
-    # pass, nothing to look at is not.
+@pytest.mark.parametrize("preset", [None, "ci", "release"])
+def test_scanning_an_empty_directory_is_indeterminate_under_every_preset(
+    tmp_path: Path, preset: str | None
+) -> None:
+    # Nothing to look at is not nothing found: the scan read no file, so it says so
+    # instead of passing.
     (tmp_path / "empty").mkdir()
+    chosen = [] if preset is None else ["--preset", preset]
 
-    result = runner.invoke(app, ["scan", str(tmp_path / "empty")])
+    result = runner.invoke(app, ["scan", str(tmp_path / "empty"), *chosen])
 
-    assert result.exit_code == ExitCode.OK
-    assert "No findings" in result.output
+    assert result.exit_code == ExitCode.INDETERMINATE
+    assert "empty_target" in result.output
+    assert "holds no file to scan" in " ".join(result.output.split())
+
+
+def test_a_directory_holding_only_its_ignore_file_is_indeterminate(tmp_path: Path) -> None:
+    (tmp_path / "model.pkl").write_bytes(b"x")
+    (tmp_path / ".guardanaignore").write_text("*.pkl\n", encoding="utf-8")
+
+    result = runner.invoke(app, ["scan", str(tmp_path)])
+
+    assert result.exit_code == ExitCode.INDETERMINATE
+    assert "empty_target" in result.output
+
+
+def test_a_directory_whose_every_file_the_profile_excludes_is_indeterminate(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "scanned").mkdir()
+    (tmp_path / "scanned" / "app.py").write_text("print('hello')\n", encoding="utf-8")
+    profile = tmp_path / "guardana.yaml"
+    profile.write_text("name: t\nrules:\n  paths_exclude: ['*.py']\n", encoding="utf-8")
+
+    result = runner.invoke(app, ["scan", str(tmp_path / "scanned"), "--profile", str(profile)])
+
+    assert result.exit_code == ExitCode.INDETERMINATE
+    assert "empty_target" in result.output
 
 
 def test_scanning_a_single_file_still_works(tmp_path: Path) -> None:

@@ -360,6 +360,11 @@ def _note_what_only_the_run_can_tell(run_plan: RunPlan, profile: Profile, kind: 
             "note: fail_on_skipped is on — an endpoint may turn out not to support what it "
             "declares, and the run would then skip more rules than this plan lists"
         )
+    if fail_on.min_graded_share is not None:
+        notes.append(
+            f"note: min_graded_share is set — only the run can tell how many cases each rule "
+            f"grades, so a rule below {fail_on.min_graded_share * 100:g}% is checked after it"
+        )
     if notes:
         typer.echo("\n".join(notes), err=True)
 

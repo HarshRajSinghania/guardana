@@ -50,6 +50,16 @@ live model, so use `guardana probe` for those. A local endpoint rule loaded
 with `--rules` or `rules.paths` does not run either, and `scan` prints a note
 naming it.
 
+## A path with no file to scan
+
+A scan whose path holds no file other than `.guardanaignore` files is a coverage
+shortfall named `empty_target`, naming the scanned path: the directory is empty, or
+`rules.paths_exclude`, `.guardanaignore` and the directories every scan skips removed
+every file. The run is `indeterminate` (exit `2`) under every preset, and
+`guardana plan scan` refuses the same path with exit `3`. Any other file counts as read,
+a `.DS_Store` included; a single-file path is never empty. A third-party file target
+(`--target scheme://locator`) that lists no file is the same shortfall.
+
 ## Model files no rule reads
 
 Every model file the scan observes must be read by a rule that ran. One that no rule
@@ -182,8 +192,10 @@ as `scan` itself would.
 `scan` exits `1` (and CI treats the step as failed) when any finding's
 severity is at or above the active profile's `fail_on.severity` **and**
 either it has no verdict (a static check) or its verdict's `confidence` is
-at or above `fail_on.min_confidence`. Otherwise it exits `0`. This is the
-same `gate()` policy logic `probe` uses — see [`profiles.md`](profiles.md).
+at or above `fail_on.min_confidence`. It exits `2` when the run is `indeterminate`: a
+check could not run, a model file no rule read, or a path with no file to scan.
+Otherwise it exits `0`. This is the same `gate()` policy logic `probe` uses — see
+[`profiles.md`](profiles.md) and [`exit-codes.md`](exit-codes.md).
 
 ```bash
 guardana scan . || echo "gate failed — see findings above"

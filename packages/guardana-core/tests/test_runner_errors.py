@@ -80,6 +80,7 @@ def _run(*rules: Rule, fail_on_error: bool = True) -> tuple[ScanResult, bool]:
         registry.register_rule(rule)
     profile = _profile(fail_on_error=fail_on_error)
     with tempfile.TemporaryDirectory() as directory:
+        (Path(directory) / "model.txt").write_text("x")
         result = Runner(registry, profile).run(ArtifactTarget(Path(directory)))
     return result, gate(result, profile.policy)
 

@@ -320,6 +320,7 @@ fail_on:
   fail_on_inconclusive: false   # true: unverified checks also fail the gate
   fail_on_error: true           # false: a check that could not run stops blocking
   fail_on_skipped: false        # true: a selected rule the target cannot run is a gap
+  min_graded_share: 0.8         # optional, (0, 1]; least share of its cases a rule grades
 
 trace:                          # only ever governs `analyze-trace` / `trace inspect`
   require: [identity, approval, effects]   # optional; evidence this run demands. A
@@ -422,6 +423,12 @@ evaluators:                     # config-wired evaluators — see the section be
 <td>bool</td>
 <td><code>false</code></td>
 <td>When <code>true</code>, a selected rule that did not run because the target lacks a capability it needs, or because the safety mode refuses it, leaves the run <code>indeterminate</code>. A rule the policy excludes is not skipped, it is not selected; a security contract about another system is recorded as not applicable and does not count.</td>
+</tr>
+<tr>
+<td><code>fail_on.min_graded_share</code></td>
+<td>number in <code>(0, 1]</code></td>
+<td>unset</td>
+<td>The least share of its case attempts each rule must grade. Graded is an assessment recorded <code>measured</code>; attempted is every assessment that is not <code>skipped</code>, so a rule whose every case was skipped is not checked. Checked per rule after the run: a rule below the floor is an <code>ungraded_cases</code> coverage shortfall (&quot;graded 7 of 10 case attempts (70%), below the floor of 80%&quot;), which leaves the run <code>indeterminate</code> unless a finding fails it. Without the key, a rule that attempted cases and graded none is the same shortfall under every policy and preset. Zero, a value above 1, a string or a boolean is refused at load. No preset sets it. <code>plan</code> cannot know the share before the run and says so when the key is set.</td>
 </tr>
 <tr>
 <td><code>trace.require</code></td>
@@ -646,9 +653,13 @@ sends anything when a rule would be skipped, a rule file or plugin did not load,
 would run. Whether a check reaches a verdict is known only when it runs, so a plan that
 passes can still end <code>indeterminate</code>; an endpoint can also turn out not to support a
 capability it declared, and skip more than the plan listed.</p>
-<p>Coverage the target never offered is not a skip. <code>scan</code> of an empty directory runs every
-artifact rule over no file and passes under every preset, <code>release</code> included, so check
-that the path a build produced exists and holds what you meant to scan.</p>
+<p>Coverage the target never offered is not a skip. A <code>scan</code> whose path holds no file other
+than <code>.guardanaignore</code> files, because the directory is empty or because the profile's
+<code>rules.paths_exclude</code> and <code>.guardanaignore</code> removed every file, is an <code>empty_target</code>
+coverage shortfall naming the scanned path. It is <code>indeterminate</code> (exit <code>2</code>) under every
+preset, <code>release</code> included, and <code>plan scan</code> refuses it with exit <code>3</code>. Any other file
+counts, a stray <code>.DS_Store</code> included, so check that the path a build produced holds what
+you meant to scan. A single-file path is never empty.</p>
 <p>Every preset makes <strong>one attempt per case</strong> (<code>trials: 1</code>), so choosing a preset never
 multiplies what a gate costs. Raise it with <code>--trials</code> or <code>trials:</code> where you mean to pay
 for it.</p>

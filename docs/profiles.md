@@ -58,6 +58,7 @@ fail_on:
   fail_on_inconclusive: false   # true: unverified checks also fail the gate
   fail_on_error: true           # false: a check that could not run stops blocking
   fail_on_skipped: false        # true: a selected rule the target cannot run is a gap
+  min_graded_share: 0.8         # optional, (0, 1]; least share of its cases a rule grades
 
 trace:                          # only ever governs `analyze-trace` / `trace inspect`
   require: [identity, approval, effects]   # optional; evidence this run demands. A
@@ -99,6 +100,7 @@ evaluators:                     # config-wired evaluators — see the section be
 | `fail_on.fail_on_inconclusive` | bool | `false` | When `true`, a check that ran but could not reach a verdict (reported on the `unverified` channel) also fails the gate — the strict posture for a hard CI gate. **`severity` does not apply to it.** A severity answers how bad a problem is, and an unverified result is the absence of an answer, so any of them fails the gate once this is on. This is what makes "an artifact I could not read does not get promoted" expressible in one key. |
 | `fail_on.fail_on_error` | bool | **`true`** | A check that could not run *at all* — a plugin that failed to import, a custom rule file that would not load, a rule that raised, a request the endpoint refused with a `4xx` about that request (`stage: request`) — fails the gate. Note the default is the opposite of `fail_on_inconclusive`, and deliberately so: `inconclusive` is a verdict (the check ran and honestly could not tell), while an error means the check never happened while the result looked as though it had. With `false`, a request the endpoint refused lets the run pass as any other rule error does. Set `false` only if you would rather ship than fix the broken check. |
 | `fail_on.fail_on_skipped` | bool | `false` | When `true`, a selected rule that did not run because the target lacks a capability it needs, or because the safety mode refuses it, leaves the run `indeterminate`. A rule the policy excludes is not skipped, it is not selected; a security contract about another system is recorded as not applicable and does not count. |
+| `fail_on.min_graded_share` | number in `(0, 1]` | unset | The least share of its case attempts each rule must grade. Graded is an assessment recorded `measured`; attempted is every assessment that is not `skipped`, so a rule whose every case was skipped is not checked. Checked per rule after the run: a rule below the floor is an `ungraded_cases` coverage shortfall ("graded 7 of 10 case attempts (70%), below the floor of 80%"), which leaves the run `indeterminate` unless a finding fails it. Without the key, a rule that attempted cases and graded none is the same shortfall under every policy and preset. Zero, a value above 1, a string or a boolean is refused at load. No preset sets it. `plan` cannot know the share before the run and says so when the key is set. |
 | `trace.require` | list of dimension names | `[]` | Evidence a trace run demands: `messages`, `tools`, `retrieval`, `memory`, `identity`, `delegation`, `consent`, `policy`, `approval`, `effects`, `handoff`. A producer that does not record one makes the run **`indeterminate`, unconditionally** — no `fail_on_*` governs it, because you asked for this coverage by name. An unknown dimension raises at load. Governs traces only: a shared config carrying it does not affect `scan` or `probe`. See [`usage-trace-inspect.md`](usage-trace-inspect.md). |
 | `contracts` | list of paths | `[]` | Security contracts to load — files, or directories of `.yaml`/`.yml`. Added to anything passed via the repeatable `--contract PATH` flag. Unlike a malformed *rule* file, a contract that will not load is a hard error: it is your own threat model, and a silently absent one is a gate you think you have. See [`usage-contracts.md`](usage-contracts.md). |
 | `trials` | integer ≥ 1 | `1` | How many independent attempts `probe`, `monitor` and `plan probe` make at each case of a rule that grades a sampled model reply. `--trials N` wins over it. A rule that does not repeat (a protocol check, a `stateful` scenario) makes one attempt whatever this says, and the run records that. Anything other than a whole number of at least 1 is refused at load. See [`usage-probe.md`](usage-probe.md#repeated-trials). |
@@ -258,9 +260,13 @@ would run. Whether a check reaches a verdict is known only when it runs, so a pl
 passes can still end `indeterminate`; an endpoint can also turn out not to support a
 capability it declared, and skip more than the plan listed.
 
-Coverage the target never offered is not a skip. `scan` of an empty directory runs every
-artifact rule over no file and passes under every preset, `release` included, so check
-that the path a build produced exists and holds what you meant to scan.
+Coverage the target never offered is not a skip. A `scan` whose path holds no file other
+than `.guardanaignore` files, because the directory is empty or because the profile's
+`rules.paths_exclude` and `.guardanaignore` removed every file, is an `empty_target`
+coverage shortfall naming the scanned path. It is `indeterminate` (exit `2`) under every
+preset, `release` included, and `plan scan` refuses it with exit `3`. Any other file
+counts, a stray `.DS_Store` included, so check that the path a build produced holds what
+you meant to scan. A single-file path is never empty.
 
 Every preset makes **one attempt per case** (`trials: 1`), so choosing a preset never
 multiplies what a gate costs. Raise it with `--trials` or `trials:` where you mean to pay

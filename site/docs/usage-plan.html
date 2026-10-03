@@ -585,7 +585,8 @@ on stderr, one line per cause:</p>
 <li><strong>no rule would run</strong> — the profile, the flags and the target select none, and a
 run that verifies nothing reports no verdict;</li>
 <li><strong>a coverage shortfall</strong> — a check the run's fixtures demand that it would not select,
-or a graded recording whose run stopped;</li>
+a graded recording whose run stopped, or, for <code>plan scan</code>, a path that holds no file
+other than <code>.guardanaignore</code> files (<code>empty_target</code>, the shortfall <code>scan</code> records);</li>
 <li><strong>a rule it would skip while <code>fail_on.fail_on_skipped</code> is on</strong> — a capability the
 target does not declare, or a safety mode that refuses the rule;</li>
 <li><strong>a file under <code>calibrations:</code> that would stop the run</strong> — missing, unreadable, or
@@ -617,6 +618,13 @@ on stderr, whether or not it refuses:</p>
 note: fail_on_skipped is on — an endpoint may turn out not to support what it declares, and the run would then skip more rules than this plan lists
 </code></pre>
 <p>The second note appears for <code>plan probe</code> only.</p>
+<p>How many cases each rule grades is known only after the run too. A rule that attempted
+cases and graded none is an <code>ungraded_cases</code> shortfall whatever the profile says, and
+<code>fail_on.min_graded_share</code> raises that bar per rule
+(<a href="profiles.html#full-schema">profiles</a>). When the key is set, every plan says on stderr that
+the floor is checked after the run:</p>
+<pre><code class="language-text">note: min_graded_share is set — only the run can tell how many cases each rule grades, so a rule below 80% is checked after it
+</code></pre>
 <p>A selected rule that grades with an evaluator nobody configured is refused by the plan in
 the words the run would record. The plan finds the evaluator through the rule's declared
 expectations, so a Python rule that reads an evaluator it does not declare is caught only

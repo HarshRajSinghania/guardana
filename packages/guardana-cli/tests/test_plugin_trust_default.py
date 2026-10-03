@@ -77,9 +77,10 @@ def _profile(tmp_path: Path, body: str) -> Path:
     return path
 
 
-def _empty_dir(tmp_path: Path) -> Path:
+def _scanned_dir(tmp_path: Path) -> Path:
     target = tmp_path / "model"
     target.mkdir()
+    (target / "notes.txt").write_text("nothing to see\n", encoding="utf-8")
     return target
 
 
@@ -170,7 +171,7 @@ def test_plugins_together_with_no_plugins_is_refused() -> None:
 
 def test_plugins_together_with_no_plugins_exits_3_on_the_command_line(tmp_path: Path) -> None:
     result = runner.invoke(
-        app, ["scan", str(_empty_dir(tmp_path)), "--plugins", "all", "--no-plugins"]
+        app, ["scan", str(_scanned_dir(tmp_path)), "--plugins", "all", "--no-plugins"]
     )
 
     assert result.exit_code == ExitCode.INVALID_USAGE, result.output
@@ -205,7 +206,7 @@ def test_nothing_stated_means_builtins_and_says_so(profile: Profile | None) -> N
 def _scan_with_the_gate_off(tmp_path: Path, *extra: str) -> Result:
     profile = _profile(tmp_path, "name: t\nfail_on:\n  fail_on_error: false\n")
     return runner.invoke(
-        app, ["scan", str(_empty_dir(tmp_path)), "--profile", str(profile), *extra]
+        app, ["scan", str(_scanned_dir(tmp_path)), "--profile", str(profile), *extra]
     )
 
 
@@ -253,7 +254,7 @@ def test_a_trust_stated_in_the_profile_gets_no_hint_and_is_honoured(
         "name: t\nplugins:\n  mode: allowlist\n  allow: [acme-rules]\n",
     )
 
-    result = runner.invoke(app, ["scan", str(_empty_dir(tmp_path)), "--profile", str(profile)])
+    result = runner.invoke(app, ["scan", str(_scanned_dir(tmp_path)), "--profile", str(profile)])
 
     assert result.exit_code == ExitCode.OK, result.output
     assert _HINT not in _plain(result.stderr)
@@ -265,7 +266,7 @@ def test_plan_names_the_refused_distribution_from_the_refusal_record(
 ) -> None:
     _third_party(site, "acme-rules")
 
-    result = runner.invoke(app, ["plan", "scan", str(_empty_dir(tmp_path))])
+    result = runner.invoke(app, ["plan", "scan", str(_scanned_dir(tmp_path))])
 
     assert result.exit_code == ExitCode.INVALID_USAGE, result.output
     stderr = _plain(result.stderr)
@@ -344,7 +345,7 @@ def test_scan_names_the_local_rules_it_does_not_run(tmp_path: Path) -> None:
             _ENDPOINT_RULE.format(id=f"acme.prompt.demo{index}"), encoding="utf-8"
         )
 
-    result = runner.invoke(app, ["scan", str(_empty_dir(tmp_path)), "--rules", str(rules)])
+    result = runner.invoke(app, ["scan", str(_scanned_dir(tmp_path)), "--rules", str(rules)])
 
     assert result.exit_code == ExitCode.OK, result.output
     lines = [line for line in _ANSI.sub("", result.stderr).splitlines() if "does not run" in line]
@@ -357,7 +358,7 @@ def test_scan_names_the_local_rules_it_does_not_run(tmp_path: Path) -> None:
 
 
 def test_scan_says_nothing_about_local_rules_when_none_were_given(tmp_path: Path) -> None:
-    result = runner.invoke(app, ["scan", str(_empty_dir(tmp_path))])
+    result = runner.invoke(app, ["scan", str(_scanned_dir(tmp_path))])
 
     assert "does not run" not in _plain(result.stderr)
 
@@ -396,7 +397,7 @@ def test_an_allowlist_naming_no_distribution_is_refused() -> None:
 def test_an_allowlist_naming_no_distribution_exits_3_on_the_command_line(
     tmp_path: Path,
 ) -> None:
-    result = runner.invoke(app, ["scan", str(_empty_dir(tmp_path)), "--plugins", "allowlist"])
+    result = runner.invoke(app, ["scan", str(_scanned_dir(tmp_path)), "--plugins", "allowlist"])
 
     assert result.exit_code == ExitCode.INVALID_USAGE, result.output
     assert "--plugins allowlist needs at least one --allow-plugin" in _plain(result.output)

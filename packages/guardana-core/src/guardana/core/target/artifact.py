@@ -7,6 +7,7 @@ from guardana.core.budget import BudgetExhausted, Budgets
 from guardana.core.source import MAX_SOURCE_BYTES, PythonSource, UnreadSource, read_source
 from guardana.core.target.base import Capability, Target, TargetKind
 from guardana.core.target.scope import (
+    IGNORE_FILE,
     IGNORED_DIRECTORIES,
     ExcludePattern,
     ExcludeSource,
@@ -21,8 +22,6 @@ from guardana.core.usage import TargetUsage
 # codebase (an order of magnitude larger than this repo) caches whole.
 _SOURCE_CACHE_BYTES = 8 * 1024 * 1024
 
-_IGNORE_FILE = ".guardanaignore"
-
 
 def _is_ignored(dirname: str) -> bool:
     return any(fnmatch(dirname, pattern) for pattern in IGNORED_DIRECTORIES)
@@ -31,7 +30,7 @@ def _is_ignored(dirname: str) -> bool:
 def _read_ignore_file(root: Path) -> tuple[str, ...]:
     """Read glob patterns from a `.guardanaignore` at the scan root (blank/`#` skipped)."""
     try:
-        text = (root / _IGNORE_FILE).read_text(encoding="utf-8")
+        text = (root / IGNORE_FILE).read_text(encoding="utf-8")
     except OSError:
         return ()
     return tuple(

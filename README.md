@@ -181,7 +181,7 @@ By default, Guardana loads only its own distributions. It refuses an installed t
 
 The engine, built-in rules, CLI workflows, supported Python verification API, quality suites, and optional collector are beta. The extension API is unstable. Read [`docs/product-status.md`](docs/product-status.md) before using Guardana as a security gate.
 
-Guardana's agent harness tests a model with Guardana's scripted tools; it does not exercise your agent's own framework and tools. Trace analysis checks an execution your application recorded. `monitor` samples by running active checks; it does not inspect production traffic. A scan of an empty directory can pass, and a release preset needs rules selected for the target's capabilities. The current checks cover text, not image, PDF, audio, or document carriers. Provider compatibility and judge-graded verdicts need validation for your deployment.
+Guardana's agent harness tests a model with Guardana's scripted tools; it does not exercise your agent's own framework and tools. Trace analysis checks an execution your application recorded. `monitor` samples by running active checks; it does not inspect production traffic. A scan of a path with no file to read is indeterminate rather than a pass, but a scan cannot tell whether the files it read are the ones you meant to ship; a release preset needs rules selected for the target's capabilities. The current checks cover text, not image, PDF, audio, or document carriers. Provider compatibility and judge-graded verdicts need validation for your deployment.
 
 ### Where Guardana fits
 
