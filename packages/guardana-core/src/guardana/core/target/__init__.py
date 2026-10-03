@@ -19,12 +19,20 @@ from guardana.core.target._url import display_url, private_url_parts
 from guardana.core.target.adapter import AdapterConfig, HttpAdapterTransport
 from guardana.core.target.artifact import ArtifactTarget
 from guardana.core.target.base import Capability, LocatorError, Target, TargetKind
+from guardana.core.target.decline import (
+    DeclaredDecline,
+    Decline,
+    DeclineReading,
+    RequestDeclined,
+)
 from guardana.core.target.endpoint import (
     REQUEST_TIMEOUT_SECONDS,
     ChatMessage,
+    ChatReply,
     ChatTransport,
     EndpointError,
     EndpointTarget,
+    MetadataReportingTransport,
     ToolCall,
     ToolCallingTransport,
     ToolCallReply,
@@ -41,6 +49,7 @@ from guardana.core.target.mcp import (
 from guardana.core.target.protocols import (
     AuthorizationInspector,
     ChatEndpoint,
+    ChatWithMetadata,
     FileReader,
     SeededData,
     SystemPromptPlanter,
@@ -62,7 +71,12 @@ __all__ = [
     "Capability",
     "ChatEndpoint",
     "ChatMessage",
+    "ChatReply",
     "ChatTransport",
+    "ChatWithMetadata",
+    "DeclaredDecline",
+    "Decline",
+    "DeclineReading",
     "Discovery",
     "DiscoveryScope",
     "Document",
@@ -78,8 +92,10 @@ __all__ = [
     "McpError",
     "McpServerTarget",
     "McpTool",
+    "MetadataReportingTransport",
     "RecordedTarget",
     "ReplyUnavailable",
+    "RequestDeclined",
     "SeededData",
     "SeededTarget",
     "Sender",

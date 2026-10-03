@@ -1,9 +1,9 @@
 import copy
 import json
 import math
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from contextvars import ContextVar
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from http.client import HTTPMessage, HTTPResponse
 from time import sleep as _sleep
 from typing import IO, TYPE_CHECKING, Literal, Protocol, Self, TypeVar, runtime_checkable
@@ -266,6 +266,32 @@ class ChatReply:
 
     text: str
     usage: TokenUsage | None = None
+    meta: Mapping[str, str] = field(default_factory=dict)
+    """What the reply said beside its text, by the names an adapter's `metadata_paths:` give.
+
+    A name the reply did not carry is absent, never an empty string: an evaluator reads a
+    missing name as missing evidence.
+    """
+
+
+@runtime_checkable
+class MetadataReportingTransport(Protocol):
+    """A transport that reads metadata from each reply beside its text.
+
+    Optional, as `UsageReportingTransport` is, and separate from it: a transport may read
+    metadata and report no token counts, and claiming usage it cannot report would let a
+    token ceiling through unenforced.
+    """
+
+    def send_with_metadata(
+        self,
+        base_url: str,
+        model: str,
+        messages: Sequence[ChatMessage],
+        api_key: str | None,
+    ) -> ChatReply:
+        """Send `messages` and return the reply with its metadata, and its usage if known."""
+        raise NotImplementedError
 
 
 @runtime_checkable
@@ -295,8 +321,12 @@ def read_with_retry(
     *,
     timeout: float = REQUEST_TIMEOUT_SECONDS,
     retry_statuses: frozenset[int] = _RETRY_STATUSES,
+    on_status: Callable[[int], None] | None = None,
 ) -> bytes:
     """Send `request`, retrying only `retry_statuses`, the ones that mean "ask again".
+
+    `on_status`, when given, is told the status of the reply returned, for a caller that
+    reads more than "it succeeded" into a `2xx`.
 
     A failure that survives the retries is raised, never swallowed: a rule handed
     silence here would grade a model it never actually reached. One byte past the
@@ -309,6 +339,8 @@ def read_with_retry(
         try:
             with open_unredirected(request, timeout=timeout) as response:
                 raw: bytes = response.read(_MAX_RESPONSE_BYTES + 1)
+                if on_status is not None:
+                    on_status(response.status)
         except HTTPError as exc:
             refusal = redirect_refusal(exc, ref)
             if refusal is not None:
@@ -716,30 +748,51 @@ class EndpointTarget(Target):
         A rule's view with a keeper keeps the messages as passed here, without the system
         prompt, and the reply, once the reply has arrived.
         """
-        text = self._send_chat(messages)
-        if self._keeper is not None and self._kept_rule is not None:
-            self._keeper.keep(self._kept_rule, messages, text)
-        return text
+        return self._reply(messages).text
 
-    def _send_chat(self, messages: Sequence[ChatMessage]) -> str:
+    def chat_reply(self, messages: Sequence[ChatMessage]) -> ChatReply:
+        """Send `messages` as `chat` does, and return the reply with its metadata.
+
+        Kept exactly as `chat` keeps it. A declined request raises `RequestDeclined` and
+        keeps nothing. A subclass that overrides `chat` is answered through its `chat`,
+        with no metadata, so a reply it reshapes is never bypassed.
+        """
+        if type(self).chat is not EndpointTarget.chat:
+            return ChatReply(text=self.chat(messages))
+        return self._reply(messages)
+
+    def _reply(self, messages: Sequence[ChatMessage]) -> ChatReply:
+        reply = self._send_chat(messages)
+        if self._keeper is not None and self._kept_rule is not None:
+            self._keeper.keep(self._kept_rule, messages, reply.text)
+        return reply
+
+    def _send_chat(self, messages: Sequence[ChatMessage]) -> ChatReply:
         history = self._with_system_prompt(messages)
         transport = self._transport
-        if isinstance(transport, UsageReportingTransport):
+        if isinstance(transport, MetadataReportingTransport):
+            reply = self._spend(
+                lambda: transport.send_with_metadata(
+                    self._base_url, self._model, history, self._api_key
+                )
+            )
+        elif isinstance(transport, UsageReportingTransport):
             reply = self._spend(
                 lambda: transport.send_reporting_usage(
                     self._base_url, self._model, history, self._api_key
                 )
             )
-            self._meter.record_reply(reply.usage)
-            return reply.text
-        text = self._spend(
-            lambda: transport.send(self._base_url, self._model, history, self._api_key)
-        )
-        # Recorded with no token counts rather than not recorded: the request was
-        # sent and cost something, and the run should say it does not know how
-        # much instead of implying it was free.
-        self._meter.record_reply(None)
-        return text
+        else:
+            reply = ChatReply(
+                text=self._spend(
+                    lambda: transport.send(self._base_url, self._model, history, self._api_key)
+                )
+            )
+        # A reply without counts is recorded with none rather than not recorded: the
+        # request was sent and cost something, and the run should say it does not know
+        # how much instead of implying it was free.
+        self._meter.record_reply(reply.usage)
+        return reply
 
     def offer_tools(
         self, messages: Sequence[ChatMessage], tools: Sequence[ToolSpec]
@@ -766,7 +819,8 @@ class EndpointTarget(Target):
         """Send one request through the meter, counting every attempt it takes.
 
         An attempt that fails is counted too: it reached the endpoint, and a run it
-        aborted must not report having spent less than it did.
+        aborted must not report having spent less than it did. A declined request is
+        counted the same way, once.
         """
         self._meter.reserve()
         token = _BEFORE_RETRY.set(self._before_retry)

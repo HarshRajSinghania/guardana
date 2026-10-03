@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     from guardana.core.fixtures import Fixtures
     from guardana.core.source import PythonSource, UnreadSource
     from guardana.core.target._mcp_authorization import McpAuthorizationView
-    from guardana.core.target.endpoint import ChatMessage, ToolCallReply, ToolSpec
+    from guardana.core.target.endpoint import ChatMessage, ChatReply, ToolCallReply, ToolSpec
     from guardana.core.target.mcp import McpConversation, McpTool
     from guardana.core.trace import Trace
 
@@ -73,6 +73,20 @@ class ChatEndpoint(Protocol):
         hand every evaluator a string that matches no forbidden keyword — a
         confident pass for a model that said nothing.
         """
+        raise NotImplementedError
+
+
+@runtime_checkable
+class ChatWithMetadata(Protocol):
+    """A chat target that can also say what each reply carried beside its text.
+
+    Optional and promised by no capability: a rule asks through it when the target has
+    it, and reads the reply's text from `chat` otherwise. A declined request raises
+    `RequestDeclined` here, as it does from `chat`.
+    """
+
+    def chat_reply(self, messages: "Sequence[ChatMessage]") -> "ChatReply":
+        """Send a conversation and return the reply with its metadata."""
         raise NotImplementedError
 
 
@@ -168,6 +182,7 @@ __all__ = [
     "CAPABILITY_SURFACE",
     "AuthorizationInspector",
     "ChatEndpoint",
+    "ChatWithMetadata",
     "FileReader",
     "SeededData",
     "SystemPromptPlanter",

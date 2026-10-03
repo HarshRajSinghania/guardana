@@ -377,7 +377,11 @@ model on the next turn. Every transport that offers tools carries them.</p>
 <p><strong>Retried statuses</strong> — the HTTP statuses retried, at most three attempts, honouring
 <code>Retry-After</code> up to 30 seconds. Every retry is another request: it counts against
 <code>max_requests</code> and in the run's usage. The adapter does not retry <code>500</code>, <code>502</code> or
-<code>504</code>, because your application may have acted before it failed.</p>
+<code>504</code> by default, because your application may have acted before it failed. The adapter
+rows show its default: an adapter file's <code>retry_statuses:</code> replaces the set with statuses
+from <code>408</code>, <code>425</code>, <code>429</code> and <code>500</code>–<code>599</code>, and <code>[]</code> retries nothing
+(<a href="usage-probe.html#declines-retried-statuses-and-metadata">guarded endpoint</a>). A reply an
+adapter's <code>declines:</code> matches is never retried. The built-in providers keep their fixed set.</p>
 <h2 id="every-http-transport-alike">Every HTTP transport, alike</h2>
 <ul>
 <li><code>401</code>, <code>403</code> and <code>404</code> fail on the first attempt, without a retry.</li>

@@ -20,6 +20,7 @@ from guardana.cli.main import app
 from guardana.core.manifest import DeploymentRef
 from guardana.core.report import ScanResult
 from guardana.core.target import McpServerTarget
+from guardana.core.target.adapter import FetchedReply
 from guardana.core.testing import RefusingTransport, ScriptedMcpServer
 from typer.testing import CliRunner, Result
 
@@ -150,11 +151,11 @@ def test_an_adapter_query_is_sent_but_never_saved(
 ) -> None:
     sent: list[str] = []
 
-    def fetch(url: str, data: bytes, headers: Mapping[str, str]) -> object:
+    def fetch(url: str, data: bytes, headers: Mapping[str, str], **_: object) -> FetchedReply:
         sent.append(url)
-        return {"reply": "Sure! Here goes, step by step."}
+        return FetchedReply(200, json.dumps({"reply": "Sure! Here goes, step by step."}).encode())
 
-    monkeypatch.setattr("guardana.core.target.adapter._default_fetch", fetch)
+    monkeypatch.setattr("guardana.core.target.adapter._post", fetch)
     url = f"http://fake/v1?key={_MARKER}"
     written = tmp_path / f"run.{output_format}"
     adapter = str(_adapter(tmp_path))
@@ -177,10 +178,10 @@ def test_an_adapter_query_is_sent_but_never_saved(
 def test_an_unreachable_adapter_is_named_without_its_query(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    def fetch(url: str, data: bytes, headers: Mapping[str, str]) -> object:
+    def fetch(url: str, data: bytes, headers: Mapping[str, str], **_: object) -> FetchedReply:
         raise URLError("Connection refused")
 
-    monkeypatch.setattr("guardana.core.target.adapter._default_fetch", fetch)
+    monkeypatch.setattr("guardana.core.target.adapter._post", fetch)
 
     result = runner.invoke(
         app,

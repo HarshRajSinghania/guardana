@@ -52,7 +52,11 @@ model on the next turn. Every transport that offers tools carries them.
 **Retried statuses** — the HTTP statuses retried, at most three attempts, honouring
 `Retry-After` up to 30 seconds. Every retry is another request: it counts against
 `max_requests` and in the run's usage. The adapter does not retry `500`, `502` or
-`504`, because your application may have acted before it failed.
+`504` by default, because your application may have acted before it failed. The adapter
+rows show its default: an adapter file's `retry_statuses:` replaces the set with statuses
+from `408`, `425`, `429` and `500`–`599`, and `[]` retries nothing
+([guarded endpoint](usage-probe.md#declines-retried-statuses-and-metadata)). A reply an
+adapter's `declines:` matches is never retried. The built-in providers keep their fixed set.
 
 ## Every HTTP transport, alike
 

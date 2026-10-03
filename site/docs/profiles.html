@@ -527,7 +527,7 @@ and register the evaluators alongside the always-available <code>keyword</code>,
 <tr>
 <td><code>adapter</code></td>
 <td>no</td>
-<td>An <a href="usage-probe.html#probing-a-guarded-endpoint">adapter file</a>, read beside the profile when relative. Its <code>url:</code> may only repeat <code>endpoint</code>; it cannot be combined with <code>provider</code> or <code>api_key_env</code></td>
+<td>An <a href="usage-probe.html#probing-a-guarded-endpoint">adapter file</a>, read beside the profile when relative. Its <code>url:</code> may only repeat <code>endpoint</code>; it cannot be combined with <code>provider</code> or <code>api_key_env</code>. It may set <code>retry_statuses:</code> and refuses <code>declines:</code> and <code>metadata_paths:</code>: a judge either answers or is unavailable</td>
 </tr>
 </tbody>
 </table></div>

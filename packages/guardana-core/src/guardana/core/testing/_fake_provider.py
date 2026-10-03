@@ -2,8 +2,9 @@
 
 It speaks the reply shapes the built-in transports read (OpenAI chat completions,
 Ollama `/api/chat`, TGI `/generate`) and the shape an adapted product endpoint is
-configured for, and it fails on cue: a status with `Retry-After`, a redirect,
-malformed JSON, a missing field, an oversized body, a slow reply. Every request is
+configured for, a guard's decline and metadata included, and it fails on cue: a status
+with `Retry-After`, a redirect, malformed JSON, a missing field, an oversized body, a
+slow reply. Every request is
 recorded as it arrived, so a test asserts on what reached the wire rather than on
 what the client meant to send.
 
@@ -91,9 +92,21 @@ def tgi_reply(text: str) -> Scripted:
     return json_reply({"generated_text": text})
 
 
-def adapter_reply(text: str) -> Scripted:
-    """Answer in the shape an adapter configured with `response_path: data.reply` reads."""
-    return json_reply({"data": {"reply": text}})
+def adapter_reply(
+    text: str | None,
+    *,
+    fields: Mapping[str, object] | None = None,
+    status: int = 200,
+) -> Scripted:
+    """Answer in the shape an adapter configured with `response_path: data.reply` reads.
+
+    `text` None leaves `data.reply` out, as a guard that withheld the answer does.
+    `fields` sit beside `data` at the top level, where a guard's verdict, an error code or
+    a request id would; with `status` outside `2xx` this is a guard's JSON decline.
+    """
+    payload: dict[str, object] = {"data": {} if text is None else {"reply": text}}
+    payload.update(fields or {})
+    return json_reply(payload, status=status)
 
 
 def status_reply(status: int, *, retry_after: str | None = None) -> Scripted:

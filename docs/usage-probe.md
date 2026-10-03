@@ -275,8 +275,82 @@ no `${VAR}`: pricing a run needs no secret.
 The body is sent as JSON with `Content-Type: application/json` unless `headers:` names its
 own content type. A `429` or `503` is retried, honouring `Retry-After`, within
 `--max-requests`; a `500`, `502` or `504` is not, because your application may have acted
-before it failed ([providers](providers.md)). A saved run records the digest of the adapter
-file as written, before `${VAR}` expansion, in `run.configuration.adapter_digest`.
+before it failed ([providers](providers.md)). `retry_statuses:` replaces that set (below). A
+saved run records the digest of the adapter file as written, before `${VAR}` expansion, in
+`run.configuration.adapter_digest`.
+
+### Declines, retried statuses and metadata
+
+A guard in front of the model answers some requests itself: an HTTP `400` naming a content
+policy, or a `200` that carries `blocked: true` and no answer. Three optional keys tell the
+adapter what your guard's answers look like:
+
+```yaml
+declines:                         # ordered; the first entry that matches names the decline
+  - name: content_filter          # required, unique, [a-z0-9][a-z0-9_.-]*
+    status: [400, 422]            # required: one status or a list
+    path: error.code              # dotted, as in response_path
+    equals: content_policy        # a string, number or boolean; required with path
+    as: refusal                   # required: refusal | ungraded
+  - name: blocked_in_body
+    status: 200
+    path: guard.blocked
+    equals: true
+    as: refusal
+  - name: input_rejected
+    status: 413
+    as: ungraded                  # a status alone may only say "ungraded"
+retry_statuses: [429, 503]        # absent: [429, 503]; []: never retry
+metadata_paths:                   # at most 16 names, each [a-z][a-z0-9_]*
+  guard_category: data.moderation.category
+  request_id: meta.request_id
+```
+
+**`declines:`** is matched on every reply, before `response_path` is read. An entry matches
+when the reply's status is one of its `status` values and, when it gives `path`, the reply's
+JSON holds a string, number or boolean at `path` equal to `equals` in type and value (`1` and
+`1.0` are the same number; `"1"`, `1` and `true` never equal one another). An error reply's
+body is parsed as JSON only for a `path` entry; a body that is not JSON matches no `path`
+entry. A `2xx` matches only when the reply carries no non-blank text at `response_path`: a
+guard that flags an answer and still delivers it is graded on the answer it delivered. `as:`
+states what the decline means for the check that sent the request: `refusal`, the guard
+refused on policy; `ungraded`, the request was not answered and says nothing about the
+policy.
+
+A matched decline is one request, counted in `--max-requests` and the run's usage like any
+other, and never retried. It reaches the check as `RequestDeclined`
+(`guardana.core.target`), carrying the entry's name, its reading and the status; no reply
+text is invented for it and the guard's body is not graded. A reply outside `2xx` that no
+entry matches fails the request with its status and its body, as a provider's would.
+
+Refused with exit `3` when the file is read:
+
+- a status outside `200`–`299` and `400`–`499`;
+- `401`, `403`, `404`, `407`, `408`, `425` or `429`: credentials, a wrong address, a timeout
+  and a rate limit are never a decline;
+- a status the adapter also retries (`retry_statuses:`);
+- an unknown key in an entry, a missing `name`, `status` or `as`, and a duplicate `name`;
+- `path` without `equals`, or `equals` without `path`;
+- `as: refusal` without `path`: a status alone cannot tell a policy block from a malformed
+  request, and reading every `400` as a refusal would pass every check against a broken
+  body template;
+- any `2xx` entry without `path`.
+
+**`retry_statuses:`** replaces the retried set. It may name `408`, `425`, `429` and
+`500`–`599`; any other status is refused. At most three attempts, honouring `Retry-After`;
+every retry is a request counted against `--max-requests`.
+
+**`metadata_paths:`** reads named values from every JSON reply the adapter parses, a
+declined one included. A string is kept as it is; a number or boolean as its JSON text
+(`3`, `0.5`, `false`). A path that is absent, or holds `null`, an object, a list or a value
+over 1,024 characters, leaves the name out, so a check reads it as missing evidence, never
+as an empty value. Programmatically the reply's metadata is `ChatReply.meta`, from
+`EndpointTarget.chat_reply`; `chat` returns the same reply's text. The adapter reports no
+token counts, so a token ceiling stays refused.
+
+A judge's adapter (`adapter:` in an [`evaluators:` block](profiles.md#config-wired-evaluators-llm_judge-and-guard))
+refuses `declines:` and `metadata_paths:`, and may set `retry_statuses:`: a judge either
+answers or is unavailable.
 
 For a **multi-turn** scenario (gradual jailbreak, indirect injection), give the
 body a `{{messages}}` slot to receive the full transcript as a `[{role, content}]`

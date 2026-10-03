@@ -19,7 +19,12 @@ from pathlib import Path
 import yaml
 from guardana.core.fingerprint import DigestKind, DocumentDigest, digest_of
 from guardana.core.target._url import display_url, private_url_parts
-from guardana.core.target.adapter import AdapterConfig, HttpAdapterTransport
+from guardana.core.target.adapter import (
+    DEFAULT_RETRY_STATUSES,
+    AdapterConfig,
+    HttpAdapterTransport,
+)
+from guardana.core.target.decline import DeclaredDecline, DeclineReading
 from guardana.core.target.endpoint import ChatTransport, EndpointError, EndpointTarget
 from guardana.core.usage import UsageMeter
 
@@ -30,7 +35,20 @@ HEADERS_AS_A_WHOLE = "its headers as a whole"
 """The source of the credential an adapter's expanded headers make together."""
 
 _ENV_REF = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
-_ADAPTER_KEYS = frozenset({"url", "method", "headers", "body", "response_path"})
+_ADAPTER_KEYS = frozenset(
+    {
+        "url",
+        "method",
+        "headers",
+        "body",
+        "response_path",
+        "declines",
+        "retry_statuses",
+        "metadata_paths",
+    }
+)
+_JUDGE_REFUSED_KEYS = ("declines", "metadata_paths")
+_DECLINE_KEYS = frozenset({"name", "status", "path", "equals", "as"})
 _ADAPTER_METHOD = "POST"
 
 
@@ -157,17 +175,21 @@ def resolve_connection(
     sending: bool,
     spelling: Spelling | None = None,
     environ: Mapping[str, str] | None = None,
+    for_judge: bool = False,
 ) -> ResolvedConnection:
     """Check `connection` and return what a transport needs, or raise `ConnectionConfigError`.
 
     `sending` says whether the caller will send through it. Only then are the api key
     variable and an adapter's `${VAR}` headers read; a connection resolved not to send
     carries no credential at all, so nothing it builds can authenticate by accident.
+    `for_judge` says the connection reaches a judge, whose adapter may declare no decline.
     """
     names = spelling or Spelling()
     env = os.environ if environ is None else environ
     if connection.adapter is not None:
-        return _through_adapter(connection, connection.adapter, names, env if sending else None)
+        return _through_adapter(
+            connection, connection.adapter, names, env if sending else None, for_judge=for_judge
+        )
     provider = connection.provider or DEFAULT_PROVIDER
     _check_provider(provider, names)
     api_key = None
@@ -193,12 +215,15 @@ def load_adapter(
     url: str,
     environ: Mapping[str, str] | None,
     spelling: Spelling | None = None,
+    for_judge: bool = False,
 ) -> LoadedAdapter:
     """Read an adapter file, refusing anything it cannot honour as written.
 
     `url` is the URL the run names; an adapter `url:` that differs from it is refused,
     because the requests would go somewhere the run does not say. `environ` expands each
     `${VAR}` in `headers:`; None leaves the headers out, for a connection that will not send.
+    `for_judge` refuses `declines:` and `metadata_paths:`: a judge either answers or is
+    unavailable, and nothing reads a judge's metadata.
     """
     names = spelling or Spelling()
     try:
@@ -212,9 +237,7 @@ def load_adapter(
         raise ConnectionConfigError(f"invalid adapter {path}: {exc}") from exc
     if not isinstance(raw, dict):
         raise ConnectionConfigError(f"invalid adapter {path}: the top level must be a mapping")
-    unknown = sorted(str(key) for key in set(raw) - _ADAPTER_KEYS)
-    if unknown:
-        raise ConnectionConfigError(f"invalid adapter {path}: unknown key(s): {', '.join(unknown)}")
+    _check_keys(raw, path, names, for_judge=for_judge)
     method = raw.get("method", _ADAPTER_METHOD)
     if not isinstance(method, str) or method.upper() != _ADAPTER_METHOD:
         raise ConnectionConfigError(
@@ -234,9 +257,18 @@ def load_adapter(
     headers, credentials, secrets = (
         ({}, (), ()) if environ is None else _expanded_headers(raw_headers, path, environ)
     )
-    config = AdapterConfig(
-        url=target, body=raw["body"], response_path=response_path, headers=headers
-    )
+    try:
+        config = AdapterConfig(
+            url=target,
+            body=raw["body"],
+            response_path=response_path,
+            headers=headers,
+            declines=_declines(raw.get("declines")),
+            retry_statuses=_retry_statuses(raw.get("retry_statuses")),
+            metadata_paths=_metadata_paths(raw.get("metadata_paths")),
+        )
+    except ValueError as exc:
+        raise ConnectionConfigError(f"invalid adapter {path}: {exc}") from exc
     return LoadedAdapter(
         config=config, digest=digest, credentials=credentials, secret_values=secrets
     )
@@ -269,8 +301,100 @@ def _expanded_headers(
     return headers, tuple(credentials), tuple(secrets)
 
 
+def _check_keys(
+    raw: Mapping[object, object], path: Path, names: Spelling, *, for_judge: bool
+) -> None:
+    """Refuse a key the adapter does not know, and the keys a judge's adapter may not set."""
+    unknown = sorted(str(key) for key in set(raw) - _ADAPTER_KEYS)
+    if unknown:
+        raise ConnectionConfigError(f"invalid adapter {path}: unknown key(s): {', '.join(unknown)}")
+    judged = [key for key in _JUDGE_REFUSED_KEYS if for_judge and key in raw]
+    if judged:
+        raise ConnectionConfigError(
+            f"invalid adapter {path}: {names.adapter} reaches a judge, which either answers "
+            f"or is unavailable; drop {' and '.join(f'{key}:' for key in judged)}"
+        )
+
+
+# The readers below raise without naming the file; `load_adapter` adds it.
+
+
+def _declines(raw: object) -> tuple[DeclaredDecline, ...]:
+    """Read `declines:` into its entries, refusing any the adapter cannot honour."""
+    if raw is None:
+        return ()
+    if not isinstance(raw, list):
+        raise ConnectionConfigError("'declines' must be a list of entries")
+    return tuple(_decline(entry, index) for index, entry in enumerate(raw))
+
+
+def _decline(entry: object, index: int) -> DeclaredDecline:
+    where = f"declines[{index}]"
+    if not isinstance(entry, dict):
+        raise ConnectionConfigError(f"{where} must be a mapping")
+    unknown = sorted(str(key) for key in set(entry) - _DECLINE_KEYS)
+    if unknown:
+        raise ConnectionConfigError(f"{where}: unknown key(s): {', '.join(unknown)}")
+    name = entry.get("name")
+    if not isinstance(name, str) or not name:
+        raise ConnectionConfigError(f"{where}: 'name' is required")
+    if "status" not in entry:
+        raise ConnectionConfigError(f"decline {name}: 'status' is required")
+    reading = entry.get("as")
+    if not isinstance(reading, str) or reading not in {r.value for r in DeclineReading}:
+        raise ConnectionConfigError(f"decline {name}: 'as' must be refusal or ungraded")
+    path = entry.get("path")
+    if path is not None and (not isinstance(path, str) or not path):
+        raise ConnectionConfigError(f"decline {name}: 'path' must be a non-empty dotted path")
+    equals = entry.get("equals")
+    if "equals" in entry and not isinstance(equals, str | int | float):
+        raise ConnectionConfigError(f"decline {name}: 'equals' must be a string, number or boolean")
+    return DeclaredDecline(
+        name=name,
+        statuses=frozenset(_statuses(entry["status"], f"decline {name}: 'status'")),
+        reading=DeclineReading(reading),
+        path=path,
+        equals=equals,
+    )
+
+
+def _retry_statuses(raw: object) -> frozenset[int]:
+    if raw is None:
+        return DEFAULT_RETRY_STATUSES
+    if not isinstance(raw, list):
+        raise ConnectionConfigError("'retry_statuses' must be a list of statuses; [] retries none")
+    return frozenset(_statuses(raw, "'retry_statuses'"))
+
+
+def _statuses(raw: object, what: str) -> list[int]:
+    """Read one status or a list of them, refusing anything that is not a whole number."""
+    written: list[object] = raw if isinstance(raw, list) else [raw]
+    statuses = [s for s in written if isinstance(s, int) and not isinstance(s, bool)]
+    if len(statuses) != len(written):
+        raise ConnectionConfigError(f"{what} must be an HTTP status or a list of them")
+    return statuses
+
+
+def _metadata_paths(raw: object) -> dict[str, str]:
+    if raw is None:
+        return {}
+    if not isinstance(raw, dict):
+        raise ConnectionConfigError("'metadata_paths' must map a name to a dotted path")
+    paths: dict[str, str] = {}
+    for name, path in raw.items():
+        if not isinstance(name, str) or not isinstance(path, str):
+            raise ConnectionConfigError("'metadata_paths' must map a name to a dotted path")
+        paths[name] = path
+    return paths
+
+
 def _through_adapter(
-    connection: Connection, adapter: Path, names: Spelling, environ: Mapping[str, str] | None
+    connection: Connection,
+    adapter: Path,
+    names: Spelling,
+    environ: Mapping[str, str] | None,
+    *,
+    for_judge: bool,
 ) -> ResolvedConnection:
     if connection.provider is not None:
         raise ConnectionConfigError(
@@ -282,7 +406,9 @@ def _through_adapter(
             f"{names.adapter} cannot be combined with {names.api_key_env}: an adapter sends "
             f"only the headers it names; put the credential in a header reading ${{VAR}}"
         )
-    loaded = load_adapter(adapter, url=connection.url, environ=environ, spelling=names)
+    loaded = load_adapter(
+        adapter, url=connection.url, environ=environ, spelling=names, for_judge=for_judge
+    )
     try:
         transport = HttpAdapterTransport(loaded.config, source_digest=loaded.digest)
     except EndpointError as exc:

@@ -164,7 +164,7 @@ Both blocks share the connection keys, read the way the endpoint commands read
 | `model` | yes | Model name to send |
 | `api_key_env` | no | Env var holding the bearer API key, if the server needs one. Unset or empty is refused before anything is sent; `plan` never reads it |
 | `provider` | no | Wire protocol: `openai` (default), `ollama` or `tgi`; any other name is refused |
-| `adapter` | no | An [adapter file](usage-probe.md#probing-a-guarded-endpoint), read beside the profile when relative. Its `url:` may only repeat `endpoint`; it cannot be combined with `provider` or `api_key_env` |
+| `adapter` | no | An [adapter file](usage-probe.md#probing-a-guarded-endpoint), read beside the profile when relative. Its `url:` may only repeat `endpoint`; it cannot be combined with `provider` or `api_key_env`. It may set `retry_statuses:` and refuses `declines:` and `metadata_paths:`: a judge either answers or is unavailable |
 
 A judge's identity — what a recorded calibration is matched against — names its
 model and a digest of its endpoint, and adds `provider=` and `adapter=<digest of the

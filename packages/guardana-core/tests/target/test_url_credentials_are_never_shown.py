@@ -29,7 +29,7 @@ from guardana.core.target._mcp_authorization import (
 from guardana.core.target._mcp_client import HttpMcpTransport
 from guardana.core.target._mcp_http import RawReply, send
 from guardana.core.target._providers import OllamaTransport, TgiTransport
-from guardana.core.target.adapter import AdapterConfig, HttpAdapterTransport
+from guardana.core.target.adapter import AdapterConfig, FetchedReply, HttpAdapterTransport
 from guardana.core.target.endpoint import ChatMessage, UrllibTransport
 from guardana.core.testing import ScriptedMcpServer, ScriptedTransport
 
@@ -137,7 +137,9 @@ def test_an_adapter_error_names_the_endpoint_without_its_query() -> None:
         body={"message": "{{prompt}}"},
         response_path="data.reply",
     )
-    transport = HttpAdapterTransport(config, fetch=lambda url, data, headers: {"data": {}})
+    transport = HttpAdapterTransport(
+        config, fetch=lambda url, data, headers: FetchedReply(200, b'{"data": {}}')
+    )
 
     with pytest.raises(EndpointError) as raised:
         transport.send("ignored", "m", _HELLO, None)
@@ -153,9 +155,9 @@ def test_the_adapter_still_sends_to_its_full_url() -> None:
         response_path="reply",
     )
 
-    def fetch(url: str, data: bytes, headers: Mapping[str, str]) -> object:
+    def fetch(url: str, data: bytes, headers: Mapping[str, str]) -> FetchedReply:
         sent.append(url)
-        return {"reply": "ok"}
+        return FetchedReply(200, b'{"reply": "ok"}')
 
     HttpAdapterTransport(config, fetch=fetch).send("ignored", "m", _HELLO, None)
 
@@ -166,6 +168,8 @@ def test_the_adapter_default_fetch_names_the_endpoint_without_its_query(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     class _Response(BytesIO):
+        status = 200
+
         def __enter__(self) -> "_Response":
             return self
 

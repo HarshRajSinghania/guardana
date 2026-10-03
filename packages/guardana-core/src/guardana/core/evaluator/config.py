@@ -468,7 +468,7 @@ def _endpoint_call(
         )
     try:
         resolved = resolve_connection(
-            connection, sending=wiring.sending, spelling=Spelling.judge(what)
+            connection, sending=wiring.sending, spelling=Spelling.judge(what), for_judge=True
         )
     except ConnectionConfigError as exc:
         raise ProfileError(str(exc)) from exc
