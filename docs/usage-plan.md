@@ -69,6 +69,7 @@ run they are pricing would use, so both take the same plugin-trust flags
 | `--trials INTEGER` | `1` (or `trials:` in the profile) | `plan probe` and `plan grade`: price the run at this many attempts per case, as `probe --trials` and `grade --trials` would make them |
 | `--max-requests INTEGER` | the profile's `budgets:` | `plan probe` and `plan grade`: check the plan against this request ceiling; on `plan grade` it is the ceiling each judge is held to |
 | `--max-input-tokens`, `--max-output-tokens`, `--max-duration` | the profile's `budgets:` | `plan probe` only: the ceilings `probe` would apply. A token ceiling on a transport that reports no token counts (an adapter, `--provider tgi`) is refused (exit `3`), as `probe` refuses it |
+| `--max-requests-per-minute INTEGER` | the profile's `budgets:` | `plan probe` only: the pace `probe` would keep. The plan states the wall time it needs and refuses a `--max-duration` below it (exit `3`) — see [Checking against a budget](#checking-against-a-budget) |
 | `--no-plugins` | off | `plan scan` only: deprecated alias for `--plugins disabled` |
 
 No subcommand reads `--api-key-env`, a judge's `api_key_env` or an adapter's `${VAR}`
@@ -135,7 +136,7 @@ trials: 5 attempt(s) per case, counted in the requests above
 ```
 
 `--format json` carries the same facts as `trials.per_case` and `trials.single_attempt`
-(plan schema `3`, [`schemas/plan-v3.schema.json`](../schemas/plan-v3.schema.json)). See
+(plan schema `4`, [`schemas/plan-v4.schema.json`](../schemas/plan-v4.schema.json)). See
 [`usage-probe.md`](usage-probe.md#repeated-trials) for what a trial is.
 
 ## Pricing judge calls
@@ -265,6 +266,20 @@ configuration, found before the run rather than halfway through it:
 
 A token ceiling a judge's transport cannot enforce is refused with `3` too, the same
 way `probe` refuses it.
+
+With `max_requests_per_minute` set, the plan states the least wall time the run needs
+at that pace: the estimated target requests — a rule of unknown cost counted once — or
+the calls of the busiest judge meter, whichever is larger, times `60 / N`. Retries and
+the time each reply takes are not counted, so the real run takes longer. A
+`max_duration` below that floor exits `3`, and `fits_budget` is `false` in the JSON:
+
+```text
+wall time: at least 590s at 6 request(s) per minute, retries not counted
+⚠ this plan does not fit its time budget — 300s is less than the 590s its requests need at 6 per minute, so the run would stop early, and a run that stops early reports no verdict
+```
+
+The JSON carries both as `budgets.max_requests_per_minute` and
+`budgets.minimum_wall_time_seconds`, null when no rate is set.
 
 ## A run that could not pass
 

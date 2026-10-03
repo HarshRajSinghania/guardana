@@ -8,6 +8,7 @@ format its numbers eventually land in.
 import threading
 from dataclasses import dataclass
 from time import monotonic
+from time import sleep as _sleep
 from typing import TYPE_CHECKING
 
 from guardana.core.budget import BudgetExhausted, Budgets
@@ -93,6 +94,9 @@ class UsageMeter:
     Kept deliberately dumb. It counts what it is told and never estimates: a
     request whose token count nobody reported increments
     `requests_missing_token_counts` rather than contributing a guess to the sums.
+
+    `clock` and `sleep` are how a request rate is kept; a test passes both, so pacing
+    is checked on a clock nobody waits for.
     """
 
     def __init__(
@@ -100,10 +104,13 @@ class UsageMeter:
         budgets: "Budgets | None" = None,
         *,
         clock: "Callable[[], float] | None" = None,
+        sleep: "Callable[[float], None] | None" = None,
     ) -> None:
         self._budgets = budgets if budgets is not None else Budgets()
         self._clock = clock if clock is not None else monotonic
+        self._sleep = sleep if sleep is not None else _sleep
         self._started_at = self._clock()
+        self._next_slot: float | None = None
         self._lock = threading.Lock()
         self._requests = 0
         self._reserved = 0
@@ -127,7 +134,7 @@ class UsageMeter:
             self._budgets = budgets
 
     def reserve(self) -> None:
-        """Claim room for one more request, or raise `BudgetExhausted`.
+        """Claim room for one more request, waiting for its slot, or raise `BudgetExhausted`.
 
         Called *before* the request goes out, not after, so a ceiling of 200 means
         200 requests were sent and never 201. Token and duration ceilings can only
@@ -142,6 +149,11 @@ class UsageMeter:
         reply comes back let every thread in a `--concurrency 4` probe pass the
         same check at once and send four more requests over the ceiling — a
         promise of "never 201" that held only when nothing ran in parallel.
+
+        Under a request rate each claim takes the next slot, at least `60 / N`
+        seconds after the one before, and waits for it outside the lock, so
+        concurrent rules and retries share one rate without stalling `record`. A
+        slot that lies past the duration ceiling is refused rather than waited for.
         """
         budgets = self._budgets
         if budgets.is_unbounded:
@@ -150,15 +162,43 @@ class UsageMeter:
             if budgets.max_requests is not None and self._reserved >= budgets.max_requests:
                 raise BudgetExhausted(f"request budget of {budgets.max_requests} is spent")
             self._refuse_an_unenforceable_ceiling(budgets)
+            now = self._clock()
+            self._refuse_a_spent_ceiling(budgets, now - self._started_at)
+            slot = self._claim_slot(budgets, now)
             self._reserved += 1
-            input_tokens, output_tokens = self._input_tokens, self._output_tokens
-        elapsed = self._clock() - self._started_at
-        if budgets.max_input_tokens is not None and input_tokens >= budgets.max_input_tokens:
+        if slot > now:
+            self._sleep(slot - now)
+
+    def _refuse_a_spent_ceiling(self, budgets: Budgets, elapsed: float) -> None:
+        """Raise when a token or duration ceiling has already been reached."""
+        if budgets.max_input_tokens is not None and self._input_tokens >= budgets.max_input_tokens:
             raise BudgetExhausted(f"budget of {budgets.max_input_tokens} input tokens is spent")
-        if budgets.max_output_tokens is not None and output_tokens >= budgets.max_output_tokens:
+        if (
+            budgets.max_output_tokens is not None
+            and self._output_tokens >= budgets.max_output_tokens
+        ):
             raise BudgetExhausted(f"budget of {budgets.max_output_tokens} output tokens is spent")
         if budgets.max_duration_seconds is not None and elapsed >= budgets.max_duration_seconds:
             raise BudgetExhausted(f"time budget of {budgets.max_duration_seconds} seconds is spent")
+
+    def _claim_slot(self, budgets: Budgets, now: float) -> float:
+        """Return when this request may go, and move the next slot past it.
+
+        A slot never lies before `now`, so time spent idle does not bank a burst. One
+        past the duration ceiling raises and is left unclaimed.
+        """
+        rate = budgets.max_requests_per_minute
+        if rate is None:
+            return now
+        slot = now if self._next_slot is None else max(now, self._next_slot)
+        limit = budgets.max_duration_seconds
+        if limit is not None and slot - self._started_at >= limit:
+            raise BudgetExhausted(
+                f"time budget of {limit} seconds would be spent before the next request "
+                f"could be sent at {rate} per minute"
+            )
+        self._next_slot = slot + 60.0 / rate
+        return slot
 
     def record(self, tokens: TokenUsage | None) -> None:
         """Record one request, with the tokens it cost if the provider said so."""

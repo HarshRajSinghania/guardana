@@ -440,8 +440,9 @@ Measured
 <h2 id="traffic-and-budgets">Traffic and budgets</h2>
 <p>No request reaches the target: the saved run records <code>usage.requests: 0</code>. A judge configured
 under <code>evaluators:</code> is called as in a probe, metered on its own and held to the budget flags
-(<code>--max-requests</code>, <code>--max-input-tokens</code>, <code>--max-output-tokens</code>, <code>--max-duration</code>) and the
-profile's <code>budgets:</code>. Before the first call, <code>grade</code> prints on stderr where each judge's calls
+(<code>--max-requests</code>, <code>--max-input-tokens</code>, <code>--max-output-tokens</code>, <code>--max-duration</code>,
+<code>--max-requests-per-minute</code>) and the profile's <code>budgets:</code>; a rate paces each judge on its own
+meter. Before the first call, <code>grade</code> prints on stderr where each judge's calls
 go, how many there can be and the budget they are held to, or that none is set. A judge that
 cannot be reached stops the run with exit <code>4</code>.</p>
 <p><code>guardana plan grade</code> makes the same selection and prices the judge calls without making any:</p>

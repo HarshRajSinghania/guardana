@@ -70,7 +70,7 @@ from guardana.core.target.endpoint import RETRIES_PER_REQUEST
 from guardana.core.target.recorded import RecordedTarget
 from guardana.core.verify import RecordingRefusedError, refuse_other_trials
 
-PLAN_SCHEMA_VERSION = 3
+PLAN_SCHEMA_VERSION = 4
 
 plan_app = typer.Typer(
     help="Estimate what a run would cost, without sending a single request.",
@@ -120,6 +120,7 @@ def _render_human(
             "⚠ this plan does not fit its request budget — the run would stop early, "
             "and a run that stops early reports no verdict"
         )
+    lines.extend(_pace_lines(run_plan))
     lines.append("")
     lines.append("No request was sent to produce this estimate.")
     return "\n".join(lines)
@@ -139,6 +140,23 @@ def _request_lines(run_plan: RunPlan, retries: int) -> list[str]:
         lines.append(
             f"  a request refused for a rate limit or a server error is retried up to "
             f"{retried} times, and each retry counts toward --max-requests"
+        )
+    return lines
+
+
+def _pace_lines(run_plan: RunPlan) -> list[str]:
+    """State the wall time the request rate needs, and whether the duration ceiling allows it."""
+    floor = run_plan.minimum_wall_time_seconds
+    rate = run_plan.budgets.max_requests_per_minute
+    if floor is None or rate is None or floor == 0:
+        return []
+    lines = [f"wall time: at least {floor:g}s at {rate} request(s) per minute, retries not counted"]
+    limit = run_plan.budgets.max_duration_seconds
+    if limit is not None and run_plan.exceeds_duration:
+        lines.append(
+            f"⚠ this plan does not fit its time budget — {limit:g}s is less than the "
+            f"{floor:g}s its requests need at {rate} per minute, so the run would stop early, "
+            f"and a run that stops early reports no verdict"
         )
     return lines
 
@@ -205,8 +223,10 @@ def _render_json(run_plan: RunPlan) -> str:
                 "max_input_tokens": run_plan.budgets.max_input_tokens,
                 "max_output_tokens": run_plan.budgets.max_output_tokens,
                 "max_duration_seconds": run_plan.budgets.max_duration_seconds,
+                "max_requests_per_minute": run_plan.budgets.max_requests_per_minute,
+                "minimum_wall_time_seconds": run_plan.minimum_wall_time_seconds,
             },
-            "fits_budget": not run_plan.exceeds_budget,
+            "fits_budget": not (run_plan.exceeds_budget or run_plan.exceeds_duration),
             "trials": {
                 "per_case": run_plan.trials,
                 "single_attempt": list(run_plan.single_attempt),
@@ -234,7 +254,7 @@ def _emit(  # noqa: PLR0913 — the plan, how to print it, and what it was plann
         typer.echo(_render_human(run_plan, kind, replayed=replayed, retries=retries))
     cannot_pass = _explain_what_the_run_cannot_pass(run_plan, profile, registry)
     _note_what_only_the_run_can_tell(run_plan, profile, kind)
-    if run_plan.exceeds_budget or cannot_pass:
+    if run_plan.exceeds_budget or run_plan.exceeds_duration or cannot_pass:
         # Invalid configuration, not a failed run: nothing ran. Raising it here
         # means a pipeline finds out before it pays, which is the whole point.
         raise typer.Exit(code=ExitCode.INVALID_USAGE)
@@ -455,6 +475,12 @@ def plan_probe(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; thi
     max_duration: Annotated[
         str | None, typer.Option("--max-duration", help="Wall-clock ceiling, e.g. 15m.")
     ] = None,
+    max_requests_per_minute: Annotated[
+        int | None,
+        typer.Option(
+            "--max-requests-per-minute", min=1, help="Send no faster than this many requests."
+        ),
+    ] = None,
 ) -> None:
     """Report what probing this endpoint or MCP server would cost, without contacting it.
 
@@ -483,7 +509,9 @@ def plan_probe(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; thi
     Nothing here reads a key variable: a plan needs no secret.
 
     The budget is applied to the target as the probe applies it, so a token ceiling
-    its transport cannot report against is refused here too.
+    its transport cannot report against is refused here too. Under a request rate the
+    plan states the least wall time the estimated requests need at that pace, retries
+    not counted, and refuses a duration ceiling below it.
 
     With `--fixtures`, the two seeded checks are priced from the file — one request per
     item and tenant per trial, and one per poisoned document per trial — and each tenant
@@ -502,6 +530,7 @@ def plan_probe(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; thi
             max_input_tokens=max_input_tokens,
             max_output_tokens=max_output_tokens,
             max_duration=max_duration,
+            max_requests_per_minute=max_requests_per_minute,
         ),
         trials=prof.trials if trials is None else trials,
     )

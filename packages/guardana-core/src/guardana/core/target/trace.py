@@ -138,10 +138,10 @@ class TraceTarget(Target):
         return tuple(seen.values())
 
     def apply_budgets(self, budgets: Budgets) -> None:
-        """Accept request and token ceilings, which reading a file cannot exceed; refuse a clock.
+        """Accept the ceilings reading a file cannot exceed; refuse a clock.
 
         The same split as a file scan, for the same reason. Analysing a trace sends
-        nothing, so a request or token ceiling is satisfied by construction and
+        nothing, so a request, token or rate ceiling is satisfied by construction and
         accepting it is honest — while a duration ceiling would promise an
         interruption this target does not perform.
 

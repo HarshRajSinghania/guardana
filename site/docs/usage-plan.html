@@ -411,6 +411,11 @@ run they are pricing would use, so both take the same plugin-trust flags
 <td><code>plan probe</code> only: the ceilings <code>probe</code> would apply. A token ceiling on a transport that reports no token counts (an adapter, <code>--provider tgi</code>) is refused (exit <code>3</code>), as <code>probe</code> refuses it</td>
 </tr>
 <tr>
+<td><code>--max-requests-per-minute INTEGER</code></td>
+<td>the profile's <code>budgets:</code></td>
+<td><code>plan probe</code> only: the pace <code>probe</code> would keep. The plan states the wall time it needs and refuses a <code>--max-duration</code> below it (exit <code>3</code>) — see <a href="#checking-against-a-budget">Checking against a budget</a></td>
+</tr>
+<tr>
 <td><code>--no-plugins</code></td>
 <td>off</td>
 <td><code>plan scan</code> only: deprecated alias for <code>--plugins disabled</code></td>
@@ -467,7 +472,7 @@ trials: 5 attempt(s) per case, counted in the requests above
     …
 </code></pre>
 <p><code>--format json</code> carries the same facts as <code>trials.per_case</code> and <code>trials.single_attempt</code>
-(plan schema <code>3</code>, <a href="https://github.com/guardana/guardana/blob/main/schemas/plan-v3.schema.json"><code>schemas/plan-v3.schema.json</code></a>). See
+(plan schema <code>4</code>, <a href="https://github.com/guardana/guardana/blob/main/schemas/plan-v4.schema.json"><code>schemas/plan-v4.schema.json</code></a>). See
 <a href="usage-probe.html#repeated-trials"><code>usage-probe.md</code></a> for what a trial is.</p>
 <h2 id="pricing-judge-calls">Pricing judge calls</h2>
 <p>A rule graded by a judge configured under <code>evaluators:</code> — <code>llm_judge</code>,
@@ -563,6 +568,16 @@ configuration, found before the run rather than halfway through it:</p>
 </code></pre>
 <p>A token ceiling a judge's transport cannot enforce is refused with <code>3</code> too, the same
 way <code>probe</code> refuses it.</p>
+<p>With <code>max_requests_per_minute</code> set, the plan states the least wall time the run needs
+at that pace: the estimated target requests — a rule of unknown cost counted once — or
+the calls of the busiest judge meter, whichever is larger, times <code>60 / N</code>. Retries and
+the time each reply takes are not counted, so the real run takes longer. A
+<code>max_duration</code> below that floor exits <code>3</code>, and <code>fits_budget</code> is <code>false</code> in the JSON:</p>
+<pre><code class="language-text">wall time: at least 590s at 6 request(s) per minute, retries not counted
+⚠ this plan does not fit its time budget — 300s is less than the 590s its requests need at 6 per minute, so the run would stop early, and a run that stops early reports no verdict
+</code></pre>
+<p>The JSON carries both as <code>budgets.max_requests_per_minute</code> and
+<code>budgets.minimum_wall_time_seconds</code>, null when no rate is set.</p>
 <h2 id="a-run-that-could-not-pass">A run that could not pass</h2>
 <p>The plan exits <code>3</code> as well when the run it describes could not pass, and says why
 on stderr, one line per cause:</p>

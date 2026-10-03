@@ -401,6 +401,11 @@
 <p>Each custom-target cycle builds a fresh target from the locator, so per-cycle
 budgets and usage have the same lifetime as the built-in connection. The target
 flags are mutually exclusive with the built-in connection flags.</p>
+<p><code>monitor</code> takes no budget flags: every cycle is held to the profile's <code>budgets:</code>, each on a
+meter of its own. <code>max_requests_per_minute</code> paces a cycle's requests, retries included, and
+each judge's calls on the judge's own meter; a cycle whose next slot lies past
+<code>max_duration</code> stops as budget-stopped. The pace starts again with each cycle's meter, so
+keep <code>--interval</code> at least <code>60 / N</code> seconds for the rate to hold between cycles too.</p>
 <p>Note: <code>monitor</code> has no <code>--format</code> flag — alerts are always printed as human
 text (findings inside an alert use the <code>human</code> renderer); forward to a
 collector for machine-readable persistence. The alert renders with the gate its cycle

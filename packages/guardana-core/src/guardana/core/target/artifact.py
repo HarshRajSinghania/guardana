@@ -84,9 +84,9 @@ class ArtifactTarget(Target):
         return TargetUsage(requests=0)
 
     def apply_budgets(self, budgets: Budgets) -> None:
-        """Accept request and token ceilings, which a file scan cannot exceed; refuse a clock.
+        """Accept the ceilings a file scan cannot exceed; refuse a clock.
 
-        Scanning files sends nothing, so a request or token ceiling is satisfied
+        Scanning files sends nothing, so a request, token or rate ceiling is satisfied
         by construction and accepting it is honest. A duration ceiling is
         different: this target does not stop itself part-way, so accepting one
         would promise something it does not do.

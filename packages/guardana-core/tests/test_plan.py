@@ -6,10 +6,11 @@ between a ceiling and a number that happens to be small.
 """
 
 from collections.abc import Iterable
+from dataclasses import replace
 from pathlib import Path
 
 from guardana.core.budget import Budgets
-from guardana.core.plan import RunPlan, build_plan
+from guardana.core.plan import JudgeMeterPlan, JudgePlan, RunPlan, build_plan
 from guardana.core.profile import Policy, Profile
 from guardana.core.registry import Registry
 from guardana.core.report import Finding
@@ -140,3 +141,59 @@ def test_a_rule_the_policy_excludes_is_absent_entirely() -> None:
 
     assert plan.rules == ()
     assert plan.skipped == (), "excluded by policy is not the same as skipped for capability"
+
+
+def _planned(budgets: Budgets, *, max_requests: int = 30, unknown: tuple[str, ...] = ()) -> RunPlan:
+    return RunPlan(
+        rules=("guardana.test.priced", *unknown),
+        skipped=(),
+        unknown_cost=unknown,
+        min_requests=1 + len(unknown),
+        max_requests=max_requests,
+        budgets=budgets,
+    )
+
+
+def test_a_request_rate_sets_a_floor_on_wall_time() -> None:
+    plan = _planned(Budgets(max_requests_per_minute=10))
+
+    assert plan.minimum_wall_time_seconds == 180.0
+
+
+def test_a_rule_of_unknown_cost_adds_at_least_one_paced_request() -> None:
+    plan = _planned(Budgets(max_requests_per_minute=60), unknown=("acme.test.unpriced",))
+
+    assert plan.minimum_wall_time_seconds == 31.0
+
+
+def test_the_busiest_judge_meter_can_set_the_floor() -> None:
+    plan = replace(
+        _planned(Budgets(max_requests_per_minute=60), max_requests=5),
+        judge=JudgePlan(
+            max_calls=40,
+            meters=(JudgeMeterPlan(evaluators=("llm_judge",), max_calls=40),),
+            unknown_cost=(),
+            unknown_on_meter=False,
+        ),
+    )
+
+    assert plan.minimum_wall_time_seconds == 40.0
+
+
+def test_without_a_rate_there_is_no_floor() -> None:
+    plan = _planned(Budgets(max_duration_seconds=1.0))
+
+    assert plan.minimum_wall_time_seconds is None
+    assert plan.exceeds_duration is False
+
+
+def test_a_duration_ceiling_below_the_floor_does_not_fit() -> None:
+    plan = _planned(Budgets(max_requests_per_minute=10, max_duration_seconds=179.0))
+
+    assert plan.exceeds_duration is True
+
+
+def test_a_duration_ceiling_at_the_floor_fits() -> None:
+    plan = _planned(Budgets(max_requests_per_minute=10, max_duration_seconds=180.0))
+
+    assert plan.exceeds_duration is False

@@ -89,6 +89,14 @@ def grade(  # noqa: PLR0913, PLR0917 — Typer surface
     max_duration: Annotated[
         str | None, typer.Option("--max-duration", help="Wall-clock ceiling, e.g. 15m.")
     ] = None,
+    max_requests_per_minute: Annotated[
+        int | None,
+        typer.Option(
+            "--max-requests-per-minute",
+            min=1,
+            help="Pace each judge to this many requests a minute.",
+        ),
+    ] = None,
     plugins: PluginsOption = None,
     allow_plugin: AllowPluginOption = None,
 ) -> None:
@@ -103,6 +111,7 @@ def grade(  # noqa: PLR0913, PLR0917 — Typer surface
             max_input_tokens=max_input_tokens,
             max_output_tokens=max_output_tokens,
             max_duration=max_duration,
+            max_requests_per_minute=max_requests_per_minute,
         ),
         trials=prof.trials if trials is None else trials,
     )

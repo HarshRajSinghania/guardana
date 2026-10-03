@@ -276,17 +276,28 @@ budgets:
   max_input_tokens: 250000
   max_output_tokens: 100000
   max_duration: 15m        # number with s / m / h; a bare number is seconds
+  max_requests_per_minute: 30
 ```
 
-Every ceiling is optional, and `probe` takes the same four as flags
+Every ceiling is optional, and `probe` takes the same five as flags
 (`--max-requests`, `--max-input-tokens`, `--max-output-tokens`,
-`--max-duration`), which win over the file. A flag sets only the ceiling it
+`--max-duration`, `--max-requests-per-minute`), which win over the file; `grade` and
+`plan probe` take them too. A flag sets only the ceiling it
 names — it never clears one the profile configured.
 
 Ceilings are checked **before each request**, so `max_requests: 200` means 200
 requests were sent and never 201. A retry is a request: a call that is rate-limited
 twice and then answered spends three. Token and duration ceilings can only be checked
 once a request has been answered, so they stop the *next* one.
+
+`max_requests_per_minute` paces the run instead of ending it: each request, a retry
+included, waits for a slot at least `60 / N` seconds after the one before, so the rules
+running at once share one rate. Every meter the budgets reach keeps it — the target's, and
+each judge's own. A slot that lies past `max_duration` is not waited for: the run stops as
+an exhausted budget, exit `6`. A target that sends nothing (a file scan, a trace, a
+recording) accepts a rate, as it accepts `max_requests`. [`guardana plan
+probe`](usage-plan.md#checking-against-a-budget) states the wall time a rate needs and
+refuses a `max_duration` below it.
 
 A token ceiling is held only while replies report their token counts. The first
 reply that leaves out a count a ceiling depends on stops the run as an exhausted

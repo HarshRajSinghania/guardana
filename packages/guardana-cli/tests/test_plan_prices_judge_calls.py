@@ -23,7 +23,7 @@ from typer.testing import CliRunner
 
 runner = CliRunner()
 
-_SCHEMA = Path(__file__).resolve().parents[3] / "schemas" / "plan-v3.schema.json"
+_SCHEMA = Path(__file__).resolve().parents[3] / "schemas" / "plan-v4.schema.json"
 _JUDGE = "  llm_judge: {endpoint: 'http://judge.test/v1', model: j, min_agreement: 3}"
 
 

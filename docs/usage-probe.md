@@ -53,6 +53,7 @@ guardana probe (--url <base-url> --model <name> | --target <scheme://locator>) [
 | `--write-mcp-pin PATH` | none | Write the server's current manifest as approved, and exit without reporting |
 | `--allow-exec` | off | Permit `--mcp` to **start** an stdio server, which executes the code under examination |
 | `--max-requests`, `--max-input-tokens`, `--max-output-tokens`, `--max-duration` | the profile's `budgets:` | Ceilings on what the run may spend — see [`profiles.md`](profiles.md#budgets--a-ceiling-on-what-a-run-may-spend). A token ceiling on a transport that reports no token counts (an adapter, `--provider tgi`) is refused before anything is sent (exit `3`), as `plan probe` refuses it |
+| `--max-requests-per-minute INTEGER` | the profile's `budgets:` | Send no faster than this: each request, a retry included, waits for a slot `60 / N` seconds after the one before, shared by every rule running at once. Each judge under `evaluators:` paces itself at the same rate on its own meter. A wait that would pass `--max-duration` stops the run as a spent budget (exit `6`) instead |
 | `--safety [passive\|active\|side-effecting]` | `active` | How far rules may reach; a rule above it is skipped |
 | `--allow-destructive` | off | Permit rules that can destroy or alter something the target owns |
 | `--ai-system TEXT` | none | Which AI system this run verifies, e.g. `support-agent`. Never guessed. |

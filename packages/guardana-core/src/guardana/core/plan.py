@@ -153,6 +153,29 @@ class RunPlan:
         over_judge = self.judge is not None and self.judge.exceeds(limit)
         return not self.requests_complete or self.max_requests > limit or over_judge
 
+    @property
+    def minimum_wall_time_seconds(self) -> float | None:
+        """The least wall time the run needs at its request rate, or None without a rate.
+
+        Each estimated request waits `60 / N` seconds for its slot; a rule of unknown cost
+        counts as the one request it sends at least, and each budgeted judge paces on its
+        own meter, so the busiest meter sets the floor. Retries are not counted.
+        """
+        rate = self.budgets.max_requests_per_minute
+        if rate is None:
+            return None
+        paced = [self.max_requests + len(self.unknown_cost)]
+        if self.judge is not None:
+            paced.extend(meter.max_calls for meter in self.judge.meters)
+        return max(paced) * 60.0 / rate
+
+    @property
+    def exceeds_duration(self) -> bool:
+        """Whether the duration ceiling is below the wall time the request rate needs."""
+        limit = self.budgets.max_duration_seconds
+        floor = self.minimum_wall_time_seconds
+        return limit is not None and floor is not None and limit < floor
+
 
 def build_plan(  # noqa: PLR0913 — what is run, against what, and how the run splits it
     registry: Registry,

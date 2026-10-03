@@ -659,15 +659,24 @@ differently-named profile <em>files</em> as you like and select one with <code>-
   max_input_tokens: 250000
   max_output_tokens: 100000
   max_duration: 15m        # number with s / m / h; a bare number is seconds
+  max_requests_per_minute: 30
 </code></pre>
-<p>Every ceiling is optional, and <code>probe</code> takes the same four as flags
+<p>Every ceiling is optional, and <code>probe</code> takes the same five as flags
 (<code>--max-requests</code>, <code>--max-input-tokens</code>, <code>--max-output-tokens</code>,
-<code>--max-duration</code>), which win over the file. A flag sets only the ceiling it
+<code>--max-duration</code>, <code>--max-requests-per-minute</code>), which win over the file; <code>grade</code> and
+<code>plan probe</code> take them too. A flag sets only the ceiling it
 names — it never clears one the profile configured.</p>
 <p>Ceilings are checked <strong>before each request</strong>, so <code>max_requests: 200</code> means 200
 requests were sent and never 201. A retry is a request: a call that is rate-limited
 twice and then answered spends three. Token and duration ceilings can only be checked
 once a request has been answered, so they stop the <em>next</em> one.</p>
+<p><code>max_requests_per_minute</code> paces the run instead of ending it: each request, a retry
+included, waits for a slot at least <code>60 / N</code> seconds after the one before, so the rules
+running at once share one rate. Every meter the budgets reach keeps it — the target's, and
+each judge's own. A slot that lies past <code>max_duration</code> is not waited for: the run stops as
+an exhausted budget, exit <code>6</code>. A target that sends nothing (a file scan, a trace, a
+recording) accepts a rate, as it accepts <code>max_requests</code>. <a href="usage-plan.html#checking-against-a-budget"><code>guardana plan probe</code></a> states the wall time a rate needs and
+refuses a <code>max_duration</code> below it.</p>
 <p>A token ceiling is held only while replies report their token counts. The first
 reply that leaves out a count a ceiling depends on stops the run as an exhausted
 budget, exit <code>6</code>, because no later request could be measured against it.</p>

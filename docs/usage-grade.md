@@ -117,8 +117,9 @@ Measured
 
 No request reaches the target: the saved run records `usage.requests: 0`. A judge configured
 under `evaluators:` is called as in a probe, metered on its own and held to the budget flags
-(`--max-requests`, `--max-input-tokens`, `--max-output-tokens`, `--max-duration`) and the
-profile's `budgets:`. Before the first call, `grade` prints on stderr where each judge's calls
+(`--max-requests`, `--max-input-tokens`, `--max-output-tokens`, `--max-duration`,
+`--max-requests-per-minute`) and the profile's `budgets:`; a rate paces each judge on its own
+meter. Before the first call, `grade` prints on stderr where each judge's calls
 go, how many there can be and the budget they are held to, or that none is set. A judge that
 cannot be reached stops the run with exit `4`.
 

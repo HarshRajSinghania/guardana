@@ -118,7 +118,7 @@ def test_the_schema_version_in_each_schema_matches_the_code() -> None:
     assert _schema("diff-v3.schema.json")["properties"]["schema_version"]["const"] == (  # type: ignore[index]
         DIFF_SCHEMA_VERSION
     )
-    assert _schema("plan-v3.schema.json")["properties"]["schema_version"]["const"] == (  # type: ignore[index]
+    assert _schema("plan-v4.schema.json")["properties"]["schema_version"]["const"] == (  # type: ignore[index]
         PLAN_SCHEMA_VERSION
     )
     assert _schema("run-v16.schema.json")["properties"]["schema_version"]["const"] == (  # type: ignore[index]

@@ -423,6 +423,11 @@ Hugging Face TGI's <code>/generate</code>.</p>
 <td>Ceilings on what the run may spend — see <a href="profiles.html#budgets--a-ceiling-on-what-a-run-may-spend"><code>profiles.md</code></a>. A token ceiling on a transport that reports no token counts (an adapter, <code>--provider tgi</code>) is refused before anything is sent (exit <code>3</code>), as <code>plan probe</code> refuses it</td>
 </tr>
 <tr>
+<td><code>--max-requests-per-minute INTEGER</code></td>
+<td>the profile's <code>budgets:</code></td>
+<td>Send no faster than this: each request, a retry included, waits for a slot <code>60 / N</code> seconds after the one before, shared by every rule running at once. Each judge under <code>evaluators:</code> paces itself at the same rate on its own meter. A wait that would pass <code>--max-duration</code> stops the run as a spent budget (exit <code>6</code>) instead</td>
+</tr>
+<tr>
 <td><code>--safety [passive|active|side-effecting]</code></td>
 <td><code>active</code></td>
 <td>How far rules may reach; a rule above it is skipped</td>

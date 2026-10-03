@@ -96,6 +96,7 @@ def _plan() -> RunPlan:
             max_input_tokens=50_000,
             max_output_tokens=25_000,
             max_duration_seconds=90.5,
+            max_requests_per_minute=120,
         ),
         trials=5,
         single_attempt=("guardana.mcp.auth.unauthenticated_access",),
@@ -178,10 +179,10 @@ def test_the_published_diff_schema_requires_every_key_the_writer_emits() -> None
 def test_the_published_plan_schema_requires_every_key_the_writer_emits() -> None:
     document: Document = json.loads(_render_json(_plan()))
 
-    optional = _unrequired(document, "plan-v3.schema.json")
+    optional = _unrequired(document, "plan-v4.schema.json")
 
     assert not optional, (
-        "keys the plan writes that `plan-v3.schema.json` does not require:\n  "
+        "keys the plan writes that `plan-v4.schema.json` does not require:\n  "
         + "\n  ".join(optional)
     )
 

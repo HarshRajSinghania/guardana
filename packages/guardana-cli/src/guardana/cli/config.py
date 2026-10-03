@@ -46,6 +46,7 @@ def _resolved(profile: Profile, files: ProfileFiles) -> dict[str, object]:
             "max_input_tokens": budgets.max_input_tokens,
             "max_output_tokens": budgets.max_output_tokens,
             "max_duration_seconds": budgets.max_duration_seconds,
+            "max_requests_per_minute": budgets.max_requests_per_minute,
         },
         "privacy": {
             "evidence_mode": str(privacy.mode),
