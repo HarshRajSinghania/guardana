@@ -6,8 +6,8 @@ from guardana.core.rule.fixture import FixtureOutcome, RuleFixture, materialise
 from guardana.core.safety import Detection, Impact
 from guardana.core.severity import Severity
 from guardana.core.target import (
+    A2aAnonymous,
     A2aAnswer,
-    A2aReply,
     A2aSecurity,
     A2aView,
     Capability,
@@ -32,10 +32,13 @@ class A2aCallerIdentityRule(A2aRule):
     presenting nothing, under any declaration: the extended card exists to say more to
     a caller the agent knows.
 
-    An optional requirement makes an anonymous answer what the card declared. A
-    "task not found" is never graded: the specification asks an agent not to tell
-    "absent" from "not yours", and a random id exists for nobody. So an agent that
-    neither refused nor answered any anonymous read is inconclusive, never clean.
+    An optional requirement makes an anonymous answer what the card declared, so only
+    an undecided extended card is left open under it. A "task not found" is never
+    graded: the specification asks an agent not to tell "absent" from "not yours", and
+    a random id exists for nobody. So an agent that neither refused nor answered any
+    anonymous read is inconclusive, never clean, and so is one whose card requires a
+    credential and that answered an anonymous read with "task not found" rather than a
+    refusal.
     """
 
     meta = RuleMeta(
@@ -122,7 +125,7 @@ class A2aCallerIdentityRule(A2aRule):
                 "the agent served its extended card to a caller presenting no credential",
             )
         if not reported:
-            yield from self._undecided(view, anonymous.sent, anonymous.get_task)
+            yield from self._undecided(view, anonymous, security)
 
     def _unguarded(self, view: A2aView, answered: Sequence[str]) -> Finding:
         said = f"the card declares no security, and the agent answered {_listed(answered)} to a "
@@ -139,8 +142,11 @@ class A2aCallerIdentityRule(A2aRule):
         )
 
     def _undecided(
-        self, view: A2aView, sent: Sequence[A2aReply], get_task: A2aReply | None
+        self, view: A2aView, anonymous: A2aAnonymous, security: A2aSecurity
     ) -> Iterator[Finding]:
+        """Say why no anonymous answer settled the question, where the card leaves it open."""
+        get_task = anonymous.get_task
+        sent = anonymous.sent
         if (
             get_task is not None
             and get_task.answer is A2aAnswer.OTHER
@@ -152,12 +158,23 @@ class A2aCallerIdentityRule(A2aRule):
                 "A2A defines, so whether it speaks A2A 1.0 at all is unknown",
             )
             return
+        if security is A2aSecurity.OPTIONAL and anonymous.extended_card is None:
+            return
         if not any(reply.answer in _DECISIVE for reply in sent):
             said = "; ".join(f"{reply.method}: {reply.detail}" for reply in sent)
             yield self.unverified(
                 view,
                 "the agent neither refused nor answered a caller without a credential, so "
                 "whether it requires one could not be shown" + (f" ({said})" if said else ""),
+            )
+            return
+        not_found = [reply.method for reply in sent if reply.answer is A2aAnswer.NOT_FOUND]
+        if security is A2aSecurity.REQUIRED and not_found:
+            yield self.unverified(
+                view,
+                f"the card requires a credential, and the agent answered {_listed(not_found)} "
+                f"from a caller presenting none with task not found instead of refusing it, so "
+                f"whether it checks a credential there could not be shown",
             )
 
 

@@ -96,8 +96,11 @@ class A2aAgentCardRule(A2aRule):
             and urlsplit(interface).scheme == "http"
             and not view.jsonrpc_interface_is_local
         ):
-            defects.append(
-                "its JSON-RPC 1.0 interface is plain http on a host that is not loopback or private"
+            judged = (
+                "not shown to be loopback or private"
+                if view.jsonrpc_interface_judged_by_url
+                else "that is not loopback or private"
             )
+            defects.append(f"its JSON-RPC 1.0 interface is plain http on a host {judged}")
         if defects:
             yield self.finding(view, f"the agent card at {view.card_url}: {'; '.join(defects)}")

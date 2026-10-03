@@ -49,7 +49,7 @@ class A2aRule(Rule):
             title=self.meta.title,
             taxonomy=self.meta.taxonomy,
             target_ref=view.agent,
-            evidence=Evidence(summary=summary, detail=f"agent={view.agent}"),
+            evidence=Evidence(summary=summary, detail=_detail(view)),
         )
 
     def unverified(self, view: A2aView, why: str) -> Finding:
@@ -60,6 +60,12 @@ class A2aRule(Rule):
             title=self.meta.title,
             taxonomy=self.meta.taxonomy,
             target_ref=view.agent,
-            evidence=Evidence(summary=why, detail=f"agent={view.agent}"),
+            evidence=Evidence(summary=why, detail=_detail(view)),
             verdict=Verdict("inconclusive", 0.0, why, self.meta.id),
         )
+
+
+def _detail(view: A2aView) -> str:
+    """Name the agent and, once one was examined, the JSON-RPC interface its answers came from."""
+    interface = view.examined_interface
+    return f"agent={view.agent}" + (f" interface={interface}" if interface is not None else "")

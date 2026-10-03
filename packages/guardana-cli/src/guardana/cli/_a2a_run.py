@@ -19,6 +19,7 @@ from guardana.core.profile import Profile
 from guardana.core.registry import Registry
 from guardana.core.runner import DEFAULT_ENDPOINT_CONCURRENCY
 from guardana.core.target import A2aAgentTarget, private_url_parts
+from guardana.core.target.a2a import CARD_OR_ORIGIN, names_card_or_origin
 from guardana.core.verify import Verification, Verifier
 
 _HTTP_PREFIXES = ("http://", "https://")
@@ -62,9 +63,11 @@ def connection_from(
 
 
 def refuse_address(address: str) -> None:
-    """Refuse an agent address that is not http(s), or that carries userinfo."""
+    """Refuse an address that is not http(s), names neither card nor origin, or has userinfo."""
     if not address.startswith(_HTTP_PREFIXES):
         raise typer.BadParameter("the A2A agent needs an http or https URL", param_hint="'--a2a'")
+    if not names_card_or_origin(address):
+        raise typer.BadParameter(CARD_OR_ORIGIN, param_hint="'--a2a'")
     if "userinfo" in private_url_parts(address):
         raise typer.BadParameter(
             "the A2A agent URL carries userinfo, which cannot be sent; pass bearer tokens "

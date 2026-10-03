@@ -103,6 +103,26 @@ def test_an_extended_card_served_anonymously_is_high(origin: Origin) -> None:
     assert "extended card" in findings[0].evidence.summary
 
 
+@pytest.mark.parametrize("origin", [a2a.get_task_unguarded], indirect=True)
+def test_a_get_task_route_without_authentication_shows_the_first_callers_task(
+    origin: Origin,
+) -> None:
+    verification = _verify(origin)
+    findings, unsettled = _of(verification, _TASKS)
+    identity, identity_open = _of(verification, _CALLERS)
+
+    summaries = sorted(f.evidence.summary for f in findings)
+    assert [f.severity for f in findings] == [Severity.HIGH, Severity.HIGH]
+    assert "presented no credential read the first caller's task" in summaries[0]
+    assert "second caller read 1 of 1" in summaries[1]
+    assert unsettled == []
+    assert identity == []
+    assert len(identity_open) == 1
+    assert "GetTask" in identity_open[0].evidence.summary
+    anonymous = [seen for seen in origin.seen if seen.method == "POST" and not seen.authorization]
+    assert len(anonymous) == 3, "random GetTask, ListTasks, and GetTask on the listed task"
+
+
 @pytest.mark.parametrize("origin", [a2a.no_list_tasks], indirect=True)
 def test_an_agent_without_list_tasks_is_recorded_as_not_offered(origin: Origin) -> None:
     result = _verify(origin).result

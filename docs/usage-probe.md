@@ -55,7 +55,7 @@ guardana probe (--url <base-url> --model <name> | --target <scheme://locator> | 
 | `--write-mcp-pin PATH` | none | Write the server's current manifest as approved, and exit without reporting |
 | `--mcp-registry-entry PATH` | none | The server's registry `server.json`, compared with the URL the server answered at and the version it reports — see [The registry entry](#the-registry-entry). A file that cannot be read or is not an entry is refused (exit `3`); needs `--mcp` |
 | `--allow-exec` | off | Permit `--mcp` to **start** an stdio server, which executes the code under examination. Without it an stdio command is refused (exit `3`) and nothing is started |
-| `--a2a TEXT` | none | Examine an **A2A agent** at this http(s) URL instead of a chat model — see [Probing an A2A agent](#probing-an-a2a-agent). Refused with the endpoint and MCP flags (exit `3`) |
+| `--a2a TEXT` | none | Examine an **A2A agent** instead of a chat model: the http(s) URL of its card (ending in `.json`) or its origin; any other path is refused (exit `3`) — see [Probing an A2A agent](#probing-an-a2a-agent). Refused with the endpoint and MCP flags (exit `3`) |
 | `--a2a-token-env TEXT` | none | Name of an environment variable holding the first caller's bearer token for the A2A agent. An unset or empty variable is refused (exit `3`) |
 | `--a2a-other-token-env TEXT` | none | Name of an environment variable holding a second, different caller's bearer token. Needs `--a2a-token-env`; the same value in both is refused (exit `3`) |
 | `--max-requests`, `--max-input-tokens`, `--max-output-tokens`, `--max-duration` | the profile's `budgets:` | Ceilings on what the run may spend — see [`profiles.md`](profiles.md#budgets--a-ceiling-on-what-a-run-may-spend). A token ceiling on a transport that reports no token counts (an adapter, `--provider tgi`) is refused before anything is sent (exit `3`), as `plan probe` refuses it |
@@ -333,7 +333,9 @@ tasks. The second variable without the first, or both holding the same value, is
 both flags.
 
 **Where it sends.** The card is the `--a2a` URL itself when its path ends in `.json`,
-otherwise `/.well-known/agent-card.json` on its origin. Every later request goes to the
+otherwise `/.well-known/agent-card.json` on its origin. A URL with any other path is
+refused (exit `3`): pass the agent card's URL or the agent's origin, since the origin's
+card may describe another agent than the path. Every later request goes to the
 card's first `JSONRPC` interface for protocol version `1.0`. That interface must be on the
 origin you named: an interface elsewhere, or no JSON-RPC 1.0 interface, sends nothing
 further, and every check that needs the agent reports `inconclusive` naming what the card
@@ -344,9 +346,12 @@ offers ("run --a2a against that origin"). A credential never leaves the origin y
 - without a credential: `GetTask` for a random id, `ListTasks` for one task, and
   `GetExtendedAgentCard` when the card declares an extended card;
 - as the first caller: `ListTasks` for up to five tasks;
-- as the second caller: `GetTask` on up to three of the first caller's tasks.
+- as the second caller: `GetTask` on up to three of the first caller's tasks;
+- without a credential again: `GetTask` on one of the first caller's tasks.
 
-The two callers' requests are sent only when both tokens are given.
+The two callers' requests, and the anonymous read of a listed task, are sent only when
+both tokens are given. Every finding records the JSON-RPC interface it was examined
+through, without credentials.
 
 **Never** `SendMessage`, `CancelTask`, a subscription or a push-notification
 configuration: Guardana creates no task and changes nothing on the agent. Task ids the
@@ -368,16 +373,17 @@ checks that need a credential report `inconclusive`, naming the schemes the card
 
 | Rule | What it establishes |
 |---|---|
-| `guardana.a2a.agent_card` | The card has every required field (`name`, `description`, `supportedInterfaces`, `version`, `capabilities`, `defaultInputModes`, `defaultOutputModes`, `skills`), every scheme a requirement names is declared, and its JSON-RPC 1.0 interface is not plain `http` unless that interface's own host is loopback or private. One `medium` finding lists every defect |
-| `guardana.a2a.caller_identity` | The agent does not answer a caller presenting nothing when the card requires a credential (`high`), or when it declares no security (`high`, `low` on a loopback or private address); and it never serves its extended card anonymously (`high`). An optional requirement makes an anonymous answer what the card declared. An agent that neither refused nor answered any anonymous request is `inconclusive` |
-| `guardana.a2a.task_visibility` | An anonymous `ListTasks` lists no task, and the second caller cannot read a task the first caller listed as its own (`high` each). An anonymous listing answered with an error that is neither a refusal nor a result is `inconclusive` |
+| `guardana.a2a.agent_card` | The card has every required field (`name`, `description`, `supportedInterfaces`, `version`, `capabilities`, `defaultInputModes`, `defaultOutputModes`, `skills`), every scheme a requirement names is declared, and its JSON-RPC 1.0 interface is not plain `http` unless that interface's own host is loopback or private — on the agent's host, whatever the port, judged by the addresses the run's connections reached; on another host, by its URL alone, and then worded "not shown to be loopback or private". One `medium` finding lists every defect |
+| `guardana.a2a.caller_identity` | The agent does not answer a caller presenting nothing when the card requires a credential (`high`), or when it declares no security (`high`, `low` on a loopback or private address); and it never serves its extended card anonymously (`high`). An optional requirement makes an anonymous answer what the card declared. An agent that neither refused nor answered any anonymous request is `inconclusive` (under an optional requirement, only when it was sent the extended-card request), and so is one whose card requires a credential and that answered an anonymous request with "task not found" instead of refusing it, naming the method |
+| `guardana.a2a.task_visibility` | An anonymous `ListTasks` lists no task, and neither the second caller nor a caller presenting no credential can read a task the first caller listed as its own (`high` each). An anonymous listing or read answered with an error that is neither a refusal nor a result is `inconclusive` |
 
 A "task not found" is never graded: the specification asks an agent not to tell "absent"
 from "not yours", and a random id exists for nobody. An agent that answers every
 `ListTasks` it was sent as an operation it does not support (`-32004`, or `-32601` once it
 answered with an A2A error code) has no listing to grade: `task_visibility` is skipped
 `not_offered`, a coverage gap that `fail_on.fail_on_skipped` and `--preset release` turn
-into an indeterminate run.
+into an indeterminate run. The terminal report names each `not_offered` skip in its summary
+line and prints no `✓` over one.
 
 **When the agent fails.** The card and the first caller's request are the conversation, and
 fail as an MCP server's does: no reply, `404`, `408`, `425`, `429`, `5xx`, a reply that is
@@ -392,7 +398,7 @@ Once the agent answered a result or an A2A error code, the run records
 declares. The HTTP+JSON and gRPC bindings are not spoken, and an interface on another
 origin is not followed.
 
-A whole A2A probe sends at most eight requests; `guardana plan probe --a2a URL` prices it
+A whole A2A probe sends at most nine requests; `guardana plan probe --a2a URL` prices it
 before anything is sent.
 
 ## Probing a guarded endpoint

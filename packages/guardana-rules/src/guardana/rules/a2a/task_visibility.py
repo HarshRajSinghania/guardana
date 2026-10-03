@@ -21,14 +21,15 @@ from guardana.rules.a2a._base import A2aRule
 class A2aTaskVisibilityRule(A2aRule):
     """An A2A agent that shows one caller's tasks to somebody else.
 
-    A task holds what a caller asked an agent to do and what came back. Two ways to
+    A task holds what a caller asked an agent to do and what came back. Three ways to
     see one that is not yours: an anonymous `ListTasks` that lists any task at all —
     a caller presenting nothing owns none, so they are somebody else's — and a second
-    caller reading, by id, a task the first caller listed as its own.
+    caller, or a caller presenting nothing, reading by id a task the first caller listed
+    as its own.
 
-    The second half needs two credentials for two different callers
+    The reads by id need two credentials for two different callers
     (`--a2a-token-env` and `--a2a-other-token-env`) and a card whose security a bearer
-    token can satisfy; without them it is inconclusive, and so is the first half when the
+    token can satisfy; without them they are inconclusive, and so is the listing when the
     anonymous `ListTasks` met neither a result nor a refusal. Only reads are sent; no task is
     created. A "task not found" is never graded, since the specification asks an
     agent not to tell "absent" from "not yours". An agent that answers every
@@ -49,8 +50,8 @@ class A2aTaskVisibilityRule(A2aRule):
 
     @property
     def estimated_requests(self) -> int:
-        """The card, the three anonymous reads, the first caller's listing, three cross reads."""
-        return 8
+        """The card, three anonymous reads, the listing, three cross reads, one anonymous read."""
+        return 9
 
     def fixtures(self) -> Iterable[RuleFixture]:
         """Sample a shared owner, an owner-bound agent, a missing second caller, no listing."""
@@ -80,25 +81,19 @@ class A2aTaskVisibilityRule(A2aRule):
         )
 
     def examine(self, view: A2aView) -> Iterator[Finding]:
-        """Grade the anonymous listing, then the second caller's reads of the first's tasks."""
+        """Grade the anonymous listing, then the reads of the first caller's tasks by others.
+
+        The anonymous listing is graded before the callers' section is read, so a run the
+        second caller's requests stop still reports it. A listing that was graded is one
+        the agent offers, so `NotOffered` is never raised after a report.
+        """
         anonymous = view.anonymous
-        callers = view.callers
         unsupported = view.unsupported
         if unsupported is not None:
             yield self.unverified(
                 view, f"whether tasks are kept per caller is unknown: {unsupported}"
             )
             return
-        listings = [
-            reply
-            for reply in (anonymous.list_tasks, callers.first_listing)
-            if reply is not None and reply.answer is not A2aAnswer.REFUSED
-        ]
-        if listings and all(reply.answer is A2aAnswer.NOT_OFFERED for reply in listings):
-            raise NotOffered(
-                "the agent answers ListTasks as an operation it does not offer",
-                missing=("ListTasks",),
-            )
         listed = anonymous.list_tasks
         if listed is not None and listed.lists_tasks:
             yield self.finding(
@@ -112,7 +107,36 @@ class A2aTaskVisibilityRule(A2aRule):
                 f"whether a caller presenting no credential is shown tasks is unknown: "
                 f"ListTasks met {listed.detail}",
             )
+        callers = view.callers
+        listings = [
+            reply
+            for reply in (listed, callers.first_listing)
+            if reply is not None and reply.answer is not A2aAnswer.REFUSED
+        ]
+        if listings and all(reply.answer is A2aAnswer.NOT_OFFERED for reply in listings):
+            raise NotOffered(
+                "the agent answers ListTasks as an operation it does not offer",
+                missing=("ListTasks",),
+            )
+        yield from self._anonymous_read(view, callers.anonymous_read)
         yield from self._across(view, callers)
+
+    def _anonymous_read(self, view: A2aView, read: A2aReply | None) -> Iterator[Finding]:
+        """Grade a caller presenting nothing asking for one of the first caller's tasks by id."""
+        if read is None:
+            return
+        if read.answer is A2aAnswer.ANSWERED:
+            yield self.finding(
+                view,
+                "a caller who presented no credential read the first caller's task by its "
+                "id through GetTask",
+            )
+        elif read.answer is A2aAnswer.OTHER:
+            yield self.unverified(
+                view,
+                f"whether a caller presenting no credential can read the first caller's task "
+                f"is unknown: GetTask met {read.detail}",
+            )
 
     def _across(self, view: A2aView, callers: A2aCallers) -> Iterator[Finding]:
         """Grade the second caller reading the first caller's tasks, or say why it was not."""

@@ -343,7 +343,10 @@ variable without the first, or both holding the same value, is a usage error. `S
 in `guardana.core.testing.a2a` (exported) doubles the agent for unit tests.
 
 **Origin.** Every request goes to the origin the operator named, through `sender`. The card is
-`url` itself when its path ends in `.json`, otherwise `<origin>/.well-known/agent-card.json`.
+`url` itself when its path ends in `.json`, otherwise `<origin>/.well-known/agent-card.json`; a
+`url` with any other path is refused, by the target (`ValueError`) and by `probe --a2a` and `plan
+probe --a2a` (exit `3`): "pass the agent card's URL (ending in .json) or the agent's origin",
+because the origin's card may describe another agent than the path.
 The interface is the first `supportedInterfaces` entry with `protocolBinding` `JSONRPC` and a
 `protocolVersion` whose major and minor are `1.0`; none, or one on another origin, sets
 `A2aView.unsupported` naming what the card offers ("the card's JSON-RPC 1.0 interface is on
@@ -365,7 +368,12 @@ schemes the card requires.
 and `A2A-Version: 1.0`: anonymous `GetTask {"id": <random UUID>}`, `ListTasks {"pageSize": 1}`,
 and `GetExtendedAgentCard {}` when `capabilities.extendedAgentCard` is true; the first caller's
 `ListTasks {"pageSize": 5}`; the second caller's `GetTask` on up to three of the first caller's
-ids. Never `SendMessage`, `CancelTask`, a subscription or a push configuration.
+ids; then one anonymous `GetTask` on the first of those ids, since a random id exists for nobody
+and cannot show a `GetTask` that serves any task to a caller presenting nothing. Never
+`SendMessage`, `CancelTask`, a subscription or a push configuration. A section already observed
+is returned even after a later request stopped the run, so what a rule reports does not depend
+on which thread asked first. Every A2A finding's evidence names the JSON-RPC interface examined,
+in display form.
 
 **Reading answers.** HTTP `401` or `403` → `refused`; `-32001` → `not_found`; a `result` →
 `answered`; `-32004` → `not_offered`; `-32601` → `not_offered` once an A2A-defined code came back
@@ -385,9 +393,9 @@ does the same for the session ids it collected.
 
 | rule | fires | inconclusive | not offered | taxonomy |
 |---|---|---|---|---|
-| `guardana.a2a.agent_card` | a required field missing (`name`, `description`, `supportedInterfaces`, `version`, `capabilities`, `defaultInputModes`, `defaultOutputModes`, `skills`); a requirement naming a scheme `securitySchemes` does not declare; a JSON-RPC 1.0 interface on plain `http` whose own host is not local — MEDIUM, one finding listing each | `card_error` | — | `ASI07:2026`, `ASI04:2026` |
-| `guardana.a2a.caller_identity` | security **required** and an anonymous `GetTask`, `ListTasks` or `GetExtendedAgentCard` `answered` → HIGH; security **none** and one `answered` → HIGH, LOW when the card host is local; the extended card `answered` anonymously → HIGH under any security — one finding per shape | `unsupported`; no anonymous request `refused` or `answered`; `GetTask` answered `-32601` before any A2A code | — | `ASI03:2026`, `ASI07:2026` |
-| `guardana.a2a.task_visibility` | an anonymous `ListTasks` `answered` with a task or `totalSize` above 0 → HIGH; the second caller `answered` a `GetTask` for the first caller's task → HIGH | `unsupported`; the anonymous `ListTasks` answered `other`; the cross-caller half when a credential is missing or could not be sent (naming the two flags or the card's schemes); the first caller listed no task; the second caller `refused` | every `ListTasks` sent answered `not_offered`, at least one sent | `ASI03:2026`, `ASI07:2026` |
+| `guardana.a2a.agent_card` | a required field missing (`name`, `description`, `supportedInterfaces`, `version`, `capabilities`, `defaultInputModes`, `defaultOutputModes`, `skills`); a requirement naming a scheme `securitySchemes` does not declare; a JSON-RPC 1.0 interface on plain `http` whose own host is not local (on the agent's host, whatever the port, judged by the connections the run made to that host; on another host by its URL alone, worded "not shown to be loopback or private") — MEDIUM, one finding listing each | `card_error` | — | `ASI07:2026`, `ASI04:2026` |
+| `guardana.a2a.caller_identity` | security **required** and an anonymous `GetTask`, `ListTasks` or `GetExtendedAgentCard` `answered` → HIGH; security **none** and one `answered` → HIGH, LOW when the card host is local; the extended card `answered` anonymously → HIGH under any security — one finding per shape | `unsupported`; no anonymous request `refused` or `answered` (under **optional** security only when the extended card was asked for); under **required** security an anonymous request answered `not_found` instead of `refused`, naming the method; `GetTask` answered `-32601` before any A2A code | — | `ASI03:2026`, `ASI07:2026` |
+| `guardana.a2a.task_visibility` | an anonymous `ListTasks` `answered` with a task or `totalSize` above 0 → HIGH; the second caller `answered` a `GetTask` for the first caller's task → HIGH; the anonymous `GetTask` for the first caller's task `answered` → HIGH ("a caller who presented no credential read the first caller's task") | `unsupported`; the anonymous `ListTasks` or the anonymous read of a listed task answered `other`; the cross-caller half when a credential is missing or could not be sent (naming the two flags or the card's schemes); the first caller listed no task; the second caller `refused` | every `ListTasks` sent answered `not_offered`, at least one sent | `ASI03:2026`, `ASI07:2026` |
 
 A `not_found` is never graded: the specification asks a server not to tell "does not exist" from
 "not yours", and a random id exists for nobody. An optional requirement makes an anonymous
@@ -449,6 +457,7 @@ SDK's; the fixture writes only the policy under test, through the SDK's seams:
 | … no security declared | `caller_identity` LOW (loopback) |
 | … a constant owner | `task_visibility` HIGH through the second caller |
 | … extended card served anonymously | `caller_identity` HIGH |
+| … `GetTask` outside the authentication middleware, an unauthenticated request resolved to caller A | `task_visibility` HIGH twice (the anonymous read and the second caller); `caller_identity` inconclusive naming `GetTask` |
 | … no `ListTasks` | `task_visibility` `not_offered` |
 | … a card missing a required field, a requirement naming an undeclared scheme | `agent_card` |
 | … a JSON-RPC interface on another origin | every call rule inconclusive; nothing sent there |
@@ -456,7 +465,7 @@ SDK's; the fixture writes only the policy under test, through the SDK's seams:
 Unit tests use `ScriptedMcpServer` and `ScriptedA2aAgent` and refuse real name lookups. Each new
 rule ships finding, clean and inconclusive fixtures, so `_FULLY_SAMPLED` in
 `test_builtin_fixture_coverage.py` rises by five; `test_probe_cost.py` gains an A2A run shape (ceiling 20, a whole
-run 8 requests) and `REGISTRY_ENTRY` in the MCP shape. The MCP ceiling rises from 60 to 82:
+run 9 requests) and `REGISTRY_ENTRY` in the MCP shape. The MCP ceiling rises from 60 to 82:
 `notifications/initialized` and the legacy probe are metered, and `task_identity` and
 `registry_entry` declare their own; a whole MCP probe still spends at most 20.
 

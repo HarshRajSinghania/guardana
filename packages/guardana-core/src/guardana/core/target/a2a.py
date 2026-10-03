@@ -16,6 +16,7 @@ from guardana.core.target.base import Capability, Target, TargetKind
 from guardana.core.usage import TargetUsage, UsageMeter
 
 __all__ = [
+    "CARD_OR_ORIGIN",
     "A2aAgentTarget",
     "A2aAnonymous",
     "A2aAnswer",
@@ -23,9 +24,26 @@ __all__ = [
     "A2aReply",
     "A2aSecurity",
     "A2aView",
+    "names_card_or_origin",
 ]
 
 _SCHEMES = frozenset({"http", "https"})
+
+CARD_OR_ORIGIN = (
+    "the A2A agent URL has a path that is not an agent card: pass the agent card's URL "
+    "(ending in .json) or the agent's origin"
+)
+"""Why an agent URL is refused when it names neither a card nor an origin."""
+
+
+def names_card_or_origin(url: str) -> bool:
+    """Whether `url` names an agent card (a path ending in `.json`) or an origin (no path).
+
+    Any other path would be replaced by the origin's well-known card, which describes
+    whatever agent the origin serves at its root rather than the one the path named.
+    """
+    path = urlsplit(url).path
+    return path in ("", "/") or path.endswith(".json")
 
 
 class A2aAgentTarget(Target):
@@ -53,6 +71,8 @@ class A2aAgentTarget(Target):
     ) -> None:
         if urlsplit(url).scheme not in _SCHEMES or not urlsplit(url).hostname:
             raise ValueError("an A2A agent URL needs an http or https scheme and a host")
+        if not names_card_or_origin(url):
+            raise ValueError(CARD_OR_ORIGIN)
         if other_credential is not None and credential is None:
             raise ValueError(
                 "a second caller's credential needs the first caller's: the second caller "

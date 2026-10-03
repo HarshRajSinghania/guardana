@@ -92,6 +92,20 @@ def test_a_flag_combination_that_cannot_be_honoured_is_a_usage_error(
     assert scripted.requests == []
 
 
+@pytest.mark.parametrize("command", [["probe"], ["plan", "probe"]], ids=["probe", "plan"])
+def test_an_agent_path_that_is_not_a_json_card_is_a_usage_error(
+    monkeypatch: pytest.MonkeyPatch, command: list[str]
+) -> None:
+    scripted = _serve(monkeypatch)
+
+    result = runner.invoke(app, [*command, "--a2a", f"{_URL}agents/foo"])
+
+    output = _plain(result.output)
+    assert result.exit_code == ExitCode.INVALID_USAGE, output
+    assert "pass the agent card's URL (ending in .json) or the agent's origin" in output
+    assert scripted.requests == []
+
+
 def test_an_a2a_credential_flag_without_a2a_is_a_usage_error(tokens: None) -> None:
     result = runner.invoke(
         app,

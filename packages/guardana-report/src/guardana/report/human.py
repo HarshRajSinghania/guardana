@@ -9,7 +9,7 @@ from guardana.core.manifest.records import (
     JudgeCorrection,
     TrialSummary,
 )
-from guardana.core.report import Finding, ScanResult
+from guardana.core.report import Finding, ScanResult, SkippedRule, SkipReason
 from guardana.core.suite import describe
 from guardana.core.trials import CONFIDENCE, wilson_interval
 from guardana.report._refusal import recorded_gate, refusal_clause, unnamed_refusal
@@ -298,6 +298,13 @@ def _summary(result: ScanResult) -> str:
         f"{len(result.findings)} finding(s); "
         f"{result.rules_run_count} rule(s) run, {len(result.rules_skipped)} skipped."
     )
+    not_offered = _not_offered(result)
+    if not_offered:
+        named = "; ".join(
+            f"{skip.rule_id} ({', '.join(skip.missing)})" if skip.missing else skip.rule_id
+            for skip in not_offered
+        )
+        summary += f" Not offered by the target: {named}."
     if result.unverified:
         summary += f" {len(result.unverified)} unverified."
     if result.waived:
@@ -329,6 +336,11 @@ def _summary(result: ScanResult) -> str:
         # never finished.
         summary += f" Run stopped early: {result.stopped_by.value}."
     return summary
+
+
+def _not_offered(result: ScanResult) -> list[SkippedRule]:
+    """Every rule that found, while it ran, that the target does not offer what it examines."""
+    return [skip for skip in result.rules_skipped if skip.reason is SkipReason.NOT_OFFERED]
 
 
 def _case_counts(result: ScanResult) -> tuple[int, int, int]:

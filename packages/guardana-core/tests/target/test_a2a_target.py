@@ -5,6 +5,8 @@ the rules read them: the view. What leaves the process is read off the scripted 
 which records every request as the wire would carry it.
 """
 
+import ipaddress
+from collections.abc import Mapping
 from typing import Any
 from urllib.error import HTTPError
 
@@ -17,7 +19,7 @@ from guardana.core.target import (
     Capability,
     EndpointUnreachable,
 )
-from guardana.core.target._mcp_http import RawReply
+from guardana.core.target._mcp_http import DiscoveryScope, HttpSender, McpError, RawReply
 from guardana.core.target.endpoint import UnreadableReply
 from guardana.core.testing import ScriptedA2aAgent
 from guardana.core.testing.a2a import agent_card
@@ -85,13 +87,14 @@ def test_an_owner_bound_agent_is_observed_in_every_class_it_answers() -> None:
     assert [r.answer for r in callers.second] == [A2aAnswer.NOT_FOUND]
     assert [(m, u) for m, u, _h in agent.requests] == [
         ("GET", CARD),
-        *[("POST", INTERFACE)] * 5,
+        *[("POST", INTERFACE)] * 6,
     ]
     assert [call[0] for call in agent.calls] == [
         "GetTask",
         "ListTasks",
         "GetExtendedAgentCard",
         "ListTasks",
+        "GetTask",
         "GetTask",
     ]
     assert agent.calls[3][1] == {"pageSize": 5}
@@ -107,7 +110,7 @@ def test_every_request_states_the_version_and_carries_only_its_callers_token() -
     posts = [headers for method, _url, headers in agent.requests if method == "POST"]
     assert all(h["A2A-Version"] == "1.0" for h in posts)
     assert all(h["Content-Type"] == "application/json" for h in posts)
-    assert _authorizations(agent) == [None, None, None, f"Bearer {A}", f"Bearer {B}"]
+    assert _authorizations(agent) == [None, None, None, f"Bearer {A}", f"Bearer {B}", None]
 
 
 def test_an_unknown_method_is_not_offered_only_after_the_agent_answered_an_a2a_code() -> None:
@@ -440,3 +443,161 @@ def test_a_probe_that_gets_no_reply_stops_the_run() -> None:
         view.callers  # noqa: B018 — refused without a request
 
     assert len(agent.requests) == 3
+
+
+# --- What the first caller listed is asked for once more, by a caller presenting nothing. ---
+
+
+def test_one_of_the_first_callers_tasks_is_asked_for_anonymously_once() -> None:
+    agent = _agent()
+    _target(agent).a2a().callers  # noqa: B018 — the read buys every section
+
+    assert agent.calls[-1] == ("GetTask", {"id": TASK}, None)
+    assert [call[0] for call in agent.calls].count("GetTask") == 3
+
+
+def test_the_anonymous_read_of_a_listed_task_is_classed_like_any_answer() -> None:
+    callers = _target(_agent()).a2a().callers
+
+    assert callers.anonymous_read is not None
+    assert callers.anonymous_read.answer is A2aAnswer.REFUSED
+
+
+def test_no_anonymous_read_is_sent_when_the_first_caller_listed_nothing() -> None:
+    agent = _agent(tasks={})
+    callers = _target(agent).a2a().callers
+
+    assert callers.anonymous_read is None
+    assert [call[0] for call in agent.calls] == ["GetTask", "ListTasks", "ListTasks"]
+
+
+# --- The --a2a URL names the card or the origin, never a path the card would replace. ---
+
+
+@pytest.mark.parametrize(
+    "url", ["https://agent.invalid/agents/foo", "https://agent.invalid/agents/foo/"]
+)
+def test_a_path_that_is_not_a_json_card_is_refused(url: str) -> None:
+    with pytest.raises(ValueError, match=r"agent card's URL \(ending in \.json\) or the agent's"):
+        A2aAgentTarget(url)
+
+
+def test_the_origin_with_or_without_a_slash_is_accepted() -> None:
+    for url in ("https://agent.invalid", "https://agent.invalid/"):
+        assert A2aAgentTarget(url).ref == url
+
+
+def test_the_interface_examined_is_shown_without_credentials() -> None:
+    card = _card(
+        supportedInterfaces=[
+            {
+                "url": "https://agent.invalid/a2a?key=secret",
+                "protocolBinding": "JSONRPC",
+                "protocolVersion": "1.0",
+            }
+        ]
+    )
+    view = _target(_agent(card=card)).a2a()
+
+    examined = view.examined_interface
+    assert examined is not None
+    assert examined.startswith("https://agent.invalid/a2a")
+    assert "secret" not in examined
+
+
+def test_an_interface_that_was_not_examined_is_not_shown() -> None:
+    card = _card(
+        supportedInterfaces=[
+            {
+                "url": "https://elsewhere.invalid/a2a",
+                "protocolBinding": "JSONRPC",
+                "protocolVersion": "1.0",
+            }
+        ]
+    )
+    assert _target(_agent(card=card)).a2a().examined_interface is None
+
+
+# --- A section already observed is never lost to a later stop. ---
+
+
+class _SecondCallerDropped(ScriptedA2aAgent):
+    """Drops the connection on the second caller's first request, answering all else."""
+
+    def __call__(  # noqa: PLR0913 — the keywords the `Sender` protocol publishes
+        self,
+        url: str,
+        *,
+        method: str = "POST",
+        body: bytes | None = None,
+        headers: Mapping[str, str] | None = None,
+        alongside: str | None = None,
+        discovery: DiscoveryScope | None = None,
+    ) -> RawReply:
+        if (headers or {}).get("Authorization") == f"Bearer {B}":
+            raise McpError(f"could not reach {url}: the connection was reset")
+        return super().__call__(
+            url, method=method, body=body, headers=headers, alongside=alongside, discovery=discovery
+        )
+
+
+def test_a_section_already_observed_survives_a_later_stop() -> None:
+    view = _target(_SecondCallerDropped(URL, callers=CALLERS, tasks={"alice": [TASK]})).a2a()
+    anonymous = view.anonymous
+
+    with pytest.raises(EndpointUnreachable):
+        view.callers  # noqa: B018 — the read buys the section that stops the run
+
+    assert view.anonymous is anonymous
+    assert view.card is not None
+    assert view.unsupported is None
+    with pytest.raises(EndpointUnreachable):
+        view.callers  # noqa: B018 — never bought, so the stop is met again
+
+
+# --- Locality of an interface on the agent's own host. ---
+
+
+class _RecordingSender(HttpSender):
+    """The built-in sender's bookkeeping over a scripted agent: every peer is `peer`."""
+
+    def __init__(self, agent: ScriptedA2aAgent, peer: str) -> None:
+        super().__init__()
+        self._agent = agent
+        self._peer = ipaddress.ip_address(peer)
+
+    def __call__(  # noqa: PLR0913 — the keywords the `Sender` protocol publishes
+        self,
+        url: str,
+        *,
+        method: str = "POST",
+        body: bytes | None = None,
+        headers: Mapping[str, str] | None = None,
+        alongside: str | None = None,
+        discovery: DiscoveryScope | None = None,
+    ) -> RawReply:
+        self._record(url, self._peer)
+        return self._agent(url, method=method, body=body, headers=headers)
+
+
+@pytest.mark.parametrize(("peer", "local"), [("10.0.0.5", True), ("93.184.215.14", False)])
+def test_an_interface_on_another_port_of_the_agents_host_is_judged_by_that_hosts_connections(
+    peer: str, local: bool
+) -> None:
+    url = "http://agent.internal:8000/"
+    card = agent_card("http://agent.internal:9000/a2a")
+    sender = _RecordingSender(ScriptedA2aAgent(url, card=card, callers=CALLERS), peer)
+    view = A2aAgentTarget(url, sender=sender).a2a()
+
+    assert view.jsonrpc_interface_is_local is local
+    assert view.jsonrpc_interface_judged_by_url is False
+
+
+def test_an_interface_on_another_host_is_judged_by_its_url_alone() -> None:
+    url = "http://agent.internal:8000/"
+    card = agent_card("http://other.internal:8000/a2a")
+    sender = _RecordingSender(ScriptedA2aAgent(url, card=card, callers=CALLERS), "10.0.0.5")
+    view = A2aAgentTarget(url, sender=sender).a2a()
+
+    assert view.jsonrpc_interface_is_local is False
+    assert view.jsonrpc_interface_judged_by_url is True

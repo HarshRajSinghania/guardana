@@ -7,11 +7,11 @@ from typing import Any
 import pytest
 from guardana.core.plugins import PluginMode, PluginTrust
 from guardana.core.registry import Registry
-from guardana.core.report import Finding, SkipReason
+from guardana.core.report import Finding, SkipReason, StopReason
 from guardana.core.rule import NotOffered, RuleContext
 from guardana.core.severity import Severity
-from guardana.core.target import A2aAgentTarget
-from guardana.core.target._mcp_http import DiscoveryScope, RawReply
+from guardana.core.target import A2aAgentTarget, EndpointUnreachable
+from guardana.core.target._mcp_http import DiscoveryScope, McpError, RawReply
 from guardana.core.testing import ScriptedA2aAgent
 from guardana.core.testing.a2a import agent_card
 from guardana.core.verify import Verifier
@@ -307,6 +307,150 @@ def test_a_list_tasks_that_was_only_refused_is_not_read_as_not_offered() -> None
 
     assert len(_inconclusive(findings)) == 1
     assert "--a2a-token-env" in findings[0].evidence.summary
+
+
+class _AnonymousGetTaskUnscoped(ScriptedA2aAgent):
+    """Lets an anonymous `GetTask` past authentication and serves it any stored task."""
+
+    def __init__(self, url: str, **agent: Any) -> None:  # noqa: ANN401 — the double's keywords
+        super().__init__(url, anonymous_methods={"GetTask"}, **agent)
+
+    def _read(self, method: str, params: Mapping[str, Any], owner: str | None) -> RawReply:
+        stored = {task_id for ids in self.tasks.values() for task_id in ids}
+        if method == "GetTask" and owner is None and params.get("id") in stored:
+            task = {"id": params["id"], "status": {"state": "TASK_STATE_COMPLETED"}}
+            payload = {"jsonrpc": "2.0", "id": 1, "result": task}
+            return RawReply(200, {"Content-Type": "application/json"}, json.dumps(payload).encode())
+        return super()._read(method, params, owner)
+
+
+def _unscoped_get_task() -> A2aAgentTarget:
+    agent = _AnonymousGetTaskUnscoped(
+        PUBLIC, callers={A: "alice", B: "bob"}, tasks={"alice": [TASK]}
+    )
+    return A2aAgentTarget(PUBLIC, credential=A, other_credential=B, sender=agent)
+
+
+def test_a_task_a_caller_presenting_nothing_reads_by_id_is_high() -> None:
+    findings = _run(A2aTaskVisibilityRule(), _unscoped_get_task())
+
+    assert [(f.severity, f.verdict) for f in findings] == [(Severity.HIGH, None)]
+    assert (
+        "a caller who presented no credential read the first caller's task"
+        in findings[0].evidence.summary
+    )
+    assert TASK not in findings[0].evidence.summary
+
+
+def test_a_required_credential_met_with_task_not_found_is_inconclusive_naming_the_method() -> None:
+    findings = _run(A2aCallerIdentityRule(), _unscoped_get_task())
+
+    assert _fired(findings) == []
+    assert len(_inconclusive(findings)) == 1
+    assert "GetTask" in findings[0].evidence.summary
+    assert "ListTasks" not in findings[0].evidence.summary
+
+
+def test_an_optional_requirement_with_nothing_decisive_and_no_extended_card_is_silent() -> None:
+    card = _card(securityRequirements=[{"schemes": {"bearer": {}}}, {"schemes": {}}])
+
+    findings = _run(
+        A2aCallerIdentityRule(), _target(card=card, enforced=False, errors={"ListTasks": -32004})
+    )
+
+    assert findings == []
+
+
+def test_an_optional_requirement_with_an_extended_card_left_undecided_is_inconclusive() -> None:
+    card = _card(
+        securityRequirements=[{"schemes": {"bearer": {}}}, {"schemes": {}}],
+        capabilities={"extendedAgentCard": True},
+    )
+
+    findings = _run(
+        A2aCallerIdentityRule(),
+        _target(
+            card=card,
+            enforced=False,
+            errors={"ListTasks": -32004, "GetExtendedAgentCard": -32603},
+        ),
+    )
+
+    assert len(_inconclusive(findings)) == 1
+
+
+def test_a_finding_records_the_interface_examined() -> None:
+    findings = _run(A2aCallerIdentityRule(), _target(enforced=False))
+
+    assert "interface=https://agent.invalid/a2a" in findings[0].evidence.detail
+
+
+def test_a_plain_http_interface_judged_by_its_url_alone_is_not_shown_to_be_local() -> None:
+    elsewhere = _card("http://public.example/")
+
+    card = _run(A2aAgentCardRule(), _target(LOCAL, card=elsewhere))
+
+    assert "not shown to be loopback or private" in card[0].evidence.summary
+
+
+class _SecondCallerDropped(ScriptedA2aAgent):
+    """Drops the connection on the second caller's request, answering everything else."""
+
+    def __call__(  # noqa: PLR0913 — the keywords the `Sender` protocol publishes
+        self,
+        url: str,
+        *,
+        method: str = "POST",
+        body: bytes | None = None,
+        headers: Mapping[str, str] | None = None,
+        alongside: str | None = None,
+        discovery: DiscoveryScope | None = None,
+    ) -> RawReply:
+        if (headers or {}).get("Authorization") == f"Bearer {B}":
+            raise McpError(f"could not reach {url}: the connection was reset")
+        return super().__call__(
+            url, method=method, body=body, headers=headers, alongside=alongside, discovery=discovery
+        )
+
+
+def _listing_open_and_second_caller_dropped() -> A2aAgentTarget:
+    agent = _SecondCallerDropped(
+        PUBLIC,
+        callers={A: "alice", B: "bob"},
+        tasks={"alice": [TASK]},
+        anonymous_methods={"ListTasks"},
+        owner_bound=False,
+    )
+    return A2aAgentTarget(PUBLIC, credential=A, other_credential=B, sender=agent)
+
+
+def test_the_anonymous_listing_is_reported_before_the_second_caller_stops_the_run() -> None:
+    rule = A2aTaskVisibilityRule()
+    produced: list[Finding] = []
+
+    with pytest.raises(EndpointUnreachable):
+        produced.extend(rule.run(_listing_open_and_second_caller_dropped(), RuleContext()))
+
+    assert [f.severity for f in produced] == [Severity.HIGH]
+    assert "to a caller presenting no credential" in produced[0].evidence.summary
+
+
+@pytest.mark.parametrize("concurrency", [1, 4])
+def test_a_stopped_run_keeps_the_same_findings_whatever_the_concurrency(concurrency: int) -> None:
+    verifier = Verifier(trust=PluginTrust(mode=PluginMode.BUILTINS), concurrency=concurrency)
+
+    outcomes = set()
+    for _ in range(12):
+        result = verifier.run(_listing_open_and_second_caller_dropped()).result
+        assert result.stopped_by is StopReason.TARGET_UNAVAILABLE
+        outcomes.add(tuple(sorted((f.rule_id, f.severity.name) for f in result.findings)))
+
+    assert outcomes == {
+        (
+            ("guardana.a2a.caller_identity", "HIGH"),
+            ("guardana.a2a.task_visibility", "HIGH"),
+        )
+    }
 
 
 def test_a_run_records_an_agent_without_listing_as_a_not_offered_skip() -> None:

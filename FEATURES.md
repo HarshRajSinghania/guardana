@@ -131,7 +131,8 @@ Active and trace-backed checks cover:
   scope, tasks listed to a caller without a credential, and whether the server is the one
   its registry entry publishes (`--mcp-registry-entry`), in both MCP revisions;
 - a live A2A v1 agent's card, whether it answers a caller presenting no credential, and
-  whether one caller can read another's task (`--a2a`, two callers' tokens);
+  whether one caller, or a caller presenting none, can read another's task (`--a2a`, two
+  callers' tokens);
 - recorded identity, consent, policy, approval, handoff, retrieval, credential,
   and side-effect boundaries;
 - a tenant boundary and a poisoned document checked through the application's own

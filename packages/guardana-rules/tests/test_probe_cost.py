@@ -467,7 +467,10 @@ def test_an_a2a_probe_has_a_knowable_ceiling_and_shares_its_observation() -> Non
         list(rule.run(target, _CTX))
 
     spent = target.usage().requests
-    assert spent == 8, "the card, three anonymous reads, one listing and three cross reads"
+    assert spent == 9, (
+        "the card, three anonymous reads, one listing, three cross reads and one anonymous "
+        "read of a listed task"
+    )
     assert spent < ceiling, "the observation is not being shared between rules"
 
 

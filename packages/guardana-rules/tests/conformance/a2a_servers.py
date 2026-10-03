@@ -227,6 +227,16 @@ def extended_card_anonymous(origin: Origin) -> ASGIApp:
     return _agent(_card(origin, extended=True), anonymous_method="GetExtendedAgentCard")
 
 
+def _default_account(context: ServerCallContext) -> str:
+    """Resolve an unauthenticated request to the account that owns the stored task."""
+    return context.user.user_name if context.user.is_authenticated else OWNER_A
+
+
+def get_task_unguarded(origin: Origin) -> ASGIApp:
+    """Bearer enforced on every method except `GetTask`, which sees every caller as caller A."""
+    return _agent(_card(origin), store=_store(_default_account), anonymous_method="GetTask")
+
+
 def no_list_tasks(origin: Origin) -> ASGIApp:
     """Bearer enforced; `ListTasks` answered as an unsupported operation."""
     return _agent(_card(origin), handler_class=_WithoutListTasks)

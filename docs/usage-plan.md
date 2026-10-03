@@ -61,7 +61,7 @@ run they are pricing would use, so both take the same plugin-trust flags
 | `--url TEXT`, `--model TEXT` | — | `plan probe` only: the endpoint the probe would call, as on `probe` |
 | `--mcp TEXT` | none | `plan probe` only: price an MCP server at this http(s) URL instead of a model endpoint |
 | `--mcp-registry-entry PATH` | none | `plan probe` only: the registry `server.json` `probe --mcp-registry-entry` would compare, read and refused (exit `3`) as there; needs `--mcp` |
-| `--a2a TEXT` | none | `plan probe` only: price an A2A agent at this http(s) URL instead of a model endpoint — see [Pricing an A2A agent](#pricing-an-a2a-agent). Refused with the endpoint flags and `--mcp` (exit `3`) |
+| `--a2a TEXT` | none | `plan probe` only: price an A2A agent, named by the http(s) URL of its card (ending in `.json`) or its origin, instead of a model endpoint; any other path is refused (exit `3`) — see [Pricing an A2A agent](#pricing-an-a2a-agent). Refused with the endpoint flags and `--mcp` (exit `3`) |
 | `--provider [openai\|ollama\|tgi]` | `openai` | `plan probe` only: the wire protocol, as on `probe`; any other name is refused (exit `3`) |
 | `--adapter PATH` | none | `plan probe` only: the adapter file `probe --adapter` would use, with the same refusals; its `${VAR}` headers are not read, so a plan needs no secret |
 | `--system-prompt-file PATH` | none | `plan probe` only: the system prompt `probe` would plant; a file that cannot be read is refused (exit `3`) |
@@ -233,11 +233,11 @@ guardana plan probe --a2a https://agent.example.com
 
 ```text
 3 rule(s) would run, 27 skipped.
-requests: at least 3, at most 13
+requests: at least 3, at most 14
 ```
 
-The three A2A rules declare thirteen requests between them; a run shares the card and
-each read, and sends at most eight. No token variable is read, so a plan needs no
+The three A2A rules declare fourteen requests between them; a run shares the card and
+each read, and sends at most nine. No token variable is read, so a plan needs no
 secret.
 
 ## Pricing a grade

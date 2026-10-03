@@ -37,6 +37,7 @@ from guardana.core.target._a2a_wire import (
 )
 from guardana.core.target._mcp_http import (
     AddressRefusedError,
+    HttpSender,
     McpError,
     RawReply,
     RedirectRefusedError,
@@ -160,6 +161,9 @@ class A2aCallers:
     second: tuple[A2aReply, ...] = ()
     """The second caller's `GetTask` on each of up to three of the first caller's tasks."""
 
+    anonymous_read: A2aReply | None = None
+    """A `GetTask` presenting no credential on one of the first caller's tasks; None if not sent."""
+
     not_sent_because: str | None = None
     """Why the two callers were not asked: a credential missing, or none the card accepts."""
 
@@ -212,6 +216,18 @@ class A2aView:
         """The URL of the card's first JSON-RPC interface for A2A 1.0, on whatever origin."""
         card = self.card
         return None if card is None else _jsonrpc_interface(card)
+
+    @property
+    def examined_interface(self) -> str | None:
+        """The JSON-RPC interface the requests after the card go to, as findings may show it.
+
+        None when the card names no JSON-RPC 1.0 interface on the operator's origin, since
+        nothing is sent to one anywhere else.
+        """
+        interface = self.jsonrpc_interface
+        if interface is None or not same_origin(interface, self._probe.url):
+            return None
+        return display_url(interface)
 
     @property
     def unsupported(self) -> str | None:
@@ -297,11 +313,30 @@ class A2aView:
     def jsonrpc_interface_is_local(self) -> bool:
         """Whether the card's JSON-RPC interface is local, judged by that interface's own host.
 
-        False when the card names no such interface. A host other than the agent's is judged
-        by its URL alone, since no connection reached it.
+        False when the card names no such interface. On the agent's own host, whatever the
+        port, the connections the run made to that host decide; another host is judged by
+        its URL alone, since no connection reached it.
         """
         interface = self.jsonrpc_interface
-        return interface is not None and server_is_local(interface, self._probe.sender)
+        if interface is None:
+            return False
+        if self._on_agent_host(interface):
+            return self.card_host_is_local
+        return server_is_local(interface, self._probe.sender)
+
+    @property
+    def jsonrpc_interface_judged_by_url(self) -> bool:
+        """Whether `jsonrpc_interface_is_local` rests on the interface's URL alone.
+
+        True unless the interface is on the agent's host and the sender recorded the
+        addresses its connections reached.
+        """
+        interface = self.jsonrpc_interface
+        return not (
+            interface is not None
+            and self._on_agent_host(interface)
+            and isinstance(self._probe.sender, HttpSender)
+        )
 
     @property
     def credential_presented(self) -> bool:
@@ -315,13 +350,20 @@ class A2aView:
 
     @property
     def anonymous(self) -> A2aAnonymous:
-        """What the agent answered `GetTask`, `ListTasks` and the extended card, anonymously."""
+        """What the agent answered `GetTask`, `ListTasks` and the extended card, anonymously.
+
+        A section already observed is returned even after a later request stopped the
+        run, so what a rule reports never depends on which thread asked first.
+        """
+        with self._lock:
+            if self._anonymous is not None:
+                return self._anonymous
         unsupported = self.unsupported
         extended = _extended_card_declared(self.card)
         interface = self._interface()
         with self._lock:
-            self._probe.raise_if_stopped()
             if self._anonymous is None:
+                self._probe.raise_if_stopped()
                 self._anonymous = (
                     A2aAnonymous()
                     if unsupported is not None
@@ -331,16 +373,19 @@ class A2aView:
 
     @property
     def callers(self) -> A2aCallers:
-        """What the first caller listed and the second caller read of it."""
+        """What the first caller listed, what the second caller read of it, and anonymously."""
+        with self._lock:
+            if self._callers is not None:
+                return self._callers
         self.anonymous  # noqa: B018 — bought first, so every answer is classed in one order
         unsupported = self.unsupported
         withheld = self._withheld_because()
         interface = self._interface()
         with self._lock:
-            self._probe.raise_if_stopped()
             if self._callers_failure is not None:
                 raise self._callers_failure()
             if self._callers is None:
+                self._probe.raise_if_stopped()
                 if unsupported is not None:
                     self._callers = A2aCallers()
                 elif withheld is not None:
@@ -370,10 +415,13 @@ class A2aView:
         interface = None if card is None else _jsonrpc_interface(card)
         return interface or self._probe.url
 
+    def _on_agent_host(self, url: str) -> bool:
+        return urlsplit(url).hostname == urlsplit(self._probe.url).hostname
+
     def _read_card(self) -> _Card:
         with self._lock:
-            self._probe.raise_if_stopped()
             if self._card is None:
+                self._probe.raise_if_stopped()
                 self._card = self._probe.card()
             return self._card
 
@@ -470,7 +518,12 @@ class _Probe:
         return A2aAnonymous(get_task=get_task, list_tasks=list_tasks, extended_card=extended_card)
 
     def callers(self, interface: str) -> A2aCallers:
-        """List the first caller's tasks, then read up to three of them as the second caller."""
+        """List the first caller's tasks, read up to three as the second caller, one anonymously.
+
+        The anonymous read names a task that exists, which the anonymous random id never
+        does, so only it can show a `GetTask` that serves any task to a caller presenting
+        nothing.
+        """
         listing, ids = self._converse(
             interface, "ListTasks", {"pageSize": _FIRST_CALLER_PAGE}, self.credential
         )
@@ -481,7 +534,17 @@ class _Probe:
             if self.version_refused is not None:
                 break
             second.append(self._ask(interface, "GetTask", {"id": task_id}, self.other_credential))
-        return A2aCallers(first_listing=listing, first_tasks=len(ids), second=tuple(second))
+        anonymous_read = (
+            None
+            if self.version_refused is not None
+            else self._ask(interface, "GetTask", {"id": ids[0]}, None)
+        )
+        return A2aCallers(
+            first_listing=listing,
+            first_tasks=len(ids),
+            second=tuple(second),
+            anonymous_read=anonymous_read,
+        )
 
     def _ask(
         self, url: str, method: str, params: Mapping[str, object], credential: str | None

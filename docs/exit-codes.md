@@ -137,9 +137,10 @@ unknown `--provider`, a `--system-prompt-file` or `--adapter` that cannot be rea
 not `POST`. On `probe --mcp` the same holds for an stdio command given without
 `--allow-exec`, which starts nothing, an `--mcp-token-env` naming an unset or empty
 variable, and an `--mcp-registry-entry` that cannot be read or is not an entry; on
-`probe --a2a`, for an unset token variable, a second caller's variable without the first,
-or two variables holding the same value. None of them is `5`, which is reserved for
-Guardana's own defects.
+`probe --a2a` and `plan probe --a2a`, for an agent URL whose path is neither an agent card
+(ending in `.json`) nor the origin; and on `probe --a2a`, for an unset token variable, a
+second caller's variable without the first, or two variables holding the same value. None
+of them is `5`, which is reserved for Guardana's own defects.
 
 `recipe lock` and `recipe run` exit `4`, writing no lock and sending nothing, when the
 installed target the recipe names fails to connect while it is being built.
