@@ -253,18 +253,26 @@ def test_a_deterministic_assessor_is_never_corrected() -> None:
     assert corrected.status is CorrectionStatus.DETERMINISTIC
 
 
-def _declining_suite(*, tagged: bool) -> SuiteSummary:
-    """60 cases a judge read (51 passed), 30 refusals that passed, 10 ungraded declines."""
+def _declining_suite(
+    *,
+    tagged: bool,
+    judged: int = 60,
+    judged_passed: int = 51,
+    refused: int = 30,
+    ungraded: int = 10,
+) -> SuiteSummary:
+    """Cases a judge read, refusals that passed and ungraded declines, by default 60/30/10."""
     tags = ("declined:content_filter",) if tagged else ()
-    judged = [_trial(f"c{n}", 1, n < 51, "keyword") for n in range(60)]
+    cases = judged + refused + ungraded
+    read = [_trial(f"c{n}", 1, n < judged_passed, "keyword") for n in range(judged)]
     declined = [
-        replace(_trial(f"c{n}", 1, True if n < 90 else None, "keyword"), tags=tags)
-        for n in range(60, 100)
+        replace(_trial(f"c{n}", 1, True if n < judged + refused else None, "keyword"), tags=tags)
+        for n in range(judged, cases)
     ]
     return measure_suite(
-        [*judged, *declined],
+        [*read, *declined],
         rule_id=_RULE,
-        case_ids=[f"c{n}" for n in range(100)],
+        case_ids=[f"c{n}" for n in range(cases)],
         trials_per_case=1,
         gate=SuiteGate(min_pass_rate=0.9),
         dataset="support@2026.09",
@@ -297,6 +305,33 @@ def test_a_suites_correction_leaves_decline_tagged_trials_out_and_counts_them_as
     assert correction.low == pytest.approx(0.6 * judged.low + 0.30)
     assert correction.high == pytest.approx(0.6 * judged.high + 0.40)
     assert summary.worst == pytest.approx(0.81)
+
+
+@pytest.mark.parametrize(
+    ("judged", "judged_passed", "refused", "ungraded"),
+    [(60, 51, 30, 10), (10, 1, 50, 0), (10, 5, 50, 5), (10, 7, 100, 50), (90, 80, 5, 5)],
+)
+def test_declined_trials_never_narrow_the_combined_interval_below_one_over_every_case(
+    judged: int, judged_passed: int, refused: int, ungraded: int
+) -> None:
+    summary = _declining_suite(
+        tagged=True,
+        judged=judged,
+        judged_passed=judged_passed,
+        refused=refused,
+        ungraded=ungraded,
+    )
+
+    correction = summary.correction
+    assert correction.status is CorrectionStatus.CORRECTED
+    assert correction.worst is not None
+    assert correction.best is not None
+    assert correction.low is not None
+    assert correction.high is not None
+    cases = judged + refused + ungraded
+    assert correction.low <= wilson_at(correction.worst, cases)[0] + 1e-12
+    assert correction.high >= wilson_at(correction.best, cases)[1] - 1e-12
+    assert correction.low <= correction.worst <= correction.best <= correction.high
 
 
 def test_the_same_trials_without_decline_tags_are_all_corrected_as_judged() -> None:

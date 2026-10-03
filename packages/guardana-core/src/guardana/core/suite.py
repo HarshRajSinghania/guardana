@@ -234,7 +234,9 @@ def _with_declines(
     Corrected rate = judged share x corrected judged rate + declined share that passed;
     each limit likewise from the judged limit. The judged rates are over the judged share
     of the cases, rounded down to whole cases for their interval, so the interval is
-    never narrower than the cases behind it.
+    never narrower than the cases behind it. A combined limit is never narrower than a
+    Wilson limit over every case at the combined rate either: weighing the declined
+    trials in as exact would claim a precision no case count supports.
     """
     cases = len(split)
     share = math.fsum(c.judged / c.trials for c in split) / cases
@@ -265,12 +267,14 @@ def _with_declines(
         return corrected
     passed = math.fsum(c.declined_passed / c.trials for c in split) / cases
     open_ = math.fsum((c.declined_passed + c.declined_ungraded) / c.trials for c in split) / cases
+    worst = _share(share * corrected.worst + passed)
+    best = _share(share * corrected.best + open_)
     return replace(
         corrected,
-        worst=_share(share * corrected.worst + passed),
-        best=_share(share * corrected.best + open_),
-        low=_share(share * corrected.low + passed),
-        high=_share(share * corrected.high + open_),
+        worst=worst,
+        best=best,
+        low=min(_share(share * corrected.low + passed), wilson_at(worst, cases)[0], worst),
+        high=max(_share(share * corrected.high + open_), wilson_at(best, cases)[1], best),
     )
 
 

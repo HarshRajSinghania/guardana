@@ -26,13 +26,13 @@ from guardana.core.fingerprint import DigestKind, DocumentDigest, digest_of
 from guardana.core.redaction import holds_redaction_marker
 from guardana.core.subject import SubjectKind
 from guardana.core.target import ChatMessage
-from guardana.core.target.adapter import MAX_METADATA_CHARS, MAX_METADATA_NAMES
 from guardana.core.target.decline import (
     NEVER_A_DECLINE,
     Decline,
     DeclineReading,
     is_valid_decline_name,
 )
+from guardana.core.target.endpoint import MAX_METADATA_CHARS, MAX_METADATA_NAMES, METADATA_NAME
 from guardana.core.trace.limits import MAX_RECORD_BYTES, MAX_TRACE_BYTES
 
 RECORDING_FORMAT = 3
@@ -59,7 +59,6 @@ _ORIGIN_KEYS = frozenset(
 _V1_LINE_KEYS = frozenset({"rule", "input", "reply", "key", "altered"})
 _LINE_KEYS = {1: _V1_LINE_KEYS, 2: _V1_LINE_KEYS, 3: _V1_LINE_KEYS | {"declined", "meta"}}
 _DECLINED_KEYS = frozenset({"name", "reading", "status"})
-_META_NAME = re.compile(r"[a-z][a-z0-9_]*")
 _MESSAGE_KEYS = frozenset({"role", "content"})
 _ROLES: tuple[Literal["system", "user", "assistant"], ...] = ("system", "user", "assistant")
 _KEY = re.compile(r"sha256:[0-9a-f]{64}")
@@ -567,7 +566,7 @@ def _meta(value: object, where: str, number: int) -> Mapping[str, str]:
         raise RecordingError(f"{where}:{number}: `meta` holds more than {MAX_METADATA_NAMES} names")
     meta: dict[str, str] = {}
     for name, text in value.items():
-        if not _META_NAME.fullmatch(name):
+        if not METADATA_NAME.fullmatch(name):
             raise RecordingError(
                 f"{where}:{number}: `meta` name {name!r} must match [a-z][a-z0-9_]*"
             )

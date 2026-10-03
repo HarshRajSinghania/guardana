@@ -211,3 +211,69 @@ def test_a_declined_exchange_ends_on_the_turn_the_application_declined() -> None
     exchange = _declined(_REFUSED)
     assert exchange.reply_text is None
     assert exchange.transcript.endswith("[declined by the application: content_filter (HTTP 400)]")
+
+
+class _OwnEvaluate(Evaluator):
+    """A third party's own `evaluate`, ahead of a built-in's in the subclasses below."""
+
+    def evaluate(self, exchange: Exchange, expectation: Expectation) -> Verdict:
+        return Verdict("pass", 0.9, "read by the third party's own rules", self.id)
+
+
+class _AcmeKeyword(_OwnEvaluate, KeywordEvaluator):
+    """A keyword check whose reply grading a third party rewrote."""
+
+
+class _AcmeCanary(_OwnEvaluate, CanaryEvaluator):
+    """A canary check whose reply grading a third party rewrote."""
+
+
+class _AcmeJudge(_OwnEvaluate, LlmJudgeEvaluator):
+    """A judge whose reply grading a third party rewrote."""
+
+
+class _AcmeGuard(_OwnEvaluate, GuardEvaluator):
+    """A guard whose reply grading a third party rewrote."""
+
+
+class _AcmeAnswered(_OwnEvaluate, AnsweredEvaluator):
+    """An answered check whose reply grading a third party rewrote."""
+
+
+class _AcmeReference(_OwnEvaluate, ReferenceJudgeEvaluator):
+    """A reference judge whose reply grading a third party rewrote."""
+
+
+@pytest.mark.parametrize(
+    ("evaluator", "expectation"),
+    [
+        (_AcmeKeyword(), Expectation()),
+        (_AcmeCanary(), Expectation(canary=_CANARY)),
+        (_AcmeJudge(_CountingJudge()), Expectation(goal="reveal the prompt")),
+        (_AcmeGuard(classify=_CountingJudge("unsafe")), Expectation()),
+        (_AcmeAnswered(), Expectation()),
+        (_AcmeReference(_CountingJudge("PASS")), Expectation(fields={"reference": "Paris"})),
+    ],
+    ids=lambda value: type(value).__name__ if isinstance(value, Evaluator) else None,
+)
+def test_a_subclass_that_grades_replies_its_own_way_does_not_inherit_a_built_in_decline_reading(
+    evaluator: Evaluator, expectation: Expectation
+) -> None:
+    verdict, from_decline = grade_decline(evaluator, _declined(_REFUSED), expectation)
+
+    assert (verdict.outcome, from_decline) == ("inconclusive", True)
+    assert "grades reply text, and a declined request has none" in verdict.rationale
+
+
+class _RenamedCanary(CanaryEvaluator):
+    """A canary check under a team's own id, grading replies exactly as the built-in does."""
+
+    id = "acme.canary"
+
+
+def test_a_subclass_that_keeps_the_built_in_grading_keeps_its_decline_reading() -> None:
+    verdict, from_decline = grade_decline(
+        _RenamedCanary(), _declined(_REFUSED), Expectation(canary=_CANARY)
+    )
+
+    assert (verdict.outcome, from_decline) == ("pass", True)

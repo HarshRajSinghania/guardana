@@ -730,7 +730,10 @@ declined one included. A string is kept as it is; a number or boolean as its JSO
 (<code>3</code>, <code>0.5</code>, <code>false</code>). A path that is absent, or holds <code>null</code>, an object, a list or a value
 over 1,024 characters, leaves the name out, so a check reads it as missing evidence, never
 as an empty value. Programmatically the reply's metadata is <code>ChatReply.meta</code>, from
-<code>EndpointTarget.chat_reply</code>; <code>chat</code> returns the same reply's text. The adapter reports no
+<code>EndpointTarget.chat_reply</code>; <code>chat</code> returns the same reply's text. The endpoint holds a
+custom transport's metadata to the same limits: a name that is not <code>[a-z][a-z0-9_]*</code>, a
+value that is not text or is over 1,024 characters, and every name past the first 16 are
+left out. The adapter reports no
 token counts, so a token ceiling stays refused.</p>
 <p>A judge's adapter (<code>adapter:</code> in an <a href="profiles.html#config-wired-evaluators-llm_judge-and-guard"><code>evaluators:</code> block</a>)
 refuses <code>declines:</code> and <code>metadata_paths:</code>, and may set <code>retry_statuses:</code>: a judge either
@@ -754,9 +757,11 @@ verdict read from a decline carries the tag <code>declined:&lt;name&gt;</code>, 
 names the decline (<code>declined by the application: content_filter (HTTP 400)</code>) where it
 would quote a reply. A suite's judge-error correction leaves the tagged trials out and adds
 them back as observed: corrected rate = judged share × corrected judged rate + share of
-declined trials that passed, and each limit likewise.</p>
-<p>A scenario stops at a decline: the steps after it are not sent, and each graded one is
-recorded <code>inconclusive</code> (<code>target_declined</code>). <code>guardana.output.secrets</code> scans text, so a
+declined trials that passed, and each limit likewise, widened where needed so the interval
+is never narrower than a Wilson interval over every case at the combined rate.</p>
+<p>A scenario stops at a decline: the steps after it are not sent. Each graded one still reads
+the replies before the decline that its check had not read, so a leak there fails it;
+otherwise it is recorded <code>inconclusive</code> (<code>target_declined</code>). <code>guardana.output.secrets</code> scans text, so a
 decline under either reading is <code>inconclusive</code> there. The seeded checks read a declined
 control as a control that did not answer (<code>seed_not_reached</code>); in
 <code>guardana.tenancy.cross_tenant_answer</code> a cross-tenant question refused by the application

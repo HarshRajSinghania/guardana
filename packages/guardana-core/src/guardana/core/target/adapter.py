@@ -16,7 +16,6 @@ decline rather than the model's reply, `retry_statuses` the statuses asked again
 
 import io
 import json
-import re
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from email.message import Message
@@ -35,6 +34,9 @@ from guardana.core.target.decline import (
     value_at,
 )
 from guardana.core.target.endpoint import (
+    MAX_METADATA_CHARS,
+    MAX_METADATA_NAMES,
+    METADATA_NAME,
     REQUEST_TIMEOUT_SECONDS,
     ChatMessage,
     ChatReply,
@@ -54,14 +56,6 @@ DEFAULT_RETRY_STATUSES = frozenset({429, 503})
 
 RETRYABLE_STATUSES = frozenset({408, 425, 429, *range(500, 600)})
 """Every status `retry_statuses:` may name: a timeout, too early, a rate limit, a 5xx."""
-
-MAX_METADATA_NAMES = 16
-"""How many names `metadata_paths:` may declare."""
-
-MAX_METADATA_CHARS = 1024
-"""The longest value kept as metadata; a longer one is left out, not cut."""
-
-_METADATA_NAME = re.compile(r"[a-z][a-z0-9_]*")
 
 
 @dataclass(frozen=True, slots=True)
@@ -118,7 +112,7 @@ class AdapterConfig:
         if len(self.metadata_paths) > MAX_METADATA_NAMES:
             raise ValueError(f"metadata_paths: at most {MAX_METADATA_NAMES} names")
         for name, path in self.metadata_paths.items():
-            if not _METADATA_NAME.fullmatch(name):
+            if not METADATA_NAME.fullmatch(name):
                 raise ValueError(f"metadata_paths: the name {name!r} must match [a-z][a-z0-9_]*")
             if not path:
                 raise ValueError(f"metadata_paths.{name} must be a non-empty dotted path")

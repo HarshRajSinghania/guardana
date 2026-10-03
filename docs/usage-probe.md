@@ -345,7 +345,10 @@ declined one included. A string is kept as it is; a number or boolean as its JSO
 (`3`, `0.5`, `false`). A path that is absent, or holds `null`, an object, a list or a value
 over 1,024 characters, leaves the name out, so a check reads it as missing evidence, never
 as an empty value. Programmatically the reply's metadata is `ChatReply.meta`, from
-`EndpointTarget.chat_reply`; `chat` returns the same reply's text. The adapter reports no
+`EndpointTarget.chat_reply`; `chat` returns the same reply's text. The endpoint holds a
+custom transport's metadata to the same limits: a name that is not `[a-z][a-z0-9_]*`, a
+value that is not text or is over 1,024 characters, and every name past the first 16 are
+left out. The adapter reports no
 token counts, so a token ceiling stays refused.
 
 A judge's adapter (`adapter:` in an [`evaluators:` block](profiles.md#config-wired-evaluators-llm_judge-and-guard))
@@ -372,10 +375,12 @@ verdict read from a decline carries the tag `declined:<name>`, and a finding's e
 names the decline (`declined by the application: content_filter (HTTP 400)`) where it
 would quote a reply. A suite's judge-error correction leaves the tagged trials out and adds
 them back as observed: corrected rate = judged share × corrected judged rate + share of
-declined trials that passed, and each limit likewise.
+declined trials that passed, and each limit likewise, widened where needed so the interval
+is never narrower than a Wilson interval over every case at the combined rate.
 
-A scenario stops at a decline: the steps after it are not sent, and each graded one is
-recorded `inconclusive` (`target_declined`). `guardana.output.secrets` scans text, so a
+A scenario stops at a decline: the steps after it are not sent. Each graded one still reads
+the replies before the decline that its check had not read, so a leak there fails it;
+otherwise it is recorded `inconclusive` (`target_declined`). `guardana.output.secrets` scans text, so a
 decline under either reading is `inconclusive` there. The seeded checks read a declined
 control as a control that did not answer (`seed_not_reached`); in
 `guardana.tenancy.cross_tenant_answer` a cross-tenant question refused by the application

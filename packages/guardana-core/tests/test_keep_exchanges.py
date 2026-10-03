@@ -1,13 +1,17 @@
 """A probe's chat exchanges, kept per rule through the endpoint's views, redacted by span."""
 
 import contextlib
+import json
 import threading
 from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 from guardana.core.keeping import ExchangeKeeper
+from guardana.core.plugins import PluginMode, PluginTrust
+from guardana.core.profile import default_profile
 from guardana.core.recording import Recording, messages_key, read_recording, render_recording
 from guardana.core.redaction import EvidenceMode, EvidenceRedactor, RedactionPolicy
 from guardana.core.target import (
@@ -22,10 +26,16 @@ from guardana.core.target import (
     ToolOfferingEndpoint,
 )
 from guardana.core.target._scoped import RuleScoped
-from guardana.core.target.endpoint import ToolCallReply, ToolSpec
+from guardana.core.target.endpoint import (
+    MAX_METADATA_CHARS,
+    MAX_METADATA_NAMES,
+    ToolCallReply,
+    ToolSpec,
+)
 from guardana.core.testing import ScriptedTransport, ToolCallingScriptedTransport
 from guardana.core.testing.secrets import fake_github_pat
 from guardana.core.usage import TargetUsage
+from guardana.core.verify import Verifier, exchanges_path
 
 _SYSTEM = "You are the support assistant for a fictional shop."
 _EMAIL = "someone" + "@" + "example.com"
@@ -491,3 +501,66 @@ def test_an_exchange_is_kept_with_exactly_one_of_a_reply_and_a_decline() -> None
         keeper.keep("acme.rule", _ask("q"), "a", declined=_FILTER)
     with pytest.raises(ValueError, match="exactly one"):
         keeper.keep("acme.rule", _ask("q"), None)
+
+
+class _LooseMetadata:
+    """A third-party transport whose reply metadata ignores the adapter's naming rules."""
+
+    def __init__(self, meta: dict[str, str]) -> None:
+        self._meta = meta
+
+    def send(
+        self, base_url: str, model: str, messages: Sequence[ChatMessage], api_key: str | None
+    ) -> str:
+        return self.send_with_metadata(base_url, model, messages, api_key).text
+
+    def send_with_metadata(
+        self, base_url: str, model: str, messages: Sequence[ChatMessage], api_key: str | None
+    ) -> ChatReply:
+        if "weapons" in messages[-1].content:
+            raise RequestDeclined(_FILTER, self._meta)
+        return ChatReply(text="I cannot help with that.", meta=self._meta)
+
+
+def test_a_probe_kept_with_metadata_no_reader_accepts_saves_a_run_that_reads_back(
+    tmp_path: Path,
+) -> None:
+    rules = tmp_path / "rules"
+    rules.mkdir()
+    rule = {
+        "id": "acme.loose.meta",
+        "title": "loose metadata",
+        "severity": "high",
+        "target_kind": "endpoint",
+        "taxonomy": ["LLM01:2025"],
+        "evaluator": "keyword",
+        "requires": ["chat"],
+        "prompts": ["hello", "weapons please"],
+    }
+    (rules / "rule.yaml").write_text(json.dumps(rule), encoding="utf-8")
+    base = default_profile()
+    profile = replace(
+        base,
+        policy=replace(base.policy, include=("acme.loose.meta",)),
+        privacy=replace(base.privacy, keep_exchanges=True),
+    )
+    numbered = {f"n{n:02d}": str(n) for n in range(MAX_METADATA_NAMES + 4)}
+    meta = {
+        "Request-ID": "abc",
+        "request_id": "r-1",
+        "too_long": "x" * (MAX_METADATA_CHARS + 1),
+        **numbered,
+    }
+    target = EndpointTarget("http://app.test", "m", transport=_LooseMetadata(meta))
+
+    run = tmp_path / "run.json"
+    Verifier(trust=PluginTrust(mode=PluginMode.BUILTINS), profile=profile, rule_paths=(rules,)).run(
+        target
+    ).save(run)
+
+    kept = read_recording(exchanges_path(run)).exchanges
+    assert sorted(e.reply is None for e in kept) == [False, True], "one answered, one declined"
+    for exchange in kept:
+        assert len(exchange.meta) == MAX_METADATA_NAMES
+        assert exchange.meta["request_id"] == "r-1"
+        assert set(exchange.meta) <= {"request_id", *numbered}

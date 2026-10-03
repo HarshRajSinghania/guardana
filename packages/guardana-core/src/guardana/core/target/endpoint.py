@@ -1,6 +1,7 @@
 import copy
 import json
 import math
+import re
 from collections.abc import Callable, Mapping, Sequence
 from contextvars import ContextVar
 from dataclasses import dataclass, field, replace
@@ -280,6 +281,38 @@ class ChatReply:
     A name the reply did not carry is absent, never an empty string: an evaluator reads a
     missing name as missing evidence.
     """
+
+
+MAX_METADATA_NAMES = 16
+"""How many names a reply's metadata may carry, and an adapter's `metadata_paths:` declare."""
+
+MAX_METADATA_CHARS = 1024
+"""The longest value kept as metadata; a longer one is left out, not cut."""
+
+METADATA_NAME = re.compile(r"[a-z][a-z0-9_]*")
+"""What a metadata name must be, wherever metadata is declared, kept or read back."""
+
+
+def valid_metadata(meta: Mapping[str, object]) -> dict[str, str]:
+    """Return the part of a reply's metadata every reader accepts, leaving out the rest.
+
+    A name that is not `METADATA_NAME`, a value that is not text or is over
+    `MAX_METADATA_CHARS`, and every name past the first `MAX_METADATA_NAMES` are left
+    out: a missing name is missing evidence, while one no reader accepts would make the
+    whole kept run unreadable.
+    """
+    kept: dict[str, str] = {}
+    for name, value in meta.items():
+        if len(kept) == MAX_METADATA_NAMES:
+            break
+        if (
+            isinstance(name, str)
+            and METADATA_NAME.fullmatch(name)
+            and isinstance(value, str)
+            and len(value) <= MAX_METADATA_CHARS
+        ):
+            kept[name] = value
+    return kept
 
 
 @runtime_checkable
@@ -799,6 +832,7 @@ class EndpointTarget(Target):
         try:
             reply = self._send_chat(messages)
         except RequestDeclined as declined:
+            declined.meta = valid_metadata(declined.meta)
             if self._keeper is not None and self._kept_rule is not None:
                 self._keeper.keep(
                     self._kept_rule,
@@ -821,6 +855,7 @@ class EndpointTarget(Target):
                     self._base_url, self._model, history, self._api_key
                 )
             )
+            reply = replace(reply, meta=valid_metadata(reply.meta))
         elif isinstance(transport, UsageReportingTransport):
             reply = self._spend(
                 lambda: transport.send_reporting_usage(

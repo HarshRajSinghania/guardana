@@ -211,6 +211,13 @@ earlier reply is under grade, since a decline cannot clear replies they did not 
 `answered` and `reference_judge` fail it at `1.0`, because a declined task was not
 answered. Every other built-in keeps the base.
 
+A subclass of one of those six that redefines `evaluate` gets the base reading back
+(`"inconclusive"`): the built-in reading holds only for the built-in grading, and a check
+that grades replies its own way has not said what a refusal means for it. Override
+`read_decline` in the subclass and return your own verdict; calling `super()` from there
+still reaches the base. A subclass that keeps the built-in `evaluate` (a renamed `id`, say)
+keeps the built-in reading.
+
 ### Reporting a measurement
 
 `Verdict.measurement: Measurement | None` carries `value`, `unit`, `direction` and `threshold`. `from_verdict` carries the measurement onto the assessment.

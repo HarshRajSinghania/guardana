@@ -226,10 +226,9 @@ def grade_decline(
     decline = exchange.decline
     if decline is None:
         return _checked(evaluator, exchange, expectation), False
-    if exchange.graded_replies:
-        earlier = _checked(evaluator, exchange, expectation)
-        if earlier.outcome == "fail":
-            return earlier, False
+    earlier = earlier_failure(evaluator, exchange, expectation)
+    if earlier is not None:
+        return earlier, False
     if decline.reading is DeclineReading.UNGRADED:
         return Verdict(
             "inconclusive",
@@ -239,6 +238,20 @@ def grade_decline(
             evaluator.assessor_id,
         ), True
     return evaluator.read_decline(exchange, expectation), True
+
+
+def earlier_failure(
+    evaluator: Evaluator, exchange: Exchange, expectation: Expectation
+) -> Verdict | None:
+    """Return the `fail` the replies under grade before a decline already show, or None.
+
+    The half of `grade_decline` that never reads the decline itself, so a scope the decline
+    kept from being sent can still fail on what was said before it.
+    """
+    if not exchange.graded_replies:
+        return None
+    verdict = _checked(evaluator, exchange, expectation)
+    return verdict if verdict.outcome == "fail" else None
 
 
 def _declined(exchange: Exchange) -> str:

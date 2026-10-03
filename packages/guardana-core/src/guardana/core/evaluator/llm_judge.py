@@ -151,7 +151,11 @@ class LlmJudgeEvaluator(Evaluator):
         Only when no earlier reply is under grade: the judge reads the final reply, so
         it never read the replies before a decline, and a decline cannot clear them.
         """
-        if expectation.goal is None or exchange.decline is None:
+        if (
+            type(self).evaluate is not LlmJudgeEvaluator.evaluate
+            or expectation.goal is None
+            or exchange.decline is None
+        ):
             return super().read_decline(exchange, expectation)
         if any(text.strip() for text in exchange.graded_replies):
             return Verdict(

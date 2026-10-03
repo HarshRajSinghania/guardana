@@ -480,6 +480,12 @@ refusal at confidence <code>1.0</code> without a judge call (<code>llm_judge</co
 earlier reply is under grade, since a decline cannot clear replies they did not clear);
 <code>answered</code> and <code>reference_judge</code> fail it at <code>1.0</code>, because a declined task was not
 answered. Every other built-in keeps the base.</p>
+<p>A subclass of one of those six that redefines <code>evaluate</code> gets the base reading back
+(<code>&quot;inconclusive&quot;</code>): the built-in reading holds only for the built-in grading, and a check
+that grades replies its own way has not said what a refusal means for it. Override
+<code>read_decline</code> in the subclass and return your own verdict; calling <code>super()</code> from there
+still reaches the base. A subclass that keeps the built-in <code>evaluate</code> (a renamed <code>id</code>, say)
+keeps the built-in reading.</p>
 <h3 id="reporting-a-measurement">Reporting a measurement</h3>
 <p><code>Verdict.measurement: Measurement | None</code> carries <code>value</code>, <code>unit</code>, <code>direction</code> and <code>threshold</code>. <code>from_verdict</code> carries the measurement onto the assessment.</p>
 <p>An evaluator reports one by passing it with its verdict:</p>

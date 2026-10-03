@@ -63,7 +63,11 @@ class CanaryEvaluator(Evaluator):
         Reached only after the replies under grade before the decline were read and leaked
         nothing.
         """
-        if expectation.canary is None or exchange.decline is None:
+        if (
+            type(self).evaluate is not CanaryEvaluator.evaluate
+            or expectation.canary is None
+            or exchange.decline is None
+        ):
             return super().read_decline(exchange, expectation)
         return Verdict(
             "pass",

@@ -87,7 +87,7 @@ class GuardEvaluator(Evaluator):
         Only when no earlier reply is under grade: whether the guard cleared those or could
         not read its own verdict on them is not carried here, and a decline cannot clear them.
         """
-        if exchange.decline is None:
+        if type(self).evaluate is not GuardEvaluator.evaluate or exchange.decline is None:
             return super().read_decline(exchange, expectation)
         if any(text.strip() for text in exchange.graded_replies):
             return Verdict(

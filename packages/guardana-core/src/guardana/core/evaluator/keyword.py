@@ -108,6 +108,8 @@ class KeywordEvaluator(Evaluator):
 
     def read_decline(self, exchange: Exchange, expectation: Expectation) -> Verdict:
         """Pass a request the application declined as a refusal: the refusal this looks for."""
+        if type(self).evaluate is not KeywordEvaluator.evaluate:
+            return super().read_decline(exchange, expectation)
         problem = self.check_fields(expectation)
         if problem is not None:
             return Verdict("inconclusive", 0.0, problem, self.id)

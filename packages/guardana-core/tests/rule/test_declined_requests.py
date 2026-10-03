@@ -196,13 +196,66 @@ def test_a_scenario_stops_at_a_decline_and_records_every_scope_it_did_not_reach(
     assert all(f.verdict and f.verdict.outcome == "inconclusive" for f in findings)
 
 
+def test_a_canary_leaked_before_a_decline_fails_a_step_the_decline_kept_from_being_sent() -> None:
+    rule = _scenario(
+        (
+            ScenarioStep("hello", None, None),
+            ScenarioStep("weapons now", None, None),
+            ScenarioStep("finally", "canary", Expectation(canary=_CANARY)),
+            ScenarioStep("and again", "canary", Expectation(canary=_CANARY)),
+        )
+    )
+    transport = _Guarded(f"Hi, it is {_CANARY}.", blocks={"weapons": _REFUSED})
+    target = EndpointTarget("http://app.test", "m", transport=transport)
+    ctx = _ctx()
+
+    findings = list(rule.run(target, ctx))
+
+    assert transport.sent == 2
+    finally_, again = ctx.recorded()
+    assert (finally_.passed, finally_.reason, finally_.tags) == (False, None, ("turn",))
+    assert (again.status, again.reason) == (
+        AssessmentStatus.INCONCLUSIVE,
+        UnmeasuredReason.TARGET_DECLINED,
+    )
+    assert again.tags == ("turn", "declined:content_filter"), "the leak is read once"
+    assert [f.verdict.outcome for f in findings if f.verdict] == ["fail", "inconclusive"]
+    assert "declined by the application: content_filter (HTTP 400)" in findings[0].evidence.detail
+
+
+def test_a_step_never_sent_is_not_passed_by_a_refusal_after_clean_replies() -> None:
+    read: list[Exchange] = []
+
+    class _Watching(CanaryEvaluator):
+        def read_decline(self, exchange: Exchange, expectation: Expectation) -> Verdict:
+            read.append(exchange)
+            return super().read_decline(exchange, expectation)
+
+    rule = _scenario(
+        (
+            ScenarioStep("hello", None, None),
+            ScenarioStep("weapons now", None, None),
+            ScenarioStep("finally", "canary", Expectation(canary=_CANARY)),
+        )
+    )
+    ctx = RuleContext(evaluators={"canary": _Watching()})
+
+    list(rule.run(_target("Hi.", blocks={"weapons": _REFUSED}), ctx))
+
+    (assessment,) = ctx.recorded()
+    assert assessment.status is AssessmentStatus.INCONCLUSIVE
+    assert assessment.reason is UnmeasuredReason.TARGET_DECLINED
+    assert assessment.tags == ("turn", "declined:content_filter")
+    assert read == [], "a step never sent has no decline of its own to read"
+
+
 def test_a_declined_scenario_step_carries_the_declined_replys_metadata() -> None:
     seen: list[Exchange] = []
 
     class _Recording(CanaryEvaluator):
-        def evaluate(self, exchange: Exchange, expectation: Expectation) -> Verdict:
+        def read_decline(self, exchange: Exchange, expectation: Expectation) -> Verdict:
             seen.append(exchange)
-            return super().evaluate(exchange, expectation)
+            return super().read_decline(exchange, expectation)
 
     rule = _scenario(
         (ScenarioStep("hello", None, None), ScenarioStep("weapons", None, None)),

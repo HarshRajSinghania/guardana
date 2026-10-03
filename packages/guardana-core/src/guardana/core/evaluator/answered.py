@@ -46,6 +46,8 @@ class AnsweredEvaluator(Evaluator):
 
     def read_decline(self, exchange: Exchange, expectation: Expectation) -> Verdict:
         """Fail a request the application declined as a refusal: the task was not answered."""
+        if type(self).evaluate is not AnsweredEvaluator.evaluate:
+            return super().read_decline(exchange, expectation)
         problem = self.check_fields(expectation)
         if problem is not None:
             return Verdict("inconclusive", 0.0, problem, self.id)

@@ -121,6 +121,8 @@ class ReferenceJudgeEvaluator(Evaluator):
 
         A declined task was not answered, so it cannot agree with the reference.
         """
+        if type(self).evaluate is not ReferenceJudgeEvaluator.evaluate:
+            return super().read_decline(exchange, expectation)
         problem = self.check_fields(expectation)
         if problem is not None:
             return Verdict("inconclusive", 0.0, problem, self._evaluator_id)
