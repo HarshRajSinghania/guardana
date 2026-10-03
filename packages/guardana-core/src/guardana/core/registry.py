@@ -21,7 +21,7 @@ from guardana.core.rule.base import Rule
 from guardana.core.rule.errors import RuleLoadError
 from guardana.core.rule.yaml_rule import load_yaml_rules
 from guardana.core.target import Target
-from guardana.core.taxonomy import TaxonomyRef, known_refs
+from guardana.core.taxonomy import TaxonomyRef, catalogs, known_refs
 from guardana.core.taxonomy import register as register_taxonomy
 from guardana.core.taxonomy import unregister as unregister_taxonomy
 from guardana.core.trials import check_trials
@@ -32,6 +32,9 @@ _MARKER = "GUARDANA_CANARY_PARTICIPATION_CHECK"
 RESERVED_NAMESPACE = "guardana."
 _TARGET_SCHEME = re.compile(r"^[a-z][a-z0-9-]*$")
 RESERVED_TARGET_SCHEMES = frozenset({"file", "http", "https", "mcp", "trace"})
+
+BUILT_IN_CATALOGUES = "guardana-core"
+"""The distribution that ships the built-in taxonomy catalogues, and so owns their frameworks."""
 
 
 class RegistryConflictError(RuleLoadError):
@@ -73,6 +76,16 @@ class _LoadRecord:
         return replace(self, **{f.name: copy.copy(getattr(self, f.name)) for f in fields(self)})
 
 
+_Snapshot = tuple[
+    list[Rule],
+    dict[str, Evaluator],
+    list[type[Target]],
+    dict[str, Origin],
+    dict[str, frozenset[str]],
+]
+"""Every registration one provider can change, as `Registry._snapshot` copies it."""
+
+
 class Registry:
     """Single discovery point for rules, evaluators, and targets (built-in or third-party)."""
 
@@ -82,6 +95,7 @@ class Registry:
         self._targets: list[type[Target]] = []
         self._load = _LoadRecord()
         self._origins: dict[str, Origin] = {}
+        self._taxonomy_owners: dict[str, frozenset[str]] = {}
 
     def empty_with_load_state(self) -> Self:
         """Return a registry with no rules, evaluators or targets, carrying this one's load state.
@@ -210,6 +224,33 @@ class Registry:
             self._origins[f"target-scheme:{scheme}"] = origin
         self._targets.append(target)
         self._origins[f"target:{target.__name__}"] = origin
+
+    def _record_taxonomy(self, ref: TaxonomyRef, origin: Origin) -> None:
+        """Register `ref` in the process-wide catalogue and name its distribution an owner.
+
+        An identical reference registered again still adds its distribution, so a
+        framework two packages contribute the same control to lists both of them.
+        """
+        register_taxonomy(ref)
+        if origin.distribution is not None:
+            held = self._taxonomy_owners.get(ref.framework, frozenset())
+            self._taxonomy_owners[ref.framework] = held | {origin.distribution}
+
+    def taxonomy_owners(self) -> Mapping[str, frozenset[str]]:
+        """Every distribution that registered a reference into each framework.
+
+        Discovery names `BUILT_IN_CATALOGUES` as the owner of the built-in frameworks. A
+        framework only code registered is absent.
+        """
+        return dict(self._taxonomy_owners)
+
+    def evaluator_origin(self, evaluator_id: str) -> Origin:
+        """Return which origin supplied the evaluator registered under `evaluator_id`."""
+        return self._origins.get(f"evaluator:{evaluator_id}", UNATTRIBUTED)
+
+    def target_origin(self, target: type[Target]) -> Origin:
+        """Return which origin supplied `target`, recorded under its class name."""
+        return self._origins.get(f"target:{target.__name__}", UNATTRIBUTED)
 
     def origin_of(self, rule_id: str) -> Origin:
         """Return which origin supplied the rule registered under `rule_id`.
@@ -359,8 +400,10 @@ class Registry:
             )
         reg = cls()
         reg._load.trust = trust
+        for catalog in catalogs():
+            reg._taxonomy_owners[catalog.framework] = frozenset({BUILT_IN_CATALOGUES})
         handlers: dict[str, tuple[type | tuple[type, ...], Callable[[Any, Origin], None]]] = {
-            TAXONOMY_GROUP: (TaxonomyRef, _ignoring_origin(register_taxonomy)),
+            TAXONOMY_GROUP: (TaxonomyRef, reg._record_taxonomy),
             RULE_GROUP: (Rule, reg.register_rule),
             EVALUATOR_GROUP: (Evaluator, reg.register_evaluator),
             TARGET_GROUP: (Target, reg.register_target),
@@ -405,38 +448,31 @@ class Registry:
                 reg.record_load_error(failure)
         return reg
 
-    def _snapshot(
-        self,
-    ) -> tuple[list[Rule], dict[str, Evaluator], list[type[Target]], dict[str, Origin]]:
+    def _snapshot(self) -> _Snapshot:
         """Copy the registrations, so one provider's failure can be undone whole."""
-        return (list(self._rules), dict(self._evaluators), list(self._targets), dict(self._origins))
-
-    def _restore(
-        self,
-        snapshot: tuple[list[Rule], dict[str, Evaluator], list[type[Target]], dict[str, Origin]],
-    ) -> None:
-        """Put the registrations back as they were before a provider was absorbed."""
-        self._rules, self._evaluators, self._targets, self._origins = (
-            snapshot[0],
-            snapshot[1],
-            snapshot[2],
-            snapshot[3],
+        return (
+            list(self._rules),
+            dict(self._evaluators),
+            list(self._targets),
+            dict(self._origins),
+            dict(self._taxonomy_owners),
         )
+
+    def _restore(self, snapshot: _Snapshot) -> None:
+        """Put the registrations back as they were before a provider was absorbed."""
+        (
+            self._rules,
+            self._evaluators,
+            self._targets,
+            self._origins,
+            self._taxonomy_owners,
+        ) = snapshot
 
 
 def _repeated(rule: Rule, trials: int) -> Rule:
     """Return `rule` repeating `trials` times, or unchanged when it does not repeat."""
     repeated = rule.with_trials(trials)
     return rule if repeated is None else repeated
-
-
-def _ignoring_origin(register: Callable[[Any], None]) -> Callable[[Any, Origin], None]:
-    """Adapt a one-argument registrar to the two-argument shape discovery uses."""
-
-    def call(item: Any, _origin: Origin) -> None:  # noqa: ANN401 — provider payload
-        register(item)
-
-    return call
 
 
 def _provided_by(entry_point: InstalledEntryPoint) -> object:

@@ -360,12 +360,16 @@ direction that matters is the <strong>missing</strong> one: a pack promising
 runs that never does — a false green arriving through documentation instead of
 through code.</p>
 <p>Each id is looked up under its own group: a rule id that only an evaluator registers is
-not a rule your pack provides. For an installed pack, a declared rule must also be
-registered by <strong>your</strong> distribution. A rule another pack registers runs today and
-disappears with that pack, while your manifest still promises it. Evaluators, targets
-and catalogues are matched by group and id only, because the registry does not record
-which distribution registered them. A manifest named on the command line is not tied
-to an installed distribution, so it is matched by group only.</p>
+not a rule your pack provides. For an installed pack, a declared rule, evaluator or
+target must also be registered by <strong>your</strong> distribution. One another pack registers
+runs today and disappears with that pack, while your manifest still promises it; the
+problem names the distribution that does register it. A framework can have several
+owners, because a pack may add controls to a built-in one or to another pack's: a
+declared framework passes when your distribution registered at least one reference
+into it. The built-in frameworks are owned by the distribution that ships their
+catalogues, so declaring one your pack adds nothing to fails. A manifest named on
+the command line is not tied to an installed distribution, so it is matched by group
+only.</p>
 <p>Registering <em>more</em> than you list is not an error. That is untidy, not a lie, and
 failing a build over it would make this something teams switch off.</p>
 <h2 id="exit-codes">Exit codes</h2>

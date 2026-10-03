@@ -248,17 +248,24 @@ def _discover_completely(resolved: ResolvedTrust, *, consequence: str) -> Regist
 def _registered(registry: Registry) -> Registered:
     """Collect what this build registers, by kind, naming the distribution where it can.
 
-    The registry records the distribution behind each rule. Evaluators, targets and
-    catalogues are named by id only, so a manifest's claim to one of those is checked
-    by kind and not by owner.
+    Rules, evaluators and targets carry the distribution discovery loaded them from;
+    a framework carries every distribution that registered a reference into it, the
+    one shipping the built-in catalogues included.
     """
     return Registered(
         rules={
             rule.meta.id: registry.origin_of(rule.meta.id).distribution for rule in registry.rules()
         },
-        evaluators=dict.fromkeys(registry.evaluators()),
-        targets=dict.fromkeys(target.__name__ for target in registry.targets()),
+        evaluators={
+            evaluator_id: registry.evaluator_origin(evaluator_id).distribution
+            for evaluator_id in registry.evaluators()
+        },
+        targets={
+            target.__name__: registry.target_origin(target).distribution
+            for target in registry.targets()
+        },
         taxonomies=dict.fromkeys(ref.framework for ref in known_refs()),
+        taxonomy_owners=registry.taxonomy_owners(),
     )
 
 

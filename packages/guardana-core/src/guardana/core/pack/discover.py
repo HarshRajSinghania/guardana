@@ -49,6 +49,12 @@ class Registered:
     evaluators: Mapping[str, str | None] = field(default_factory=dict)
     targets: Mapping[str, str | None] = field(default_factory=dict)
     taxonomies: Mapping[str, str | None] = field(default_factory=dict)
+    taxonomy_owners: Mapping[str, frozenset[str]] = field(default_factory=dict)
+    """Every distribution that registered a reference into each framework.
+
+    A framework is shared — a pack may add controls to a built-in one — so it can
+    have several owners, and a pack's claim to it holds when the pack is among them.
+    """
 
 
 @dataclass(frozen=True, slots=True)
@@ -208,21 +214,21 @@ def check_pack(
     Two questions, and both have to be answered before a pack is a safe investment:
     *can this build load it at all*, and *does it do what its manifest says*. Each
     declared id is looked up under its own kind, and, when `distribution` names the
-    one shipping the manifest, it must be that distribution that registers it: an id
-    another pack supplies disappears with that pack while this manifest still
-    promises it.
+    one shipping the manifest, it must be that distribution that registers it — for a
+    framework, one of the distributions registering into it: an id another pack
+    supplies disappears with that pack while this manifest still promises it.
     """
     registered = _by_kind(registered)
     problems: list[str] = []
     if not manifest.loadable_by():
         problems.append(manifest.extension_api.why_not_any(SUPPORTED_EXTENSION_API_VERSIONS))
-    groups = (
-        ("rule", manifest.rules, registered.rules),
-        ("evaluator", manifest.evaluators, registered.evaluators),
-        ("target", manifest.targets, registered.targets),
-        ("taxonomy", manifest.taxonomies, registered.taxonomies),
+    groups: tuple[tuple[str, Sequence[str], Mapping[str, str | None], _Owners], ...] = (
+        ("rule", manifest.rules, registered.rules, {}),
+        ("evaluator", manifest.evaluators, registered.evaluators, {}),
+        ("target", manifest.targets, registered.targets, {}),
+        ("taxonomy", manifest.taxonomies, registered.taxonomies, registered.taxonomy_owners),
     )
-    for kind, declared, present in groups:
+    for kind, declared, present, shared in groups:
         missing = [i for i in declared if i not in present]
         if missing:
             problems.append(
@@ -233,9 +239,9 @@ def check_pack(
         if distribution is None:
             continue
         foreign = [
-            f"{i} (registered by {owner})"
+            f"{i} (registered by {', '.join(sorted(owners))})"
             for i in declared
-            if (owner := present.get(i)) is not None and owner != distribution
+            if (owners := _owners(i, present, shared)) and distribution not in owners
         ]
         if foreign:
             problems.append(
@@ -244,6 +250,15 @@ def check_pack(
                 f"provides a check that another distribution supplies"
             )
     return PackCheck(manifest, tuple(problems))
+
+
+_Owners = Mapping[str, frozenset[str]]
+
+
+def _owners(identifier: str, present: Mapping[str, str | None], shared: _Owners) -> frozenset[str]:
+    """Every distribution the registry names for `identifier`; empty when it can name none."""
+    single = present.get(identifier)
+    return shared.get(identifier, frozenset()) | ({single} if single is not None else set())
 
 
 def _by_kind(registered: Registered | Collection[str]) -> Registered:
