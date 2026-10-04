@@ -148,7 +148,7 @@ project and write rows, keys included.
 uv run python scripts/check_repo_settings.py
 ```
 
-Each setting prints `PRESENT`, `ABSENT` or `NOT CHECKED` (no `gh`, no authentication, or a `403`
+Each setting prints `PRESENT`, `ABSENT` or `NOT CHECKED` (no `gh`, `gh` not logged in, or a `403`
 or `404`). It exits `0` when all are present, `1` when any is absent, and `2` when any could not
 be read. The ghcr packages need a token with `read:packages`. How to put each setting in place:
 [GitHub repository setup](github-setup.md).
