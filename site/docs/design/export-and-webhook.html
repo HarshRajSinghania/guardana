@@ -489,7 +489,7 @@ verifier returned; <code>analyze-trace</code> builds <code>Verification(result=r
 <tr>
 <td><code>manifest</code></td>
 <td>as saved</td>
-<td>as saved, <code>target.ref</code> redacted by the <code>redacted</code>-mode redactor <code>HttpReporter</code> uses for its source</td>
+<td>as saved with every text field redacted again by span (<code>redact_spans</code> over each <code>str</code> of the dataclass tree; enums, times, numbers and digests unchanged), then <code>target.ref</code> redacted by the <code>redacted</code>-mode redactor <code>HttpReporter</code> uses for its source</td>
 </tr>
 <tr>
 <td><code>stop_messages</code>, <code>judge_stops</code></td>
@@ -508,13 +508,17 @@ verifier returned; <code>analyze-trace</code> builds <code>Verification(result=r
 </tr>
 </tbody>
 </table></div>
-<p>So no output sees more than the saved run holds, and nothing that leaves the machine holds more
-than the collector would receive. No argument asks for an unredacted result. If <code>outbound</code>
-raises, the output is not called (decisions 4 and 5).</p>
+<p>So no output sees more than the saved run holds. A reporter receives the saved run's manifest
+with every text field redacted again, <code>target.ref</code> at <code>redacted</code> mode, and no kept exchange. No
+argument asks for an unredacted result. If <code>outbound</code> raises, the output is not called
+(decisions 4 and 5).</p>
 <p>A test plants one fake credential in every channel of <code>result</code>, in a stop message and in a kept
 exchange, and asserts that no built-in renderer, collector reporter, recording discovered
 renderer or recording discovered reporter sees it; a credential planted in <code>manifest.target.ref</code>
-reaches a format as saved, as the JSON report writes it, and reaches no reporter.</p>
+reaches a format as saved, as the JSON report writes it, and reaches no reporter. A second test
+plants a credential in every text field of a manifest, found by the same walk the boundary
+uses, and asserts that none reaches a reporter while every enum, time and digest arrives
+unchanged.</p>
 <p><code>guardana.core.verify.load_verification(path) -&gt; Verification</code> reads a saved run of any schema
 through <code>load_report</code>, sets <code>gate</code> from <code>manifest.result_summary.gate</code>, and leaves <code>exchanges</code>
 <code>None</code>. A run that records no gate raises <code>ReportLoadError(&quot;&lt;path&gt; records no gate, so its verdict cannot be read&quot;)</code>; a migrated schema-1 run is one. This is how a run is exported after the
@@ -534,8 +538,9 @@ class RendererSpec:
 <code>OutputError(Exception)</code> (<code>core/output.py</code>, attributes <code>name</code>, <code>origin</code>, cause chained) is raised
 for any exception except <code>KeyboardInterrupt</code> (<code>SystemExit</code> included), for a result that is not a
 <code>str</code>, and for an empty string: every format writes at least a header, so an empty file would
-read as a successful export of nothing. A failure of <code>outbound</code> is an <code>OutputError</code> with reason
-<code>redaction failed: &lt;type&gt;</code>.</p>
+read as a successful export of nothing. A failure of <code>outbound</code> is not the format's:
+<code>BoundaryError(Exception)</code> (<code>core/output.py</code>, attributes <code>name</code> and <code>reason</code>, the type of what
+the redaction raised, cause chained) is raised instead, and the format is not called.</p>
 <p>The command writes the text through <code>emit(rendered, output, name, verbatim=True)</code>: written with
 <code>newline=&quot;&quot;</code> and printed without an added newline, so CSV line endings survive. <code>--output</code>
 behaves as today, including the warning that <code>diff</code> cannot read the file;
@@ -547,6 +552,10 @@ verdict line <code>the run's verdict: &lt;gate&gt; (exit &lt;code&gt;)</code>, t
 line of decision 5 if a reporter was selected, and exits <code>8</code>. Exit <code>8</code> replaces <code>0</code>, <code>1</code> and <code>2</code>;
 a run that stopped keeps <code>4</code>, <code>6</code> or <code>7</code>, because a stop outranks the verdict and the output
 alike. <code>ExitCode.OUTPUT_FAILED = 8</code> joins <code>cli/exit_codes.py</code>, <code>docs/exit-codes.md</code> and its test.</p>
+<p>A <code>BoundaryError</code> is a defect in Guardana, so it exits <code>5</code> under the same precedence. The
+command prints the verdict line, then <code>error: the run could not be redacted for the format &lt;name&gt;: &lt;type&gt; — nothing was written; this is a defect in Guardana</code>, then the delivery line if
+a reporter was selected. When a failed format leaves a run with <code>--reporter</code> naming the
+built-in collector, the command prints <code>warning: nothing was forwarded to the collector: the run's report was not produced</code> before it exits.</p>
 <h3 id="5-a-reporter-returns-its-delivery-status">5. A reporter returns its delivery status</h3>
 <pre><code class="language-python">@dataclass(frozen=True, slots=True)
 class ReporterSpec:
@@ -579,8 +588,9 @@ class Delivery:
 </code></pre>
 <p><code>deliver(prepared, verification) -&gt; Delivery</code> (<code>core/output.py</code>):</p>
 <ol>
-<li>Applies <code>outbound(..., leaves_machine=True)</code>. A failure returns <code>NOT_SENT</code>, detail
-<code>redaction failed: &lt;type&gt;</code>.</li>
+<li>Applies <code>outbound(..., leaves_machine=True)</code>. A failure raises <code>BoundaryError</code> and the
+reporter is not called; the CLI prints <code>delivery: not_sent — &lt;name&gt; to &lt;destination&gt;: redaction failed: &lt;type&gt;</code>, the verdict line, then <code>error: the run could not be redacted for the reporter &lt;name&gt;: &lt;type&gt; — nothing was sent; this is a defect in Guardana</code>, and exits <code>5</code>
+under the precedence of decision 4.</li>
 <li>Calls <code>deliverer.deliver</code> in a daemon thread and waits at most <code>DELIVERY_DEADLINE_SECONDS = 30</code>. Past it: <code>UNKNOWN</code>, detail <code>did not finish within 30 s</code>. A <code>KeyboardInterrupt</code> in the
 waiting thread propagates, so an interrupted run still exits <code>7</code>.</li>
 <li>Any exception except <code>KeyboardInterrupt</code> (<code>SystemExit</code> included): <code>UNKNOWN</code>, detail
@@ -615,7 +625,9 @@ the budget was refused before sending. A context manager entered right after sel
 code: the receiver's state is not the run's, and that is the collector's rule for an outage or a
 rejection. <code>unknown</code> is a defect in the reporter, as a bad URL or a serialization error is a
 defect the collector path lets end the command: it ends with exit <code>8</code> under the precedence of
-decision 4. A Python caller reads the <code>Delivery</code>. The built-in collector keeps its messages and
+decision 4, and the verdict line is printed whenever <code>8</code> replaces the verdict's code. A failure
+of Guardana's own redaction is not the reporter's defect: it exits <code>5</code> (step 1). A Python caller
+reads the <code>Delivery</code>. The built-in collector keeps its messages and
 its envelope; moving it onto the delivery line would change a shipped output nobody asked to
 change.</p>
 <h3 id="6-trust-and-doctor">6. Trust and <code>doctor</code></h3>

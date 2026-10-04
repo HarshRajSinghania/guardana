@@ -48,7 +48,7 @@ them, and says whether it would be refused.
 | | Format | Reporter |
 |---|---|---|
 | findings, unverified, errors, skips, shortfalls, cases | redacted under the profile, then again as the built-in formats are | the same |
-| the run description and verdict | as saved | as saved, with the target's address redacted |
+| the run description and verdict | as saved | as saved, with every text field redacted again and the target's address redacted |
 | kept exchanges | redacted again | never |
 
 No option hands an output an unredacted result. The verdict comes from the saved run: an
@@ -76,9 +76,11 @@ words are stable; a script may read them.
 ## Exit code 8
 
 Exit `8` means an installed output failed: a format raised or returned no text, so nothing was
-written, or a reporter's delivery is `unknown`. The verdict is printed first, as `the run's
-verdict: <gate> (exit <code>)`, and the error names the distribution to report it to. A run
-its target or budget stopped keeps exit `4` or `6`. See [exit codes](exit-codes.md).
+written, or a reporter's delivery is `unknown`. The verdict is printed as `the run's verdict:
+<gate> (exit <code>)`, and a failed format's error names the distribution to report it to. A
+run its target or budget stopped keeps exit `4` or `6`. When Guardana's own redaction fails
+before an output is called, nothing is written or sent and the exit is `5`, a defect to report
+to Guardana. See [exit codes](exit-codes.md).
 
 ## Export a saved run from Python
 

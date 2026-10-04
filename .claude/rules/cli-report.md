@@ -22,7 +22,8 @@ Why: `docs/maintainers/lessons.md` § CLI and outputs. Contract: `docs/exit-code
   refusal (`SECURITY.md`). `import-observations` runs with plugins disabled and no flag.
   An installed format or reporter is never discovered: it is selected by `--format` or
   `--reporter`, refused with exit `3` before anything is sent, and a failure of its code is
-  exit `8`, never `5` (`core/output.py`, `cli/_outputs.py`).
+  exit `8`, never `5`; a failure of Guardana's own redaction before it is `5`
+  (`BoundaryError`, `core/output.py`, `cli/_outputs.py`).
 - **Styled output is normalised in tests** — assert on the normalised text, never on escape
   sequences or column widths that differ between a laptop and a CI runner.
 - A new command or flag: `docs/usage-<command>.md`, `docs/index.md`, `FEATURES.md`,

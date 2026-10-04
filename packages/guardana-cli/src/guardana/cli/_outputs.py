@@ -19,6 +19,7 @@ from guardana.cli.exit_codes import ExitCode, code_for
 from guardana.core.budget import BudgetExhausted
 from guardana.core.origin import Origin
 from guardana.core.output import (
+    BoundaryError,
     Delivery,
     DeliveryStatus,
     OutputError,
@@ -46,6 +47,7 @@ IMPORT_REFUSAL = "import-observations loads no plugins; it forwards to the colle
 """Why `import-observations` refuses an installed reporter."""
 
 NOT_PRODUCED = "the run's report was not produced"
+_DEFECT = "this is a defect in Guardana"
 
 
 def refuse_selection(exc: OutputSelectionError) -> typer.Exit:
@@ -98,18 +100,23 @@ def refuse_installed_output_beside(
 
 
 def select_outputs(
-    output_format: str, reporter: tuple[str, str] | None, trust: PluginTrust
+    output_format: str,
+    reporter: tuple[str, str] | None,
+    trust: PluginTrust,
+    *,
+    collector: bool = False,
 ) -> "RunOutputs":
     """Select the format and the installed reporter under `trust`, or exit `3` saying why.
 
-    `reporter` is what `split_reporter` returned; a collector value is not selected here.
+    `reporter` is what `split_reporter` returned; a collector value is not selected here,
+    and `collector` says whether the run forwards to one after its report is produced.
     """
     try:
         chosen = resolve_format(output_format, trust)
         prepared = None if reporter is None else select_reporter(reporter[0], reporter[1], trust)
     except OutputSelectionError as exc:
         raise refuse_selection(exc) from exc
-    return RunOutputs(chosen, prepared)
+    return RunOutputs(chosen, prepared, collector=collector)
 
 
 def _distribution(origin: Origin) -> str:
@@ -137,13 +144,20 @@ class RunOutputs:
 
     Entered right after selection: a command that leaves the block without delivering
     prints `delivery: not_sent` with the reason, never twice and never after a delivery.
+    `collector` says whether the run forwards to the built-in collector once its report
+    is produced.
     """
 
     def __init__(
-        self, chosen: OutputFormat | SelectedRenderer, reporter: PreparedReporter | None
+        self,
+        chosen: OutputFormat | SelectedRenderer,
+        reporter: PreparedReporter | None,
+        *,
+        collector: bool = False,
     ) -> None:
         self.format = chosen
         self.reporter = reporter
+        self.collector = collector
         self._delivery: Delivery | None = None
         self._settled = reporter is None
         self._delivering = False
@@ -186,7 +200,8 @@ class RunOutputs:
         """Render the run in the selected format and print it or write it to `output`.
 
         An installed format that fails ends the command: the verdict is printed, nothing is
-        written, and the exit is `8` unless the run stopped.
+        written, and the exit is `8` unless the run stopped. When Guardana's own redaction
+        fails for it, the exit is `5` unless the run stopped.
         """
         name = self.format_name
         if isinstance(self.format, OutputFormat):
@@ -195,6 +210,14 @@ class RunOutputs:
             return
         try:
             rendered = render(self.format, verification)
+        except BoundaryError as exc:
+            _print_verdict(verification)
+            typer.echo(
+                f"error: the run could not be redacted for the format {exc.name}: {exc.reason} "
+                f"— nothing was written; {_DEFECT}",
+                err=True,
+            )
+            self._not_produced(verification, ExitCode.INTERNAL_ERROR)
         except OutputError as exc:
             self._failed(exc, verification)
         self._emit(rendered, output, verbatim=True)
@@ -207,40 +230,71 @@ class RunOutputs:
             raise
 
     def _failed(self, exc: OutputError, verification: Verification) -> NoReturn:
-        verdict = code_for(verification.gate, verification.result.stopped_by)
         owner = exc.origin.distribution or "the distribution that installed it"
-        typer.echo(f"the run's verdict: {verification.gate} (exit {int(verdict)})", err=True)
+        _print_verdict(verification)
         typer.echo(
             f"error: the format {exc.name} from {_distribution(exc.origin)} failed: "
             f"{sanitise_reason(exc.reason)} — nothing was written; report it to {owner}",
             err=True,
         )
+        self._not_produced(verification, ExitCode.OUTPUT_FAILED)
+
+    def _not_produced(self, verification: Verification, code: ExitCode) -> NoReturn:
+        """Say the report was not produced to the reporter or collector, then exit with `code`."""
         self.not_sent(NOT_PRODUCED)
-        raise typer.Exit(code=_output_failed(verification))
+        if self.collector:
+            typer.echo(f"warning: nothing was forwarded to the collector: {NOT_PRODUCED}", err=True)
+        raise typer.Exit(code=_unless_stopped(verification, code))
 
     def deliver(self, verification: Verification) -> Delivery | None:
-        """Deliver the run to the selected reporter and print its line; None without a reporter."""
+        """Deliver the run to the selected reporter and print its line; None without a reporter.
+
+        When Guardana's own redaction fails for the reporter, nothing is sent, the verdict
+        is printed and the exit is `5` unless the run stopped.
+        """
         if self.reporter is None:
             return None
         self._delivering = True
-        delivery = deliver(self.reporter, verification)
+        try:
+            delivery = deliver(self.reporter, verification)
+        except BoundaryError as exc:
+            self._delivering = False
+            self._line(Delivery(DeliveryStatus.NOT_SENT, detail=f"redaction failed: {exc.reason}"))
+            _print_verdict(verification)
+            typer.echo(
+                f"error: the run could not be redacted for the reporter {exc.name}: "
+                f"{exc.reason} — nothing was sent; {_DEFECT}",
+                err=True,
+            )
+            raise typer.Exit(code=_unless_stopped(verification, ExitCode.INTERNAL_ERROR)) from exc
         self._delivering = False
         self._line(delivery)
         self._delivery = delivery
         return delivery
 
     def end(self, verification: Verification) -> None:
-        """End with the run's code, or `8` when the reporter failed and no stop outranks it."""
+        """End with the run's code, or `8` when the reporter failed and no stop outranks it.
+
+        The verdict is printed whenever `8` replaces its code.
+        """
         if self._delivery is not None and self._delivery.status is DeliveryStatus.UNKNOWN:
-            raise typer.Exit(code=_output_failed(verification))
+            code = _unless_stopped(verification, ExitCode.OUTPUT_FAILED)
+            if code is ExitCode.OUTPUT_FAILED:
+                _print_verdict(verification)
+            raise typer.Exit(code=code)
         exit_with(verification.gate, verification.result)
 
 
-def _output_failed(verification: Verification) -> ExitCode:
-    """Return `8`, or the stop's code when the run stopped: a stop outranks the output."""
+def _print_verdict(verification: Verification) -> None:
+    verdict = code_for(verification.gate, verification.result.stopped_by)
+    typer.echo(f"the run's verdict: {verification.gate} (exit {int(verdict)})", err=True)
+
+
+def _unless_stopped(verification: Verification, code: ExitCode) -> ExitCode:
+    """Return `code`, or the stop's code when the run stopped: a stop outranks the output."""
     if verification.result.stopped_by is not None:
         return code_for(verification.gate, verification.result.stopped_by)
-    return ExitCode.OUTPUT_FAILED
+    return code
 
 
 __all__ = [

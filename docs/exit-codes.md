@@ -109,7 +109,9 @@ or a reporter whose delivery is `unknown` because it raised, returned no valid s
 ran past its deadline. The bug report belongs to that distribution, so the code is not
 `5`. The verdict is printed before the error, `8` replaces `0`, `1` and `2`, and a run
 that stopped keeps `4`, `6` or `7`. A receiver that refused or did not answer is not
-`8`: the delivery line says so and the verdict keeps its code, as for the collector.
+`8`: the delivery line says so and the verdict keeps its code, as for the collector. When
+Guardana's own redaction fails before an output is called, nothing is written or sent and the
+code is `5`, under the same precedence.
 
 ## Which commands produce which
 

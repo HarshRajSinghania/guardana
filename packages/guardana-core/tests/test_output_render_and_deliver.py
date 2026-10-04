@@ -2,7 +2,8 @@
 
 A format that raises, exits, returns no text or something that is not text is an
 `OutputError`; a reporter that raises, exits, overruns its deadline or returns a malformed
-delivery is `unknown`. Only an interrupt from the operator propagates. Every line printed
+delivery is `unknown`. A boundary whose own redaction raises is a `BoundaryError`, and the
+output is never called. Only an interrupt from the operator propagates. Every line printed
 from a reporter's words is sanitised, and the delivery line keeps its documented grammar.
 """
 
@@ -18,6 +19,7 @@ from guardana.core.gate import GateOutcome
 from guardana.core.origin import Origin
 from guardana.core.output import (
     DELIVERY_DEADLINE_SECONDS,
+    BoundaryError,
     Deliverer,
     Delivery,
     DeliveryStatus,
@@ -97,14 +99,18 @@ def test_a_format_interrupted_by_the_operator_propagates() -> None:
         render(_selected(_interrupt), _verification())
 
 
-def _failing_boundary(monkeypatch: pytest.MonkeyPatch) -> None:
+def _failing_boundary(
+    monkeypatch: pytest.MonkeyPatch, raised: type[BaseException] = RuntimeError
+) -> None:
     def outbound(verification: Verification, *, leaves_machine: bool) -> Verification:
-        raise RuntimeError(f"cannot redact {leaves_machine}")
+        raise raised(f"cannot redact {leaves_machine}")
 
     monkeypatch.setattr(output_module, "outbound", outbound)
 
 
-def test_a_failed_boundary_never_calls_the_format(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_a_failed_boundary_is_guardanas_defect_and_never_calls_the_format(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     _failing_boundary(monkeypatch)
     called: list[Verification] = []
 
@@ -112,10 +118,13 @@ def test_a_failed_boundary_never_calls_the_format(monkeypatch: pytest.MonkeyPatc
         called.append(verification)
         return "x"
 
-    with pytest.raises(OutputError) as raised:
+    with pytest.raises(BoundaryError) as raised:
         render(_selected(record), _verification())
 
-    assert raised.value.reason == "redaction failed: RuntimeError"
+    assert not isinstance(raised.value, OutputError)
+    assert raised.value.name == "acme-table"
+    assert raised.value.reason == "RuntimeError"
+    assert isinstance(raised.value.__cause__, RuntimeError)
     assert called == []
 
 
@@ -270,13 +279,29 @@ def test_a_deliverer_whose_secrets_cannot_be_read_is_unknown() -> None:
     assert delivery.status is DeliveryStatus.UNKNOWN
 
 
-def test_a_failed_boundary_sends_nothing(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_a_failed_boundary_is_guardanas_defect_and_sends_nothing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     _failing_boundary(monkeypatch)
     deliverer = _Deliverer(lambda v: Delivery(DeliveryStatus.DELIVERED))
 
-    delivery = deliver(_prepared(deliverer), _verification())
+    with pytest.raises(BoundaryError) as raised:
+        deliver(_prepared(deliverer), _verification())
 
-    assert delivery == Delivery(DeliveryStatus.NOT_SENT, detail="redaction failed: RuntimeError")
+    assert raised.value.name == "acme-webhook"
+    assert raised.value.reason == "RuntimeError"
+    assert isinstance(raised.value.__cause__, RuntimeError)
+    assert deliverer.seen == []
+
+
+def test_an_interrupt_in_the_boundary_propagates(monkeypatch: pytest.MonkeyPatch) -> None:
+    _failing_boundary(monkeypatch, KeyboardInterrupt)
+    deliverer = _Deliverer(lambda v: Delivery(DeliveryStatus.DELIVERED))
+
+    with pytest.raises(KeyboardInterrupt):
+        render(_selected(lambda v: "x"), _verification())
+    with pytest.raises(KeyboardInterrupt):
+        deliver(_prepared(deliverer), _verification())
     assert deliverer.seen == []
 
 

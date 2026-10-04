@@ -2,8 +2,10 @@
 
 The delivery line is printed once for a selected reporter on every path: after the
 report on a finished run, and as `not_sent` with its reason when the command ends
-first. `unknown` and a failed format exit `8` unless the run stopped, whose code
-outranks both; every other delivery status keeps the verdict's code.
+first. `unknown` and a failed format exit `8`, and a failure of Guardana's own redaction
+exits `5`, unless the run stopped, whose code outranks all three; every other delivery
+status keeps the verdict's code. Whenever the exit replaces the verdict's code, the
+verdict is printed.
 """
 
 import io
@@ -15,6 +17,7 @@ from pathlib import Path
 from urllib.error import URLError
 
 import guardana.cli._endpoint as endpoint_module
+import guardana.core.output as output_module
 import pytest
 import typer
 from _fake_distribution import FakeModule, FakeSite
@@ -41,6 +44,10 @@ _DIST = "acme-guardana-outputs"
 _ADMIT = ["--plugins", "allowlist", "--allow-plugin", _DIST]
 _HOOK = "acme-webhook://https://hooks.example.invalid/guardana"
 _TO = "acme-webhook to https://hooks.example.invalid"
+_COLLECTOR = "http://collector.example.invalid:8000"
+_NOT_FORWARDED = (
+    "warning: nothing was forwarded to the collector: the run's report was not produced"
+)
 
 _HEADER = """\
 from pathlib import Path
@@ -159,6 +166,26 @@ def _delivery_lines(output: str) -> list[str]:
 
 def _probe(*arguments: str) -> Result:
     return runner.invoke(app, ["probe", "--url", "http://fake", "--model", "m", *arguments])
+
+
+def _trace(tmp_path: Path) -> Path:
+    trace = tmp_path / "trace.jsonl"
+    trace.write_text(
+        '{"guardana_trace": 1, "trace_id": "t-1", "producer": {"name": "acme"}, '
+        '"instrumented": ["messages", "tools"]}\n'
+        '{"span_id": "s1", "kind": "tool_execution", "name": "http", "tool": {"name": "http"}}\n',
+        encoding="utf-8",
+    )
+    return trace
+
+
+def _failing_boundary(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Make Guardana's own redaction at the output boundary raise, for both kinds of output."""
+
+    def outbound(verification: Verification, *, leaves_machine: bool) -> Verification:
+        raise RuntimeError("cannot redact")
+
+    monkeypatch.setattr(output_module, "outbound", outbound)
 
 
 def test_an_installed_format_is_written_verbatim(
@@ -301,9 +328,11 @@ def test_a_reporter_that_raises_is_unknown_and_exits_8(site: FakeSite, clean_tre
     result = runner.invoke(app, ["scan", str(clean_tree), "--reporter", _HOOK, *_ADMIT])
 
     assert result.exit_code == ExitCode.OUTPUT_FAILED, result.output
-    assert _delivery_lines(result.output) == [
-        f"delivery: unknown — {_TO}: RuntimeError: the hook is broken"
+    assert _lines(result.output)[-2:] == [
+        f"delivery: unknown — {_TO}: RuntimeError: the hook is broken",
+        "the run's verdict: pass (exit 0)",
     ]
+    assert len(_delivery_lines(result.output)) == 1
 
 
 def test_a_probe_delivers_after_the_endpoint_answered(
@@ -330,6 +359,7 @@ def test_a_stopped_probe_keeps_its_code_over_an_unknown_delivery(
     assert _delivery_lines(result.output) == [
         f"delivery: unknown — {_TO}: RuntimeError: the hook is broken"
     ]
+    assert not any(line.startswith("the run's verdict:") for line in _lines(result.output))
 
 
 def test_a_stopped_probe_keeps_its_code_over_a_failed_format(
@@ -341,6 +371,121 @@ def test_a_stopped_probe_keeps_its_code_over_a_failed_format(
 
     assert result.exit_code == ExitCode.BUDGET_EXHAUSTED, result.output
     assert "the run's verdict: indeterminate (exit 6)" in _lines(result.output)
+
+
+def test_a_format_whose_redaction_fails_exits_5_with_the_verdict_and_writes_nothing(
+    site: FakeSite, failing_tree: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    table, hook = _both(
+        site,
+        rendered="'a,b'",
+        deliver="return Delivery(DeliveryStatus.DELIVERED, attempts=1, http_status=204)",
+    )
+    _failing_boundary(monkeypatch)
+    saved = tmp_path / "run.csv"
+
+    result = runner.invoke(
+        app,
+        [
+            "scan",
+            str(failing_tree),
+            "--format",
+            "acme-table",
+            "--output",
+            str(saved),
+            "--reporter",
+            _HOOK,
+            *_ADMIT,
+        ],
+    )
+
+    assert result.exit_code == ExitCode.INTERNAL_ERROR, result.output
+    assert _lines(result.output)[-3:] == [
+        "the run's verdict: fail (exit 1)",
+        "error: the run could not be redacted for the format acme-table: RuntimeError — "
+        "nothing was written; this is a defect in Guardana",
+        f"delivery: not_sent — {_TO}: the run's report was not produced",
+    ]
+    assert not saved.exists()
+    assert _seen(table) == []
+    assert _seen(hook) == []
+
+
+def test_a_reporter_whose_redaction_fails_sends_nothing_and_exits_5(
+    site: FakeSite, clean_tree: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    hook = _hook(site, "return Delivery(DeliveryStatus.DELIVERED, attempts=1, http_status=204)")
+    _failing_boundary(monkeypatch)
+
+    result = runner.invoke(app, ["scan", str(clean_tree), "--reporter", _HOOK, *_ADMIT])
+
+    assert result.exit_code == ExitCode.INTERNAL_ERROR, result.output
+    assert _lines(result.output)[-3:] == [
+        f"delivery: not_sent — {_TO}: redaction failed: RuntimeError",
+        "the run's verdict: pass (exit 0)",
+        "error: the run could not be redacted for the reporter acme-webhook: RuntimeError — "
+        "nothing was sent; this is a defect in Guardana",
+    ]
+    assert len(_delivery_lines(result.output)) == 1
+    assert _seen(hook) == []
+
+
+@pytest.mark.parametrize(
+    ("arguments", "said"),
+    [
+        (["--reporter", _HOOK], "nothing was sent"),
+        (["--format", "acme-table"], "nothing was written"),
+    ],
+)
+def test_a_stopped_probe_keeps_its_code_over_a_failed_redaction(
+    site: FakeSite,
+    endpoint: RefusingTransport,
+    monkeypatch: pytest.MonkeyPatch,
+    arguments: list[str],
+    said: str,
+) -> None:
+    _both(site, rendered="'a,b'", deliver="return Delivery(DeliveryStatus.DELIVERED)")
+    _failing_boundary(monkeypatch)
+
+    result = _probe(*arguments, "--max-requests", "1", *_ADMIT)
+
+    assert result.exit_code == ExitCode.BUDGET_EXHAUSTED, result.output
+    lines = _lines(result.output)
+    assert "the run's verdict: indeterminate (exit 6)" in lines
+    assert any(line.startswith("error: the run could not be redacted") for line in lines)
+    assert said in _plain(result.output)
+
+
+@pytest.mark.parametrize(
+    ("rendered", "code"),
+    [("''", ExitCode.OUTPUT_FAILED), ("'a,b'", ExitCode.INTERNAL_ERROR)],
+)
+@pytest.mark.parametrize("command", ["scan", "probe", "analyze-trace"])
+def test_a_failed_format_says_nothing_was_forwarded_to_the_collector(  # noqa: PLR0913 — the matrix
+    site: FakeSite,
+    clean_tree: Path,
+    tmp_path: Path,
+    endpoint: RefusingTransport,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    rendered: str,
+    code: ExitCode,
+    command: str,
+) -> None:
+    _table(site, rendered=rendered)
+    if code is ExitCode.INTERNAL_ERROR:
+        _failing_boundary(monkeypatch)
+    arguments = ["--format", "acme-table", "--reporter", _COLLECTOR, *_ADMIT]
+
+    if command == "scan":
+        result = runner.invoke(app, ["scan", str(clean_tree), *arguments])
+    elif command == "probe":
+        result = _probe(*arguments)
+    else:
+        result = runner.invoke(app, ["analyze-trace", str(_trace(tmp_path)), *arguments])
+
+    assert result.exit_code == code, result.output
+    assert _lines(result.output)[-1] == _NOT_FORWARDED
 
 
 def test_an_unwritable_report_says_nothing_was_sent(
@@ -425,15 +570,10 @@ def test_analyze_trace_hands_an_installed_format_the_runs_verdict(
     site: FakeSite, tmp_path: Path
 ) -> None:
     module = _table(site)
-    trace = tmp_path / "trace.jsonl"
-    trace.write_text(
-        '{"guardana_trace": 1, "trace_id": "t-1", "producer": {"name": "acme"}, '
-        '"instrumented": ["messages", "tools"]}\n'
-        '{"span_id": "s1", "kind": "tool_execution", "name": "http", "tool": {"name": "http"}}\n',
-        encoding="utf-8",
-    )
 
-    result = runner.invoke(app, ["analyze-trace", str(trace), "--format", "acme-table", *_ADMIT])
+    result = runner.invoke(
+        app, ["analyze-trace", str(_trace(tmp_path)), "--format", "acme-table", *_ADMIT]
+    )
 
     seen = _seen(module)
     assert len(seen) == 1

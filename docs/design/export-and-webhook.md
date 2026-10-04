@@ -224,19 +224,23 @@ gate=outcome)`.
 | Field | Renderer | Reporter |
 |---|---|---|
 | `result` | `EvidenceRedactor().redact_result(result)`: the second pass `_Redacting` and `HttpReporter` give the built-ins | the same |
-| `manifest` | as saved | as saved, `target.ref` redacted by the `redacted`-mode redactor `HttpReporter` uses for its source |
+| `manifest` | as saved | as saved with every text field redacted again by span (`redact_spans` over each `str` of the dataclass tree; enums, times, numbers and digests unchanged), then `target.ref` redacted by the `redacted`-mode redactor `HttpReporter` uses for its source |
 | `stop_messages`, `judge_stops` | `()`: never saved; the CLI prints them itself | `()` |
 | `exchanges` | redacted again span by span, as the keeper does: written beside the saved run already | `None`: the collector never receives them either |
 | `judge_usage` | as recorded | as recorded |
 
-So no output sees more than the saved run holds, and nothing that leaves the machine holds more
-than the collector would receive. No argument asks for an unredacted result. If `outbound`
-raises, the output is not called (decisions 4 and 5).
+So no output sees more than the saved run holds. A reporter receives the saved run's manifest
+with every text field redacted again, `target.ref` at `redacted` mode, and no kept exchange. No
+argument asks for an unredacted result. If `outbound` raises, the output is not called
+(decisions 4 and 5).
 
 A test plants one fake credential in every channel of `result`, in a stop message and in a kept
 exchange, and asserts that no built-in renderer, collector reporter, recording discovered
 renderer or recording discovered reporter sees it; a credential planted in `manifest.target.ref`
-reaches a format as saved, as the JSON report writes it, and reaches no reporter.
+reaches a format as saved, as the JSON report writes it, and reaches no reporter. A second test
+plants a credential in every text field of a manifest, found by the same walk the boundary
+uses, and asserts that none reaches a reporter while every enum, time and digest arrives
+unchanged.
 
 `guardana.core.verify.load_verification(path) -> Verification` reads a saved run of any schema
 through `load_report`, sets `gate` from `manifest.result_summary.gate`, and leaves `exchanges`
@@ -265,8 +269,9 @@ class RendererSpec:
 `OutputError(Exception)` (`core/output.py`, attributes `name`, `origin`, cause chained) is raised
 for any exception except `KeyboardInterrupt` (`SystemExit` included), for a result that is not a
 `str`, and for an empty string: every format writes at least a header, so an empty file would
-read as a successful export of nothing. A failure of `outbound` is an `OutputError` with reason
-`redaction failed: <type>`.
+read as a successful export of nothing. A failure of `outbound` is not the format's:
+`BoundaryError(Exception)` (`core/output.py`, attributes `name` and `reason`, the type of what
+the redaction raised, cause chained) is raised instead, and the format is not called.
 
 The command writes the text through `emit(rendered, output, name, verbatim=True)`: written with
 `newline=""` and printed without an added newline, so CSV line endings survive. `--output`
@@ -281,6 +286,13 @@ verdict line `the run's verdict: <gate> (exit <code>)`, then `error: the format 
 line of decision 5 if a reporter was selected, and exits `8`. Exit `8` replaces `0`, `1` and `2`;
 a run that stopped keeps `4`, `6` or `7`, because a stop outranks the verdict and the output
 alike. `ExitCode.OUTPUT_FAILED = 8` joins `cli/exit_codes.py`, `docs/exit-codes.md` and its test.
+
+A `BoundaryError` is a defect in Guardana, so it exits `5` under the same precedence. The
+command prints the verdict line, then `error: the run could not be redacted for the format
+<name>: <type> — nothing was written; this is a defect in Guardana`, then the delivery line if
+a reporter was selected. When a failed format leaves a run with `--reporter` naming the
+built-in collector, the command prints `warning: nothing was forwarded to the collector: the
+run's report was not produced` before it exits.
 
 ### 5. A reporter returns its delivery status
 
@@ -317,8 +329,11 @@ class Delivery:
 
 `deliver(prepared, verification) -> Delivery` (`core/output.py`):
 
-1. Applies `outbound(..., leaves_machine=True)`. A failure returns `NOT_SENT`, detail
-   `redaction failed: <type>`.
+1. Applies `outbound(..., leaves_machine=True)`. A failure raises `BoundaryError` and the
+   reporter is not called; the CLI prints `delivery: not_sent — <name> to <destination>:
+   redaction failed: <type>`, the verdict line, then `error: the run could not be redacted for
+   the reporter <name>: <type> — nothing was sent; this is a defect in Guardana`, and exits `5`
+   under the precedence of decision 4.
 2. Calls `deliverer.deliver` in a daemon thread and waits at most `DELIVERY_DEADLINE_SECONDS =
    30`. Past it: `UNKNOWN`, detail `did not finish within 30 s`. A `KeyboardInterrupt` in the
    waiting thread propagates, so an interrupted run still exits `7`.
@@ -362,7 +377,9 @@ the budget was refused before sending. A context manager entered right after sel
 code: the receiver's state is not the run's, and that is the collector's rule for an outage or a
 rejection. `unknown` is a defect in the reporter, as a bad URL or a serialization error is a
 defect the collector path lets end the command: it ends with exit `8` under the precedence of
-decision 4. A Python caller reads the `Delivery`. The built-in collector keeps its messages and
+decision 4, and the verdict line is printed whenever `8` replaces the verdict's code. A failure
+of Guardana's own redaction is not the reporter's defect: it exits `5` (step 1). A Python caller
+reads the `Delivery`. The built-in collector keeps its messages and
 its envelope; moving it onto the delivery line would change a shipped output nobody asked to
 change.
 

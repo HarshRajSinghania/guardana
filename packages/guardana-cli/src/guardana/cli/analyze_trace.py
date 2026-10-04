@@ -115,7 +115,12 @@ def analyze_trace(  # noqa: C901, PLR0913, PLR0917 — Typer surface plus two ta
     installed_reporter = installed_reporter_or_check(reporter)
     prof = resolve_profile(profile, preset)
     resolved = resolve_trust(plugins, allow_plugin, prof)
-    outputs = select_outputs(format, installed_reporter, resolved.trust)
+    outputs = select_outputs(
+        format,
+        installed_reporter,
+        resolved.trust,
+        collector=installed_reporter is None and bool(reporter),
+    )
     with outputs:
         registry = Registry.discover(resolved.trust)
         hint_refused_plugins(registry, resolved)

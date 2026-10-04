@@ -191,7 +191,12 @@ def scan(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; this is t
     # behind an entry point resolves to nothing at run time and is skipped —
     # safe degradation, never a crash.
     resolved = resolve_trust(plugins, allow_plugin, prof, no_plugins=no_plugins)
-    outputs = select_outputs(format, installed_reporter, resolved.trust)
+    outputs = select_outputs(
+        format,
+        installed_reporter,
+        resolved.trust,
+        collector=installed_reporter is None and bool(reporter),
+    )
     with outputs:
         registry = Registry.discover(resolved.trust)
         hint_refused_plugins(registry, resolved)

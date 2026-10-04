@@ -1,14 +1,17 @@
-"""An output sees no more than the saved run holds; one that sends, no more than the collector.
+"""An output sees no more than the saved run holds; one that sends, every text redacted again.
 
 One fake credential is planted in every channel of a result, in the target ref, in the
 stop and judge messages and in a kept exchange. A discovered recording format and a
 discovered recording reporter are then run, and what each was handed is read where it
-arrived: inside the output's own module.
+arrived: inside the output's own module. A second credential is planted in every text
+field of a manifest, and none of it may reach a reporter.
 """
 
 import sys
-from collections.abc import Iterator
-from dataclasses import fields, replace
+from collections.abc import Iterator, Mapping
+from dataclasses import fields, is_dataclass, replace
+from datetime import datetime
+from enum import Enum
 from pathlib import Path
 
 import pytest
@@ -17,6 +20,7 @@ from _fake_distribution import FakeSite
 from _output_modules import RECORDING_RENDERER, RECORDING_REPORTER, body
 from guardana.core.entrypoints import RENDERER_GROUP, REPORTER_GROUP
 from guardana.core.gate import GateOutcome
+from guardana.core.manifest import RunManifest
 from guardana.core.manifest.usage import JudgeUsage
 from guardana.core.output import (
     DeliveryStatus,
@@ -198,3 +202,117 @@ def test_a_target_ref_that_leaves_the_machine_is_redacted_at_redacted_mode() -> 
     assert kept == "https://owner@example.invalid/v1"
     assert "owner@example.invalid" not in sent
     assert sent.startswith("https://")
+
+
+_KEY = "sk-" + "PLANTED0FAKE0KEY0123"
+"""A fake credential in the shape of an API key, built in code, valid nowhere."""
+
+_SHAPED = frozenset(
+    {
+        ("DocumentDigest", "digest"),
+        ("ExchangesRecord", "digest"),
+        ("FixturesRecord", "digest"),
+        ("RecipeRecord", "digest"),
+        ("RecipeRecord", "lock_digest"),
+        ("RunUsage", "judge"),
+    }
+)
+"""Fields the manifest refuses to hold anything but a fixed shape, so nothing can be planted."""
+
+_Leaf = tuple[str, str, object]
+"""Where a value sits: the owning dataclass's name, its field and the value itself."""
+
+
+def _leaves(value: object, owner: tuple[str, str] = ("", "")) -> Iterator[_Leaf]:
+    """Yield every str, Enum and datetime reachable the way the boundary walks a manifest."""
+    if isinstance(value, Enum | str | datetime):
+        yield (*owner, value)
+    elif type(value) is tuple:
+        for item in value:
+            yield from _leaves(item, owner)
+    elif isinstance(value, Mapping):
+        for key, item in value.items():
+            yield from _leaves(key, owner)
+            yield from _leaves(item, owner)
+    elif is_dataclass(value) and not isinstance(value, type):
+        for spec in fields(value):
+            if spec.init:
+                yield from _leaves(getattr(value, spec.name), (type(value).__name__, spec.name))
+
+
+def _plant(value: object) -> object:
+    """Append `_KEY` to every str the boundary walks; a field that refuses it is left as is."""
+    if isinstance(value, Enum):
+        return value
+    if isinstance(value, str):
+        return f"{value} {_KEY}"
+    if type(value) is tuple:
+        return tuple(_plant(item) for item in value)
+    if isinstance(value, Mapping):
+        return {_plant(key): _plant(item) for key, item in value.items()}
+    if is_dataclass(value) and not isinstance(value, type):
+        record = value
+        for spec in fields(value):
+            if not spec.init:
+                continue
+            try:
+                record = replace(record, **{spec.name: _plant(getattr(value, spec.name))})
+            except ValueError:
+                if (type(value).__name__, spec.name) not in _SHAPED:
+                    raise
+        return record
+    return value
+
+
+def _planted_manifest() -> RunManifest:
+    planted = _plant(run_manifest())
+    if not isinstance(planted, RunManifest):
+        raise TypeError(type(planted).__name__)
+    return planted
+
+
+def test_the_key_is_planted_in_every_text_field_of_the_manifest() -> None:
+    """Fails when a text field the boundary walks is left out of the planting."""
+    unplanted = {
+        (owner, name)
+        for owner, name, value in _leaves(_planted_manifest())
+        if isinstance(value, str) and not isinstance(value, Enum) and _KEY not in value
+    }
+
+    assert unplanted == _SHAPED
+    assert repr(_planted_manifest()).count(_KEY) > len(fields(RunManifest))
+
+
+def test_a_reporter_gets_every_text_field_of_the_manifest_redacted_again() -> None:
+    planted = _planted_manifest()
+    given = Verification(result=scan_result(), manifest=planted, gate=GateOutcome.FAIL)
+
+    sent = outbound(given, leaves_machine=True).manifest
+    kept = outbound(given, leaves_machine=False).manifest
+
+    leaked = [(o, n) for o, n, v in _leaves(sent) if isinstance(v, str) and _KEY in v]
+    assert leaked == []
+    assert _KEY not in repr(sent)
+    assert kept == planted, "a format gets the manifest as saved"
+    assert [v for _, _, v in _leaves(sent) if isinstance(v, Enum | datetime)] == [
+        v for _, _, v in _leaves(planted) if isinstance(v, Enum | datetime)
+    ]
+
+
+def test_a_reporter_gets_identifiers_enums_and_times_unchanged() -> None:
+    saved = run_manifest()
+    given = Verification(result=scan_result(), manifest=saved, gate=GateOutcome.FAIL)
+
+    sent = outbound(given, leaves_machine=True).manifest
+
+    assert sent.run_id == saved.run_id
+    assert sent.created_at == saved.created_at
+    assert sent.target.kind is saved.target.kind
+    assert sent.target.fingerprint == saved.target.fingerprint
+    assert sent.target.document == saved.target.document
+    assert sent.configuration.profile_digest == saved.configuration.profile_digest
+    assert [r.digest for r in sent.rules] == [r.digest for r in saved.rules]
+    assert sent.result_summary == saved.result_summary
+    assert [v for _, _, v in _leaves(sent) if isinstance(v, Enum)] == [
+        v for _, _, v in _leaves(saved) if isinstance(v, Enum)
+    ]

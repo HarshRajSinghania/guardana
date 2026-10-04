@@ -4,16 +4,16 @@ An output is one entry point in `guardana.renderers` or `guardana.reporters`, an
 entry-point name is the output's name, so a collision and a trust refusal are decided
 from metadata before anything is imported. An output is imported only when a run
 selects it. Both kinds receive a `Verification` through `outbound`, which holds no more
-than the saved run holds, and nothing that leaves the machine holds more than the
-collector would receive.
+than the saved run holds. A reporter receives the saved run's manifest with every text
+field redacted again and its target ref at `redacted` mode, and no kept exchange.
 """
 
 import re
 import threading
 from collections.abc import Callable, Iterable, Mapping
-from dataclasses import dataclass, replace
-from enum import StrEnum
-from typing import Protocol, TypeVar
+from dataclasses import dataclass, fields, is_dataclass, replace
+from enum import Enum, StrEnum
+from typing import Any, ClassVar, Protocol, TypeVar
 
 from guardana.core.entrypoints import (
     OUTPUT_GROUPS,
@@ -189,6 +189,19 @@ class OutputError(Exception):
         super().__init__(reason)
         self.name = name
         self.origin = origin
+        self.reason = reason
+
+
+class BoundaryError(Exception):
+    """The output boundary's own redaction raised, so the output was not called.
+
+    A defect in Guardana, not in the output. `name` is the output's name and `reason`
+    the type of what the redaction raised; the exception itself is chained as the cause.
+    """
+
+    def __init__(self, name: str, reason: str) -> None:
+        super().__init__(f"the redaction for {name} failed: {reason}")
+        self.name = name
         self.reason = reason
 
 
@@ -564,14 +577,15 @@ def outbound(verification: Verification, *, leaves_machine: bool) -> Verificatio
     """Return what an output may see of `verification`: no more than the saved run holds.
 
     The result gets the default redactor's second pass, as the built-in renderers and the
-    collector give it. Stop and judge messages are dropped: they are never saved. Kept
-    exchanges are redacted again by span. When the output `leaves_machine`, the target
-    ref is redacted at `redacted` mode and no exchange is handed over, as the collector
-    receives none.
+    collector give it. Stop and judge messages are dropped: they are never saved. A format
+    gets the manifest as saved and the kept exchanges redacted again by span. When the
+    output `leaves_machine`, it gets the manifest with every text field redacted again by
+    span and the target ref at `redacted` mode, and no kept exchange.
     """
     manifest = verification.manifest
     exchanges: Recording | None
     if leaves_machine:
+        manifest = _record_spans(manifest)
         ref = at_redacted_mode(_SECOND_PASS.policy).redact_text(manifest.target.ref)
         manifest = replace(manifest, target=replace(manifest.target, ref=ref))
         exchanges = None
@@ -585,6 +599,52 @@ def outbound(verification: Verification, *, leaves_machine: bool) -> Verificatio
         judge_stops=(),
         exchanges=exchanges,
     )
+
+
+class _Dataclass(Protocol):
+    """Any dataclass instance, as `dataclasses.fields` and `replace` accept one."""
+
+    __dataclass_fields__: ClassVar[dict[str, Any]]
+
+
+_Record = TypeVar("_Record", bound=_Dataclass)
+
+
+def _record_spans(record: _Record) -> _Record:
+    """Redact every str a dataclass holds by span, rebuilding it only over its `init` fields."""
+    changes: dict[str, object] = {}
+    for spec in fields(record):
+        if not spec.init:
+            continue
+        current = getattr(record, spec.name)
+        cleaned = _value_spans(current)
+        if cleaned is not current:
+            changes[spec.name] = cleaned
+    return replace(record, **changes) if changes else record
+
+
+def _value_spans(value: object) -> object:
+    """Redact every str inside `value`, returning the same object when nothing changed.
+
+    An `Enum` is checked first, as a `StrEnum` member is also a str.
+    """
+    if isinstance(value, Enum):
+        return value
+    if isinstance(value, str):
+        cleaned = _SECOND_PASS.redact_spans(value)
+        return value if cleaned == value else cleaned
+    if type(value) is tuple:
+        items = tuple(_value_spans(item) for item in value)
+        return value if all(a is b for a, b in zip(items, value, strict=True)) else items
+    if isinstance(value, Mapping):
+        entries = {_value_spans(key): _value_spans(item) for key, item in value.items()}
+        unchanged = len(entries) == len(value) and all(
+            key in entries and entries[key] is item for key, item in value.items()
+        )
+        return value if unchanged else entries
+    if is_dataclass(value) and not isinstance(value, type):
+        return _record_spans(value)
+    return value
 
 
 def _redacted_recording(recording: Recording | None) -> Recording | None:
@@ -618,17 +678,16 @@ def _redacted(exchange: RecordedExchange) -> RecordedExchange:
 def render(selected: SelectedRenderer, verification: Verification) -> str:
     """Render `verification` with an installed format, through `outbound`.
 
-    Raises `OutputError` when the boundary fails, when the format raises anything but
-    `KeyboardInterrupt`, and when it returns something that is not text or no text at all.
+    Raises `BoundaryError` when the boundary fails, before the format is called, and
+    `OutputError` when the format raises anything but `KeyboardInterrupt` or returns
+    something that is not text or no text at all.
     """
     try:
         seen = outbound(verification, leaves_machine=False)
     except KeyboardInterrupt:
         raise
     except BaseException as exc:
-        raise OutputError(
-            selected.name, selected.origin, f"redaction failed: {type(exc).__name__}"
-        ) from exc
+        raise BoundaryError(selected.name, type(exc).__name__) from exc
     try:
         rendered = selected.spec.render(seen)
     except KeyboardInterrupt:
@@ -652,16 +711,17 @@ def deliver(
 ) -> Delivery:
     """Deliver `verification` with an installed reporter, through `outbound`, within `deadline`.
 
-    Never raises for the reporter's sake: a failure of the boundary is `not_sent`, and a
-    reporter that raises, overruns the deadline or returns an invalid delivery is
-    `unknown`. A `KeyboardInterrupt` propagates. The detail is sanitised.
+    Raises `BoundaryError` when the boundary fails, before the reporter is called. Never
+    raises for the reporter's sake: a reporter that raises, overruns the deadline or
+    returns an invalid delivery is `unknown`. A `KeyboardInterrupt` propagates. The detail
+    is sanitised.
     """
     try:
         sent = outbound(verification, leaves_machine=True)
     except KeyboardInterrupt:
         raise
     except BaseException as exc:
-        return Delivery(DeliveryStatus.NOT_SENT, detail=f"redaction failed: {type(exc).__name__}")
+        raise BoundaryError(prepared.name, type(exc).__name__) from exc
     outcome: list[object] = []
     raised: list[BaseException] = []
 
@@ -805,6 +865,7 @@ __all__ = [
     "RESERVED_RENDERER_NAMES",
     "RESERVED_REPORTER_NAMES",
     "SUPPORTED_OUTPUT_API_VERSIONS",
+    "BoundaryError",
     "Deliverer",
     "Delivery",
     "DeliveryStatus",

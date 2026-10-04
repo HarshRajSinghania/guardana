@@ -277,7 +277,7 @@ def probe(  # noqa: C901, PLR0913, PLR0915, PLR0917 — Typer surface, target mo
     )
     prof = _keeping(prof, keep_exchanges, protocol=mcp or a2a, output=output, format=format)
     resolved = resolve_trust(plugins, allow_plugin, prof)
-    outputs = select_outputs(format, installed_reporter, resolved.trust)
+    outputs = select_outputs(format, installed_reporter, resolved.trust, collector=bool(collector))
     with outputs:
         registry = Registry.discover(resolved.trust)
         hint_refused_plugins(registry, resolved)
