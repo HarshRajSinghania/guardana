@@ -65,6 +65,7 @@
 <li><a href="../writing-an-integrator.html">Writing an integrator<span class="tag">beta</span></a></li>
 </ul>
 <h2>Rules and extensions</h2><ul>
+<li><a href="../compatibility.html">Compatibility<span class="tag">beta</span></a></li>
 <li><a href="../conformance-kit.html">Conformance kit<span class="tag">beta</span></a></li>
 <li><a href="../usage-rules.html">guardana rules</a></li>
 <li><a href="../usage-taxonomy.html">guardana taxonomy</a></li>
@@ -94,6 +95,8 @@
 <li><a href="../generated/taxonomy-coverage.html">Taxonomy coverage</a></li>
 <li><a href="../generated/detection-limits.html">Detection limits</a></li>
 <li><a href="../generated/first-run.html">First-run measure</a></li>
+<li><a href="../generated/compatibility-matrix.html">Compatibility matrix</a></li>
+<li><a href="../generated/application-measures.html">Application measures</a></li>
 </ul>
 <h2>Design documents</h2><ul>
 <li><a href="../design/README.html">How these are written</a></li>
@@ -201,6 +204,7 @@
 <li><a href="../writing-an-integrator.html">Writing an integrator<span class="tag">beta</span></a></li>
 </ul>
 <h2>Rules and extensions</h2><ul>
+<li><a href="../compatibility.html">Compatibility<span class="tag">beta</span></a></li>
 <li><a href="../conformance-kit.html">Conformance kit<span class="tag">beta</span></a></li>
 <li><a href="../usage-rules.html">guardana rules</a></li>
 <li><a href="../usage-taxonomy.html">guardana taxonomy</a></li>
@@ -230,6 +234,8 @@
 <li><a href="../generated/taxonomy-coverage.html">Taxonomy coverage</a></li>
 <li><a href="../generated/detection-limits.html">Detection limits</a></li>
 <li><a href="../generated/first-run.html">First-run measure</a></li>
+<li><a href="../generated/compatibility-matrix.html">Compatibility matrix</a></li>
+<li><a href="../generated/application-measures.html">Application measures</a></li>
 </ul>
 <h2>Design documents</h2><ul>
 <li><a href="../design/README.html">How these are written</a></li>
@@ -427,6 +433,14 @@ runs three of them inside pytest.</p>
 <tr>
 <td><code>generate_well_known.py</code></td>
 <td><code>site/favicon.ico</code> and the Apple touch icons rendered from <code>site/favicon.svg</code>, and <code>site/.well-known/security.txt</code> from <code>SECURITY.md</code> with a generated <code>Expires</code></td>
+<td><code>repo</code></td>
+<td><code>--check</code></td>
+<td><code>-</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>api_surface.py</code></td>
+<td><code>docs/generated/api-surface.json</code>: the supported surface read from source — facade, extension and output contracts, the kit, version constants, CLI flags, exit codes, locator schemes, action inputs, <code>GUARDANA_*</code> names; <code>generate_docs.py</code> writes it</td>
 <td><code>repo</code></td>
 <td><code>--check</code></td>
 <td><code>-</code></td>

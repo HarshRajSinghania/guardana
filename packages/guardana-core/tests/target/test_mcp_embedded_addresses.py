@@ -8,11 +8,9 @@ called `2002::/16` private decided the rest.
 
 import ipaddress
 import socket
-import warnings
 
 import pytest
 from _offline import refuse_name_lookups
-from guardana.core.target import is_local_address
 from guardana.core.target._mcp_http import (
     AddressRefusedError,
     DiscoveryScope,
@@ -118,24 +116,3 @@ def test_a_redirect_hop_to_a_wrapped_metadata_address_is_refused() -> None:
     hops = ("http://[2002:a9fe:a9fe::]/latest", "http://[64:ff9b::a9fe:a9fe]/x")
     for hop in hops:
         assert refusal_for(hop, local_target=True) is not None
-
-
-def test_is_local_address_still_answers_and_says_it_is_deprecated() -> None:
-    with pytest.warns(DeprecationWarning, match="is deprecated") as caught:
-        answer = is_local_address("http://127.0.0.1:9/mcp")
-
-    assert answer is True
-    (warning,) = caught
-    assert str(warning.message) == (
-        "guardana.core.target.is_local_address is deprecated and will be removed before 1.0; "
-        "McpAuthorizationView.server_is_local says whether a server is local from the "
-        "addresses a run reached."
-    )
-    assert warning.filename == __file__
-
-
-def test_is_local_address_keeps_its_own_reading_of_a_wrapped_address() -> None:
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", DeprecationWarning)
-        assert is_local_address("http://[64:ff9b::808:808]/mcp") is False
-        assert is_local_address("http://10.0.0.1/mcp") is True

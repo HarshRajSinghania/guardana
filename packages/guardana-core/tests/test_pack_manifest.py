@@ -179,6 +179,25 @@ def test_packs_and_their_distributions_must_pair_up() -> None:
         check_packs([manifest], Registered(rules={"acme.check": None}), [])
 
 
+_FLAT_SET_REFUSED = (
+    "check_pack and check_packs take a Registered; a flat set of ids is no longer accepted"
+)
+
+
+@pytest.mark.parametrize("flat", [frozenset({"acme.check"}), ["acme.check"], ("acme.check",)])
+def test_a_flat_set_of_ids_is_refused_by_both_checks(flat: object) -> None:
+    """A flat set cannot say which kind or distribution registered an id, so it checks less."""
+    manifest = PackManifest("acme", ApiRange(1, 2), "x", rules=("acme.check",))
+
+    with pytest.raises(TypeError) as refused_one:
+        check_pack(manifest, flat)  # type: ignore[arg-type]
+    with pytest.raises(TypeError) as refused_all:
+        check_packs([manifest], flat)  # type: ignore[arg-type]
+
+    assert str(refused_one.value) == _FLAT_SET_REFUSED
+    assert str(refused_all.value) == _FLAT_SET_REFUSED
+
+
 def test_the_built_in_pack_declares_exactly_what_it_registers() -> None:
     """Guardana's own pack goes through the third party's door.
 

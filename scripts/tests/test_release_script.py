@@ -13,6 +13,7 @@ to check — no `gh`, and no run to look at — stop before the tag.
 
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -228,3 +229,142 @@ def test_the_runbook_moves_the_minor_tag_the_way_the_script_does(
     assert calls[0] == ["git", "tag", "-f", "v0.1", "v0.1.1^{commit}"]
     assert by_hand
     assert all(" -a " not in line and "^{commit}" in line for line in by_hand), by_hand
+
+
+_SURFACE = '{"facade": {}}\n'
+_CHANGED_SURFACE = '{"facade": {"guardana.core.verify.Verifier": {}}}\n'
+
+
+def _candidate(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    *,
+    unreleased: str,
+    previous: str | None,
+    tag: str | None = "v1.0.0rc1",
+) -> list[list[str]]:
+    """Point the surface check at a changelog and a surface in `tmp_path`, and record git calls."""
+    changelog = tmp_path / "CHANGELOG.md"
+    changelog.write_text(
+        f"# Changelog\n\n## [Unreleased]\n{unreleased}\n## [0.41.0] - 2026-10-05\n\n"
+        "### Removed\n\n- something older\n",
+        encoding="utf-8",
+    )
+    surface = tmp_path / "api-surface.json"
+    surface.write_text(_SURFACE, encoding="utf-8")
+    calls: list[list[str]] = []
+
+    def _git(cmd: list[str], **_: bool) -> str:
+        calls.append(cmd)
+        if cmd[:2] == ["git", "describe"]:
+            if tag is None:
+                raise subprocess.CalledProcessError(128, cmd)
+            return f"{tag}\n"
+        if cmd[:2] == ["git", "show"]:
+            if previous is None:
+                raise subprocess.CalledProcessError(128, cmd)
+            return previous
+        return ""
+
+    monkeypatch.setattr(release, "_run", _git)
+    monkeypatch.setattr(release, "_CHANGELOG", changelog)
+    monkeypatch.setattr(release, "_SURFACE_PATH", surface)
+    return calls
+
+
+def test_a_candidate_whose_surface_moved_without_a_changelog_section_is_refused(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _candidate(
+        monkeypatch, tmp_path, unreleased="\n### Added\n\n- a flag\n", previous=_CHANGED_SURFACE
+    )
+
+    with pytest.raises(SystemExit) as refused:
+        release._check_surface("1.0.0rc2")
+
+    assert "supported surface" in str(refused.value.code)
+    assert "v1.0.0rc1" in str(refused.value.code)
+
+
+@pytest.mark.parametrize("section", ["Changed", "Changed — breaking", "Deprecated", "Removed"])
+def test_a_candidate_whose_surface_moved_with_a_changelog_section_continues(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, section: str
+) -> None:
+    _candidate(
+        monkeypatch,
+        tmp_path,
+        unreleased=f"\n### {section}\n\n- a name\n",
+        previous=_CHANGED_SURFACE,
+    )
+
+    release._check_surface("1.0.0rc2")
+
+
+def test_a_section_of_an_earlier_release_does_not_announce_this_change(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Only `[Unreleased]` speaks for the candidate; the release below it already shipped."""
+    _candidate(monkeypatch, tmp_path, unreleased="", previous=_CHANGED_SURFACE)
+
+    with pytest.raises(SystemExit):
+        release._check_surface("1.0.0rc2")
+
+
+def test_a_candidate_with_an_unchanged_surface_continues_without_a_section(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    calls = _candidate(monkeypatch, tmp_path, unreleased="", previous=_SURFACE)
+
+    release._check_surface("1.0.0rc2")
+
+    assert ["git", "show", "v1.0.0rc1:docs/generated/api-surface.json"] in calls
+
+
+def test_a_previous_tag_without_a_surface_counts_as_a_change(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A tag older than the snapshot cannot show the surface stayed put."""
+    _candidate(monkeypatch, tmp_path, unreleased="", previous=None)
+
+    with pytest.raises(SystemExit):
+        release._check_surface("1.0.0rc1")
+
+
+def test_a_candidate_with_no_earlier_tag_is_refused(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _candidate(monkeypatch, tmp_path, unreleased="\n### Changed\n\n- x\n", previous=None, tag=None)
+
+    with pytest.raises(SystemExit) as refused:
+        release._check_surface("1.0.0rc1")
+
+    assert "no earlier release tag" in str(refused.value.code)
+
+
+@pytest.mark.parametrize("version", ["1.0.0", "0.41.0", "0.41.1"])
+def test_a_final_release_is_not_held_by_the_surface_check(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, version: str
+) -> None:
+    calls = _candidate(monkeypatch, tmp_path, unreleased="", previous=_CHANGED_SURFACE)
+
+    release._check_surface(version)
+
+    assert calls == []
+
+
+def test_the_surface_check_runs_before_the_gate(monkeypatch: pytest.MonkeyPatch) -> None:
+    order: list[str] = []
+    monkeypatch.setattr(release, "_current_version", lambda: "1.0.0rc1")
+    monkeypatch.setattr(release, "_preflight", lambda: order.append("preflight"))
+    monkeypatch.setattr(release, "_check_surface", order.append)
+
+    def _gate() -> None:
+        order.append("gate")
+        raise SystemExit(0)
+
+    monkeypatch.setattr(release, "_gate", _gate)
+
+    with pytest.raises(SystemExit):
+        release.main(["1.0.0rc2"])
+
+    assert order == ["preflight", "1.0.0rc2", "gate"]

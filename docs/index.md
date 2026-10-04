@@ -65,6 +65,7 @@ Start with the root [README](../README.md). Before production use, read [Product
 - [`usage-pack.md`](usage-pack.md) — validate and lock extension packs
 - [`outputs.md`](outputs.md) — add an export or a webhook from an installed package
 - [`conformance-kit.md`](conformance-kit.md) — prove a rule, target, format or reporter keeps its contract
+- [`compatibility.md`](compatibility.md) — the supported surface, what 1.x keeps stable and how a name is deprecated
 - [`usage-taxonomy.md`](usage-taxonomy.md) — resolve framework editions and crosswalks
 - [`model-formats.md`](model-formats.md) — use the bounded artifact readers
 
@@ -93,6 +94,8 @@ coverage. Do not edit them by hand.
 - [`generated/taxonomy-coverage.md`](generated/taxonomy-coverage.md) — framework coverage
 - [`generated/detection-limits.md`](generated/detection-limits.md) — what a finding states, per rule family
 - [`generated/first-run.md`](generated/first-run.md) — whether new users reach a first result in ten minutes, from the study sheet
+- [`generated/application-measures.md`](generated/application-measures.md) — coverage of the real application and the share of checks that reached a verdict, from consented team runs
+- [`generated/compatibility-matrix.md`](generated/compatibility-matrix.md) — which schema and API versions each release carried
 
 ## Design documents
 

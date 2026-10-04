@@ -145,4 +145,6 @@ verifies them on every push, so a tag is never the first time they are produced.
 ## Supported versions
 
 Guardana is pre-1.0 (0.40.x). Security fixes land on the latest released
-version; there is no separate LTS branch yet.
+version; there is no separate LTS branch yet. Which versions stay compatible, how
+long a Python version is supported and how a name is deprecated before it is
+removed is stated in the [compatibility policy](docs/compatibility.md).

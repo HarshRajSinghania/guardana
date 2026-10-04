@@ -17,7 +17,6 @@ from guardana.core.target._mcp_http import (
     DiscoveryScope,
     DiscoverySender,
     Sender,
-    is_local_address,
     same_origin,
     send,
 )
@@ -173,7 +172,6 @@ __all__ = [
     "display_url",
     "examined_by_rules_only",
     "forged_token",
-    "is_local_address",
     "private_url_parts",
     "same_origin",
     "scopes_in",

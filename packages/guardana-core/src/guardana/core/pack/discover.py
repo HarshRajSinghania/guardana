@@ -7,9 +7,8 @@ the same false green the engine refuses everywhere else, arriving through
 documentation instead of through code.
 """
 
-import warnings
 from collections import Counter
-from collections.abc import Collection, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from importlib import metadata, resources
 
@@ -193,7 +192,7 @@ def _version(distribution: str) -> str:
 
 def check_packs(
     manifests: Sequence[PackManifest],
-    registered: Registered | Collection[str],
+    registered: Registered,
     distributions: Sequence[str | None] | None = None,
 ) -> list[PackCheck]:
     """Check every pack, and report two of them claiming one name.
@@ -204,7 +203,7 @@ def check_packs(
     checked — and an ambiguous report about a security control is the thing somebody
     acts on wrongly.
     """
-    registered = _by_kind(registered)
+    registered = _require_registered(registered)
     owners = list(distributions) if distributions is not None else [None] * len(manifests)
     if len(owners) != len(manifests):
         raise ValueError("check_packs needs one distribution per manifest")
@@ -227,7 +226,7 @@ def check_packs(
 
 def check_pack(
     manifest: PackManifest,
-    registered: Registered | Collection[str],
+    registered: Registered,
     distribution: str | None = None,
 ) -> PackCheck:
     """Compare one manifest against the ids actually registered, and against this build.
@@ -240,8 +239,7 @@ def check_pack(
     supplies disappears with that pack while this manifest still promises it, and an
     id no distribution can be named for is not shown to be this pack's either.
     """
-    by_owner = isinstance(registered, Registered)
-    registered = _by_kind(registered)
+    registered = _require_registered(registered)
     problems: list[str] = []
     if not manifest.loadable_by():
         problems.append(manifest.extension_api.why_not_any(SUPPORTED_EXTENSION_API_VERSIONS))
@@ -273,7 +271,7 @@ def check_pack(
                 f"{_it(missing)} — a team reading this manifest believes a check runs "
                 f"that does not"
             )
-        if distribution is None or not by_owner:
+        if distribution is None:
             continue
         foreign = [
             f"{i} ({_registered_by(owners)})"
@@ -339,34 +337,13 @@ def _registered_by(owners: frozenset[str]) -> str:
     return f"registered by {', '.join(sorted(owners))}"
 
 
-def _by_kind(registered: Registered | Collection[str]) -> Registered:
-    """Accept the flat set of ids earlier releases took, warning that it checks less.
-
-    A flat set cannot say which kind registered an id, so every declared id is looked
-    up in all of them, as before; a pack's own tests keep passing while they move on.
-    """
-    if isinstance(registered, Registered):
-        return registered
-    warnings.warn(
-        "check_pack and check_packs take a Registered, which checks each id under its "
-        "own kind and owner; a flat set of ids checks only that the id exists",
-        DeprecationWarning,
-        stacklevel=3,
-    )
-    flat = dict.fromkeys(registered)
-    return Registered(
-        rules=flat,
-        evaluators=flat,
-        targets=flat,
-        taxonomies=flat,
-        renderers={_unprefixed(i, "renderer"): None for i in registered},
-        reporters={_unprefixed(i, "reporter"): None for i in registered},
-    )
-
-
-def _unprefixed(identifier: str, kind: str) -> str:
-    """Accept an output id in a flat set spelled either way, `<name>` or `<kind>:<name>`."""
-    return identifier.removeprefix(f"{kind}:")
+def _require_registered(registered: Registered) -> Registered:
+    """Refuse anything but a `Registered`, which names each id's kind and distribution."""
+    if not isinstance(registered, Registered):
+        raise TypeError(
+            "check_pack and check_packs take a Registered; a flat set of ids is no longer accepted"
+        )
+    return registered
 
 
 def _it(ids: Sequence[str]) -> str:

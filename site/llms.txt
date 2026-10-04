@@ -64,6 +64,7 @@ This file is generated from the documentation map; do not edit it by hand.
 - [usage-pack.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/usage-pack.md): validate and lock extension packs
 - [outputs.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/outputs.md): add an export or a webhook from an installed package
 - [conformance-kit.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/conformance-kit.md): prove a rule, target, format or reporter keeps its contract
+- [compatibility.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/compatibility.md): the supported surface, what 1.x keeps stable and how a name is deprecated
 - [usage-taxonomy.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/usage-taxonomy.md): resolve framework editions and crosswalks
 - [model-formats.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/model-formats.md): use the bounded artifact readers
 
@@ -89,6 +90,8 @@ This file is generated from the documentation map; do not edit it by hand.
 - [generated/taxonomy-coverage.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/generated/taxonomy-coverage.md): framework coverage
 - [generated/detection-limits.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/generated/detection-limits.md): what a finding states, per rule family
 - [generated/first-run.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/generated/first-run.md): whether new users reach a first result in ten minutes, from the study sheet
+- [generated/application-measures.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/generated/application-measures.md): coverage of the real application and the share of checks that reached a verdict, from consented team runs
+- [generated/compatibility-matrix.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/generated/compatibility-matrix.md): which schema and API versions each release carried
 
 ## Project direction
 

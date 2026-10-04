@@ -17,6 +17,7 @@ one. Prose links to these files instead of repeating them.
 import argparse
 import json
 import sys
+import tomllib
 from collections import Counter, defaultdict
 from collections.abc import Callable
 from pathlib import Path
@@ -31,6 +32,12 @@ sys.path.insert(0, str(_REPO / "packages" / "guardana-rules" / "src"))
 from guardana.core import __version__  # noqa: E402
 from guardana.core.evaluator import CONFIG_WIRED  # noqa: E402
 from guardana.core.evaluator.base import Evaluator  # noqa: E402
+from guardana.core.manifest.model import MANIFEST_SCHEMA_VERSION  # noqa: E402
+from guardana.core.output import OUTPUT_API_VERSION  # noqa: E402
+from guardana.core.pack.lock import LOCK_SCHEMA_VERSION  # noqa: E402
+from guardana.core.pack.model import EXTENSION_API_VERSION, PACK_SCHEMA_VERSION  # noqa: E402
+from guardana.core.profile.loader import PROFILE_SCHEMA_VERSION  # noqa: E402
+from guardana.core.reporter import ENVELOPE_SCHEMA_VERSION  # noqa: E402
 from guardana.core.rule.base import Rule, RuleContext  # noqa: E402
 from guardana.core.rule.fixture import FixtureOutcome  # noqa: E402
 from guardana.core.rule.verify import FixtureVerdict, verify_rule  # noqa: E402
@@ -40,6 +47,8 @@ from guardana.core.surface import Surface  # noqa: E402
 from guardana.core.target import TargetKind  # noqa: E402
 from guardana.rules import provide_evaluators, provide_rules  # noqa: E402
 
+import adopter_measure  # noqa: E402
+import api_surface  # noqa: E402
 import first_run_measure  # noqa: E402
 
 _HEADER = (
@@ -79,6 +88,18 @@ _FRONTMATTER: dict[str, tuple[str, int, str]] = {
         60,
         "Whether new users reach a failing result, a fix, saved evidence and an edited "
         "check within ten minutes, from the recorded study sheet.",
+    ),
+    "compatibility-matrix.md": (
+        "Compatibility matrix",
+        70,
+        "Which document, envelope and API versions each minor release writes, from the "
+        "documents those releases wrote.",
+    ),
+    "application-measures.md": (
+        "Application measures",
+        80,
+        "Coverage of the real application and the supported-verdict share, from locked "
+        "application runs teams recorded with their consent.",
     ),
 }
 """Nav metadata for the generated pages, alongside the code that writes them.
@@ -386,6 +407,175 @@ def _first_run(_rules: list[Rule]) -> str:
     )
 
 
+def _application_measures(_rules: list[Rule]) -> str:
+    """Render the two adopter measures from `docs/maintainers/adopter-runs.csv` only."""
+    return (
+        _HEADER.replace("the installed registry", "docs/maintainers/adopter-runs.csv")
+        + "# Application measures\n\n"
+        + "Counts from locked application runs that teams recorded, with their consent to "
+        + "publish, in `docs/maintainers/adopter-runs.csv`. The coverage of the real "
+        + "application is the rules attempted out of the rules that apply to it; the "
+        + "supported-verdict share is the rules that reached a finding or a clean result out "
+        + "of the rules attempted.\n\n"
+        + adopter_measure.render()
+    )
+
+
+_HISTORY = _REPO / "packages" / "guardana-core" / "tests" / "historical" / "releases.json"
+_CORE_PYPROJECT = _REPO / "packages" / "guardana-core" / "pyproject.toml"
+_MATRIX_COLUMNS = (
+    "Release",
+    "Python",
+    "Run schema",
+    "Envelope",
+    "Pack manifest",
+    "Lock",
+    "Profile",
+    "Extension API",
+    "Output API",
+)
+_MATRIX_KINDS = ("run", "envelope", "pack-manifest", "pack-lock", "profile")
+_RELEASE_PARTS = 3
+_ABSENT = "—"
+_MATRIX_LEGEND = (
+    f"{_ABSENT} means the release wrote no such document when it was captured, wrote it "
+    "without a version key, or defines no such API version."
+)
+
+
+def _python_versions(classifiers: list[str]) -> str:
+    return ", ".join(classifiers) if classifiers else _ABSENT
+
+
+def _current_row() -> list[str]:
+    """Build this tree's row from its own constants and its `Programming Language` classifiers."""
+    project = tomllib.loads(_CORE_PYPROJECT.read_text(encoding="utf-8"))["project"]
+    prefix = "Programming Language :: Python :: "
+    pythons = [
+        c.removeprefix(prefix)
+        for c in project.get("classifiers", [])
+        if c.startswith(prefix) and c.removeprefix(prefix).count(".") == 1
+    ]
+    return [
+        "this tree",
+        _python_versions(pythons),
+        *(
+            str(version)
+            for version in (
+                MANIFEST_SCHEMA_VERSION,
+                ENVELOPE_SCHEMA_VERSION,
+                PACK_SCHEMA_VERSION,
+                LOCK_SCHEMA_VERSION,
+                PROFILE_SCHEMA_VERSION,
+                EXTENSION_API_VERSION,
+                OUTPUT_API_VERSION,
+            )
+        ),
+    ]
+
+
+def _written(kind: dict[str, object]) -> str:
+    version = kind.get("schema_version")
+    if kind["produced"] is not True or version is None:
+        return _ABSENT
+    if isinstance(version, int) and not isinstance(version, bool):
+        return str(version)
+    raise ValueError(f"schema_version {version!r} is not an integer")
+
+
+def _api(version: object) -> str:
+    if version is None:
+        return _ABSENT
+    if isinstance(version, int) and not isinstance(version, bool):
+        return str(version)
+    raise ValueError(f"API version {version!r} is not an integer")
+
+
+def _release_row(release: str, entry: dict[str, object]) -> list[str]:
+    """One release's row, as its record states it."""
+    kinds = entry["kinds"]
+    classifiers = entry["python_classifiers"]
+    if not isinstance(kinds, dict) or not isinstance(classifiers, list):
+        raise TypeError("kinds or python_classifiers has the wrong shape")
+    return [
+        release,
+        _python_versions(classifiers),
+        *(_written(kinds[kind]) for kind in _MATRIX_KINDS),
+        _api(entry["extension_api_version"]),
+        _api(entry["output_api_version"]),
+    ]
+
+
+def _release_rows(history: dict[str, dict[str, object]]) -> list[list[str]]:
+    """One row per minor release, from its newest patch, newest minor first."""
+    newest: dict[tuple[int, ...], tuple[tuple[int, ...], str]] = {}
+    for release in history:
+        parts = tuple(int(part) for part in release.split("."))
+        if len(parts) != _RELEASE_PARTS:
+            raise ValueError(f"{release} is not a MAJOR.MINOR.PATCH release")
+        if parts[:2] not in newest or parts > newest[parts[:2]][0]:
+            newest[parts[:2]] = (parts, release)
+    rows = []
+    for minor in sorted(newest, reverse=True):
+        release = newest[minor][1]
+        try:
+            rows.append(_release_row(release, history[release]))
+        except (KeyError, TypeError, ValueError) as error:
+            raise ValueError(f"{_HISTORY.name}: {release}: {error}") from error
+    return rows
+
+
+def _matrix_table(rows: list[list[str]]) -> str:
+    lines = [
+        "| " + " | ".join(_MATRIX_COLUMNS) + " |",
+        "|" + "---|" * len(_MATRIX_COLUMNS),
+        *("| " + " | ".join(row) + " |" for row in rows),
+    ]
+    return "\n".join(lines) + "\n"
+
+
+def _compatibility_matrix(_rules: list[Rule], history_path: Path | None = None) -> str:
+    """Render the matrix from the recorded releases, or say it is not generated without them.
+
+    The releases come from `historical/releases.json`, which the capture of older documents
+    writes; a cell the record does not hold is shown as absent, never filled in.
+    """
+    path = _HISTORY if history_path is None else history_path
+    page = (
+        _HEADER.replace("the installed registry", "the recorded releases and this tree")
+        + "# Compatibility matrix\n\n"
+        + "What each release writes and which API versions it defines. The policy these "
+        + "versions follow is on the [compatibility page](../compatibility.md).\n\n"
+    )
+    if not path.is_file():
+        return (
+            page
+            + "**Not generated yet.** The documents older releases wrote are not recorded in "
+            + "this tree, so no release has a row. The one row below is this tree, read from "
+            + "its own constants.\n\n"
+            + _matrix_table([_current_row()])
+        )
+    history = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(history, dict):
+        raise TypeError(f"{path.name} is not an object keyed by release")
+    return (
+        page
+        + "One row per minor release, from its newest patch, as that release wrote its "
+        + "documents when it was captured; a pack manifest and a lock were captured for a "
+        + "pack without outputs. The first row is this tree, read from its own constants, "
+        + "and shows the newest version it writes.\n\n"
+        + _matrix_table([_current_row(), *_release_rows(history)])
+        + "\n"
+        + _MATRIX_LEGEND
+        + "\n"
+    )
+
+
+def _api_surface(_rules: list[Rule]) -> str:
+    """Render the supported surface snapshot, read from source by `scripts/api_surface.py`."""
+    return api_surface.render()
+
+
 _FILES: dict[str, Callable[[list[Rule]], str]] = {
     "rule-summary.md": _summary,
     "rule-catalog.md": _catalog,
@@ -393,7 +583,10 @@ _FILES: dict[str, Callable[[list[Rule]], str]] = {
     "taxonomy-coverage.md": _taxonomy,
     "detection-limits.md": _detection_limits,
     "first-run.md": _first_run,
+    "compatibility-matrix.md": _compatibility_matrix,
+    "application-measures.md": _application_measures,
     "rules.json": _rules_json,
+    "api-surface.json": _api_surface,
 }
 
 

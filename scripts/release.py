@@ -50,6 +50,11 @@ _RELEASE_FILES = frozenset(
 )
 _RELEASE_TREES = ("docs/generated/", "site/docs/", "site/schemas/")
 _BUMP_WRITES_RE = re.compile(r"^\s*would update (\S+)\s*$", re.MULTILINE)
+_SURFACE = "docs/generated/api-surface.json"
+_SURFACE_PATH = _ROOT / _SURFACE
+_CANDIDATE_RE = re.compile(r"\d+\.\d+\.\d+rc\d+")
+_SURFACE_SECTION_RE = re.compile(r"^### (Changed|Deprecated|Removed)\b", re.MULTILINE)
+_RELEASE_TAG_GLOB = "v[0-9]*.[0-9]*.[0-9]*"
 
 
 def _run(cmd: list[str], *, capture: bool = False) -> str:
@@ -152,6 +157,7 @@ def main(argv: list[str]) -> None:
     print(f"releasing {tag} (current {current}){' [dry run]' if dry_run else ''}")
 
     _preflight()
+    _check_surface(version)
     _gate()
 
     bumped: frozenset[str] = frozenset()
@@ -204,6 +210,51 @@ def main(argv: list[str]) -> None:
     _run(["git", "push", "origin", f"refs/tags/{tag}"])
     _move_marketplace_tag(version, tag)
     print(f"pushed {tag} — release.yml is building; approve the 'pypi' deployment to publish.")
+
+
+def _unreleased(changelog: str) -> str:
+    """Return the text under the changelog's unreleased heading, up to the next release."""
+    match = _UNRELEASED_RE.search(changelog)
+    if match is None:
+        return ""
+    rest = changelog[match.end() :]
+    following = re.search(r"^## ", rest, re.MULTILINE)
+    return rest if following is None else rest[: following.start()]
+
+
+def _check_surface(version: str) -> None:
+    """Refuse a release candidate whose supported surface moved without a changelog section.
+
+    A candidate is meant to carry fixes only, so a difference from the previous tag's
+    `api-surface.json` must be announced under "Changed", "Deprecated" or "Removed". A
+    previous tag without the file cannot show the surface stayed put, so it counts as moved.
+    """
+    if not _CANDIDATE_RE.fullmatch(version):
+        return
+    try:
+        previous = _run(
+            ["git", "describe", "--tags", "--abbrev=0", "--match", _RELEASE_TAG_GLOB, "HEAD"],
+            capture=True,
+        ).strip()
+    except subprocess.CalledProcessError:
+        _fail("no earlier release tag to compare the supported surface with")
+    try:
+        current = _SURFACE_PATH.read_text(encoding="utf-8")
+    except OSError as error:
+        _fail(f"cannot read {_SURFACE}: {error}")
+    try:
+        before: str | None = _run(["git", "show", f"{previous}:{_SURFACE}"], capture=True)
+    except subprocess.CalledProcessError:
+        before = None
+    if before == current:
+        return
+    if _SURFACE_SECTION_RE.search(_unreleased(_CHANGELOG.read_text(encoding="utf-8"))):
+        return
+    _fail(
+        f"the supported surface ({_SURFACE}) differs from {previous}'s and [Unreleased] in "
+        f"CHANGELOG.md has no Changed, Deprecated or Removed section; a release candidate "
+        f"changes the surface only when the changelog says so"
+    )
 
 
 def _bump_writes(plan: str) -> frozenset[str]:

@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url><loc>https://guardana.dev/docs/architecture</loc></url>
+  <url><loc>https://guardana.dev/docs/compatibility</loc></url>
   <url><loc>https://guardana.dev/docs/conformance-kit</loc></url>
   <url><loc>https://guardana.dev/docs/deployment</loc></url>
   <url><loc>https://guardana.dev/docs/design/README</loc></url>
@@ -49,6 +50,8 @@
   <url><loc>https://guardana.dev/docs/design/trace-producer</loc></url>
   <url><loc>https://guardana.dev/docs/exit-codes</loc></url>
   <url><loc>https://guardana.dev/docs/extending</loc></url>
+  <url><loc>https://guardana.dev/docs/generated/application-measures</loc></url>
+  <url><loc>https://guardana.dev/docs/generated/compatibility-matrix</loc></url>
   <url><loc>https://guardana.dev/docs/generated/detection-limits</loc></url>
   <url><loc>https://guardana.dev/docs/generated/evaluator-catalog</loc></url>
   <url><loc>https://guardana.dev/docs/generated/first-run</loc></url>

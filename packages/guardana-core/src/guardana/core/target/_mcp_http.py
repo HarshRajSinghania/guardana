@@ -26,7 +26,6 @@ import json
 import socket
 import ssl
 import threading
-import warnings
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from http.client import HTTPConnection, HTTPMessage, HTTPResponse, HTTPSConnection
@@ -802,25 +801,3 @@ def _verifying_context() -> ssl.SSLContext:
     context = ssl.create_default_context()
     context.set_alpn_protocols(["http/1.1"])
     return context
-
-
-def is_local_address(url: str) -> bool:
-    """Say whether this address is inside the machine or its private network. Deprecated.
-
-    Resolves the name again, which the server under test answers;
-    `McpAuthorizationView.server_is_local` decides from the addresses a run reached.
-    """
-    warnings.warn(
-        "guardana.core.target.is_local_address is deprecated and will be removed before "
-        "1.0; McpAuthorizationView.server_is_local says whether a server is local from the "
-        "addresses a run reached.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    host = urlsplit(url).hostname
-    if not host:
-        return False
-    addresses = _resolve(host)
-    if not addresses:
-        return False
-    return all(address.is_private or address.is_loopback for address in addresses)

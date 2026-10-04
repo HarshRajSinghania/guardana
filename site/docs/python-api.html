@@ -65,6 +65,7 @@
 <li><a href="writing-an-integrator.html">Writing an integrator<span class="tag">beta</span></a></li>
 </ul>
 <h2>Rules and extensions</h2><ul>
+<li><a href="compatibility.html">Compatibility<span class="tag">beta</span></a></li>
 <li><a href="conformance-kit.html">Conformance kit<span class="tag">beta</span></a></li>
 <li><a href="usage-rules.html">guardana rules</a></li>
 <li><a href="usage-taxonomy.html">guardana taxonomy</a></li>
@@ -94,6 +95,8 @@
 <li><a href="generated/taxonomy-coverage.html">Taxonomy coverage</a></li>
 <li><a href="generated/detection-limits.html">Detection limits</a></li>
 <li><a href="generated/first-run.html">First-run measure</a></li>
+<li><a href="generated/compatibility-matrix.html">Compatibility matrix</a></li>
+<li><a href="generated/application-measures.html">Application measures</a></li>
 </ul>
 <h2>Design documents</h2><ul>
 <li><a href="design/README.html">How these are written</a></li>
@@ -201,6 +204,7 @@
 <li><a href="writing-an-integrator.html">Writing an integrator<span class="tag">beta</span></a></li>
 </ul>
 <h2>Rules and extensions</h2><ul>
+<li><a href="compatibility.html">Compatibility<span class="tag">beta</span></a></li>
 <li><a href="conformance-kit.html">Conformance kit<span class="tag">beta</span></a></li>
 <li><a href="usage-rules.html">guardana rules</a></li>
 <li><a href="usage-taxonomy.html">guardana taxonomy</a></li>
@@ -230,6 +234,8 @@
 <li><a href="generated/taxonomy-coverage.html">Taxonomy coverage</a></li>
 <li><a href="generated/detection-limits.html">Detection limits</a></li>
 <li><a href="generated/first-run.html">First-run measure</a></li>
+<li><a href="generated/compatibility-matrix.html">Compatibility matrix</a></li>
+<li><a href="generated/application-measures.html">Application measures</a></li>
 </ul>
 <h2>Design documents</h2><ul>
 <li><a href="design/README.html">How these are written</a></li>
@@ -402,7 +408,6 @@ agent = A2aAgentTarget(&quot;https://agent.example.com&quot;, credential=alice, 
 <li><code>RegistryEntry.load(path)</code> reads a registry <code>server.json</code> of at most 1 MiB and raises <code>RegistryEntryError</code> (a <code>ValueError</code>) for one it cannot use.</li>
 <li><code>A2aAgentTarget(url, *, credential=None, other_credential=None, sender=None)</code> takes the http(s) URL of the agent's card (ending in <code>.json</code>) or of its origin; any other path, a second credential without the first, or the same value twice, raises <code>ValueError</code>. <code>sender</code> is a <code>Sender</code>.</li>
 <li>A server that stops accepting the agreed revision mid-run returns the <code>Verification</code> with <code>result.stopped_by</code> <code>target_changed</code> and exit code <code>4</code>.</li>
-<li><code>guardana.core.target.is_local_address</code> is deprecated and will be removed before 1.0. It warns with <code>DeprecationWarning</code>; <code>McpAuthorizationView.server_is_local</code> says whether a server is local from the addresses a run reached.</li>
 </ul>
 <p>A target runs once. Running the same object again, starting a second run while the first is under way, or running one that already sent requests raises <code>TargetReusedError</code>: build a fresh target for each run, so its usage, its budget and whatever it cached describe that run alone. A run refused before anything was sent, over its calibrations or a budget, leaves the target free to run. A target that cannot be weakly referenced is checked by its meter alone.</p>
 <h2 id="read-a-result">Read a result</h2>
@@ -517,8 +522,8 @@ sending anything: <code>render(select_renderer(name, trust), load_verification(p
 <h2 id="serve-your-applications-tools-in-ci">Serve your application's tools in CI</h2>
 <p><code>guardana.core.doubles</code> is public too: <code>open_doubles(FILE, trace=PATH)</code> returns <code>Doubles</code> over the tools and records a fixtures file declares, with <code>acting_as(tenant)</code>, <code>call(name, **arguments)</code>, <code>tool(name)</code> and <code>close()</code>, and raises <code>DoublesError</code> for a call or a setup it refuses. Its behaviour and its trace are described in <a href="usage-doubles.html"><code>usage-doubles.md</code></a>.</p>
 <h2 id="what-is-supported">What is supported</h2>
-<p>The supported surface is <code>guardana.core.verify.__all__</code>: <code>Verifier</code>, <code>Verification</code>, <code>EndpointBuilder</code>, <code>exchanges_path</code>, <code>load_verification</code> and the errors above, with the argument and field names on this page; and <code>guardana.core.doubles.__all__</code>: <code>open_doubles</code>, <code>Doubles</code>, <code>DoublesError</code>, <code>PRODUCER</code> and <code>INSTRUMENTED</code>. A test pins their signatures. The output contract in <code>guardana.core.output</code> is versioned by its own <code>OUTPUT_API_VERSION</code> (<a href="outputs.html#write-your-own">installed outputs</a>). Everything else is internal and may change in any release: the <code>Runner</code>, the registry's load state, <code>guardana.cli.*</code>, and every module or name that starts with <code>_</code>.</p>
-<p>Until 1.0, a change to the supported surface is announced under &quot;Changed — breaking&quot; in the <a href="https://github.com/guardana/guardana/blob/main/CHANGELOG.md">changelog</a> with what to write instead, and the old spelling keeps working with a <code>DeprecationWarning</code> for at least one minor release wherever that is possible. Not covered yet: <code>monitor</code>, <code>baseline create</code>, trace analysis and the import of observations run only from the command line, and a run whose judge failed mid-run keeps no partial result.</p>
+<p>The supported surface is <code>guardana.core.verify.__all__</code>: <code>Verifier</code>, <code>Verification</code>, <code>EndpointBuilder</code>, <code>exchanges_path</code>, <code>load_verification</code> and the errors above, with the argument and field names on this page; and <code>guardana.core.doubles.__all__</code>: <code>open_doubles</code>, <code>Doubles</code>, <code>DoublesError</code>, <code>PRODUCER</code> and <code>INSTRUMENTED</code>. Their signatures are recorded with the rest of the supported surface in <a href="https://github.com/guardana/guardana/blob/main/docs/generated/api-surface.json"><code>api-surface.json</code></a>, generated from source, and a test pins them. The output contract in <code>guardana.core.output</code> is versioned by its own <code>OUTPUT_API_VERSION</code> (<a href="outputs.html#write-your-own">installed outputs</a>). Everything else is internal and may change in any release: the <code>Runner</code>, the registry's load state, <code>guardana.cli.*</code>, and every module or name that starts with <code>_</code>.</p>
+<p>How a supported name is deprecated and removed, and which documents an upgrade keeps reading, is on the <a href="compatibility.html">compatibility page</a>. Not covered yet: <code>monitor</code>, <code>baseline create</code>, trace analysis and the import of observations run only from the command line, and a run whose judge failed mid-run keeps no partial result.</p>
 
 </main>
 </div>

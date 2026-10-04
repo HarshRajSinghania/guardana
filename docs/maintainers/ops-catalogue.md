@@ -50,6 +50,7 @@ runs three of them inside pytest.
 | `generate_sitemap.py` | `site/sitemap.xml` and `site/robots.txt` from the pages actually built, in the URL form the host serves | `repo` (`site/sitemap.xml`, `site/robots.txt`) | `--check` | `-` | `site/` already built |
 | `generate_llms_txt.py` | `site/llms.txt` from `docs/index.md` and `schemas/` | `repo` | `--check` | `-` | — |
 | `generate_well_known.py` | `site/favicon.ico` and the Apple touch icons rendered from `site/favicon.svg`, and `site/.well-known/security.txt` from `SECURITY.md` with a generated `Expires` | `repo` | `--check` | `-` | — |
+| `api_surface.py` | `docs/generated/api-surface.json`: the supported surface read from source — facade, extension and output contracts, the kit, version constants, CLI flags, exit codes, locator schemes, action inputs, `GUARDANA_*` names; `generate_docs.py` writes it | `repo` | `--check` | `-` | — |
 | `first_run_measure.py` | validate the first-run study sheet and print the measure it supports; `generate_docs.py` writes the same text to `docs/generated/first-run.md` | `-` | `-` | `-` | — |
 | `adopter_measure.py` | validate the adopter-runs sheet and print the two measures it supports; `row RUN.json` prints one row of counts from a locked application run; `generate_docs.py` writes the measures to `docs/generated/application-measures.md` | `-` | `-` | `-` | — |
 | `og_card.html` | the source of `site/og.png`, rendered by hand (`site/README.md`) | `-` | `-` | `-` | a browser |
