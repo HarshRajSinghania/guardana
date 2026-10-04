@@ -78,9 +78,9 @@ left for the owner, or are design gaps already documented elsewhere.
   skips**; it matters only for a target declaring a capability of a protocol it says it does not
   speak.
 - **Some inconclusive samples write 16 or 64 MiB files** to pass a rule's own read bound
-  (`training.dataset_integrity`, `prompt.mcp_tool_poisoning`, several supply-chain rules), each
-  time the samples are built. `files_target` takes no read limit, and a rule's bound is its own
-  constant.
+  (`prompt.mcp_tool_poisoning`, `supply_chain.remote_code_config`, `saved_model_ops`,
+  `hardcoded_secret`, `provenance`), each time the samples are built; a rule's bound is its own
+  constant. Samples the target declines use `files_target(source_read_limit=…)` and stay small.
 - **`guardana rule test --write-corpus` counts artifact and trace samples** under "a rule that
   declares no expectation or more than one", not under a reason naming them; the exit code is
   right.

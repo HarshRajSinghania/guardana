@@ -171,10 +171,6 @@ class McpServerManifestRule(Rule):
     def estimated_requests(self) -> int:
         """Four: the discovery probe, the fallback handshake, its notification, and the listing.
 
-        It said one until the meter was fixed and started counting the `initialize`
-        that always went with it. The declaration and the meter were wrong in the
-        same direction, which is why the test comparing them stayed green.
-
         The first is which era the server speaks, asked once and shared with every
         other rule. A modern server needs no handshake and costs two.
         """
