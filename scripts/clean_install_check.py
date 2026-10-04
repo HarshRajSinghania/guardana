@@ -772,7 +772,7 @@ lock = lock_of(
     packs,
     Installed(
         rules={r.meta.id: r.digest() for r in registry.rules()},
-        evaluators=tuple(registry.evaluators()),
+        evaluators={e: registry.evaluator_origin(e).distribution for e in registry.evaluators()},
     ),
 )
 (builtin,) = [p for p in lock.packs if p.name == "guardana-rules"]

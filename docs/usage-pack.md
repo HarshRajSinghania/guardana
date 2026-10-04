@@ -204,19 +204,22 @@ teammate's lock in the older layout.
 | What | Pinned by | Why not more |
 |---|---|---|
 | rules | `Rule.digest()` — the declaration, hashed | a sharpened corpus is visible; the Python behind it is not |
-| evaluators, targets | id only | an `Evaluator` is Python and has no declaration to hash; inventing a digest from a class name would claim to detect a change it cannot see |
+| evaluators, targets | id (a target by class name), and only when the pack's own distribution registers it | an `Evaluator` is Python and has no declaration to hash; inventing a digest from a class name would claim to detect a change it cannot see |
 | catalogues | a digest over the references the pack registers | a third-party catalogue has no *file* to pin, but what it registered is content |
-| formats, reporters | name only, as `renderers:` and `reporters:` in the pack entry | Python, with nothing declared to hash, as for evaluators |
+| formats, reporters | name, as `renderers:` and `reporters:` in the pack entry, and only when the pack's own distribution registers it | Python, with nothing declared to hash, as for evaluators |
 | everything else | the distribution name and version beside it | the coarse pin, and the only one that covers an implementation whose declaration did not move |
 
 A lock is schema 3 only when it pins a format or reporter, or lists one under `unlocked:`
 as `renderer:<name>` or `reporter:<name>`; otherwise it stays schema 2, which older builds
 read. A schema 2 lock checked against a build with an installed output reports the output as
 added and asks for `guardana pack lock`. Both commands also exit `2` when trust refused an
-installed output, it failed to load, or two distributions install one output name. A pack pins
-only the outputs its own distribution registers: when another distribution registers one it
-declares, `--check` reports it `removed` and `pack lock` refuses to write, naming that
-distribution.
+installed output, it failed to load, or two distributions install one output name.
+
+A pack pins only the evaluators, targets and outputs its own distribution registers. An id
+another distribution registers is that distribution's code, not the pack's: `pack lock`
+refuses to write and names both the pack and the distribution, and `--check` reports the id
+`removed`. Two distributions registering a target class of the same name is a load error
+naming both, so both commands exit `2` rather than pin either.
 
 `unlocked:` lists extensions registered by a package that declares **no manifest**.
 They are recorded and not attributed to a pack, and the command says so on stderr —
@@ -244,6 +247,8 @@ have; one that appeared is a check nobody reviewed running against production.
 | plugin trust refused an installed extension; nothing was pinned or compared | **indeterminate** | `2` |
 | nothing installed declares a manifest, so there is nothing to pin | **indeterminate** | `2` |
 | a pack declares an id nothing registers under that group; no lock is written or compared | **indeterminate** | `2` |
+| `pack lock`: a pack declares an evaluator, target or output another distribution registers; no lock is written | **indeterminate** | `2` |
+| `--check`: an evaluator, target or output the lock pins is now registered by another distribution | fail (`removed`) | `1` |
 | the lock could not be read, or was taken against another `extension_api` | refused | `3` |
 
 **A lock from a different extension contract is refused rather than compared.**

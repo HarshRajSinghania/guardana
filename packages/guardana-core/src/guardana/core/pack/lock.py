@@ -11,10 +11,11 @@ So this pins three different things with three different strengths, and says whi
 is which rather than presenting one confidence:
 
 - **rules** by digest — their declaration, hashed. A changed corpus is visible;
-- **evaluators, targets, renderers and reporters** by id only. They are Python and
-  have no declaration to hash, and inventing a digest from a class name would claim
-  to detect a change it cannot see. `_run_meta` made that call for the run manifest
-  and it is the same call here;
+- **evaluators, targets, renderers and reporters** by id, and only when the pack's
+  own distribution registers them. They are Python and have no declaration to hash,
+  and inventing a digest from a class name would claim to detect a change it cannot
+  see; an id another distribution registers is not the pack's code, so it is refused
+  rather than pinned;
 - **catalogues** by a digest over the references a pack registers. A third-party
   catalogue has no *file* to pin — a pack registers refs through an entry point —
   but what it registered is content, and content hashes.
@@ -155,8 +156,12 @@ class Installed:
     """
 
     rules: Mapping[str, str] = field(default_factory=dict)
-    evaluators: tuple[str, ...] = ()
-    targets: tuple[str, ...] = ()
+    evaluators: Mapping[str, str | None] = field(default_factory=dict)
+    """Every registered evaluator, by id, to the distribution registering it."""
+
+    targets: Mapping[str, str | None] = field(default_factory=dict)
+    """Every registered target, by class name, to the distribution registering it."""
+
     catalogues: Mapping[str, str] = field(default_factory=dict)
     renderers: Mapping[str, str | None] = field(default_factory=dict)
     """Every installed format that can be selected, by name, to the distribution registering it."""
@@ -183,10 +188,10 @@ def lock_of(
 
     `packs` is `(distribution, version, manifest)` per installed pack.
 
-    A pack pins only the declared outputs its own distribution registers: a name another
-    distribution registers is not the pack's code, so a lock checked against this one
-    reports it `removed`. When `writing`, such a name raises `PackError` instead, since
-    the lock would otherwise be written without it.
+    A pack pins only the declared evaluators, targets and outputs its own distribution
+    registers: an id another distribution registers is not the pack's code, so a lock
+    checked against this one reports it `removed`. When `writing`, such an id raises
+    `PackError` instead, since the lock would otherwise be written without it.
 
     An id declared by no manifest lands in `unlocked`. That is the case worth
     designing for rather than dropping: a package registering rules without a
@@ -210,7 +215,7 @@ def lock_of(
     foreign = {
         (manifest.name, kind, name): registrant
         for distribution, _version, manifest in packs
-        for kind, name, registrant in _foreign_outputs(distribution, manifest, installed)
+        for kind, name, registrant in _foreign(distribution, manifest, installed)
     }
     if writing and foreign:
         named = "; ".join(
@@ -219,7 +224,7 @@ def lock_of(
             for (pack, kind, name), registrant in foreign.items()
         )
         raise PackError(
-            f"a pack declares an output another distribution registers, so a lock would "
+            f"a pack declares an extension another distribution registers, so a lock would "
             f"pin code the pack does not ship: {named}"
         )
     locked = [
@@ -228,15 +233,11 @@ def lock_of(
             distribution=distribution,
             version=version,
             rules={i: installed.rules[i] for i in manifest.rules},
-            evaluators=tuple(manifest.evaluators),
-            targets=tuple(manifest.targets),
+            evaluators=_own(manifest.name, "evaluator", manifest.evaluators, foreign),
+            targets=_own(manifest.name, "target", manifest.targets, foreign),
             taxonomies={i: installed.catalogues[i] for i in manifest.taxonomies},
-            renderers=tuple(
-                n for n in manifest.renderers if (manifest.name, "renderer", n) not in foreign
-            ),
-            reporters=tuple(
-                n for n in manifest.reporters if (manifest.name, "reporter", n) not in foreign
-            ),
+            renderers=_own(manifest.name, "renderer", manifest.renderers, foreign),
+            reporters=_own(manifest.name, "reporter", manifest.reporters, foreign),
         )
         for distribution, version, manifest in packs
     ]
@@ -249,11 +250,17 @@ def lock_of(
     )
 
 
-def _foreign_outputs(
+def _foreign(
     distribution: str, manifest: PackManifest, installed: Installed
 ) -> list[tuple[str, str, str | None]]:
-    """Every declared output registered by a distribution other than the pack's own."""
+    """Every declared extension registered by a distribution other than the pack's own.
+
+    Only the kinds a lock pins by id are checked; a rule or a catalogue is pinned by
+    a digest of what was registered.
+    """
     groups = (
+        ("evaluator", manifest.evaluators, installed.evaluators),
+        ("target", manifest.targets, installed.targets),
         ("renderer", manifest.renderers, installed.renderers),
         ("reporter", manifest.reporters, installed.reporters),
     )
@@ -263,6 +270,13 @@ def _foreign_outputs(
         for name in declared
         if name in present and present[name] != distribution
     ]
+
+
+def _own(
+    pack: str, kind: str, declared: Sequence[str], foreign: Collection[tuple[str, str, str]]
+) -> tuple[str, ...]:
+    """Return the ids of `kind` that `pack` declares and its own distribution registers."""
+    return tuple(name for name in declared if (pack, kind, name) not in foreign)
 
 
 def _pinned_ids(pack: LockedPack) -> set[str]:

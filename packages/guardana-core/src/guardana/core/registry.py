@@ -208,7 +208,20 @@ class Registry:
         self._origins[f"evaluator:{evaluator.id}"] = origin
 
     def register_target(self, target: type[Target], origin: Origin = UNATTRIBUTED) -> None:
-        """Add a target class, validating its optional command-line locator scheme."""
+        """Add a target class, validating its optional command-line locator scheme.
+
+        A class whose `__name__` a target from another distribution already holds is
+        refused: its origin is recorded under that name, so accepting it would let one
+        origin overwrite another and a lock pin the wrong distribution's code.
+        """
+        held_name = self._origins.get(f"target:{target.__name__}")
+        if held_name is not None and held_name.distribution != origin.distribution:
+            raise RegistryConflictError(
+                f"target {target.__name__!r} is already registered by "
+                f"{held_name.describe()}; {origin.describe()} cannot register another "
+                f"target under the same class name, which would leave the name saying "
+                f"nothing about whose code it is"
+            )
         scheme = target.scheme
         if scheme is not None:
             if not isinstance(scheme, str) or _TARGET_SCHEME.fullmatch(scheme) is None:

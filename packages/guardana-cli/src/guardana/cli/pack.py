@@ -164,15 +164,17 @@ def lock(
     """Pin every installed extension by what it is, and fail when the build has drifted.
 
     Rules are pinned by digest, so a pack that sharpens a corpus inside a patch
-    release is visible — which a version pin is not. Evaluators and targets are
-    pinned by id, because Python has no declaration to hash; catalogues by a digest
-    over the references they register.
+    release is visible — which a version pin is not. Evaluators, targets and outputs
+    are pinned by id, because Python has no declaration to hash, and only when the
+    pack's own distribution registers them; catalogues by a digest over the
+    references they register.
 
-    Exit `0` the build matches the lock · `1` it has drifted · `2` nothing was
-    installed to pin, a pack declares something nothing registers, or plugin trust
-    refused an extension or an output (or one failed to load, or several
-    distributions install one output name) so what this build registers is unproven
-    · `3` the lock could not be read.
+    Exit `0` the build matches the lock · `1` it has drifted, an id the lock pins
+    another distribution now registering included · `2` nothing was installed to
+    pin, a pack declares something nothing or another distribution registers, or
+    plugin trust refused an extension or an output (or one failed to load, or
+    several distributions install one output name) so what this build registers is
+    unproven · `3` the lock could not be read.
     """
     resolved = resolve_trust(plugins, allow_plugin, resolve_profile(profile, None))
     # `_installed(registry)` reads this registry. Writing a lock from one that trust
@@ -346,11 +348,20 @@ def _installed(registry: Registry, outputs: OutputDiscovery) -> Installed:
     no pack — listing them here would report seven frameworks as extensions nobody
     declared on every single run, which is how a warning stops being read. A control a
     package adds to a built-in framework is an extension and is pinned.
+
+    Evaluators, targets and outputs carry the distribution registering each, so a pack
+    pins only the ones its own distribution ships.
     """
     return Installed(
         rules={rule.meta.id: rule.digest() for rule in registry.rules()},
-        evaluators=tuple(sorted(registry.evaluators())),
-        targets=tuple(sorted(target.__name__ for target in registry.targets())),
+        evaluators={
+            evaluator_id: registry.evaluator_origin(evaluator_id).distribution
+            for evaluator_id in sorted(registry.evaluators())
+        },
+        targets={
+            target.__name__: registry.target_origin(target).distribution
+            for target in sorted(registry.targets(), key=lambda target: target.__name__)
+        },
         catalogues={name: catalogue_digest(refs) for name, refs in extensions().items()},
         renderers={
             name: outputs.renderers[name].distribution for name in sorted(outputs.renderers)

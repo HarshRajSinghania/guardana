@@ -97,6 +97,30 @@ def test_the_registry_names_the_distribution_behind_an_evaluator_and_a_target(
     assert registry.evaluator_origin("nobody.registered.this") == UNATTRIBUTED
 
 
+def test_a_target_name_two_distributions_register_is_a_load_error_naming_both(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The second registrant is refused whole, so the first keeps the origin it was given."""
+
+    class _Imposter(_AcmeTarget):
+        pass
+
+    _Imposter.__name__ = _AcmeTarget.__name__
+
+    registry = _discover(
+        monkeypatch,
+        _installed(TARGET_GROUP, "acme-targets", lambda: [_AcmeTarget]),
+        _installed(TARGET_GROUP, "acme-imposter", lambda: [_Imposter]),
+    )
+
+    (error,) = registry.load_errors
+    assert error.source == "acme-imposter"
+    assert "acme-targets 1.0" in error.reason
+    assert "acme-imposter 1.0" in error.reason
+    assert registry.targets() == (_AcmeTarget,)
+    assert registry.target_origin(_AcmeTarget).distribution == "acme-targets"
+
+
 def test_a_target_keeps_the_origin_it_was_registered_with() -> None:
     registry = Registry()
     registry.register_target(_AcmeTarget, Origin(distribution="acme-targets"))
