@@ -91,6 +91,18 @@ left for the owner, or are design gaps already documented elsewhere.
 - **The security runbook is not exercised**: `check_repo_settings.py` reads the settings it
   relies on, and `docs/maintainers/drills.md` records no drill. The two ghcr packages read as
   NOT CHECKED without a `read:packages` token.
+- **The stored profile corpus is thin**: every release's `guardana init` writes the same
+  six-line profile, so no older `budgets`, `privacy`, `evaluators`, `plugins` or `trace` block is
+  read from a document a release wrote. The example profiles in each release's own docs are the
+  next source to capture.
+- **The tag ruleset does not restrict updates**: "Protect release tags" has `creation`,
+  `deletion` and `non_fast_forward`, so a write user can move a `v*` tag forward to a descendant
+  commit; `check_repo_settings.py` reports it ABSENT until the owner enables "Restrict updates".
+  The `RepositoryRole` id for Maintain (2) is taken from memory, not from GitHub's documentation.
+- **A reference pack built again at the same version replaces the GitHub Release asset**
+  (`--clobber`) while PyPI keeps the first upload (`skip-existing`); `release.py` refuses a
+  changed pack at an unchanged version, but a rebuild of identical sources can still differ in
+  its sdist bytes.
 - **The largest classes carry several reasons to change**: `_Probe` (MCP authorization,
   discovery and tasks), `Verifier` (running a check and assembling its result), then `Registry`
   and `Runner`. Split them behind behaviour tests, without a line-count target and without moving

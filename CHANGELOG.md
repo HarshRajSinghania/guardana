@@ -40,6 +40,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`guardana.core.testing.files_target` takes `source_read_limit=`, and `ScriptedMcpServer` takes `resource_metadata_status=` and `authorization_metadata_status=`.** Samples a target declines no longer write 16 MiB files.
 - **`scripts/check_repo_settings.py` reports the tag ruleset present only when it restricts creating, updating and deleting `v*` tags and only maintainers or admins can bypass it.** `scripts/adopter_measure.py` refuses a run with an error that names no rule and a sheet that lists one run twice. `scripts/release.py` refuses a release whose reference pack changed without a new version.
 - **The reference pack requires `guardana-core>=0.41`, and `release.yml` builds, attests and attaches it in its own job after the main publish,** so a broken pack blocks neither PyPI, the GitHub Release nor the images.
+- **A protocol a target declares a capability of counts as spoken.** A pack target built on `EndpointTarget` that also declares `list_tools` runs the MCP rules, so `guardana.agent.mcp_server_manifest` still fails the gate on a drifted manifest; a seeded target speaks what its endpoint speaks.
+- **Six rules that read Python decline a file the scan could not read, by name.** `guardana.supply_chain.code_execution`, `dependency_risk`, `hallucinated_package`, `insecure_transport`, `remote_code` and `guardana.training.dataset_integrity` record an unverified result and a coverage shortfall for it, so such a run is `indeterminate` even with `fail_on_error: false`.
+- **A collector delivery counts only when the answer carries `status: "ok"`, an integer `stored` and a boolean `duplicate`.** A bare `{"status": "ok"}` from a health check or a proxy is not an acknowledgement; `guardana.core.testing.receiver()` answers the full form.
+- **`assert_renderer_conforms` refuses a format that returns only whitespace, and `check_repo_settings.py` reads a tag ruleset nobody can bypass as ABSENT.**
 
 ### Changed — breaking
 
