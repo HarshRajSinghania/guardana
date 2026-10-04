@@ -257,6 +257,19 @@ jobs:
           --with pytest
           pytest examples/output_pack/tests
 
+      # Every extension point in one pack, imported only through the supported surface
+      # and checked only by the commands and the conformance kit Guardana ships.
+      - name: Run the reference pack's own tests against an installed Guardana
+        run: >
+          uv run --isolated --no-cache
+          --with ./packages/guardana-core
+          --with ./packages/guardana-rules
+          --with ./packages/guardana-cli
+          --with ./packages/guardana-report
+          --with ./examples/reference_pack
+          --with pytest
+          pytest examples/reference_pack/tests
+
       # The example steps above prove a hand-written package still works. This one proves
       # the command that writes a pack from nothing does — installed, validated and
       # graded, with its own detector checked against a manifest that lies.

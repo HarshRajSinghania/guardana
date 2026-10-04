@@ -869,6 +869,16 @@ distribution name (<code>--plugins allowlist --allow-plugin &lt;your-distributio
 <code>PluginTrust</code> and has no default. <code>guardana scan --no-plugins</code> is a deprecated alias for <code>--plugins disabled</code>: discovery still runs, every plugin is refused, and each refusal is
 recorded — see <a href="https://github.com/guardana/guardana/blob/main/SECURITY.md"><code>SECURITY.md</code></a> for the trust modes and why
 this exists.</p>
+<p><a href="https://github.com/guardana/guardana/tree/main/examples/reference_pack"><code>examples/reference_pack/</code></a> is one pack that uses all six
+groups — a YAML and a Python rule, an evaluator, a target, a control catalogue, the format
+<code>reference-summary</code> and the reporter <code>reference-file</code> — with a schema-3 manifest and a
+committed lock. It is the distribution <code>guardana-reference-pack</code>, versioned on its own and
+attached to every GitHub Release. It imports nothing outside the supported surface, and a
+test that walks its imports refuses any <code>guardana.*</code> name off it; its isolated suite then
+proves the pack with only what Guardana ships: <code>guardana rule test 'reference.*'</code> (each
+rule fires, stays silent and declines), the target and output conformance checks,
+<code>pack validate</code>, <code>pack lock --check</code>, and a <code>scan</code> through its own target, format and
+reporter.</p>
 <h2 id="testing-your-extension">Testing your extension</h2>
 <p>Every public <code>Rule</code>, <code>Evaluator</code>, and <code>Target</code> should ship with tests: a
 rule needs a positive and a negative fixture (proving it fires on a bad

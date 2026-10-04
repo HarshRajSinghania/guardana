@@ -14,12 +14,16 @@ Runbook: `RELEASING.md`; the order that has gone wrong: the `release` skill.
   written down instead of defaulted.
 - **`ci.yml` runs on every push and PR**: the gate on three Python versions against a real
   PostgreSQL (`GUARDANA_REQUIRE_POSTGRES=1` — the skip is a failure there), `uv audit`, the
-  dogfood scan, the two container images, the clean-install check, the SBOM check and the three
-  isolated example suites. `scripts/ci_local.sh` mirrors it; keep them in step in the same change.
-- **`release.yml` runs on `v*.*.*` tags only**: clean install → build the five distributions →
-  SBOM per distribution → provenance → PyPI through the `pypi` environment's approval click →
-  both images (amd64, arm64) → the GitHub Release from the changelog section. The moving `vX.Y`
-  tag is for the Marketplace Action and never re-triggers a publish.
+  dogfood scan, the two container images, the clean-install check, the SBOM check and one
+  isolated suite per example package. `scripts/ci_local.sh` mirrors it; keep them in step in the
+  same change.
+- **`release.yml` runs on `v*.*.*` tags only**: clean install → build the five distributions and
+  the reference pack (into `dist-reference/`) → SBOM per distribution → provenance for both →
+  PyPI for the five through the `pypi` environment's approval click → the GitHub Release from the
+  changelog section, the reference pack attached → both images (amd64, arm64).
+  `publish-reference-pack` puts the pack on PyPI only while `vars.REFERENCE_PACK_PYPI` is
+  `true`, and nothing waits on it. The moving `vX.Y` tag is for the Marketplace Action and never
+  re-triggers a publish.
 - **A push to `main` deploys `site/`** through Cloudflare's `npx wrangler deploy`, from the
   tree, before CI has run: `wrangler.jsonc` is a static-assets Worker with no build step,
   `workers_dev` and previews off. The pre-push hook refuses a push while the generated site is

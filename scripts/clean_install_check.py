@@ -760,6 +760,46 @@ def _trust_checks(venv: Path, clean_directory: Path, pack: Path, marker: Path) -
     ]
 
 
+_REFERENCE_PACK = "guardana-reference-pack"
+
+
+def _reference_checks(venv: Path) -> list[Check]:
+    """Install the reference pack beside the five and prove it validates and is fully sampled.
+
+    Run after the trust checks, so the marker pack is installed too and is admitted
+    beside it: a refused distribution would stop both commands before they read either.
+    """
+    guardana = str(venv / _BIN / "guardana")
+    python = str(venv / _BIN / "python")
+    admit = [
+        "--plugins",
+        "allowlist",
+        "--allow-plugin",
+        _REFERENCE_PACK,
+        "--allow-plugin",
+        _MARKER_PACK,
+    ]
+    return [
+        Check(
+            "the reference pack installs beside the five",
+            ["uv", "pip", "install", "--python", python, "./examples/reference_pack"],
+            0,
+        ),
+        Check(
+            "the reference pack validates",
+            [guardana, "pack", "validate", *admit],
+            0,
+            expect=(f"{_REFERENCE_PACK} (extension_api >=2,<3, output_api >=1,<2) — 7 declared",),
+        ),
+        Check(
+            "the reference pack's rules prove all three outcomes from the wheel",
+            [guardana, "rule", "test", "reference.*", *admit],
+            0,
+            expect=("2 rule(s); 6 fixture(s) passed", "0 rule(s) not fully sampled"),
+        ),
+    ]
+
+
 _TRACE_FILE = """\
 {"guardana_trace": 2, "instrumented": ["effects"], "producer": {"name": "acme"}, \
 "trace_id": "t-1"}
@@ -1113,6 +1153,7 @@ def main(argv: list[str] | None = None) -> int:
             *_starter_checks(venv, workspace / "starter"),
             *_recorded_checks(venv, workspace),
             *_trust_checks(venv, clean_directory, pack, marker),
+            *_reference_checks(venv),
         ]
         for check in checks:
             result = _run(check.argv, environment, check.cwd)

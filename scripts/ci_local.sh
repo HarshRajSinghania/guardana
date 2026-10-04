@@ -135,6 +135,10 @@ step "Example output_pack" uv run --isolated --no-cache \
   --with ./packages/guardana-cli --with ./packages/guardana-report \
   --with ./examples/output_pack --with standardwebhooks==1.1.0 \
   --with pytest pytest examples/output_pack/tests
+step "Example reference_pack" uv run --isolated --no-cache \
+  --with ./packages/guardana-core --with ./packages/guardana-rules \
+  --with ./packages/guardana-cli --with ./packages/guardana-report \
+  --with ./examples/reference_pack --with pytest pytest examples/reference_pack/tests
 
 # The examples above prove a hand-written package still works, this one proves
 # the command that writes one from nothing does.

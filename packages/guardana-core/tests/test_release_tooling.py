@@ -218,7 +218,12 @@ def test_the_provenance_names_only_the_distributions() -> None:
     assert isinstance(options, dict)
     patterns = str(options["subject-path"]).split()
 
-    assert sorted(patterns) == ["dist/*.tar.gz", "dist/*.whl"], patterns
+    assert sorted(patterns) == [
+        "dist-reference/*.tar.gz",
+        "dist-reference/*.whl",
+        "dist/*.tar.gz",
+        "dist/*.whl",
+    ], patterns
 
 
 def test_the_sboms_are_attached_to_the_release() -> None:
@@ -227,6 +232,45 @@ def test_the_sboms_are_attached_to_the_release() -> None:
     release_step = steps[_index_of(steps, "gh release create")]
 
     assert "sbom/" in str(release_step["run"]), "the release carries no SBOM assets"
+
+
+def test_the_reference_pack_is_built_apart_attested_and_attached_to_the_release() -> None:
+    """The pack ships on every GitHub Release, and never through the five packages' upload.
+
+    Built into its own directory, so the publish step that uploads `dist/` cannot carry
+    it to PyPI before its own trusted publisher exists.
+    """
+    steps = _steps(_workflow("release.yml"), "publish")
+    build = _index_of(steps, "uv build examples/reference_pack --out-dir dist-reference/")
+    attest = _index_of(steps, "actions/attest-build-provenance")
+    publish = steps[_index_of(steps, "pypa/gh-action-pypi-publish")]
+    release = str(steps[_index_of(steps, "gh release create")]["run"])
+
+    assert build < attest
+    assert isinstance(publish["with"], dict)
+    assert publish["with"]["packages-dir"] == "dist/"
+    assert "dist-reference/*.whl" in release
+    assert "dist-reference/*.tar.gz" in release
+
+
+def test_the_reference_pack_reaches_pypi_only_when_the_owner_turns_it_on() -> None:
+    """A separate job, behind the same approval, that the release and the images never wait on."""
+    name = "publish-reference-pack"
+    jobs = _workflow("release.yml")["jobs"]
+    assert isinstance(jobs, dict)
+    job = jobs[name]
+    steps = _steps(_workflow("release.yml"), name)
+    publish = steps[_index_of(steps, "pypa/gh-action-pypi-publish")]
+
+    assert job["needs"] == "publish"
+    assert job["environment"] == "pypi"
+    assert job["if"] == "vars.REFERENCE_PACK_PYPI == 'true'"
+    assert job["permissions"]["id-token"] == "write"
+    assert isinstance(publish["with"], dict)
+    assert publish["with"]["packages-dir"] == "dist-reference/"
+    assert publish["with"]["skip-existing"] is True
+    waiting = [other for other, spec in jobs.items() if name in str(spec.get("needs"))]
+    assert waiting == []
 
 
 def test_ci_writes_the_sboms_on_every_push() -> None:

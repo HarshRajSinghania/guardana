@@ -472,6 +472,23 @@ docker run --rm ghcr.io/guardana/guardana:0.40 --version
 </code></pre>
 <p>This is the failure mode this project keeps meeting from a different direction: a
 green release workflow, a documented command, and a user who cannot run it.</p>
+<h2 id="6b-the-reference-pack-on-pypi">6b. The reference pack on PyPI</h2>
+<p>Every release attaches <code>guardana-reference-pack</code> (<code>examples/reference_pack</code>) to the
+GitHub Release. Its job <code>publish-reference-pack</code> in <code>release.yml</code> uploads it to PyPI only
+when the repository variable <strong><code>REFERENCE_PACK_PYPI</code></strong> is <code>true</code>; unset or any other value
+skips the job, and nothing else waits on it. To turn it on, once:</p>
+<ol>
+<li>On PyPI, <strong>Your account → Publishing → Add a pending publisher</strong>: project
+<code>guardana-reference-pack</code>, owner <code>guardana</code>, repository <code>guardana</code>, workflow
+<code>release.yml</code>, environment <code>pypi</code>. Pending, because the project does not exist yet;
+the five packages have ordinary publishers, so this is the only pending one for that
+configuration.</li>
+<li><strong>Settings → Secrets and variables → Actions → Variables → New repository variable</strong>:
+<code>REFERENCE_PACK_PYPI</code> = <code>true</code>.</li>
+<li>The next tag runs the job behind its own <code>pypi</code> approval. Its first upload creates the
+project and turns the pending publisher into an ordinary one; later releases skip the
+upload until the pack's own version moves.</li>
+</ol>
 <h2 id="7-discussions--set-up-categories">7. Discussions — set up categories</h2>
 <p>The bug/feature templates deliberately route questions away from Issues and into
 Discussions. Seed the default categories: <strong>Q&amp;A</strong> (answerable), <strong>Ideas</strong>,

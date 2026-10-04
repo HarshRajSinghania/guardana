@@ -1,4 +1,7 @@
 # Publishes all five packages to PyPI on a version tag push (v0.1.0, v0.1.1, ...).
+# The reference pack (`examples/reference_pack`, versioned on its own) is attached to
+# every GitHub Release, and published to PyPI by its own job only once the repository
+# variable REFERENCE_PACK_PYPI is `true`.
 # The maintainer runbook for cutting a release is RELEASING.md; the one-time repo
 # and PyPI setup is docs/maintainers/github-setup.md.
 #
@@ -90,6 +93,11 @@ jobs:
             uv build "$pkg" --out-dir dist/
           done
 
+      # Its own directory: the publish step below uploads everything in `dist/`, and the
+      # pack reaches PyPI only through `publish-reference-pack`.
+      - name: Build the reference pack
+        run: uv build examples/reference_pack --out-dir dist-reference/
+
       # One SBOM per distribution, written to `sbom/` rather than `dist/` — the
       # publish step uploads everything in `dist/`, and PyPI takes wheels and
       # sdists, not JSON. Verified against each package's own metadata as it is
@@ -109,6 +117,8 @@ jobs:
           subject-path: |
             dist/*.whl
             dist/*.tar.gz
+            dist-reference/*.whl
+            dist-reference/*.tar.gz
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1
@@ -120,8 +130,8 @@ jobs:
 
       # After a successful publish, create the GitHub Release from the tag's
       # CHANGELOG section — so the Releases page (and the Marketplace listing) never
-      # lags PyPI. Idempotent: the release is created if missing, and the SBOMs are
-      # uploaded either way, so a re-run repairs a release whose assets are absent.
+      # lags PyPI. Idempotent: the release is created if missing, and the SBOMs and the
+      # reference pack are uploaded either way, so a re-run repairs absent assets.
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -138,7 +148,39 @@ jobs:
           else
             gh release create "$TAG" --title "Guardana $TAG" --notes-file notes.md --verify-tag
           fi
-          gh release upload "$TAG" sbom/*.cdx.json --clobber
+          gh release upload "$TAG" sbom/*.cdx.json \
+            dist-reference/*.whl dist-reference/*.tar.gz --clobber
+
+  # The reference pack on PyPI, from the files attached to the GitHub Release, so what
+  # PyPI receives is what was attested. Off until the owner registers the pending
+  # trusted publisher for `guardana-reference-pack` and sets REFERENCE_PACK_PYPI; the
+  # pack's version moves only when its content does, so a release that did not bump it
+  # is skipped rather than failed.
+  publish-reference-pack:
+    needs: publish
+    if: vars.REFERENCE_PACK_PYPI == 'true'
+    runs-on: ubuntu-24.04
+    environment: pypi
+    permissions:
+      contents: read       # download the release assets
+      id-token: write      # OIDC trusted publishing
+
+    steps:
+      - name: Download the reference pack from the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release download "$TAG" --dir dist-reference \
+            --pattern 'guardana_reference_pack-*.whl' \
+            --pattern 'guardana_reference_pack-*.tar.gz'
+
+      - name: Publish the reference pack to PyPI
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1
+        with:
+          packages-dir: dist-reference/
+          skip-existing: true
 
   # The two official images, published to the GitHub Container Registry after the
   # packages and behind the same single approval: an image tagged 0.10.0 that PyPI

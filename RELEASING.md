@@ -188,8 +188,11 @@ Beyond the five wheels and sdists, `release.yml` produces:
 - **one CycloneDX SBOM per distribution** (`scripts/generate_sbom.py`, written
   from the same `uv.lock` everything else resolves against), attached to the
   GitHub Release;
-- **build provenance** for `dist/*`, signed through Sigstore and verifiable with
-  `gh attestation verify`, on top of PyPI's own PEP 740 attestation;
+- **build provenance** for `dist/*` and `dist-reference/*`, signed through Sigstore
+  and verifiable with `gh attestation verify`, on top of PyPI's own PEP 740 attestation;
+- **the reference pack** (`examples/reference_pack`, distribution
+  `guardana-reference-pack`): its wheel and sdist, built into `dist-reference/`,
+  attached to the GitHub Release and never uploaded with the five;
 - **both container images**, `amd64` and `arm64`, each with its own SBOM and
   provenance attestation pushed into the registry.
 
@@ -204,6 +207,17 @@ until somebody flips it. One click per package, once, and
 [`docs/maintainers/github-setup.md`](docs/maintainers/github-setup.md#6a-make-the-container-packages-public--once-after-the-first-release)
 has the path. Verify it with `docker logout ghcr.io` first: "it works for me"
 here means "I am logged in".
+
+**The reference pack reaches PyPI through its own switch.** The job
+`publish-reference-pack` runs after `publish`, in the `pypi` environment (so it asks for
+its own approval), only when the repository variable `REFERENCE_PACK_PYPI` is `true`; it
+uploads the files attached to the GitHub Release with `skip-existing`. The variable stays
+unset until the owner has registered a pending trusted publisher for
+`guardana-reference-pack` ([github-setup](docs/maintainers/github-setup.md#6b-the-reference-pack-on-pypi)).
+Nothing waits on the job: the GitHub Release and the images are published either way. The
+pack's version moves by hand in `examples/reference_pack/pyproject.toml`, only when its
+content does, so most releases re-upload nothing; after changing it, regenerate its
+`guardana-lock.yaml` as its README says.
 
 **After a release that changes a document** (a saved run, the envelope, a profile, a pack
 manifest or lock, a dataset), run `uv run python scripts/capture_historical_documents.py` once

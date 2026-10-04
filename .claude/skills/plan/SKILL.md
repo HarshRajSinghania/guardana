@@ -25,7 +25,7 @@ spec, the plan, the task briefs and the progress ledger. Target: under 150 lines
    - an exit code → `docs/exit-codes.md` and the design table say the same thing;
    - a CLI command or flag → its `docs/usage-*.md`, `docs/index.md`, `FEATURES.md`;
    - the extension contract (`Rule` / `Evaluator` / `Target`, an entry-point group, the pack
-     manifest, the trace format) → the three isolated example suites, run with `--no-cache`;
+     manifest, the trace format) → every isolated example suite, run with `--no-cache`;
    - the collector → tenancy and authorization stated per route, PostgreSQL tests that refuse
      to skip in CI, the envelope still versioned;
    - a rule, evaluator or target → the `add-a-rule` checklist, `docs/generated/` regenerated;

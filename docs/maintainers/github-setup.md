@@ -147,6 +147,24 @@ docker run --rm ghcr.io/guardana/guardana:0.40 --version
 This is the failure mode this project keeps meeting from a different direction: a
 green release workflow, a documented command, and a user who cannot run it.
 
+## 6b. The reference pack on PyPI
+
+Every release attaches `guardana-reference-pack` (`examples/reference_pack`) to the
+GitHub Release. Its job `publish-reference-pack` in `release.yml` uploads it to PyPI only
+when the repository variable **`REFERENCE_PACK_PYPI`** is `true`; unset or any other value
+skips the job, and nothing else waits on it. To turn it on, once:
+
+1. On PyPI, **Your account → Publishing → Add a pending publisher**: project
+   `guardana-reference-pack`, owner `guardana`, repository `guardana`, workflow
+   `release.yml`, environment `pypi`. Pending, because the project does not exist yet;
+   the five packages have ordinary publishers, so this is the only pending one for that
+   configuration.
+2. **Settings → Secrets and variables → Actions → Variables → New repository variable**:
+   `REFERENCE_PACK_PYPI` = `true`.
+3. The next tag runs the job behind its own `pypi` approval. Its first upload creates the
+   project and turns the pending publisher into an ordinary one; later releases skip the
+   upload until the pack's own version moves.
+
 ## 7. Discussions — set up categories
 
 The bug/feature templates deliberately route questions away from Issues and into

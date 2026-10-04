@@ -551,6 +551,17 @@ disabled`: discovery still runs, every plugin is refused, and each refusal is
 recorded — see [`SECURITY.md`](../SECURITY.md) for the trust modes and why
 this exists.
 
+[`examples/reference_pack/`](../examples/reference_pack/) is one pack that uses all six
+groups — a YAML and a Python rule, an evaluator, a target, a control catalogue, the format
+`reference-summary` and the reporter `reference-file` — with a schema-3 manifest and a
+committed lock. It is the distribution `guardana-reference-pack`, versioned on its own and
+attached to every GitHub Release. It imports nothing outside the supported surface, and a
+test that walks its imports refuses any `guardana.*` name off it; its isolated suite then
+proves the pack with only what Guardana ships: `guardana rule test 'reference.*'` (each
+rule fires, stays silent and declines), the target and output conformance checks,
+`pack validate`, `pack lock --check`, and a `scan` through its own target, format and
+reporter.
+
 ## Testing your extension
 
 Every public `Rule`, `Evaluator`, and `Target` should ship with tests: a
