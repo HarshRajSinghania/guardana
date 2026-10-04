@@ -205,6 +205,10 @@ until somebody flips it. One click per package, once, and
 has the path. Verify it with `docker logout ghcr.io` first: "it works for me"
 here means "I am logged in".
 
+**After a release that changes a document** (a saved run, the envelope, a profile, a pack
+manifest or lock, a dataset), run `uv run python scripts/capture_historical_documents.py` once
+it is on PyPI and commit `packages/guardana-core/tests/historical/`.
+
 ### The clean-install check, and why it is in the gate
 
 `0.9.0` was tagged from a green tree and had to be cancelled while it waited for

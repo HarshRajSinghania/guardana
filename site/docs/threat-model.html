@@ -483,11 +483,23 @@ unscoped query exists. Tested per entity, both read and write.</p>
 <h3 id="t7--stored-xss-through-evidence-in-the-dashboard">T7 — Stored XSS through evidence in the dashboard</h3>
 <p><strong>Scenario:</strong> a model's reply contains a script tag; it lands in evidence; the
 dashboard renders it.</p>
-<p><strong>Stance:</strong> evidence is attacker-influenced text by definition. The dashboard
-HTML-escapes every submitted string before it inserts it into the page.</p>
-<p><strong>Residual risk:</strong> escaping is the only layer. The collector sends no
-Content-Security-Policy, and no test renders a crafted payload through the
-dashboard.</p>
+<p><strong>Stance:</strong> evidence is attacker-influenced text by definition. Two layers stand
+between it and a script. The page carries no data: findings arrive only by <code>fetch</code>
+as JSON, and the page's script HTML-escapes every value before it inserts it.
+The page is served with a Content-Security-Policy that allows exactly one script
+and one stylesheet, the page's own, by the SHA-256 of the text actually served:
+<code>default-src 'none'</code>, no <code>'unsafe-inline'</code> or <code>'unsafe-eval'</code> for scripts or
+styles, <code>connect-src 'self'</code>, <code>img-src 'self' data:</code>, <code>base-uri 'none'</code>,
+<code>form-action 'self'</code>, <code>frame-ancestors 'none'</code>, plus <code>X-Content-Type-Options: nosniff</code> and <code>Referrer-Policy: no-referrer</code>. The page uses no <code>style</code> attributes,
+so styles need no inline allowance either. Tests check the header, that the hash
+matches the served script, and, without a browser, that every value the script
+splices into markup is escaped; a crafted finding reaches the API as data and
+never the page.</p>
+<p><strong>Residual risk:</strong> the escaping test reads the script's structure rather than
+rendering it in a browser, so a value passed through a call that returns raw text
+is outside what it can see. If escaping did fail, the policy still blocks the
+injected script and any outside image or stylesheet, but injected markup could
+change what the reader sees.</p>
 <h3 id="t8--denial-of-service-through-huge-inputs">T8 — Denial of service through huge inputs</h3>
 <p><strong>Scenario:</strong> a 40 GB file, a 5 GB model response, a report with a million
 findings posted to the collector.</p>

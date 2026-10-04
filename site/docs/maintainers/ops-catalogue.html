@@ -482,6 +482,14 @@ wrong before.</p>
 <td>—</td>
 </tr>
 <tr>
+<td><code>capture_historical_documents.py</code></td>
+<td>⚠ install every published release in isolation and keep the documents each one wrote from synthetic inputs, with <code>releases.json</code>, under <code>packages/guardana-core/tests/historical/</code>; run after a release that changes a document</td>
+<td><code>repo</code></td>
+<td><code>--dry-run</code>, <code>--help</code></td>
+<td>PyPI</td>
+<td><code>uv</code></td>
+</tr>
+<tr>
 <td><code>release.py</code></td>
 <td>⚠ gate → bump → changelog roll → commit only the paths it wrote → push <code>main</code> without tags → wait for green CI → create and push the tag (PyPI publish) → move the marketplace tag</td>
 <td><code>git</code> + <code>repo</code></td>

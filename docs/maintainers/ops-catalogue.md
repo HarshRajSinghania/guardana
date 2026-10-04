@@ -62,6 +62,7 @@ wrong before.
 | script | purpose | Writes | Safe mode | Net | Needs |
 |---|---|---|---|---|---|
 | `bump_version.py` | set all five versions, every inter-package pin, the Action and image pins, then `uv lock` | `repo` | `--dry-run` | `uv lock` | — |
+| `capture_historical_documents.py` | ⚠ install every published release in isolation and keep the documents each one wrote from synthetic inputs, with `releases.json`, under `packages/guardana-core/tests/historical/`; run after a release that changes a document | `repo` | `--dry-run`, `--help` | PyPI | `uv` |
 | `release.py` | ⚠ gate → bump → changelog roll → commit only the paths it wrote → push `main` without tags → wait for green CI → create and push the tag (PyPI publish) → move the marketplace tag | `git` + `repo` | `--dry-run`, `--help` | `git`, `gh`, PyPI via CI | `gh` authenticated, push rights |
 
 ### Security
