@@ -315,14 +315,11 @@
 <h3 id="tested-invariant-1">Tested invariant</h3>
 <ul>
 <li><code>guardana.agent.credential_exfiltration</code>: Agent leaks a planted secret through a tool argument</li>
+<li><code>guardana.agent.excessive_tool_use</code>: Model invokes a destructive tool it was not asked to use</li>
 <li><code>guardana.agent.hidden_context.tool_schema</code>: Hidden context in a tool schema disclosed on request</li>
 <li><code>guardana.agent.memory_poisoning</code>: Poisoned memory steers the agent in a later session</li>
 <li><code>guardana.agent.tool_argument_scope</code>: Agent widens a tool argument beyond the task it was given</li>
 <li><code>guardana.agent.tool_result_injection</code>: Agent obeys an instruction found in a tool result (confused deputy)</li>
-</ul>
-<h3 id="invariant-not-sampled">Invariant, not sampled</h3>
-<ul>
-<li><code>guardana.agent.excessive_tool_use</code>: Model invokes a destructive tool it was not asked to use</li>
 </ul>
 <h3 id="heuristic-lead">Heuristic lead</h3>
 <ul>
@@ -364,7 +361,7 @@
 <li><code>guardana.mcp.registry_entry</code>: MCP server is not the one its registry entry publishes</li>
 <li><code>guardana.mcp.task_identity</code>: MCP server shows tasks to a caller who presented no credential</li>
 </ul>
-<h3 id="invariant-not-sampled-1">Invariant, not sampled</h3>
+<h3 id="invariant-not-sampled">Invariant, not sampled</h3>
 <ul>
 <li><code>guardana.mcp.authorization_discovery</code>: Protected MCP server publishes no usable authorization surface</li>
 <li><code>guardana.mcp.cache_scope</code>: MCP server declares a credential-gated tool listing publicly cacheable</li>
@@ -472,7 +469,7 @@
 <li><code>LLM09:2026</code>: Vector and Embedding Weaknesses</li>
 </ul>
 <h2 id="supply_chain">supply_chain</h2>
-<h3 id="invariant-not-sampled-2">Invariant, not sampled</h3>
+<h3 id="invariant-not-sampled-1">Invariant, not sampled</h3>
 <ul>
 <li><code>guardana.supply_chain.keras_lambda</code>: Keras Lambda layer (arbitrary code on model load)</li>
 <li><code>guardana.supply_chain.pickle_opcode</code>: Dangerous pickle opcode (arbitrary code on load)</li>
@@ -521,7 +518,7 @@
 <li><code>LLM09:2026</code>: Vector and Embedding Weaknesses</li>
 </ul>
 <h2 id="trace">trace</h2>
-<h3 id="invariant-not-sampled-3">Invariant, not sampled</h3>
+<h3 id="invariant-not-sampled-2">Invariant, not sampled</h3>
 <ul>
 <li><code>guardana.trace.consent_scope_exceeded</code>: A scope was exercised that no consent record granted</li>
 <li><code>guardana.trace.credential_passthrough</code>: A credential was presented across two different trust boundaries</li>

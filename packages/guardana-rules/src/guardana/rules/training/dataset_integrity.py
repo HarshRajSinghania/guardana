@@ -5,9 +5,10 @@ from pathlib import Path
 
 from guardana.core.report import Evidence, Finding
 from guardana.core.rule import RuleContext, RuleMeta
+from guardana.core.rule.fixture import DeclaredFixture, FixtureOutcome, RuleFixture, materialise
 from guardana.core.safety import Detection
 from guardana.core.severity import Severity
-from guardana.core.source import PythonSource
+from guardana.core.source import MAX_SOURCE_BYTES, PythonSource
 from guardana.core.target import Capability, FileReader, Target, TargetKind
 from guardana.core.taxonomy import (
     NIST_POISONING,
@@ -15,6 +16,7 @@ from guardana.core.taxonomy import (
     OWASP_LLM05_2026,
     OWASP_ML02_2023,
 )
+from guardana.core.testing import files_target
 from guardana.rules._base import ArtifactRule
 from guardana.rules.supply_chain._ast_names import import_aliases
 from guardana.rules.supply_chain._leads import lead_verdict
@@ -171,6 +173,34 @@ class DatasetIntegrityRule(ArtifactRule):
         required_capabilities=frozenset({Capability.READ_FILES}),
         detection=Detection.HEURISTIC,
     )
+
+    def fixtures(self) -> Iterable[RuleFixture]:
+        """Sample an unpinned pull, a pull pinned to a commit, and a script too large to read."""
+        unpinned = "from datasets import load_dataset\n\nrows = load_dataset('imdb')\n"
+        pinned = (
+            "from datasets import load_dataset\n\n"
+            "rows = load_dataset('imdb', revision='e6281661ce1c48d982bc483cf8a173c1bbeb5d31')\n"
+        )
+        padded = unpinned + "#" * MAX_SOURCE_BYTES + "\n"
+        return materialise(
+            (
+                DeclaredFixture(
+                    "a training script pulling a dataset from a moving branch",
+                    FixtureOutcome.FINDING,
+                    lambda: files_target({"train.py": unpinned}),
+                ),
+                DeclaredFixture(
+                    "a training script pulling a dataset pinned to a commit",
+                    FixtureOutcome.CLEAN,
+                    lambda: files_target({"train.py": pinned}),
+                ),
+                DeclaredFixture(
+                    "a training script padded past the source read limit",
+                    FixtureOutcome.INCONCLUSIVE,
+                    lambda: files_target({"train.py": padded}),
+                ),
+            )
+        )
 
     def run(self, target: Target, ctx: RuleContext) -> Iterable[Finding]:
         """Scan every `.py` file for dataset loader scripts and unpinned dataset loads."""

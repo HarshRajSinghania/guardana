@@ -2,6 +2,8 @@ from pathlib import Path
 
 import pytest
 from guardana.core.rule import RuleContext
+from guardana.core.rule.fixture import DEMANDED_OUTCOMES
+from guardana.core.rule.verify import verify_rule
 from guardana.core.severity import Severity
 from guardana.core.target import ArtifactTarget
 from guardana.rules.training.dataset_integrity import DatasetIntegrityRule
@@ -225,3 +227,10 @@ def test_a_literal_commit_sha_pins_even_beside_keyword_unpacking(
         encoding="utf-8",
     )
     assert _unpinned_leads(tmp_path) == []
+
+
+def test_the_rule_proves_all_three_outcomes_on_its_own_samples() -> None:
+    verified = verify_rule(DatasetIntegrityRule())
+
+    assert verified.is_proven, verified
+    assert {r.observed for r in verified.results} >= set(DEMANDED_OUTCOMES)

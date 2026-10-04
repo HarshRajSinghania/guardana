@@ -2,6 +2,8 @@ import json
 from pathlib import Path
 
 from guardana.core.rule import RuleContext
+from guardana.core.rule.fixture import DEMANDED_OUTCOMES
+from guardana.core.rule.verify import verify_rule
 from guardana.core.target import ArtifactTarget
 from guardana.rules.prompt.mcp_tool_poisoning import McpToolPoisoningRule
 
@@ -61,3 +63,10 @@ def test_non_mcp_json_is_ignored(tmp_path: Path) -> None:
 def test_malformed_json_is_skipped(tmp_path: Path) -> None:
     (tmp_path / "server.json").write_text("{not valid json", encoding="utf-8")
     assert _findings(tmp_path) == []
+
+
+def test_the_rule_proves_all_three_outcomes_on_its_own_samples() -> None:
+    verified = verify_rule(McpToolPoisoningRule())
+
+    assert verified.is_proven, verified
+    assert {r.observed for r in verified.results} >= set(DEMANDED_OUTCOMES)

@@ -35,14 +35,11 @@ A framework mapping says a rule is relevant to that entry, not that the entry is
 ### Tested invariant
 
 - `guardana.agent.credential_exfiltration`: Agent leaks a planted secret through a tool argument
+- `guardana.agent.excessive_tool_use`: Model invokes a destructive tool it was not asked to use
 - `guardana.agent.hidden_context.tool_schema`: Hidden context in a tool schema disclosed on request
 - `guardana.agent.memory_poisoning`: Poisoned memory steers the agent in a later session
 - `guardana.agent.tool_argument_scope`: Agent widens a tool argument beyond the task it was given
 - `guardana.agent.tool_result_injection`: Agent obeys an instruction found in a tool result (confused deputy)
-
-### Invariant, not sampled
-
-- `guardana.agent.excessive_tool_use`: Model invokes a destructive tool it was not asked to use
 
 ### Heuristic lead
 

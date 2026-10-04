@@ -15,6 +15,8 @@ from guardana.core.plugins import PluginMode, PluginTrust
 from guardana.core.profile.model import Policy, Profile
 from guardana.core.registry import Registry
 from guardana.core.rule import RuleContext
+from guardana.core.rule.fixture import DEMANDED_OUTCOMES
+from guardana.core.rule.verify import verify_rule
 from guardana.core.runner import Runner
 from guardana.core.target import Capability, McpError, McpServerTarget
 from guardana.rules.agent.mcp_server_manifest import McpServerManifestRule, pin_document
@@ -205,3 +207,48 @@ def test_the_manifest_is_fetched_once_however_many_rules_read_it() -> None:
     target.list_tools()
 
     assert calls == 1
+
+
+def _approved_run(
+    target: McpServerTarget, approved: Mapping[str, object], pin: Path | None = None
+) -> list[tuple[str, str | None]]:
+    ctx = RuleContext(config={"pin": str(pin)} if pin else {})
+    return [
+        (f.evidence.summary, f.verdict.outcome if f.verdict else None)
+        for f in McpServerManifestRule(approved=approved).run(target, ctx)
+    ]
+
+
+def _document(tools: list[tuple[str, str]]) -> dict[str, object]:
+    target = _target(tools)
+    return pin_document(target.ref, target.list_tools())
+
+
+def test_an_approved_manifest_given_in_memory_compares_like_a_pin_file() -> None:
+    approved = _document([("read_file", _BENIGN)])
+
+    assert _approved_run(_target([("read_file", _BENIGN)]), approved) == []
+    drifted = [s for s, _ in _approved_run(_target([("read_file", _POISONED)]), approved)]
+    assert any("rug pull" in s for s in drifted)
+
+
+def test_an_unusable_approved_manifest_is_inconclusive() -> None:
+    outcomes = _approved_run(_target([("read_file", _BENIGN)]), {"schema_version": 99})
+
+    assert [o for _, o in outcomes] == ["inconclusive"]
+
+
+def test_an_approved_manifest_given_in_memory_is_compared_instead_of_the_configured_pin(
+    tmp_path: Path,
+) -> None:
+    pin = _approve(tmp_path, [("read_file", _POISONED)])
+    approved = _document([("read_file", _BENIGN)])
+
+    assert _approved_run(_target([("read_file", _BENIGN)]), approved, pin) == []
+
+
+def test_the_rule_proves_all_three_outcomes_on_its_own_samples() -> None:
+    verified = verify_rule(McpServerManifestRule())
+
+    assert verified.is_proven, verified
+    assert {r.observed for r in verified.results} >= set(DEMANDED_OUTCOMES)

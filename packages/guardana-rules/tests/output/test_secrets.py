@@ -5,6 +5,8 @@ from guardana.core.assessment import AssessmentStatus, UnmeasuredReason, case_id
 from guardana.core.evaluator.base import Verdict
 from guardana.core.report import Evidence, Finding
 from guardana.core.rule import RuleContext
+from guardana.core.rule.fixture import DEMANDED_OUTCOMES
+from guardana.core.rule.verify import verify_rule
 from guardana.core.target import Decline, DeclineReading, RequestDeclined
 from guardana.core.target.endpoint import ChatMessage, EndpointTarget
 from guardana.core.testing import ScriptedTransport
@@ -346,3 +348,10 @@ def test_a_declined_request_is_never_scanned_clean_under_either_reading(decline:
     assert len(findings) == 3
     assert all(f.verdict and f.verdict.outcome == "inconclusive" for f in findings)
     assert all(decline.described in f.evidence.summary for f in findings)
+
+
+def test_the_rule_proves_all_three_outcomes_on_its_own_samples() -> None:
+    verified = verify_rule(OutputSecretsRule())
+
+    assert verified.is_proven, verified
+    assert {r.observed for r in verified.results} >= set(DEMANDED_OUTCOMES)
