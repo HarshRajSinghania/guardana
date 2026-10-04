@@ -60,6 +60,24 @@ Target branch `main`. Enable:
 - Signed commits are optional; if you enable it, document it in `CONTRIBUTING.md`
   so contributors aren't surprised.
 
+## 3a. Protect release tags — Settings → Rules → Rulesets
+
+A `vX.Y.Z` tag starts the publish, and the moving `vX.Y` tag is what Action users pin, so
+only a maintainer may create, move or delete either. **New ruleset → New tag ruleset**:
+
+- **Enforcement status:** Active.
+- **Target tags:** include by pattern `refs/tags/v*` (it covers both `v1.2.3` and `v1.2`),
+  nothing excluded.
+- **Rules:** **Restrict creations** ✅, **Restrict updates** ✅, **Restrict deletions** ✅.
+- **Bypass list:** the **Repository admin** role (and **Maintain**, when maintainers hold that
+  role) — no write role, team, GitHub App or deploy key. `scripts/release.py` creates the
+  release tag and moves `vX.Y` as a maintainer, through that bypass.
+
+`scripts/check_repo_settings.py` reads it back: `PRESENT` only for an active ruleset with all
+three rules and a bypass list of maintainers or admins, `ABSENT` when a rule is missing or anyone
+else can bypass it, and `NOT CHECKED` when the token is not an admin's, since GitHub then leaves
+the bypass list out of its answer.
+
 ## 4. Labels — Issues → Labels
 
 The [`.github/release.yml`](../../.github/release.yml) release-note categories

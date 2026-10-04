@@ -349,6 +349,22 @@ the names appear: the <code>test</code> matrix (<strong>3.11</strong>, <strong>3
 <li>Signed commits are optional; if you enable it, document it in <code>CONTRIBUTING.md</code>
 so contributors aren't surprised.</li>
 </ul>
+<h2 id="3a-protect-release-tags--settings--rules--rulesets">3a. Protect release tags — Settings → Rules → Rulesets</h2>
+<p>A <code>vX.Y.Z</code> tag starts the publish, and the moving <code>vX.Y</code> tag is what Action users pin, so
+only a maintainer may create, move or delete either. <strong>New ruleset → New tag ruleset</strong>:</p>
+<ul>
+<li><strong>Enforcement status:</strong> Active.</li>
+<li><strong>Target tags:</strong> include by pattern <code>refs/tags/v*</code> (it covers both <code>v1.2.3</code> and <code>v1.2</code>),
+nothing excluded.</li>
+<li><strong>Rules:</strong> <strong>Restrict creations</strong> ✅, <strong>Restrict updates</strong> ✅, <strong>Restrict deletions</strong> ✅.</li>
+<li><strong>Bypass list:</strong> the <strong>Repository admin</strong> role (and <strong>Maintain</strong>, when maintainers hold that
+role) — no write role, team, GitHub App or deploy key. <code>scripts/release.py</code> creates the
+release tag and moves <code>vX.Y</code> as a maintainer, through that bypass.</li>
+</ul>
+<p><code>scripts/check_repo_settings.py</code> reads it back: <code>PRESENT</code> only for an active ruleset with all
+three rules and a bypass list of maintainers or admins, <code>ABSENT</code> when a rule is missing or anyone
+else can bypass it, and <code>NOT CHECKED</code> when the token is not an admin's, since GitHub then leaves
+the bypass list out of its answer.</p>
 <h2 id="4-labels--issues--labels">4. Labels — Issues → Labels</h2>
 <p>The <a href="https://github.com/guardana/guardana/blob/main/.github/release.yml"><code>.github/release.yml</code></a> release-note categories
 key off these, so keep the names in sync. A small, purposeful set beats a big

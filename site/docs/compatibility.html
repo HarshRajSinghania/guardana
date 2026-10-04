@@ -368,9 +368,12 @@ state, <code>guardana.cli.*</code>, and every module or name that starts with <c
 <li>A name to be removed is deprecated first, for at least one minor release, and removed only in
 the next major. Deprecation means a <code>DeprecationWarning</code> where Python can raise one, and a
 &quot;Deprecated&quot; entry in the <a href="https://github.com/guardana/guardana/blob/main/CHANGELOG.md">changelog</a> that names the replacement.</li>
-<li>Every 1.x release reads every document an earlier release wrote, and writes the current
-version. One exception: <code>load_verification</code> refuses a schema-1 run, which recorded no gate;
-<code>load_report</code> and <code>guardana run migrate</code> read it.</li>
+<li>Every 1.x release reads the persisted documents earlier releases wrote, and writes the current
+version. Runs, collector envelopes, profiles, pack manifests and locks, and datasets are tested
+against documents the releases themselves wrote. Baselines, recipe locks, recordings, contracts
+and plans are read across their versions by tests that build each older version in code. One
+exception: <code>load_verification</code> refuses a schema-1 run, which recorded no gate; <code>load_report</code>
+and <code>guardana run migrate</code> read it.</li>
 <li>Every 1.x release supports extension API 2 and output API 1. A new API version is opt-in
 through the range a pack's manifest declares, and support for an API version is dropped only
 in a major release.</li>

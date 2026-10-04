@@ -191,8 +191,9 @@ Beyond the five wheels and sdists, `release.yml` produces:
 - **build provenance** for `dist/*` and `dist-reference/*`, signed through Sigstore
   and verifiable with `gh attestation verify`, on top of PyPI's own PEP 740 attestation;
 - **the reference pack** (`examples/reference_pack`, distribution
-  `guardana-reference-pack`): its wheel and sdist, built into `dist-reference/`,
-  attached to the GitHub Release and never uploaded with the five;
+  `guardana-reference-pack`): its wheel and sdist, built into `dist-reference/` by the
+  job `reference-pack` once `publish` has succeeded, and attached to the GitHub Release.
+  A pack that fails to build holds back neither the five, the Release nor the images;
 - **both container images**, `amd64` and `arm64`, each with its own SBOM and
   provenance attestation pushed into the registry.
 
@@ -209,7 +210,7 @@ has the path. Verify it with `docker logout ghcr.io` first: "it works for me"
 here means "I am logged in".
 
 **The reference pack reaches PyPI through its own switch.** The job
-`publish-reference-pack` runs after `publish`, in the `pypi` environment (so it asks for
+`publish-reference-pack` runs after `reference-pack`, in the `pypi` environment (so it asks for
 its own approval), only when the repository variable `REFERENCE_PACK_PYPI` is `true`; it
 uploads the files attached to the GitHub Release with `skip-existing`. The variable stays
 unset until the owner has registered a pending trusted publisher for
@@ -217,7 +218,9 @@ unset until the owner has registered a pending trusted publisher for
 Nothing waits on the job: the GitHub Release and the images are published either way. The
 pack's version moves by hand in `examples/reference_pack/pyproject.toml`, only when its
 content does, so most releases re-upload nothing; after changing it, regenerate its
-`guardana-lock.yaml` as its README says.
+`guardana-lock.yaml` as its README says. `scripts/release.py` refuses a release whose
+`examples/reference_pack` changed since the previous tag while its version did not, because
+PyPI would skip the upload and the change would never ship.
 
 **After a release that changes a document** (a saved run, the envelope, a profile, a pack
 manifest or lock, a dataset), run `uv run python scripts/capture_historical_documents.py` once

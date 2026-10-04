@@ -653,7 +653,7 @@ transport builders, the output checks — with what each proves and does not. <c
 uses the output checks.</p>
 <h3 id="11-the-reference-pack">11. The reference pack</h3>
 <p><code>examples/reference_pack</code>: distribution <code>guardana-reference-pack</code>, its own version <code>0.1.0</code>
-(bumped by hand when its content changes, like any third-party pack), <code>guardana-core&gt;=0.40</code> with
+(bumped by hand when its content changes, like any third-party pack), <code>guardana-core&gt;=0.41</code> with
 no upper bound, so its manifest's <code>extension_api</code> and <code>output_api</code> ranges decide compatibility.
 Module <code>guardana_reference_pack</code>, ids under <code>reference.</code>, output names <code>reference-summary</code> and
 <code>reference-file</code>. It provides one YAML rule and one Python rule, each with finding, clean and
@@ -668,8 +668,9 @@ the conformance kit and the surface of decision 8 — a test walks its sources' 
 any <code>guardana.*</code> name outside <code>docs/generated/api-surface.json</code> — and runs <code>guardana rule test 'reference.*'</code>, the target and output checks, <code>pack validate</code>, <code>pack lock --check</code>, and a <code>scan</code>
 with <code>--plugins allowlist --allow-plugin guardana-reference-pack --format reference-summary --reporter reference-file://…</code>. <code>clean_install_check.py</code> installs it beside the five and runs
 <code>pack validate</code> and <code>rule test</code> on it.</p>
-<p><code>release.yml</code> builds it into <code>dist-reference/</code>, attests it with <code>dist/</code>, and uploads it to the
-GitHub Release. A separate job <code>publish-reference-pack</code> (<code>needs: publish</code>, environment <code>pypi</code>,
+<p><code>release.yml</code> builds it into <code>dist-reference/</code>, attests it and uploads it to the GitHub Release
+in its own job <code>reference-pack</code> (<code>needs: publish</code>), so a pack that fails to build blocks neither
+the five packages, the Release nor the images. A separate job <code>publish-reference-pack</code> (<code>needs: reference-pack</code>, environment <code>pypi</code>,
 <code>skip-existing: true</code>) runs only when the repository variable <code>REFERENCE_PACK_PYPI</code> is <code>true</code>,
 which the owner sets after registering the pending trusted publisher for
 <code>guardana-reference-pack</code>; the GitHub Release and the images never wait on it. Criterion 3 is
@@ -698,10 +699,11 @@ never be prevented, reviewed. A rule that gains a decline path changes behaviour
 artifact and trace samples under its existing &quot;no scripted reply&quot; reason.</p>
 <h3 id="13-measures-2-and-3-get-generators">13. Measures 2 and 3 get generators</h3>
 <p><code>scripts/adopter_measure.py</code> mirrors <code>first_run_measure.py</code>. <code>row RUN.json --team T1 --consent yes</code> prints one row of counts from a saved run, never its content, for
-<code>docs/maintainers/adopter-runs.csv</code> (columns <code>team, guardana, schema_version, rules_selected, rules_not_applicable, rules_attempted, rules_decided, consent_to_publish</code>; teams <code>T1</code>, <code>T2</code>; a
-row without consent refused). It refuses a run older than schema 14, one with <code>stopped_by</code> set
-(rules that never started are not recorded), one without a recipe, one whose <code>recipe.kind</code> is not
-<code>application</code>, or whose <code>recipe.lock_digest</code> is null. From the run:</p>
+<code>docs/maintainers/adopter-runs.csv</code> (columns <code>team, run_id, guardana, schema_version, rules_selected, rules_not_applicable, rules_attempted, rules_decided, consent_to_publish</code>; teams
+<code>T1</code>, <code>T2</code>; a row without consent, or a second row with the same <code>run_id</code>, refused). It refuses a
+run older than schema 14, one with <code>stopped_by</code> set (rules that never started are not recorded),
+one without a recipe, one whose <code>recipe.kind</code> is not <code>application</code>, whose <code>recipe.lock_digest</code> is
+null, or that records an error naming no rule (its rules would read as decided). From the run:</p>
 <ul>
 <li>selected = rules in <code>rules_run</code>, in <code>rules_skipped</code>, and named by an error before they ran;
 not applicable = skips with reason <code>not_applicable</code>; attempted = rules in <code>rules_run</code> or named

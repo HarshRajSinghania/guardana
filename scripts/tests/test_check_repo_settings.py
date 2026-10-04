@@ -47,7 +47,10 @@ def _healthy() -> dict[str, object]:
             "target": "tag",
             "enforcement": "active",
             "conditions": {"ref_name": {"include": ["refs/tags/v*"], "exclude": []}},
-            "rules": [{"type": "creation"}, {"type": "deletion"}],
+            "rules": [{"type": "creation"}, {"type": "update"}, {"type": "deletion"}],
+            "bypass_actors": [
+                {"actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "always"}
+            ],
         },
         f"repos/{REPO}/environments/pypi": {
             "protection_rules": [
@@ -117,9 +120,37 @@ def test_vulnerability_reporting_disabled_is_absent() -> None:
         {"enforcement": "evaluate"},
         {"conditions": {"ref_name": {"include": ["refs/tags/release-*"], "exclude": []}}},
         {"conditions": {"ref_name": {"include": ["~ALL"], "exclude": ["refs/tags/v*"]}}},
-        {"rules": [{"type": "deletion"}]},
+        {"rules": [{"type": "update"}, {"type": "deletion"}]},
+        {"rules": [{"type": "creation"}, {"type": "deletion"}]},
+        {"rules": [{"type": "creation"}, {"type": "update"}]},
+        {"bypass_actors": [{"actor_id": 4, "actor_type": "RepositoryRole"}]},
+        {"bypass_actors": [{"actor_id": 1, "actor_type": "RepositoryRole"}]},
+        {"bypass_actors": [{"actor_id": 31, "actor_type": "RepositoryRole"}]},
+        {"bypass_actors": [{"actor_id": 15368, "actor_type": "Integration"}]},
+        {"bypass_actors": [{"actor_id": 12, "actor_type": "Team"}]},
+        {"bypass_actors": [{"actor_id": None, "actor_type": "DeployKey"}]},
+        {
+            "bypass_actors": [
+                {"actor_id": 5, "actor_type": "RepositoryRole"},
+                {"actor_id": 4, "actor_type": "RepositoryRole"},
+            ]
+        },
     ],
-    ids=["not-enforced", "other-tags", "v-excluded", "no-creation-rule"],
+    ids=[
+        "not-enforced",
+        "other-tags",
+        "v-excluded",
+        "no-creation-rule",
+        "no-update-rule",
+        "no-deletion-rule",
+        "write-role-bypasses",
+        "read-role-bypasses",
+        "custom-role-bypasses",
+        "app-bypasses",
+        "team-bypasses",
+        "deploy-key-bypasses",
+        "admin-and-write-bypass",
+    ],
 )
 def test_a_tag_ruleset_that_does_not_guard_release_tags_is_absent(
     ruleset: dict[str, object],
@@ -128,6 +159,55 @@ def test_a_tag_ruleset_that_does_not_guard_release_tags_is_absent(
     detail = table[f"repos/{REPO}/rulesets/9"]
     assert isinstance(detail, dict)
     table[f"repos/{REPO}/rulesets/9"] = {**detail, **ruleset}
+
+    assert _outcome(_run(table), "tag ruleset") is check.Outcome.ABSENT
+
+
+@pytest.mark.parametrize(
+    "bypass",
+    [
+        [],
+        [{"actor_id": 2, "actor_type": "RepositoryRole", "bypass_mode": "always"}],
+        [{"actor_id": 1, "actor_type": "OrganizationAdmin", "bypass_mode": "always"}],
+        [
+            {"actor_id": 5, "actor_type": "RepositoryRole"},
+            {"actor_id": 2, "actor_type": "RepositoryRole"},
+        ],
+    ],
+    ids=["nobody", "maintain-role", "organization-admin", "admin-and-maintain"],
+)
+def test_a_tag_ruleset_only_maintainers_can_bypass_is_present(bypass: list[object]) -> None:
+    table = _healthy()
+    detail = table[f"repos/{REPO}/rulesets/9"]
+    assert isinstance(detail, dict)
+    table[f"repos/{REPO}/rulesets/9"] = {**detail, "bypass_actors": bypass}
+
+    assert _outcome(_run(table), "tag ruleset") is check.Outcome.PRESENT
+
+
+def test_a_ruleset_answered_without_its_bypass_list_is_not_checked() -> None:
+    """GitHub leaves `bypass_actors` out for a token that may not edit the ruleset."""
+    table = _healthy()
+    detail = table[f"repos/{REPO}/rulesets/9"]
+    assert isinstance(detail, dict)
+    table[f"repos/{REPO}/rulesets/9"] = {k: v for k, v in detail.items() if k != "bypass_actors"}
+
+    results = _run(table)
+
+    assert _outcome(results, "tag ruleset") is check.Outcome.NOT_CHECKED
+    (ruleset,) = [r for name, r in results.items() if name.startswith("tag ruleset")]
+    assert "bypass" in ruleset.detail
+
+
+def test_a_ruleset_without_an_update_rule_is_absent_whatever_its_bypass_list() -> None:
+    """A ruleset that lets anyone move a release tag is a gap the bypass list cannot close."""
+    table = _healthy()
+    detail = table[f"repos/{REPO}/rulesets/9"]
+    assert isinstance(detail, dict)
+    table[f"repos/{REPO}/rulesets/9"] = {
+        **{k: v for k, v in detail.items() if k != "bypass_actors"},
+        "rules": [{"type": "creation"}, {"type": "deletion"}],
+    }
 
     assert _outcome(_run(table), "tag ruleset") is check.Outcome.ABSENT
 

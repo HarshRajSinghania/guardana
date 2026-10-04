@@ -139,7 +139,7 @@ project and write rows, keys included.
 | setting | relied on by |
 |---|---|
 | private vulnerability reporting | a vulnerability report |
-| a tag ruleset restricting who creates `v*` tags | both releases above: only a maintainer can publish |
+| a tag ruleset restricting who creates, moves or deletes `v*` tags, bypassable by maintainers only ([setup](github-setup.md#3a-protect-release-tags--settings--rules--rulesets)) | both releases above: only a maintainer can publish |
 | a required reviewer on the `pypi` environment | every publish pauses for one approval |
 | the release workflow's `publish` job needs `ci-passed` | a tag publishes only a commit CI passed |
 | the two ghcr packages are public | the documented `docker run`, and the image steps above |
@@ -150,5 +150,7 @@ uv run python scripts/check_repo_settings.py
 
 Each setting prints `PRESENT`, `ABSENT` or `NOT CHECKED` (no `gh`, `gh` not logged in, or a `403`
 or `404`). It exits `0` when all are present, `1` when any is absent, and `2` when any could not
-be read. The ghcr packages need a token with `read:packages`. How to put each setting in place:
-[GitHub repository setup](github-setup.md).
+be read. The ghcr packages need a token with `read:packages`, and the tag ruleset's bypass list
+an admin's token. How to put each setting in place:
+[GitHub repository setup](github-setup.md); the tag ruleset is
+[section 3a](github-setup.md#3a-protect-release-tags--settings--rules--rulesets).

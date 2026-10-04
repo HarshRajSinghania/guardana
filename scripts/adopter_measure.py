@@ -11,8 +11,9 @@ always come from the sheet and never from a sentence somebody typed. Until two t
 have rows the page says "not measured".
 
 Only a locked application run is counted: one at schema 14 or later, started from a
-recipe that declares an application and read a lock, and not stopped before its plan ended.
-Any other run is refused rather than skipped, as is a row without consent to publish.
+recipe that declares an application and read a lock, not stopped before its plan ended, and
+recording no error that names no rule. Any other run is refused rather than skipped, as is
+a row without consent to publish and a run recorded twice.
 """
 
 import argparse
@@ -37,6 +38,7 @@ OLDEST_SCHEMA = 14
 
 COLUMNS = (
     "team",
+    "run_id",
     "guardana",
     "schema_version",
     "rules_selected",
@@ -45,8 +47,10 @@ COLUMNS = (
     "rules_decided",
     "consent_to_publish",
 )
-_COUNTS = COLUMNS[3:7]
+_COUNTS = COLUMNS[4:8]
 _TEAM = re.compile(r"T[1-9][0-9]*")
+_RUN_ID = re.compile(r"[0-9A-Za-z][0-9A-Za-z._:-]{0,127}")
+"""A run id the sheet can hold: no spaces, commas or a leading formula character."""
 _VERSION = re.compile(r"[0-9][0-9A-Za-z.+!-]*")
 _RULE_STAGES = frozenset({"run", "request", "target", "regression"})
 """The stages recorded only for a selected rule's own check, so an error at one names a rule.
@@ -55,6 +59,8 @@ An error at any other stage counts only against a rule the run lists as run: the
 checks every loaded rule's `expect:` block and applicability hook, selected or not, and
 the source of the rest is a target, a file or an entry point.
 """
+_NAMING_STAGES = _RULE_STAGES | {"applicability"}
+"""The stages whose source is always a rule id, selected by the run or not."""
 
 
 class SheetError(ValueError):
@@ -66,6 +72,7 @@ class Row:
     """One team's locked application run, as counts."""
 
     team: str
+    run_id: str
     guardana: str
     schema_version: int
     rules_selected: int
@@ -91,6 +98,14 @@ def _check_team(team: str) -> None:
 def _check_consent(team: str, consent: str) -> None:
     if consent != "yes":
         raise SheetError(f"{team}: no consent to publish, so the row cannot be committed")
+
+
+def _check_run_id(team: str, run_id: str) -> None:
+    if not _RUN_ID.fullmatch(run_id):
+        raise SheetError(
+            f"{team}: the run id {run_id!r} is not one the sheet can hold: letters, digits, "
+            f"'.', '_', ':' and '-', starting with a letter or a digit"
+        )
 
 
 def _check_schema(team: str, version: int) -> None:
@@ -122,6 +137,31 @@ def _named_by_errors(result: ScanResult, ran: frozenset[str]) -> frozenset[str]:
         for error in result.errors
         if error.stage in _RULE_STAGES or error.source in ran
     )
+
+
+def _check_errors_name_rules(team: str, result: ScanResult) -> None:
+    """Refuse a run with an error that names no rule, which would leave its rules decided.
+
+    An unreadable source file, a recording or a target that misstated its capabilities
+    lowers no rule's count, so every rule that ran would read as decided.
+    """
+    known = (
+        frozenset(result.rules_run)
+        | frozenset(skip.rule_id for skip in result.rules_skipped)
+        | frozenset(finding.rule_id for finding in result.unverified)
+    )
+    unnamed = sorted(
+        {
+            f"{error.source} ({error.stage})"
+            for error in result.errors
+            if error.stage not in _NAMING_STAGES and error.source not in known
+        }
+    )
+    if unnamed:
+        raise SheetError(
+            f"{team}: the run records an error that names no rule, so the rules it touched "
+            f"would read as decided: {', '.join(unnamed)}"
+        )
 
 
 def count(result: ScanResult) -> tuple[int, int, int, int]:
@@ -164,9 +204,18 @@ def row_from_run(path: Path, *, team: str, consent: str) -> Row:
         )
     if recipe.lock_digest is None:
         raise SheetError(f"{team}: the recipe read no lock, so its runs are not comparable")
+    _check_run_id(team, manifest.run_id)
+    _check_errors_name_rules(team, report.result)
     selected, not_applicable, attempted, decided = count(report.result)
     row = Row(
-        team, manifest.guardana.version, version, selected, not_applicable, attempted, decided
+        team,
+        manifest.run_id,
+        manifest.guardana.version,
+        version,
+        selected,
+        not_applicable,
+        attempted,
+        decided,
     )
     _check_counts(row)
     return row
@@ -176,7 +225,7 @@ def format_row(row: Row) -> str:
     """Render one row as the CSV line the sheet holds, consent included."""
     out = io.StringIO()
     csv.writer(out, lineterminator="\n").writerow(
-        [row.team, row.guardana, row.schema_version, *row.counts(), "yes"]
+        [row.team, row.run_id, row.guardana, row.schema_version, *row.counts(), "yes"]
     )
     return out.getvalue()
 
@@ -191,6 +240,7 @@ def _row(fields: dict[str, str]) -> Row:
     team = fields["team"]
     _check_team(team)
     _check_consent(team, fields["consent_to_publish"])
+    _check_run_id(team, fields["run_id"])
     if not _VERSION.fullmatch(fields["guardana"]):
         raise SheetError(f"{team}: guardana {fields['guardana']!r} is not a version")
     version = _whole(fields["schema_version"], "schema_version", team)
@@ -198,7 +248,16 @@ def _row(fields: dict[str, str]) -> Row:
     selected, not_applicable, attempted, decided = (
         _whole(fields[column], column, team) for column in _COUNTS
     )
-    row = Row(team, fields["guardana"], version, selected, not_applicable, attempted, decided)
+    row = Row(
+        team,
+        fields["run_id"],
+        fields["guardana"],
+        version,
+        selected,
+        not_applicable,
+        attempted,
+        decided,
+    )
     _check_counts(row)
     return row
 
@@ -210,7 +269,13 @@ def read_sheet(path: Path | None = None) -> list[Row]:
         reader = csv.DictReader(handle)
         if tuple(reader.fieldnames or ()) != COLUMNS:
             raise SheetError(f"{sheet.name}: the header must be exactly {','.join(COLUMNS)}")
-        return [_row(fields) for fields in reader]
+        rows = [_row(fields) for fields in reader]
+    seen: set[str] = set()
+    for row in rows:
+        if row.run_id in seen:
+            raise SheetError(f"{row.team}: duplicate run_id {row.run_id}; a run is counted once")
+        seen.add(row.run_id)
+    return rows
 
 
 def _ratio(label: str, part: int, whole: int, noun: str, verb: str) -> str:

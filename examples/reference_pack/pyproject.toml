@@ -7,7 +7,7 @@ requires-python = ">=3.11"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
 classifiers = ["Typing :: Typed"]
-dependencies = ["guardana-core>=0.40"]
+dependencies = ["guardana-core>=0.41"]
 
 [project.urls]
 Homepage = "https://guardana.dev"

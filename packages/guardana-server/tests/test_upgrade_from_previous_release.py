@@ -1,12 +1,12 @@
-"""The upgrade `docs/deployment.md` describes, from the schema an older release shipped.
+"""The upgrade `docs/deployment.md` describes, from the oldest schema a release shipped.
 
-The database starts at the migration count of the oldest release in
-`historical/releases.json` that both wrote a stored envelope and shipped migrations,
-holding what an operator of that release would have: a tenant, a key and a run with
-a finding. It is migrated forward with the runner the `migrate` command uses, and
-then the key issued before the upgrade sends every stored envelope through the real
-route. Everything, the pre-upgrade run included, has to come back through the
-scoped store.
+The database starts at the smallest non-zero migration count any release in
+`historical/releases.json` shipped, holding what an operator of that release would have:
+a run with a finding and a key, written with only the columns that schema has, before
+there were tenants. It is migrated forward with the runner the `migrate` command uses,
+which adopts both into one project, and then the key issued before the upgrade sends
+every stored envelope through the real route. Everything, the pre-upgrade run included,
+has to come back through the scoped store.
 """
 
 import json
@@ -15,20 +15,15 @@ from typing import Any
 import psycopg
 import pytest
 from conftest import DbConnection
+from guardana.server.auth import Scope, generate_key
 from guardana.server.db.migrations import apply_pending, load_migrations, read_state
 from guardana.server.envelope import Submission
-from test_historical_envelopes import (
-    HISTORICAL,
-    bearer,
-    issue_key,
-    serve,
-    stored_envelopes,
-    tenant,
-)
+from test_historical_envelopes import HISTORICAL, bearer, serve, stored_envelopes
 from test_migrations import _apply_through
 
 _OK = 200
-_IDENTITY = "sha256:" + "a" * 64
+_TENANCY = 3
+"""The migration that introduced projects; the writer below knows only the schema before it."""
 
 
 def _release_key(version: str) -> tuple[int, ...]:
@@ -36,61 +31,80 @@ def _release_key(version: str) -> tuple[int, ...]:
 
 
 def oldest_upgradable_release() -> tuple[str, int]:
-    """The oldest release that stored an envelope and shipped a schema, with its migration count."""
+    """The oldest release that shipped a collector schema, with its migration count."""
     releases: dict[str, Any] = json.loads(
         (HISTORICAL / "releases.json").read_text(encoding="utf-8")
     )
-    for version in sorted(releases, key=_release_key):
-        release = releases[version]
-        count = int(release["collector_migrations"])
-        if release["kinds"]["envelope"].get("stored") and count > 0:
-            return version, count
-    raise AssertionError("no release in releases.json stored an envelope and shipped migrations")
+    shipped = [
+        (version, int(release["collector_migrations"]))
+        for version, release in releases.items()
+        if int(release["collector_migrations"]) > 0
+    ]
+    if not shipped:
+        raise AssertionError("no release in releases.json shipped a collector migration")
+    return min(shipped, key=lambda entry: (entry[1], _release_key(entry[0])))
 
 
-def _a_run_from_before_the_upgrade(connection: DbConnection, project_id: int) -> None:
-    """One submission and its finding, written with only the columns the old schema has."""
+def _a_collector_from_before_the_upgrade(connection: DbConnection) -> str:
+    """Write one submission, its finding and a key in the pre-tenancy schema; return the token."""
+    issued, secret_hash = generate_key("issued-before-the-upgrade", (Scope.INGEST, Scope.READ))
     with connection.cursor() as cursor:
         cursor.execute(
-            "insert into submissions (project_id, received_at, source, schema_version, rules_run) "
-            "values (%s, now() - interval '1 day', 'before-the-upgrade', 7, 1) returning id",
-            (project_id,),
+            "insert into submissions (received_at, source, schema_version, rules_run) "
+            "values (now() - interval '1 day', 'before-the-upgrade', 5, 1) returning id",
         )
         row = cursor.fetchone()
         if row is None:
             raise AssertionError("the pre-upgrade submission was not written")
         cursor.execute(
             "insert into findings (submission_id, channel, position, rule_id, severity, title, "
-            "target_ref, evidence_summary, identity) values "
+            "target_ref, evidence_summary) values "
             "(%s, 'findings', 0, 'guardana.supply_chain.pickle_opcode', 'CRITICAL', "
-            "'Dangerous pickle opcode', 'model.pkl', 'imports os.system', %s)",
-            (row[0], _IDENTITY),
+            "'Dangerous pickle opcode', 'model.pkl', 'imports os.system')",
+            (row[0],),
+        )
+        cursor.execute(
+            "insert into api_keys (name, prefix, secret_hash, scopes) values (%s, %s, %s, %s)",
+            (issued.name, issued.prefix, secret_hash, [scope.value for scope in issued.scopes]),
         )
     connection.commit()
+    return issued.token
 
 
-def test_the_oldest_upgradable_release_is_older_than_this_build() -> None:
-    _, count = oldest_upgradable_release()
+def _adopted_project(connection: DbConnection) -> int:
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "select p.id from projects p join organizations o on o.id = p.organization_id "
+            "where o.adopted"
+        )
+        rows = cursor.fetchall()
+    if len(rows) != 1:
+        raise AssertionError(f"expected one adopted project, found {len(rows)}")
+    project_id: int = rows[0][0]
+    return project_id
 
-    assert 0 < count < len(load_migrations()), (
-        "the upgrade below starts where this build already is, so it upgrades nothing"
+
+def test_the_oldest_upgradable_release_is_the_first_collector_schema() -> None:
+    version, count = oldest_upgradable_release()
+
+    assert version == "0.8.0"
+    assert 0 < count < _TENANCY < len(load_migrations()), (
+        "the upgrade below has to start before tenancy and end where this build is"
     )
 
 
-def test_a_collector_upgraded_from_an_older_release_keeps_its_data_and_takes_every_envelope(
+def test_a_collector_upgraded_from_the_oldest_release_keeps_its_data_and_takes_every_envelope(
     database_url: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _, count = oldest_upgradable_release()
     with psycopg.connect(database_url) as connection:
         _apply_through(connection, count)
-    project_id = tenant(database_url)
-    token = issue_key(database_url, project_id, name="issued-before-the-upgrade")
-    with psycopg.connect(database_url) as connection:
-        _a_run_from_before_the_upgrade(connection, project_id)
+        token = _a_collector_from_before_the_upgrade(connection)
 
         apply_pending(connection)
 
         assert read_state(connection).is_current
+        project_id = _adopted_project(connection)
     collector = serve(database_url, project_id, monkeypatch, token=token)
     envelopes = [document for _, document in stored_envelopes()]
     for document in envelopes:
@@ -102,7 +116,9 @@ def test_a_collector_upgraded_from_an_older_release_keeps_its_data_and_takes_eve
     before, *after = [record.submission for record in collector.store.records(collector.scope)]
 
     assert before.source == "before-the-upgrade"
-    assert [finding.identity for finding in before.findings] == [_IDENTITY]
+    assert [(f.rule_id, f.title) for f in before.findings] == [
+        ("guardana.supply_chain.pickle_opcode", "Dangerous pickle opcode")
+    ]
     assert after == [Submission.model_validate(document) for document in envelopes]
     assert [stored.schema_version for stored in after] == [
         document["schema_version"] for document in envelopes

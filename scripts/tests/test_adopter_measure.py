@@ -1,5 +1,6 @@
 """The adopter measures come only from counts of locked application runs, and from two teams."""
 
+import itertools
 import json
 from collections.abc import Callable
 from dataclasses import replace
@@ -24,6 +25,8 @@ import adopter_measure as measure
 
 _HEADER = ",".join(measure.COLUMNS)
 _TARGET = "https://support.invalid/v1"
+_RUN_ID = "00000000-0000-4000-8000-000000000000"
+_RUN_IDS = (f"00000000-0000-4000-8000-{n:012d}" for n in itertools.count(1))
 
 
 def _unverified(rule_id: str) -> Finding:
@@ -50,8 +53,6 @@ def _result(**changes: Any) -> ScanResult:  # noqa: ANN401 — any field of the 
         errors=(
             CheckError(source="acme.g", stage="run", reason="RuntimeError: broke"),
             CheckError(source="acme.c", stage="applicability", reason="returned 3"),
-            CheckError(source=_TARGET, stage="capability", reason="declares chat"),
-            CheckError(source="guardana.core.source", stage="read", reason="unreadable"),
         ),
     )
     return replace(result, **changes)
@@ -89,9 +90,19 @@ def _saved(
     return path
 
 
+def _with_run_id(path: Path, run_id: str) -> Path:
+    """Rewrite the run id a saved run carries."""
+    document = json.loads(path.read_text(encoding="utf-8"))
+    document["run"]["run_id"] = run_id
+    path.write_text(json.dumps(document), encoding="utf-8")
+    return path
+
+
 def _line(team: str, *, consent: str = "yes", **overrides: str) -> str:
+    """One sheet line; every call gets a run id of its own unless `run_id` is given."""
     values = {
         "team": team,
+        "run_id": next(_RUN_IDS),
         "guardana": "0.41.0",
         "schema_version": "17",
         "rules_selected": "7",
@@ -118,7 +129,7 @@ def test_a_locked_application_run_becomes_one_row_of_counts(
     code = measure.main(["row", str(run), "--team", "T1", "--consent", "yes"])
 
     assert code == 0
-    assert capsys.readouterr().out == "T1,0.0.0-test,17,7,1,5,2,yes\n"
+    assert capsys.readouterr().out == f"T1,{_RUN_ID},0.0.0-test,17,7,1,5,2,yes\n"
 
 
 def test_the_row_carries_counts_never_content(tmp_path: Path) -> None:
@@ -192,6 +203,25 @@ def test_a_row_needs_a_pseudonym_and_consent(
             "kind is model_harness",
         ),
         (lambda p: _saved(p, recipe=_recipe(lock_digest=None)), "no lock"),
+        (lambda p: _with_run_id(_saved(p), "Acme prod, Tuesday"), "run id"),
+        (lambda p: _with_run_id(_saved(p), "=HYPERLINK(1)"), "run id"),
+        (
+            lambda p: _saved(p, _result(errors=(_unnamed("guardana.core.source", "read"),))),
+            "names no rule",
+        ),
+        (
+            lambda p: _saved(p, _result(errors=(_unnamed("guardana.core.recording", "read"),))),
+            "names no rule",
+        ),
+        (lambda p: _saved(p, _result(errors=(_unnamed(_TARGET, "capability"),))), "names no rule"),
+        (
+            lambda p: _saved(p, _result(errors=(_unnamed("rules/broken.yaml", "load"),))),
+            "names no rule",
+        ),
+        (
+            lambda p: _saved(p, _result(errors=(_unnamed("acme-pack", "discovery"),))),
+            "names no rule",
+        ),
     ],
 )
 def test_a_run_the_measures_cannot_bear_is_refused(
@@ -208,6 +238,20 @@ def test_a_run_the_measures_cannot_bear_is_refused(
     captured = capsys.readouterr()
     assert captured.out == ""
     assert reason in captured.err
+
+
+def _unnamed(source: str, stage: str) -> CheckError:
+    return CheckError(source=source, stage=stage, reason="could not be read")
+
+
+def test_an_error_naming_no_rule_would_leave_every_rule_that_ran_decided(tmp_path: Path) -> None:
+    """The reason such a run is refused: the error lowers no rule's count."""
+    clean = _result(errors=())
+    unread = _result(errors=(_unnamed("guardana.core.source", "read"),))
+
+    assert measure.count(clean) == measure.count(unread)
+    with pytest.raises(measure.SheetError, match=r"guardana\.core\.source \(read\)"):
+        measure.row_from_run(_saved(tmp_path, unread), team="T1", consent="yes")
 
 
 def test_a_file_that_is_not_a_saved_run_is_refused(tmp_path: Path) -> None:
@@ -273,6 +317,8 @@ _nothing_attempted = {"rules_attempted": "0", "rules_decided": "0"}
         (_line("T1", consent="no"), "no consent"),
         (_line("Acme"), "never go here"),
         (_line("T1", guardana=""), "guardana"),
+        (_line("T1", run_id=""), "run id"),
+        (_line("T1", run_id="=cmd|' /C calc'!A0"), "run id"),
         (_line("T1", schema_version="13"), "older than schema 14"),
         (_line("T1", schema_version="99"), "newer than"),
         (_line("T1", rules_attempted="five"), "whole number"),
@@ -287,9 +333,23 @@ def test_a_row_the_measures_cannot_bear_is_refused(tmp_path: Path, row: str, rea
         measure.read_sheet(_sheet(tmp_path, row))
 
 
+def test_the_same_run_recorded_twice_is_refused(tmp_path: Path) -> None:
+    """A run counted twice would weigh one team's run double in both measures."""
+    rows = [_line("T1", run_id=_RUN_ID), _line("T2"), _line("T1", run_id=_RUN_ID)]
+
+    with pytest.raises(measure.SheetError, match=f"duplicate run_id {_RUN_ID}"):
+        measure.read_sheet(_sheet(tmp_path, *rows))
+
+
+def test_different_runs_of_one_team_are_all_recorded(tmp_path: Path) -> None:
+    rows = measure.read_sheet(_sheet(tmp_path, _line("T1"), _line("T1"), _line("T2")))
+
+    assert len({row.run_id for row in rows}) == 3
+
+
 def test_a_sheet_with_other_columns_is_refused(tmp_path: Path) -> None:
     path = tmp_path / "sheet.csv"
-    path.write_text(_HEADER + ",run_id\n", encoding="utf-8")
+    path.write_text(_HEADER + ",notes\n", encoding="utf-8")
 
     with pytest.raises(measure.SheetError, match="header must be exactly"):
         measure.read_sheet(path)

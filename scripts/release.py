@@ -55,6 +55,8 @@ _SURFACE_PATH = _ROOT / _SURFACE
 _CANDIDATE_RE = re.compile(r"\d+\.\d+\.\d+rc\d+")
 _SURFACE_SECTION_RE = re.compile(r"^### (Changed|Deprecated|Removed)\b", re.MULTILINE)
 _RELEASE_TAG_GLOB = "v[0-9]*.[0-9]*.[0-9]*"
+_PACK = "examples/reference_pack"
+_PACK_PYPROJECT = _ROOT / _PACK / "pyproject.toml"
 
 
 def _run(cmd: list[str], *, capture: bool = False) -> str:
@@ -158,6 +160,7 @@ def main(argv: list[str]) -> None:
 
     _preflight()
     _check_surface(version)
+    _check_reference_pack()
     _gate()
 
     bumped: frozenset[str] = frozenset()
@@ -231,13 +234,7 @@ def _check_surface(version: str) -> None:
     """
     if not _CANDIDATE_RE.fullmatch(version):
         return
-    try:
-        previous = _run(
-            ["git", "describe", "--tags", "--abbrev=0", "--match", _RELEASE_TAG_GLOB, "HEAD"],
-            capture=True,
-        ).strip()
-    except subprocess.CalledProcessError:
-        _fail("no earlier release tag to compare the supported surface with")
+    previous = _previous_tag("the supported surface")
     try:
         current = _SURFACE_PATH.read_text(encoding="utf-8")
     except OSError as error:
@@ -255,6 +252,53 @@ def _check_surface(version: str) -> None:
         f"CHANGELOG.md has no Changed, Deprecated or Removed section; a release candidate "
         f"changes the surface only when the changelog says so"
     )
+
+
+def _previous_tag(what: str) -> str:
+    """Return the nearest release tag behind HEAD, or refuse when there is none."""
+    try:
+        previous = _run(
+            ["git", "describe", "--tags", "--abbrev=0", "--match", _RELEASE_TAG_GLOB, "HEAD"],
+            capture=True,
+        ).strip()
+    except subprocess.CalledProcessError:
+        previous = ""
+    if not previous:
+        _fail(f"no earlier release tag to compare {what} with")
+    return previous
+
+
+def _pack_version(pyproject: str, where: str) -> str:
+    match = _VERSION_RE.search(pyproject)
+    if match is None:
+        _fail(f"could not read the reference pack's version from {where}")
+    return match.group("v")
+
+
+def _check_reference_pack() -> None:
+    """Refuse a release whose reference pack changed while keeping the version it shipped as.
+
+    The pack is published beside the five packages under its own version, and the index
+    refuses a second upload of a version, so a changed pack must carry a new one. A pack
+    absent at the previous tag never shipped, so it has no version to collide with.
+    """
+    previous = _previous_tag("the reference pack")
+    try:
+        before = _run(["git", "show", f"{previous}:{_PACK}/pyproject.toml"], capture=True)
+    except subprocess.CalledProcessError:
+        return
+    if not _run(["git", "diff", previous, "--", _PACK], capture=True).strip():
+        return
+    try:
+        current = _PACK_PYPROJECT.read_text(encoding="utf-8")
+    except OSError as error:
+        _fail(f"cannot read {_PACK}/pyproject.toml: {error}")
+    version = _pack_version(current, f"{_PACK}/pyproject.toml")
+    if version == _pack_version(before, f"{previous}:{_PACK}/pyproject.toml"):
+        _fail(
+            f"{_PACK} changed since {previous} but its version is still {version}, the "
+            f"version {previous} published; bump it in {_PACK}/pyproject.toml"
+        )
 
 
 def _bump_writes(plan: str) -> frozenset[str]:

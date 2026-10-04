@@ -43,9 +43,12 @@ From 1.0:
 - A name to be removed is deprecated first, for at least one minor release, and removed only in
   the next major. Deprecation means a `DeprecationWarning` where Python can raise one, and a
   "Deprecated" entry in the [changelog](../CHANGELOG.md) that names the replacement.
-- Every 1.x release reads every document an earlier release wrote, and writes the current
-  version. One exception: `load_verification` refuses a schema-1 run, which recorded no gate;
-  `load_report` and `guardana run migrate` read it.
+- Every 1.x release reads the persisted documents earlier releases wrote, and writes the current
+  version. Runs, collector envelopes, profiles, pack manifests and locks, and datasets are tested
+  against documents the releases themselves wrote. Baselines, recipe locks, recordings, contracts
+  and plans are read across their versions by tests that build each older version in code. One
+  exception: `load_verification` refuses a schema-1 run, which recorded no gate; `load_report`
+  and `guardana run migrate` read it.
 - Every 1.x release supports extension API 2 and output API 1. A new API version is opt-in
   through the range a pack's manifest declares, and support for an API version is dropped only
   in a major release.

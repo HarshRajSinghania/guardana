@@ -313,6 +313,9 @@ with a lock: <code>guardana recipe lock</code>, then <code>guardana recipe run</
 <code>probe</code> or a <code>scan</code> does not count, and <code>scripts/adopter_measure.py</code> refuses it.</li>
 <li>The run must finish: a run stopped by its budget, an interrupt or the target is refused,
 because the rules it never started are not recorded.</li>
+<li>The run must record no error that names no rule, such as a source file it could not read or a
+target that misstated what it offers: such an error lowers no rule's count, so the rules it
+touched would read as decided.</li>
 <li>The team keeps the saved run. The maintainer never needs its content: <code>row</code> reads only counts.</li>
 </ul>
 <pre><code class="language-bash">uv run python scripts/adopter_measure.py row run.json --team T1 --consent yes
@@ -321,23 +324,25 @@ because the rules it never started are not recorded.</li>
 the team.</p>
 <h2 id="consent">Consent</h2>
 <p>Ask for consent before the first run is recorded, in the team's language. The text must say what
-is recorded (the counts in the row, the Guardana version and the run's schema version), what is
-not (no prompt, reply, finding, rule id, target address or file from the team), where the line is
-kept and for how long, that only the counts are published under an identifier such as T1 and never
+is recorded (the counts in the row, the Guardana version, the run's schema version and its random
+identifier), what is not (no prompt, reply, finding, rule id, target address or file from the
+team), where the line is kept and for how long, that only the counts are published under an identifier such as T1 and never
 the team's or company's name, and that the team can withdraw before publication. Fill in the
 storage place and the retention period before using it.</p>
 <h3 id="english">English</h3>
 <p>We record one line of counts per run: how many checks were selected, how many did not apply to
-your application, how many ran, and how many reached a verdict, with the Guardana version and the run's schema version. We
-record nothing from your application: no prompt, reply, finding, rule name or address.</p>
+your application, how many ran, and how many reached a verdict, with the Guardana version, the
+run's schema version and the run's random identifier. We record nothing from your application: no
+prompt, reply, finding, rule name or address.</p>
 <p>Lines are kept in [STORAGE] for [RETENTION]. Only the counts are published, under an identifier
 such as T1, never your team's or your company's name. You can withdraw at any time before
 publication; your lines will then be deleted.</p>
 <p>Do you agree to publication of these counts? Yes/No.</p>
 <h3 id="polski">Polski</h3>
 <p>Z każdego przebiegu zapisujemy jeden wiersz liczb: ile kontroli wybrano, ile nie dotyczyło Waszej
-aplikacji, ile się wykonało i ile doszło do werdyktu, oraz wersję Guardany i wersję schematu przebiegu. Nie zapisujemy niczego
-z Waszej aplikacji: żadnego promptu, odpowiedzi, wyniku, nazwy reguły ani adresu.</p>
+aplikacji, ile się wykonało i ile doszło do werdyktu, oraz wersję Guardany, wersję schematu
+przebiegu i jego losowy identyfikator. Nie zapisujemy niczego z Waszej aplikacji: żadnego promptu,
+odpowiedzi, wyniku, nazwy reguły ani adresu.</p>
 <p>Wiersze przechowujemy w [STORAGE] przez [RETENTION]. Publikujemy tylko liczby pod identyfikatorem
 takim jak T1, nigdy nazwę zespołu ani firmy. Możecie wycofać zgodę w dowolnym momencie przed
 publikacją; Wasze wiersze zostaną wtedy usunięte.</p>
@@ -355,6 +360,10 @@ publikacją; Wasze wiersze zostaną wtedy usunięte.</p>
 <tr>
 <td><code>team</code></td>
 <td><code>T1</code>, <code>T2</code>, … — never a name</td>
+</tr>
+<tr>
+<td><code>run_id</code></td>
+<td>the run's own identifier, from the saved run; a run is recorded once</td>
 </tr>
 <tr>
 <td><code>guardana</code></td>
@@ -376,7 +385,8 @@ publikacją; Wasze wiersze zostaną wtedy usunięte.</p>
 </table></div>
 <p><code>uv run python scripts/adopter_measure.py</code> validates the sheet and prints the measures.
 <code>uv run python scripts/generate_docs.py</code> writes them to the generated page. Neither accepts a line
-without consent, a team written as a name, or counts that contradict each other.</p>
+without consent, a team written as a name, a run recorded twice, or counts that contradict each
+other.</p>
 
 </main>
 </div>

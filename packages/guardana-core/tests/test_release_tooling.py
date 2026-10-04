@@ -212,18 +212,14 @@ def test_the_provenance_names_only_the_distributions() -> None:
     `uv build` also writes `dist/.gitignore`, so a bare `dist/*` signs a file that
     nobody downloads; every subject must be a wheel or an sdist.
     """
-    steps = _steps(_workflow("release.yml"), "publish")
-    attest = steps[_index_of(steps, "actions/attest-build-provenance")]
-    options = attest["with"]
-    assert isinstance(options, dict)
-    patterns = str(options["subject-path"]).split()
+    for job, directory in (("publish", "dist"), ("reference-pack", "dist-reference")):
+        steps = _steps(_workflow("release.yml"), job)
+        attest = steps[_index_of(steps, "actions/attest-build-provenance")]
+        options = attest["with"]
+        assert isinstance(options, dict)
+        patterns = str(options["subject-path"]).split()
 
-    assert sorted(patterns) == [
-        "dist-reference/*.tar.gz",
-        "dist-reference/*.whl",
-        "dist/*.tar.gz",
-        "dist/*.whl",
-    ], patterns
+        assert sorted(patterns) == [f"{directory}/*.tar.gz", f"{directory}/*.whl"], patterns
 
 
 def test_the_sboms_are_attached_to_the_release() -> None:
@@ -234,23 +230,42 @@ def test_the_sboms_are_attached_to_the_release() -> None:
     assert "sbom/" in str(release_step["run"]), "the release carries no SBOM assets"
 
 
-def test_the_reference_pack_is_built_apart_attested_and_attached_to_the_release() -> None:
-    """The pack ships on every GitHub Release, and never through the five packages' upload.
+def test_the_five_packages_are_published_without_the_reference_pack() -> None:
+    """A pack that fails to build can hold back neither their upload nor the GitHub Release.
 
-    Built into its own directory, so the publish step that uploads `dist/` cannot carry
-    it to PyPI before its own trusted publisher exists.
+    The publish job never touches the pack, and the images wait on that job alone.
     """
-    steps = _steps(_workflow("release.yml"), "publish")
+    workflow = _workflow("release.yml")
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+    publish = yaml.safe_dump(jobs["publish"])
+
+    assert "reference_pack" not in publish
+    assert "dist-reference" not in publish
+    assert jobs["images"]["needs"] == "publish"
+
+
+def test_the_reference_pack_is_built_attested_and_attached_after_the_publish() -> None:
+    """The pack ships on every GitHub Release, from a job of its own that needs `publish`.
+
+    It publishes nowhere but the Release, so it holds no `pypi` approval and no token
+    beyond attaching an asset and signing its provenance.
+    """
+    jobs = _workflow("release.yml")["jobs"]
+    assert isinstance(jobs, dict)
+    job = jobs["reference-pack"]
+    steps = _steps(_workflow("release.yml"), "reference-pack")
     build = _index_of(steps, "uv build examples/reference_pack --out-dir dist-reference/")
     attest = _index_of(steps, "actions/attest-build-provenance")
-    publish = steps[_index_of(steps, "pypa/gh-action-pypi-publish")]
-    release = str(steps[_index_of(steps, "gh release create")]["run"])
+    upload = _index_of(steps, "gh release upload")
+    command = str(steps[upload]["run"])
 
-    assert build < attest
-    assert isinstance(publish["with"], dict)
-    assert publish["with"]["packages-dir"] == "dist/"
-    assert "dist-reference/*.whl" in release
-    assert "dist-reference/*.tar.gz" in release
+    assert job["needs"] == "publish"
+    assert "environment" not in job
+    assert job["permissions"] == {"contents": "write", "id-token": "write", "attestations": "write"}
+    assert build < attest < upload
+    assert "dist-reference/*.whl" in command
+    assert "dist-reference/*.tar.gz" in command
 
 
 def test_the_reference_pack_reaches_pypi_only_when_the_owner_turns_it_on() -> None:
@@ -262,7 +277,7 @@ def test_the_reference_pack_reaches_pypi_only_when_the_owner_turns_it_on() -> No
     steps = _steps(_workflow("release.yml"), name)
     publish = steps[_index_of(steps, "pypa/gh-action-pypi-publish")]
 
-    assert job["needs"] == "publish"
+    assert job["needs"] == "reference-pack"
     assert job["environment"] == "pypi"
     assert job["if"] == "vars.REFERENCE_PACK_PYPI == 'true'"
     assert job["permissions"]["id-token"] == "write"

@@ -127,6 +127,7 @@ def _cut(
     monkeypatch.setattr(release, "_current_version", lambda: "0.1.0")
     monkeypatch.setattr(release, "_preflight", lambda: None)
     monkeypatch.setattr(release, "_gate", lambda: None)
+    monkeypatch.setattr(release, "_check_reference_pack", lambda: None)
     monkeypatch.setattr(release, "_roll_changelog", lambda version, dry_run: None)
     monkeypatch.setattr(release, "_await_green_ci", _ci)
     monkeypatch.setattr(release, "_move_marketplace_tag", lambda version, tag: None)
@@ -357,6 +358,7 @@ def test_the_surface_check_runs_before_the_gate(monkeypatch: pytest.MonkeyPatch)
     monkeypatch.setattr(release, "_current_version", lambda: "1.0.0rc1")
     monkeypatch.setattr(release, "_preflight", lambda: order.append("preflight"))
     monkeypatch.setattr(release, "_check_surface", order.append)
+    monkeypatch.setattr(release, "_check_reference_pack", lambda: None)
 
     def _gate() -> None:
         order.append("gate")
@@ -368,3 +370,120 @@ def test_the_surface_check_runs_before_the_gate(monkeypatch: pytest.MonkeyPatch)
         release.main(["1.0.0rc2"])
 
     assert order == ["preflight", "1.0.0rc2", "gate"]
+
+
+def _pack_pyproject(version: str) -> str:
+    return f'[project]\nname = "guardana-reference-pack"\nversion = "{version}"\n'
+
+
+def _pack_release(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    *,
+    current: str,
+    previous: str | None,
+    diff: str,
+) -> list[list[str]]:
+    """Point the reference pack check at a pyproject in `tmp_path`, and record git calls."""
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text(_pack_pyproject(current), encoding="utf-8")
+    calls: list[list[str]] = []
+
+    def _git(cmd: list[str], **_: bool) -> str:
+        calls.append(cmd)
+        if cmd[:2] == ["git", "describe"]:
+            return "v0.41.0\n"
+        if cmd[:2] == ["git", "show"]:
+            if previous is None:
+                raise subprocess.CalledProcessError(128, cmd)
+            return _pack_pyproject(previous)
+        if cmd[:2] == ["git", "diff"]:
+            return diff
+        return ""
+
+    monkeypatch.setattr(release, "_run", _git)
+    monkeypatch.setattr(release, "_PACK_PYPROJECT", pyproject)
+    return calls
+
+
+_PACK_DIFF = "diff --git a/examples/reference_pack/README.md b/examples/reference_pack/README.md\n"
+
+
+def test_a_changed_reference_pack_under_the_released_version_is_refused(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The index refuses a second upload of the version, so the change would never ship."""
+    calls = _pack_release(monkeypatch, tmp_path, current="0.1.0", previous="0.1.0", diff=_PACK_DIFF)
+
+    with pytest.raises(SystemExit) as refused:
+        release._check_reference_pack()
+
+    assert "examples/reference_pack" in str(refused.value.code)
+    assert "0.1.0" in str(refused.value.code)
+    assert "v0.41.0" in str(refused.value.code)
+    assert ["git", "diff", "v0.41.0", "--", "examples/reference_pack"] in calls
+
+
+def test_a_changed_reference_pack_with_a_new_version_continues(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _pack_release(monkeypatch, tmp_path, current="0.1.1", previous="0.1.0", diff=_PACK_DIFF)
+
+    release._check_reference_pack()
+
+
+def test_an_unchanged_reference_pack_keeps_its_version(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _pack_release(monkeypatch, tmp_path, current="0.1.0", previous="0.1.0", diff="")
+
+    release._check_reference_pack()
+
+
+def test_a_reference_pack_absent_at_the_previous_tag_continues(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A pack that never shipped has no published version to collide with."""
+    calls = _pack_release(monkeypatch, tmp_path, current="0.1.0", previous=None, diff=_PACK_DIFF)
+
+    release._check_reference_pack()
+
+    assert ["git", "show", "v0.41.0:examples/reference_pack/pyproject.toml"] in calls
+
+
+def test_the_reference_pack_check_refuses_without_an_earlier_tag(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _pack_release(monkeypatch, tmp_path, current="0.1.0", previous="0.1.0", diff="")
+    answered = release._run
+
+    def _no_tag(cmd: list[str], **kwargs: bool) -> str:
+        if cmd[:2] == ["git", "describe"]:
+            raise subprocess.CalledProcessError(128, cmd)
+        return answered(cmd, **kwargs)
+
+    monkeypatch.setattr(release, "_run", _no_tag)
+
+    with pytest.raises(SystemExit) as refused:
+        release._check_reference_pack()
+
+    assert "no earlier release tag" in str(refused.value.code)
+
+
+def test_the_reference_pack_check_runs_before_the_gate(monkeypatch: pytest.MonkeyPatch) -> None:
+    order: list[str] = []
+    monkeypatch.setattr(release, "_current_version", lambda: "0.41.0")
+    monkeypatch.setattr(release, "_preflight", lambda: None)
+    monkeypatch.setattr(release, "_check_surface", lambda version: None)
+    monkeypatch.setattr(release, "_check_reference_pack", lambda: order.append("pack"))
+
+    def _gate() -> None:
+        order.append("gate")
+        raise SystemExit(0)
+
+    monkeypatch.setattr(release, "_gate", _gate)
+
+    with pytest.raises(SystemExit):
+        release.main(["patch"])
+
+    assert order == ["pack", "gate"]

@@ -37,6 +37,11 @@ PUBLISH_JOB = "publish"
 ENVIRONMENT = "pypi"
 RELEASE_TAGS = ("refs/tags/v1.2.3", "refs/tags/v1.2")
 """A full release tag and a moving `vX.Y` tag; a tag ruleset has to cover both."""
+TAG_RULES = (("creation", "creating"), ("update", "updating"), ("deletion", "deleting"))
+"""The ruleset rules the runbook relies on, each with what it restricts."""
+_MAINTAINER_ROLES = frozenset({2, 5})
+"""GitHub's ids for the built-in Maintain and Admin repository roles."""
+_ABOVE_REPOSITORY = frozenset({"OrganizationAdmin", "EnterpriseOwner"})
 
 _TIMEOUT_SECONDS = 60
 _GH_NO_CREDENTIALS = 4
@@ -171,7 +176,10 @@ def _covers_release_tags(ref_name: dict[str, object]) -> bool:
 
 
 def _ruleset_gap(detail: dict[str, object]) -> str | None:
-    """Say why a tag ruleset does not stop others creating release tags, or None if it does."""
+    """Say why a tag ruleset does not keep release tags to maintainers, or None if it does.
+
+    Raises `NotCheckedError` when the answer leaves out who may bypass the ruleset.
+    """
     name = detail.get("name", detail.get("id"))
     if detail.get("enforcement") != "active":
         return f"ruleset {name} is not enforced"
@@ -180,13 +188,39 @@ def _ruleset_gap(detail: dict[str, object]) -> str | None:
     if not _covers_release_tags(ref_name):
         return f"ruleset {name} does not cover refs/tags/v*"
     rules = [_mapping(rule, "ruleset rule") for rule in _sequence(detail.get("rules"), "rules")]
-    if not any(rule.get("type") == "creation" for rule in rules):
-        return f"ruleset {name} does not restrict creating a tag"
+    types = {rule.get("type") for rule in rules}
+    for rule_type, verb in TAG_RULES:
+        if rule_type not in types:
+            return f"ruleset {name} does not restrict {verb} a tag"
+    if "bypass_actors" not in detail:
+        raise NotCheckedError(
+            f"ruleset {name}: the answer lists no bypass_actors, which GitHub shows only to a "
+            f"token that may administer the ruleset"
+        )
+    actors = [_mapping(a, "bypass actor") for a in _sequence(detail["bypass_actors"], "bypass")]
+    below = [_actor(actor) for actor in actors if not _maintainer_or_above(actor)]
+    if below:
+        return f"ruleset {name} lets {', '.join(below)} bypass it"
     return None
 
 
+def _maintainer_or_above(actor: dict[str, object]) -> bool:
+    actor_type = actor.get("actor_type")
+    if actor_type in _ABOVE_REPOSITORY:
+        return True
+    return actor_type == "RepositoryRole" and actor.get("actor_id") in _MAINTAINER_ROLES
+
+
+def _actor(actor: dict[str, object]) -> str:
+    return f"{actor.get('actor_type')} {actor.get('actor_id')}"
+
+
 def tag_ruleset(api: Api, repo: str) -> Finding:
-    """Check for an active tag ruleset that restricts who may create `v*` tags."""
+    """Check for an active tag ruleset only maintainers can bypass, guarding `v*` tags.
+
+    It has to restrict creating, updating and deleting them: a tag moved or recreated after
+    a publish no longer names the bytes people installed.
+    """
     listing = _sequence(
         api.get(f"repos/{repo}/rulesets?includes_parents=true&per_page=100"), "rulesets"
     )
@@ -270,7 +304,7 @@ def package_public(api: Api, repo: str, package: str) -> Finding:
 
 CHECKS: tuple[tuple[str, Callable[[Api, str], Finding]], ...] = (
     ("private vulnerability reporting is on", vulnerability_reporting),
-    ("tag ruleset restricts creating refs/tags/v*", tag_ruleset),
+    ("tag ruleset guards refs/tags/v*, bypassable by maintainers only", tag_ruleset),
     (f"{ENVIRONMENT} environment requires a reviewer", environment_approval),
     (f"release workflow publishes only after {GATE_JOB}", release_ci_gate),
     *(

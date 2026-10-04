@@ -312,7 +312,7 @@ uses the output checks.
 ### 11. The reference pack
 
 `examples/reference_pack`: distribution `guardana-reference-pack`, its own version `0.1.0`
-(bumped by hand when its content changes, like any third-party pack), `guardana-core>=0.40` with
+(bumped by hand when its content changes, like any third-party pack), `guardana-core>=0.41` with
 no upper bound, so its manifest's `extension_api` and `output_api` ranges decide compatibility.
 Module `guardana_reference_pack`, ids under `reference.`, output names `reference-summary` and
 `reference-file`. It provides one YAML rule and one Python rule, each with finding, clean and
@@ -331,8 +331,10 @@ with `--plugins allowlist --allow-plugin guardana-reference-pack --format refere
 --reporter reference-file://…`. `clean_install_check.py` installs it beside the five and runs
 `pack validate` and `rule test` on it.
 
-`release.yml` builds it into `dist-reference/`, attests it with `dist/`, and uploads it to the
-GitHub Release. A separate job `publish-reference-pack` (`needs: publish`, environment `pypi`,
+`release.yml` builds it into `dist-reference/`, attests it and uploads it to the GitHub Release
+in its own job `reference-pack` (`needs: publish`), so a pack that fails to build blocks neither
+the five packages, the Release nor the images. A separate job `publish-reference-pack` (`needs:
+reference-pack`, environment `pypi`,
 `skip-existing: true`) runs only when the repository variable `REFERENCE_PACK_PYPI` is `true`,
 which the owner sets after registering the pending trusted publisher for
 `guardana-reference-pack`; the GitHub Release and the images never wait on it. Criterion 3 is
@@ -369,11 +371,12 @@ artifact and trace samples under its existing "no scripted reply" reason.
 
 `scripts/adopter_measure.py` mirrors `first_run_measure.py`. `row RUN.json --team T1 --consent
 yes` prints one row of counts from a saved run, never its content, for
-`docs/maintainers/adopter-runs.csv` (columns `team, guardana, schema_version, rules_selected,
-rules_not_applicable, rules_attempted, rules_decided, consent_to_publish`; teams `T1`, `T2`; a
-row without consent refused). It refuses a run older than schema 14, one with `stopped_by` set
-(rules that never started are not recorded), one without a recipe, one whose `recipe.kind` is not
-`application`, or whose `recipe.lock_digest` is null. From the run:
+`docs/maintainers/adopter-runs.csv` (columns `team, run_id, guardana, schema_version,
+rules_selected, rules_not_applicable, rules_attempted, rules_decided, consent_to_publish`; teams
+`T1`, `T2`; a row without consent, or a second row with the same `run_id`, refused). It refuses a
+run older than schema 14, one with `stopped_by` set (rules that never started are not recorded),
+one without a recipe, one whose `recipe.kind` is not `application`, whose `recipe.lock_digest` is
+null, or that records an error naming no rule (its rules would read as decided). From the run:
 
 - selected = rules in `rules_run`, in `rules_skipped`, and named by an error before they ran;
   not applicable = skips with reason `not_applicable`; attempted = rules in `rules_run` or named

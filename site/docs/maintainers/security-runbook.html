@@ -441,7 +441,7 @@ hashed, so the leak did not expose the existing ones, but a write could have add
 <td>a vulnerability report</td>
 </tr>
 <tr>
-<td>a tag ruleset restricting who creates <code>v*</code> tags</td>
+<td>a tag ruleset restricting who creates, moves or deletes <code>v*</code> tags, bypassable by maintainers only (<a href="github-setup.html#3a-protect-release-tags--settings--rules--rulesets">setup</a>)</td>
 <td>both releases above: only a maintainer can publish</td>
 </tr>
 <tr>
@@ -462,8 +462,10 @@ hashed, so the leak did not expose the existing ones, but a write could have add
 </code></pre>
 <p>Each setting prints <code>PRESENT</code>, <code>ABSENT</code> or <code>NOT CHECKED</code> (no <code>gh</code>, <code>gh</code> not logged in, or a <code>403</code>
 or <code>404</code>). It exits <code>0</code> when all are present, <code>1</code> when any is absent, and <code>2</code> when any could not
-be read. The ghcr packages need a token with <code>read:packages</code>. How to put each setting in place:
-<a href="github-setup.html">GitHub repository setup</a>.</p>
+be read. The ghcr packages need a token with <code>read:packages</code>, and the tag ruleset's bypass list
+an admin's token. How to put each setting in place:
+<a href="github-setup.html">GitHub repository setup</a>; the tag ruleset is
+<a href="github-setup.html#3a-protect-release-tags--settings--rules--rulesets">section 3a</a>.</p>
 
 </main>
 </div>
