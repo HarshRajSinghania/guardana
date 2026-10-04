@@ -321,9 +321,9 @@ envelope change or engine change: an agent and a collector upgrade independently
 and no fleet has to move in step with a collector. The cost is real and accepted:
 a team with ten projects needs ten keys in CI.
 
-**There is no command that deletes an organization or a project**, and the foreign
-keys are `on delete restrict`. Removing tenant data is retention, and it deserves
-to be designed there rather than smuggled in here.
+**Deleting an organization or a project is its own command**
+([below](#deleting-a-project-an-organization-or-a-typo)), and the foreign keys are
+`on delete restrict`, so nothing cascades by accident.
 
 **Renaming is safe.** A key hangs off a project's identity, not its name, so
 `project rename` does not invalidate anything.

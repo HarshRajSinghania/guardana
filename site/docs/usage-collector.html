@@ -593,9 +593,9 @@ bound the write is not a boundary at all. Adding key-scoped projects required no
 envelope change or engine change: an agent and a collector upgrade independently,
 and no fleet has to move in step with a collector. The cost is real and accepted:
 a team with ten projects needs ten keys in CI.</p>
-<p><strong>There is no command that deletes an organization or a project</strong>, and the foreign
-keys are <code>on delete restrict</code>. Removing tenant data is retention, and it deserves
-to be designed there rather than smuggled in here.</p>
+<p><strong>Deleting an organization or a project is its own command</strong>
+(<a href="#deleting-a-project-an-organization-or-a-typo">below</a>), and the foreign keys are
+<code>on delete restrict</code>, so nothing cascades by accident.</p>
 <p><strong>Renaming is safe.</strong> A key hangs off a project's identity, not its name, so
 <code>project rename</code> does not invalidate anything.</p>
 <h3 id="what-migration-0003-did-to-a-collector-that-already-had-data">What migration <code>0003</code> did to a collector that already had data</h3>
