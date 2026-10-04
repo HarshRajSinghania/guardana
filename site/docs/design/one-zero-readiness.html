@@ -1,0 +1,768 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>1.0 readiness — Guardana documentation</title>
+<meta name="description" content="what v0.41 builds so the release candidates carry fixes only: a pinned supported surface with a compatibility policy, a conformance kit and a reference pack, three-outcome fixtures for every built-in, older documents written by the releases that wrote them, exercised runbooks, a protocol the target does not speak read as not applicable, and a delivery a profile can require">
+<link rel="canonical" href="https://guardana.dev/docs/design/one-zero-readiness">
+<link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../../assets/brand/v1/tokens.css">
+<link rel="stylesheet" href="../docs.css">
+</head>
+<body>
+<header class="top"><div class="bar">
+<a class="mark" href="../../"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z" style="color:var(--brand)"/><path d="m8.6 12.1 2.4 2.4 4.5-4.8"/></svg><span class="w">guard<b>ana</b></span></a>
+<nav>
+<a href="../index.html">Documentation</a>
+<a href="../rules/index.html">Rules</a>
+<a href="https://github.com/guardana/guardana">GitHub</a>
+</nav>
+</div></header>
+<div class="shell">
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="../index.html">Overview</a></li></ul>
+<h2>First run</h2><ul>
+<li><a href="../usage-init.html">guardana init</a></li>
+<li><a href="../recipe-local-scan.html">Recipe: scan your own project</a></li>
+<li><a href="../recipe-recorded-answers.html">Recipe: check a run your application recorded</a></li>
+<li><a href="../recipe-real-application.html">Recipe: probe your real application</a></li>
+<li><a href="../how-it-works.html">How Guardana works</a></li>
+<li><a href="../install.html">Installing</a></li>
+<li><a href="../usage-testing.html">In your test suite</a></li>
+<li><a href="../python-api.html">Python API<span class="tag">beta</span></a></li>
+<li><a href="../usage-scan.html">guardana scan</a></li>
+<li><a href="../usage-probe.html">guardana probe</a></li>
+</ul>
+<h2>Run and policy</h2><ul>
+<li><a href="../safe-testing.html">Safe active testing</a></li>
+<li><a href="../usage-doubles.html">Stateful tool doubles<span class="tag">beta</span></a></li>
+<li><a href="../usage-fixtures.html">guardana fixtures<span class="tag">beta</span></a></li>
+<li><a href="../usage-recipe.html">guardana recipe<span class="tag">beta</span></a></li>
+<li><a href="../usage-doctor.html">guardana doctor</a></li>
+<li><a href="../usage-target.html">guardana target inspect</a></li>
+<li><a href="../providers.html">Providers</a></li>
+<li><a href="../usage-plan.html">guardana plan</a></li>
+<li><a href="../exit-codes.html">Exit codes</a></li>
+<li><a href="../profiles.html">Profiles — guardana.yaml</a></li>
+</ul>
+<h2>Evidence and regression</h2><ul>
+<li><a href="../usage-case.html">guardana case<span class="tag">beta</span></a></li>
+<li><a href="../usage-baseline.html">guardana baseline</a></li>
+<li><a href="../usage-diff.html">guardana diff</a></li>
+<li><a href="../usage-monitor.html">guardana monitor</a></li>
+<li><a href="../usage-run.html">guardana run</a></li>
+<li><a href="../usage-calibrate.html">guardana calibrate</a></li>
+<li><a href="../usage-suites.html">Quality suites<span class="tag">beta</span></a></li>
+<li><a href="../privacy.html">Evidence and redaction</a></li>
+</ul>
+<h2>Recorded applications</h2><ul>
+<li><a href="../usage-analyze-trace.html">guardana analyze-trace</a></li>
+<li><a href="../usage-grade.html">guardana grade<span class="tag">beta</span></a></li>
+<li><a href="../usage-trace-inspect.html">guardana trace inspect</a></li>
+<li><a href="../usage-contracts.html">Security contracts</a></li>
+<li><a href="../usage-import-observations.html">guardana import-observations</a></li>
+<li><a href="../writing-an-integrator.html">Writing an integrator<span class="tag">beta</span></a></li>
+</ul>
+<h2>Rules and extensions</h2><ul>
+<li><a href="../usage-rules.html">guardana rules</a></li>
+<li><a href="../usage-taxonomy.html">guardana taxonomy</a></li>
+<li><a href="../writing-rules.html">Writing rules</a></li>
+<li><a href="../usage-rule-test.html">guardana rule test</a></li>
+<li><a href="../usage-new-pack.html">guardana new-pack</a></li>
+<li><a href="../usage-pack.html">guardana pack</a></li>
+<li><a href="../outputs.html">Installed outputs<span class="tag">beta</span></a></li>
+<li><a href="../extending.html">Extending Guardana</a></li>
+<li><a href="../model-formats.html">Reading model formats</a></li>
+</ul>
+<h2>Collector and deployment</h2><ul>
+<li><a href="../integrations.html">CI and pre-commit</a></li>
+<li><a href="../deployment.html">Deploying the collector<span class="tag">beta</span></a></li>
+<li><a href="../usage-collector.html">The collector<span class="tag">beta</span></a></li>
+</ul>
+<h2>Architecture and security</h2><ul>
+<li><a href="../product-status.html">Product status</a></li>
+<li><a href="../threat-model.html">Threat model</a></li>
+<li><a href="../architecture.html">Architecture</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="../rules/index.html">Rule explorer</a></li>
+<li><a href="../generated/rule-summary.html">Rule summary</a></li>
+<li><a href="../generated/rule-catalog.html">Rule catalog</a></li>
+<li><a href="../generated/evaluator-catalog.html">Evaluator catalog</a></li>
+<li><a href="../generated/taxonomy-coverage.html">Taxonomy coverage</a></li>
+<li><a href="../generated/detection-limits.html">Detection limits</a></li>
+<li><a href="../generated/first-run.html">First-run measure</a></li>
+</ul>
+<h2>Design documents</h2><ul>
+<li><a href="../design/README.html">How these are written</a></li>
+</ul>
+<h2>Project direction</h2><ul>
+<li><a href="../design/guardana-and-control.html">Guardana and Guardana Control<span class="tag">accepted</span></a></li>
+<li><a href="../design/non-executing-packs.html">Non-executing packs and the default plugin trust<span class="tag">accepted</span></a></li>
+<li><a href="../design/audit-0.31-direction.html">Direction audit after 0.31<span class="tag">accepted</span></a></li>
+</ul>
+<h2>Maintainers</h2><ul>
+<li><a href="../maintainers/github-setup.html">GitHub repository setup</a></li>
+<li><a href="../maintainers/ops-catalogue.html">Operations catalogue</a></li>
+<li><a href="../maintainers/lessons.html">Lessons</a></li>
+<li><a href="../maintainers/first-run-study.html">First-run study</a></li>
+</ul>
+<h2>Also here</h2><ul>
+<li><a href="../design/trace-domain-model.html">The Trace domain model<span class="tag">implemented</span></a></li>
+<li><a href="../design/trace-producer.html">Producing a trace<span class="tag">implemented</span></a></li>
+<li><a href="../design/framework-adapters.html">Framework adapters<span class="tag">implemented</span></a></li>
+<li><a href="../design/assessment-channel.html">The assessment channel<span class="tag">implemented</span></a></li>
+<li><a href="../design/capability-protocols.html">Capability protocols<span class="tag">implemented</span></a></li>
+<li><a href="../design/security-contracts.html">Security contracts<span class="tag">implemented</span></a></li>
+<li><a href="../design/mcp-protocol-eras.html">MCP has two eras<span class="tag">implemented</span></a></li>
+<li><a href="../design/mcp-authorization-depth.html">MCP authorization depth<span class="tag">implemented</span></a></li>
+<li><a href="../design/taxonomy-editions.html">Taxonomy editions<span class="tag">implemented</span></a></li>
+<li><a href="../design/extension-author-tooling.html">Extension author tooling<span class="tag">implemented</span></a></li>
+<li><a href="../design/target-locators.html">Target locators<span class="tag">implemented</span></a></li>
+<li><a href="../design/output-plugins.html">Output plugins<span class="tag">superseded</span></a></li>
+<li><a href="../design/quality-suites.html">Quality suites<span class="tag">implemented</span></a></li>
+<li><a href="../design/paired-regression-statistics.html">Paired regression statistics<span class="tag">proposed</span></a></li>
+<li><a href="../design/attack-techniques.html">Attack techniques<span class="tag">proposed</span></a></li>
+<li><a href="../design/namespaced-extension-ids.html">Namespaced extension ids<span class="tag">proposed</span></a></li>
+<li><a href="../design/declarative-fixtures.html">Declarative fixtures for scenarios and agent runs<span class="tag">implemented</span></a></li>
+<li><a href="../design/pack-scaffolding.html">Scaffolding a pack<span class="tag">implemented</span></a></li>
+<li><a href="../design/repeated-trials.html">Repeated trials<span class="tag">implemented</span></a></li>
+<li><a href="../design/documentation-site.html">A documentation site<span class="tag">implemented</span></a></li>
+<li><a href="../design/judge-error-correction.html">Judge error in a measured rate<span class="tag">implemented</span></a></li>
+<li><a href="../design/regrading-stored-exchanges.html">Re-grading stored exchanges<span class="tag">superseded</span></a></li>
+<li><a href="../design/anytime-valid-monitoring.html">Anytime-valid monitoring<span class="tag">proposed</span></a></li>
+<li><a href="../design/recorded-answers.html">Recorded answers and regrading<span class="tag">accepted</span></a></li>
+<li><a href="../design/team-recipes.html">Repository recipes, one connection and provider conformance<span class="tag">accepted</span></a></li>
+<li><a href="../design/application-fixtures-and-regressions.html">Regression cases, a declared fixture boundary and the retrieval pilot<span class="tag">implemented</span></a></li>
+<li><a href="../design/guarded-applications.html">A guarded application, and the outcomes a run states honestly<span class="tag">implemented</span></a></li>
+<li><a href="../design/run-manifest-v2.html">Run manifest v2<span class="tag">implemented</span></a></li>
+<li><a href="../design/protocol-conformance.html">Protocol conformance against servers Guardana did not write<span class="tag">implemented</span></a></li>
+<li><a href="../design/export-and-webhook.html">One redacted export and one webhook<span class="tag">implemented</span></a></li>
+<li><a href="../design/one-zero-readiness.html" aria-current="page">1.0 readiness<span class="tag">accepted</span></a></li>
+<li><a href="../design/privacy-and-redaction.html">Privacy and redaction<span class="tag">implemented</span></a></li>
+<li><a href="../design/exit-codes.html">Exit codes and gate semantics<span class="tag">implemented</span></a></li>
+<li><a href="../design/collector-persistence.html">Collector persistence<span class="tag">implemented</span></a></li>
+<li><a href="../design/collector-tenancy.html">Collector tenancy<span class="tag">implemented</span></a></li>
+<li><a href="../design/ai-systems-and-deployments.html">AI systems and deployments<span class="tag">implemented</span></a></li>
+<li><a href="../design/collector-runs-and-findings.html">Runs and findings<span class="tag">implemented</span></a></li>
+<li><a href="../design/finding-lifecycle-and-waivers.html">Finding lifecycle and waivers<span class="tag">implemented</span></a></li>
+<li><a href="../design/audit-retention-and-deletion.html">Audit, retention and deletion<span class="tag">implemented</span></a></li>
+<li><a href="../design/panel-sessions.html">Panel sessions<span class="tag">implemented</span></a></li>
+</ul>
+</nav>
+<details class="mnav">
+<summary>Menu · <b>1.0 readiness</b></summary>
+<nav class="inner" aria-label="Documentation">
+<ul class="home"><li><a href="../index.html">Overview</a></li></ul>
+<h2>First run</h2><ul>
+<li><a href="../usage-init.html">guardana init</a></li>
+<li><a href="../recipe-local-scan.html">Recipe: scan your own project</a></li>
+<li><a href="../recipe-recorded-answers.html">Recipe: check a run your application recorded</a></li>
+<li><a href="../recipe-real-application.html">Recipe: probe your real application</a></li>
+<li><a href="../how-it-works.html">How Guardana works</a></li>
+<li><a href="../install.html">Installing</a></li>
+<li><a href="../usage-testing.html">In your test suite</a></li>
+<li><a href="../python-api.html">Python API<span class="tag">beta</span></a></li>
+<li><a href="../usage-scan.html">guardana scan</a></li>
+<li><a href="../usage-probe.html">guardana probe</a></li>
+</ul>
+<h2>Run and policy</h2><ul>
+<li><a href="../safe-testing.html">Safe active testing</a></li>
+<li><a href="../usage-doubles.html">Stateful tool doubles<span class="tag">beta</span></a></li>
+<li><a href="../usage-fixtures.html">guardana fixtures<span class="tag">beta</span></a></li>
+<li><a href="../usage-recipe.html">guardana recipe<span class="tag">beta</span></a></li>
+<li><a href="../usage-doctor.html">guardana doctor</a></li>
+<li><a href="../usage-target.html">guardana target inspect</a></li>
+<li><a href="../providers.html">Providers</a></li>
+<li><a href="../usage-plan.html">guardana plan</a></li>
+<li><a href="../exit-codes.html">Exit codes</a></li>
+<li><a href="../profiles.html">Profiles — guardana.yaml</a></li>
+</ul>
+<h2>Evidence and regression</h2><ul>
+<li><a href="../usage-case.html">guardana case<span class="tag">beta</span></a></li>
+<li><a href="../usage-baseline.html">guardana baseline</a></li>
+<li><a href="../usage-diff.html">guardana diff</a></li>
+<li><a href="../usage-monitor.html">guardana monitor</a></li>
+<li><a href="../usage-run.html">guardana run</a></li>
+<li><a href="../usage-calibrate.html">guardana calibrate</a></li>
+<li><a href="../usage-suites.html">Quality suites<span class="tag">beta</span></a></li>
+<li><a href="../privacy.html">Evidence and redaction</a></li>
+</ul>
+<h2>Recorded applications</h2><ul>
+<li><a href="../usage-analyze-trace.html">guardana analyze-trace</a></li>
+<li><a href="../usage-grade.html">guardana grade<span class="tag">beta</span></a></li>
+<li><a href="../usage-trace-inspect.html">guardana trace inspect</a></li>
+<li><a href="../usage-contracts.html">Security contracts</a></li>
+<li><a href="../usage-import-observations.html">guardana import-observations</a></li>
+<li><a href="../writing-an-integrator.html">Writing an integrator<span class="tag">beta</span></a></li>
+</ul>
+<h2>Rules and extensions</h2><ul>
+<li><a href="../usage-rules.html">guardana rules</a></li>
+<li><a href="../usage-taxonomy.html">guardana taxonomy</a></li>
+<li><a href="../writing-rules.html">Writing rules</a></li>
+<li><a href="../usage-rule-test.html">guardana rule test</a></li>
+<li><a href="../usage-new-pack.html">guardana new-pack</a></li>
+<li><a href="../usage-pack.html">guardana pack</a></li>
+<li><a href="../outputs.html">Installed outputs<span class="tag">beta</span></a></li>
+<li><a href="../extending.html">Extending Guardana</a></li>
+<li><a href="../model-formats.html">Reading model formats</a></li>
+</ul>
+<h2>Collector and deployment</h2><ul>
+<li><a href="../integrations.html">CI and pre-commit</a></li>
+<li><a href="../deployment.html">Deploying the collector<span class="tag">beta</span></a></li>
+<li><a href="../usage-collector.html">The collector<span class="tag">beta</span></a></li>
+</ul>
+<h2>Architecture and security</h2><ul>
+<li><a href="../product-status.html">Product status</a></li>
+<li><a href="../threat-model.html">Threat model</a></li>
+<li><a href="../architecture.html">Architecture</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="../rules/index.html">Rule explorer</a></li>
+<li><a href="../generated/rule-summary.html">Rule summary</a></li>
+<li><a href="../generated/rule-catalog.html">Rule catalog</a></li>
+<li><a href="../generated/evaluator-catalog.html">Evaluator catalog</a></li>
+<li><a href="../generated/taxonomy-coverage.html">Taxonomy coverage</a></li>
+<li><a href="../generated/detection-limits.html">Detection limits</a></li>
+<li><a href="../generated/first-run.html">First-run measure</a></li>
+</ul>
+<h2>Design documents</h2><ul>
+<li><a href="../design/README.html">How these are written</a></li>
+</ul>
+<h2>Project direction</h2><ul>
+<li><a href="../design/guardana-and-control.html">Guardana and Guardana Control<span class="tag">accepted</span></a></li>
+<li><a href="../design/non-executing-packs.html">Non-executing packs and the default plugin trust<span class="tag">accepted</span></a></li>
+<li><a href="../design/audit-0.31-direction.html">Direction audit after 0.31<span class="tag">accepted</span></a></li>
+</ul>
+<h2>Maintainers</h2><ul>
+<li><a href="../maintainers/github-setup.html">GitHub repository setup</a></li>
+<li><a href="../maintainers/ops-catalogue.html">Operations catalogue</a></li>
+<li><a href="../maintainers/lessons.html">Lessons</a></li>
+<li><a href="../maintainers/first-run-study.html">First-run study</a></li>
+</ul>
+<h2>Also here</h2><ul>
+<li><a href="../design/trace-domain-model.html">The Trace domain model<span class="tag">implemented</span></a></li>
+<li><a href="../design/trace-producer.html">Producing a trace<span class="tag">implemented</span></a></li>
+<li><a href="../design/framework-adapters.html">Framework adapters<span class="tag">implemented</span></a></li>
+<li><a href="../design/assessment-channel.html">The assessment channel<span class="tag">implemented</span></a></li>
+<li><a href="../design/capability-protocols.html">Capability protocols<span class="tag">implemented</span></a></li>
+<li><a href="../design/security-contracts.html">Security contracts<span class="tag">implemented</span></a></li>
+<li><a href="../design/mcp-protocol-eras.html">MCP has two eras<span class="tag">implemented</span></a></li>
+<li><a href="../design/mcp-authorization-depth.html">MCP authorization depth<span class="tag">implemented</span></a></li>
+<li><a href="../design/taxonomy-editions.html">Taxonomy editions<span class="tag">implemented</span></a></li>
+<li><a href="../design/extension-author-tooling.html">Extension author tooling<span class="tag">implemented</span></a></li>
+<li><a href="../design/target-locators.html">Target locators<span class="tag">implemented</span></a></li>
+<li><a href="../design/output-plugins.html">Output plugins<span class="tag">superseded</span></a></li>
+<li><a href="../design/quality-suites.html">Quality suites<span class="tag">implemented</span></a></li>
+<li><a href="../design/paired-regression-statistics.html">Paired regression statistics<span class="tag">proposed</span></a></li>
+<li><a href="../design/attack-techniques.html">Attack techniques<span class="tag">proposed</span></a></li>
+<li><a href="../design/namespaced-extension-ids.html">Namespaced extension ids<span class="tag">proposed</span></a></li>
+<li><a href="../design/declarative-fixtures.html">Declarative fixtures for scenarios and agent runs<span class="tag">implemented</span></a></li>
+<li><a href="../design/pack-scaffolding.html">Scaffolding a pack<span class="tag">implemented</span></a></li>
+<li><a href="../design/repeated-trials.html">Repeated trials<span class="tag">implemented</span></a></li>
+<li><a href="../design/documentation-site.html">A documentation site<span class="tag">implemented</span></a></li>
+<li><a href="../design/judge-error-correction.html">Judge error in a measured rate<span class="tag">implemented</span></a></li>
+<li><a href="../design/regrading-stored-exchanges.html">Re-grading stored exchanges<span class="tag">superseded</span></a></li>
+<li><a href="../design/anytime-valid-monitoring.html">Anytime-valid monitoring<span class="tag">proposed</span></a></li>
+<li><a href="../design/recorded-answers.html">Recorded answers and regrading<span class="tag">accepted</span></a></li>
+<li><a href="../design/team-recipes.html">Repository recipes, one connection and provider conformance<span class="tag">accepted</span></a></li>
+<li><a href="../design/application-fixtures-and-regressions.html">Regression cases, a declared fixture boundary and the retrieval pilot<span class="tag">implemented</span></a></li>
+<li><a href="../design/guarded-applications.html">A guarded application, and the outcomes a run states honestly<span class="tag">implemented</span></a></li>
+<li><a href="../design/run-manifest-v2.html">Run manifest v2<span class="tag">implemented</span></a></li>
+<li><a href="../design/protocol-conformance.html">Protocol conformance against servers Guardana did not write<span class="tag">implemented</span></a></li>
+<li><a href="../design/export-and-webhook.html">One redacted export and one webhook<span class="tag">implemented</span></a></li>
+<li><a href="../design/one-zero-readiness.html" aria-current="page">1.0 readiness<span class="tag">accepted</span></a></li>
+<li><a href="../design/privacy-and-redaction.html">Privacy and redaction<span class="tag">implemented</span></a></li>
+<li><a href="../design/exit-codes.html">Exit codes and gate semantics<span class="tag">implemented</span></a></li>
+<li><a href="../design/collector-persistence.html">Collector persistence<span class="tag">implemented</span></a></li>
+<li><a href="../design/collector-tenancy.html">Collector tenancy<span class="tag">implemented</span></a></li>
+<li><a href="../design/ai-systems-and-deployments.html">AI systems and deployments<span class="tag">implemented</span></a></li>
+<li><a href="../design/collector-runs-and-findings.html">Runs and findings<span class="tag">implemented</span></a></li>
+<li><a href="../design/finding-lifecycle-and-waivers.html">Finding lifecycle and waivers<span class="tag">implemented</span></a></li>
+<li><a href="../design/audit-retention-and-deletion.html">Audit, retention and deletion<span class="tag">implemented</span></a></li>
+<li><a href="../design/panel-sessions.html">Panel sessions<span class="tag">implemented</span></a></li>
+</ul>
+</nav>
+</details>
+<main>
+<h1>1.0 readiness<span class="status accepted">accepted</span></h1><p class="lede">what v0.41 builds so the release candidates carry fixes only: a pinned supported surface with a compatibility policy, a conformance kit and a reference pack, three-outcome fixtures for every built-in, older documents written by the releases that wrote them, exercised runbooks, a protocol the target does not speak read as not applicable, and a delivery a profile can require</p><p><strong>Status:</strong> accepted, not yet implemented · <strong>Written:</strong> 2026-10-04 · <strong>Serves:</strong> ROADMAP v0.41,
+BACKLOG B21, B11 (in part)</p>
+<h2 id="the-question">The question</h2>
+<p>1.0 freezes the supported Python facade, the rule, evaluator and target contracts, the output
+contracts, the CLI flags and exit codes, the profile schema and the collector envelope. ROADMAP
+lists nine criteria. v0.41 builds every one that code can meet, so the two release candidates
+carry fixes only, and reports the ones that wait for people outside the project. It also builds
+the decided <code>not_applicable</code> reading of a protocol the target does not speak, and four owner
+decisions taken on 2026-10-04: principle 3 names a reporter, a profile can require delivery, the
+reference webhook ignores proxy variables, and a lock checks who registers an evaluator or a
+target.</p>
+<h2 id="where-each-criterion-stands">Where each criterion stands</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>Criterion</th>
+<th>Before v0.41</th>
+<th>After v0.41</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>&quot;Now&quot; exit criteria and three published measures</td>
+<td>first-run measure generated, 0 of 5 sessions; no generator for the other two</td>
+<td>generators for all three (decision 13); sessions and teams external</td>
+</tr>
+<tr>
+<td>2</td>
+<td>facade, extension and output contracts with a compatibility matrix and a deprecation policy</td>
+<td>facade pinned; no matrix; one sentence of policy</td>
+<td>met (decisions 8, 9)</td>
+</tr>
+<tr>
+<td>3</td>
+<td>conformance kit and an independently installed reference pack, published</td>
+<td>kit unnamed, no output checks; no reference pack</td>
+<td>kit met; the pack on the GitHub Release, on PyPI once the owner registers its publisher (decisions 10, 11)</td>
+</tr>
+<tr>
+<td>4</td>
+<td>three-outcome fixtures for every built-in that can decline</td>
+<td>19 of 58</td>
+<td>met, with any exemption reviewed and listed (decision 12)</td>
+</tr>
+<tr>
+<td>5</td>
+<td>envelope versioned apart from the run schema, clients and storage migrated together</td>
+<td>separate constant (8 vs 17); server accepts 2–8</td>
+<td>met: published schema, stated window, envelopes written by older releases (decision 7)</td>
+</tr>
+<tr>
+<td>6</td>
+<td>migrations exercised with older run, dataset, profile, pack and collector documents</td>
+<td>two stored documents from older releases; no profile version</td>
+<td>met (decisions 5, 6)</td>
+</tr>
+<tr>
+<td>7</td>
+<td>third-party customization and team reproduction recorded with consent</td>
+<td>none</td>
+<td>external</td>
+</tr>
+<tr>
+<td>8</td>
+<td>security and recovery runbooks exercised</td>
+<td>backup and restore exercised</td>
+<td>collector runbooks exercised by tests; the security runbook's settings checked, its drill the owner's (decision 14)</td>
+</tr>
+<tr>
+<td>9</td>
+<td>two release candidates without unplanned public API changes</td>
+<td>—</td>
+<td>checked by the surface snapshot (decision 8)</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="what-exists-so-this-does-not-rebuild-it">What exists, so this does not rebuild it</h2>
+<p>Each decision names the code it changes and what that code does today. <code>core/</code> is
+<code>packages/guardana-core/src/guardana/core/</code>, <code>cli/</code> is <code>packages/guardana-cli/src/guardana/cli/</code>.</p>
+<h2 id="decisions">Decisions</h2>
+<h3 id="1-a-rule-for-a-protocol-the-target-does-not-speak-is-not_applicable">1. A rule for a protocol the target does not speak is <code>not_applicable</code></h3>
+<p>A capability says what a target implements, not what it is: a third-party agent target that
+fronts MCP tools may implement only <code>chat</code> and <code>call_tools</code>. So the target states its protocol,
+and the rule's protocol comes from the capabilities it requires.</p>
+<p><code>core/target/base.py</code>:</p>
+<ul>
+<li><code>WireProtocol(StrEnum)</code>: <code>CHAT = &quot;chat&quot;</code>, <code>MCP = &quot;mcp&quot;</code>, <code>A2A = &quot;a2a&quot;</code> (the MCP and A2A values
+equal the keys of <code>Target.protocols()</code> and <code>CoverageRecord.protocols</code>).</li>
+<li><code>WIRE_PROTOCOL_OF: Mapping[Capability, WireProtocol]</code>: <code>chat</code>, <code>call_tools</code>,
+<code>plant_system_prompt</code> → chat; <code>list_tools</code>, <code>inspect_authorization</code>, <code>registry_entry</code> → mcp;
+<code>inspect_a2a</code> → a2a. <code>wire_protocols_of(capabilities) -&gt; frozenset[WireProtocol]</code>.</li>
+<li><code>Target.speaks(self) -&gt; frozenset[WireProtocol] | None</code>, a concrete method returning <code>None</code>
+(unknown). Overridden: <code>EndpointTarget</code>, <code>RecordedTarget</code>, <code>_RecordedView</code>, <code>SeededTarget</code> →
+<code>{CHAT}</code>; <code>McpServerTarget</code> → <code>{MCP}</code>; <code>A2aAgentTarget</code> → <code>{A2A}</code>. Every other <code>Target</code>
+subclass in <code>packages/*/src</code> (planter views, wrappers) delegates to the target it wraps or
+keeps <code>None</code>. An addition with a default, so <code>EXTENSION_API_VERSION</code> stays 2.</li>
+<li>Exported from <code>guardana.core.target</code>, not from <code>guardana.core.__all__</code>.</li>
+</ul>
+<p><code>core/runner.py: protocol_refusal(rule, target) -&gt; SkippedRule | None</code> (in <code>runner.__all__</code>):
+with <code>needed = wire_protocols_of(rule.meta.required_capabilities)</code> and <code>spoken = target.speaks()</code>, a skip only when <code>needed</code> is non-empty, <code>spoken</code> is not <code>None</code> and the two are
+disjoint: <code>reason=NOT_APPLICABLE</code>, <code>missing=()</code>, detail <code>&quot;{target.ref} speaks {spoken}, and {rule id} examines {needed}&quot;</code> (each sorted, comma-joined). It is asked <strong>first</strong>, before
+<code>safety_refusal</code>, in <code>select_rules</code> and in <code>core/probe.py: _unplantable_skips</code> (which builds its
+<code>missing_capability</code> skips by hand).</p>
+<p>Consequences, each stated in the docs:</p>
+<ul>
+<li><code>speaks()</code> returning <code>None</code> keeps today's <code>missing_capability</code>.</li>
+<li>A capability missing within the protocol stays a gap: a chat endpoint without tools still
+skips <code>agent.excessive_tool_use</code>, and an stdio MCP server the authorization rules, as
+<code>missing_capability</code>. <code>probe --preset release</code> is no longer <code>indeterminate</code> because of MCP or
+A2A rules on a chat endpoint, or chat rules on an MCP or A2A target.</li>
+<li>A rule demanded by id and <code>not_applicable</code> stays a <code>demanded_check</code> shortfall.</li>
+<li><code>grade</code> records MCP and A2A rules as <code>not_applicable</code>.</li>
+<li>A recipe lock taken before v0.41 pinned those skips as <code>missing_capability</code> or, under
+<code>--safety passive</code>, <code>unsafe_mode</code>; <code>recipe run</code> reports the changed reason as drift and the lock
+is retaken. No schema moves: <code>not_applicable</code> exists in run schema 17, recipe lock 2 and
+envelope 8.</li>
+</ul>
+<h3 id="2-a-profile-can-require-delivery">2. A profile can require delivery</h3>
+<pre><code class="language-yaml">delivery:
+  required: true
+</code></pre>
+<p><code>core/profile/loader.py</code> accepts the top-level key <code>delivery</code> with the single key <code>required</code>
+(a boolean; anything else is a load error in the loader's existing form). <code>Profile.delivery_required: bool = False</code>, added to <code>_LEFT_OUT</code> in <code>core/profile/digest.py</code> and to the exempt set of
+<code>test_profile_digest.py</code> with the reason &quot;not part of the verdict&quot;, so no profile digest, recipe
+lock or run manifest moves. <code>config explain</code> shows <code>&quot;delivery&quot;: {&quot;required&quot;: …}</code> after
+<code>&quot;plugins&quot;</code>.</p>
+<p>When it is true, every delivery the run makes must be acknowledged, or the job exits <code>8</code>:</p>
+<ul>
+<li>an installed reporter whose status is anything but <code>delivered</code>, <code>not_sent</code> included; after its
+delivery line: <code>error: the profile sets delivery.required, and the delivery was {status}</code>;</li>
+<li>the collector: <code>submit_safely(...) -&gt; bool</code> returns whether it acknowledged. The warnings it
+prints become <code>error: the collector rejected this submission (HTTP {code}): {why} — the profile sets delivery.required</code> and <code>error: could not submit to reporter: {exc} — the profile sets delivery.required</code>.</li>
+</ul>
+<p>Acknowledged means the collector's own answer, not any <code>2xx</code>: <code>_urllib_transport</code>
+(<code>core/reporter.py</code>) reads the body and accepts only a JSON object whose <code>status</code> is <code>ok</code>, as
+every collector release answers; anything else is <code>the response was not a collector acknowledgement</code>, a failed delivery with or without the setting. The collector client keeps
+honouring proxy variables, like the target's first hop: it is a destination the operator names,
+reached through the operator's network; decision 3 is the reference for installed reporters.</p>
+<p>Precedence is the existing one for <code>8</code> (<code>_unless_stopped</code>): it replaces <code>0</code>, <code>1</code> and <code>2</code>, the
+verdict line is printed when it does, a stopped run keeps <code>4</code>, <code>6</code> or <code>7</code>, a redaction failure
+stays <code>5</code>. <code>RunOutputs.end(verification, *, delivery_required=False, collector_acknowledged: bool | None = None)</code> decides it for <code>scan</code>, <code>probe</code> and <code>analyze-trace</code>; <code>import-observations</code>
+(which exits <code>2</code>) ends with <code>8</code> the same way; <code>grade</code> has no reporter. <code>monitor</code> delivers only
+alerts: its alert handler counts unacknowledged required deliveries, and <code>_exit_with_worst</code>
+turns a final <code>0</code>, <code>1</code> or <code>2</code> into <code>8</code> when the count is above zero, printing <code>monitor: {n} alert deliveries not acknowledged</code>; the watch never stops for it, and <code>8</code> stays out of
+<code>core/monitor.py</code>'s ranking. Without the key nothing changes. <code>docs/exit-codes.md</code> row <code>8</code> adds
+&quot;or a delivery <code>delivery.required</code> asks for was not acknowledged&quot;.</p>
+<h3 id="3-the-reference-webhook-ignores-proxy-variables">3. The reference webhook ignores proxy variables</h3>
+<p><code>examples/output_pack/src/acme_outputs/webhook.py</code> builds its opener with <code>ProxyHandler({})</code>
+before <code>_RefuseRedirects</code>. Its test sets <code>HTTP_PROXY</code>, <code>HTTPS_PROXY</code>, <code>http_proxy</code> and
+<code>https_proxy</code> to a refusing address, unsets <code>NO_PROXY</code> and <code>no_proxy</code>, and still receives the
+delivery; it fails against the current opener. <code>docs/outputs.md</code> asks an installed reporter to
+do the same and says Guardana cannot enforce it; <code>docs/threat-model.md</code> states both stances.</p>
+<h3 id="4-a-lock-checks-who-registers-an-evaluator-or-a-target">4. A lock checks who registers an evaluator or a target</h3>
+<p><code>cli/pack.py: _installed</code> maps evaluators and targets to their registering distribution
+(<code>registry.evaluator_origin(id).distribution</code>, <code>registry.target_origin(cls).distribution</code>, keyed
+as today by id and class <code>__name__</code>); <code>Installed.evaluators</code> and <code>.targets</code> become
+<code>Mapping[str, str | None]</code>. <code>_foreign_outputs</code> becomes <code>_foreign</code>, covering evaluator, target,
+renderer and reporter: writing refuses with <code>a pack declares an extension another distribution registers, so a lock would pin code the pack does not ship: {named}</code>, and <code>--check</code> drops the id
+from the pack so it reads <code>removed</code> (exit <code>1</code>). No lock schema moves. <code>Registry</code> refuses a second
+distribution registering a target class whose <code>__name__</code> another distribution registered, as a
+load error naming both, so one origin can no longer overwrite another. The <code>lock.py</code> module
+docstring and <code>docs/usage-pack.md</code> stop saying evaluators and targets are pinned by id only.</p>
+<h3 id="5-the-profile-has-a-schema-version">5. The profile has a schema version</h3>
+<p><code>core/profile/loader.py: PROFILE_SCHEMA_VERSION = 1</code>. A top-level <code>schema_version</code> is checked
+before unknown keys are refused: absent means 1; above the current version → <code>invalid profile {path}: profile schema {n} was written by a newer Guardana; this build reads schema 1 — upgrade Guardana</code>; a boolean or non-integer → <code>invalid profile {path}: schema_version must be an integer</code>; below 1 → <code>invalid profile {path}: schema_version {n} does not exist</code>. It is not a
+<code>Profile</code> field. No writer emits it while it is 1 (a profile written with it would be refused by
+0.40); a key added in 1.x raises it. <code>schemas/profile-v1.schema.json</code> (hand-written, <code>$id</code>
+<code>https://guardana.dev/schemas/profile/v1.schema.json</code>) describes every key the loader accepts; a
+test checks every allowed key set of the loader appears in it and validates every stored
+historical profile, the presets and <code>init</code>'s template against it. <code>GATED_BY</code> gains the constant,
+gated by <code>packages/guardana-core/tests/profile/test_profile_schema_version.py</code>.</p>
+<p><code>core/report/baseline.py</code> refuses a <code>version</code> that is a boolean or not an integer (<code>invalid baseline {path}: version must be an integer</code>) or below 1 (<code>invalid baseline {path}: version {v} does not exist</code>); a missing <code>version</code> stays 1.</p>
+<h3 id="6-older-documents-come-from-the-releases-that-wrote-them">6. Older documents come from the releases that wrote them</h3>
+<p><code>scripts/capture_historical_documents.py</code> (maintainer, network; ops-catalogue row; RELEASING.md
+says to run it after a release that changes a document). For every Guardana release on PyPI from
+0.2.0 on it runs that release in isolation — <code>uv run --isolated --no-project --python 3.12 --exclude-newer &lt;newest upload time of that release's distributions plus one minute&gt; --with guardana-cli==V</code> — with <code>env</code> reduced to <code>PATH</code>, <code>HOME</code> (a temporary directory), and
+<code>HTTP_PROXY</code>/<code>HTTPS_PROXY</code> at a refusing address with <code>NO_PROXY=127.0.0.1,localhost</code>, <code>cwd</code> the
+temporary directory, and relative paths only. It feeds the release synthetic inputs the script
+builds and keeps what the release wrote:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Kind (directory)</th>
+<th>How</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>run</code></td>
+<td><code>scan</code> of a synthetic directory holding one finding, <code>--format json --output</code></td>
+</tr>
+<tr>
+<td><code>probe-run</code></td>
+<td><code>probe</code> of a scripted OpenAI-compatible endpoint the script serves on <code>127.0.0.1</code>, where the release has <code>probe</code></td>
+</tr>
+<tr>
+<td><code>envelope</code></td>
+<td>the <code>scan</code> with <code>--reporter</code> to a capture server the script serves on <code>127.0.0.1</code>, accepting any path</td>
+</tr>
+<tr>
+<td><code>profile</code></td>
+<td><code>guardana init &lt;tmp&gt;/guardana.yaml</code></td>
+</tr>
+<tr>
+<td><code>pack-manifest</code>, <code>pack-lock</code></td>
+<td><code>new-pack</code> from 0.26; for 0.20–0.25 a minimal pack the script writes and installs; <code>pack lock</code> with the trust flags that release needs</td>
+</tr>
+<tr>
+<td><code>dataset</code></td>
+<td>format-1 and format-2 files the script builds, passed through that release's <code>read_dataset</code>; stored with the oldest release that accepts each (&quot;accepted by&quot;, not &quot;written by&quot;)</td>
+</tr>
+</tbody>
+</table></div>
+<p>The command line per release range is an explicit table in the script. A release that lacks a
+command or flag (read from its <code>--help</code>) is recorded as not producing that kind; a command that
+exists and fails stops the script with the release and the output, never a silent gap.</p>
+<p>A document is kept under <code>packages/guardana-core/tests/historical/&lt;kind&gt;/&lt;release&gt;.&lt;ext&gt;</code> when its
+set of key paths differs from the last one kept for that kind, so changes within one schema
+version are kept too. <code>historical/releases.json</code> records per release: the <code>--exclude-newer</code>
+time, each kind produced or why not, the schema version read from each document, the collector's
+migration count (its <code>*.up.sql</code> files), <code>EXTENSION_API_VERSION</code> and <code>OUTPUT_API_VERSION</code> found by
+scanning the installed sources for <code>^NAME = </code> (<code>null</code> only when no module defines it),
+<code>Requires-Python</code> and the <code>Programming Language :: Python :: 3.x</code> classifiers. The two older
+documents already stored (<code>tests/saved_runs/</code>, <code>tests/pack_manifests/</code>) stay where they are.</p>
+<p><code>packages/guardana-core/tests/test_historical_documents.py</code> (offline):</p>
+<ul>
+<li>no stored document holds an absolute path, a home directory or a CI field (<code>/Users/</code>,
+<code>/home/</code>, <code>C:\</code>, <code>/private/</code>, <code>/tmp/</code>, <code>/var/</code>, a <code>ci</code> source other than null);</li>
+<li>every run and probe-run through <code>load_report</code>, <code>guardana run migrate</code> and <code>load_verification</code>
+(a migrated schema-1 run refused, as today); each pair of consecutive runs through <code>guardana diff</code>: exit in {0, 1, 2}, never 3 or 5, and the migrated-schema note printed when a side was
+migrated;</li>
+<li>every profile, pack manifest, lock and dataset through its loader;</li>
+<li>for each persisted kind (run, envelope, pack manifest, lock, dataset, profile), every version
+its reader accepts has a stored document, or an entry in <code>NOT_EXERCISED: dict[tuple[str, int], str]</code> with the reason (run schemas no release wrote, the profile's version 1 before any release
+wrote the key).</li>
+</ul>
+<p>The envelope documents are exercised by the server (decision 7). The in-code builders
+(<code>tests/_documents.py</code>) stay: they test single fields; the corpus tests what an older writer
+wrote.</p>
+<h3 id="7-the-collector-envelope-is-published-its-window-stated">7. The collector envelope is published, its window stated</h3>
+<p><code>schemas/collector-envelope-v8.schema.json</code>, hand-written in the style of the run schemas, <code>$id</code>
+<code>https://guardana.dev/schemas/collector-envelope/v8.schema.json</code> (as <code>build_site.py</code> requires).
+A test validates the current writer's envelope and every stored v8 envelope against it and checks
+that every property <code>Submission</code> and its nested models accept appears in it.
+<code>packages/guardana-server/tests/test_historical_envelopes.py</code> (PostgreSQL, refuses to skip in
+CI) migrates a database, POSTs every stored envelope of every version and reads each back through
+the scoped store, the stored version equal to the one sent.</p>
+<p>The window, in <code>docs/architecture.md</code> and <code>docs/compatibility.md</code>: every envelope change raises
+its version; a collector accepts every version from 2 up to its own; an agent newer than its
+collector is refused with <code>422</code> naming the versions the collector speaks, so collectors are
+upgraded before agents; dropping a version is a major release. The <code>app.py</code> comment that the
+envelope &quot;stays at v5&quot; goes. The envelope stays at 8: shortfalls, judge usage and measurements
+are M3's, added in 1.x by raising the version.</p>
+<h3 id="8-the-supported-surface-is-a-generated-snapshot">8. The supported surface is a generated snapshot</h3>
+<p><code>scripts/api_surface.py</code> writes <code>docs/generated/api-surface.json</code>; <code>generate_docs.py</code> runs it,
+so <code>--check</code> and pytest gate drift. Built from source with <code>ast</code> (no <code>from __future__</code> in the
+code, so <code>inspect</code> would evaluate annotations whose repr differs between Python versions): each
+name is mapped to the module defining it, and annotations are <code>ast.unparse</code> text. The output is
+identical on Python 3.11, 3.12 and 3.13.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Surface</th>
+<th>Recorded</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>facade: <code>guardana.core.verify.__all__</code>, <code>guardana.core.doubles.__all__</code></td>
+<td>per name: kind; function and method parameters (name, kind, default present or not, annotation text) and return annotation; class public methods; dataclass fields; enum members</td>
+</tr>
+<tr>
+<td>extension: <code>guardana.core.__all__</code> except <code>Runner</code> (internal, as <code>docs/python-api.md</code> says), <code>guardana.core.target.protocols.__all__</code>, <code>guardana.core.target.WireProtocol</code>, <code>guardana.core.rule.fixture</code> (<code>RuleFixture</code>, <code>DeclaredFixture</code>, <code>FixtureOutcome</code>, <code>DEMANDED_OUTCOMES</code>, <code>materialise</code>)</td>
+<td>as above</td>
+</tr>
+<tr>
+<td>outputs: <code>guardana.core.output.__all__</code></td>
+<td>as above</td>
+</tr>
+<tr>
+<td>kit: <code>guardana.testing.__all__</code>, <code>guardana.core.testing.__all__</code></td>
+<td>as above</td>
+</tr>
+<tr>
+<td>constants: entry-point groups, <code>EXTENSION_API_VERSION</code>, <code>SUPPORTED_EXTENSION_API_VERSIONS</code>, <code>OUTPUT_API_VERSION</code>, <code>SUPPORTED_OUTPUT_API_VERSIONS</code>, every persisted version constant</td>
+<td>ints and strings by value, sets as sorted lists</td>
+</tr>
+<tr>
+<td>CLI</td>
+<td>per command path: parameter name, <code>opts</code>, <code>secondary_opts</code>, required, flag, multiple, hidden, default present or not (from <code>typer.main.get_command</code>); no help text</td>
+</tr>
+<tr>
+<td><code>ExitCode</code> members, target locator schemes, <code>action.yml</code> inputs, <code>GUARDANA_*</code> environment variable names read in <code>packages/*/src</code></td>
+<td>names and values</td>
+</tr>
+</tbody>
+</table></div>
+<p>The trace format is versioned by its own JSON schema and is not repeated here. For a release
+candidate, <code>release.py</code> refuses when <code>docs/generated/api-surface.json</code> differs from the previous
+tag's and <code>[Unreleased]</code> has no &quot;Changed&quot;, &quot;Deprecated&quot; or &quot;Removed&quot; section.</p>
+<p>Removed, each deprecated for at least one minor release: <code>is_local_address</code> (and its export and
+test), and <code>check_pack</code>/<code>check_packs</code> given a flat set, which now raise <code>TypeError(&quot;check_pack and check_packs take a Registered; a flat set of ids is no longer accepted&quot;)</code>. <code>--no-plugins</code>
+stays, deprecated, until 2.0.</p>
+<h3 id="9-the-compatibility-page-and-the-deprecation-policy">9. The compatibility page and the deprecation policy</h3>
+<p><code>docs/compatibility.md</code> (written by hand, <code>nav_order</code> 57) holds the policy and links
+<code>docs/generated/compatibility-matrix.md</code> (rendered by <code>generate_docs.py</code> from
+<code>historical/releases.json</code> and the current constants: one row per minor release from its newest
+patch, plus the current tree; columns Python, run schema, envelope, pack manifest, lock,
+profile, extension API, output API). The policy, from 1.0:</p>
+<ul>
+<li>the surface of decision 8 changes incompatibly only in a major release;</li>
+<li>a name to be removed is deprecated first — a <code>DeprecationWarning</code> where Python can raise one,
+a &quot;Deprecated&quot; changelog entry naming the replacement — for at least one minor release, and
+removed only in the next major;</li>
+<li>every 1.x reads every document an earlier release wrote and writes the current version, with
+one stated exception: <code>load_verification</code> refuses a schema-1 run, which recorded no gate
+(<code>load_report</code> and <code>run migrate</code> read it);</li>
+<li>the envelope window of decision 7;</li>
+<li>1.x supports extension API 2 and output API 1; a new API version is opt-in through a pack's
+range, and support for one is dropped only in a major;</li>
+<li>a Python version is supported until its upstream end of life; dropping one is announced one
+minor release ahead;</li>
+<li>until 1.0, a breaking change lands in a minor and is announced under &quot;Changed — breaking&quot;.</li>
+</ul>
+<p><code>docs/python-api.md</code> points at the page; <code>docs/product-status.md</code>, <code>README.md</code> and <code>FEATURES.md</code>
+stop calling the extension API unstable; <code>SECURITY.md</code> &quot;Supported versions&quot; links the policy.</p>
+<h3 id="10-the-conformance-kit-checks-outputs-and-has-a-page">10. The conformance kit checks outputs, and has a page</h3>
+<p><code>guardana.core.testing.sample_verifications() -&gt; tuple[Verification, ...]</code>: real engine output,
+produced by <code>Verifier</code> over kit targets — a passed and a failed scan of <code>files_target</code> trees, an
+indeterminate scan of an empty tree (<code>empty_target</code>), a probe of a scripted endpoint stopped by
+<code>max_requests</code>, and a run with no rule run. <code>guardana.testing</code> adds:</p>
+<ul>
+<li><code>assert_renderer_conforms(spec)</code>: <code>name</code> valid and unreserved, <code>spec.name</code> equal to it, and
+<code>render</code> returning non-empty <code>str</code> for every sample through the same redaction boundary
+<code>--format</code> uses;</li>
+<li><code>assert_reporter_conforms(spec, *, delivered: str, rejected: str, unreachable: str)</code>: three
+locators the caller supplies; <code>prepare</code> sends nothing (<code>socket.socket.connect</code>, <code>connect_ex</code>,
+<code>socket.create_connection</code> and <code>socket.getaddrinfo</code> refused for its duration — subprocesses and
+C extensions are not covered, and the page says so); <code>destination</code> a <code>str</code>; <code>sent_secrets()</code> a
+tuple of <code>str</code>; through <code>guardana.core.output.deliver</code>, each locator yields exactly its status
+for every sample, and <code>unknown</code> fails with its detail;</li>
+<li>both raise <code>OutputContractError(AssertionError)</code>;</li>
+<li><code>guardana.core.testing.receiver()</code>: a context manager serving <code>127.0.0.1</code> and yielding an
+accepting URL, a refusing URL (<code>403</code>) and a closed-port URL, for HTTP reporters.</li>
+</ul>
+<p><code>docs/conformance-kit.md</code> lists the kit — <code>guardana rule test</code> and <code>verify_rule</code>,
+<code>assert_target_conforms</code>, the scripted MCP and A2A servers, <code>files_target</code> and the trace and
+transport builders, the output checks — with what each proves and does not. <code>output_pack</code>'s suite
+uses the output checks.</p>
+<h3 id="11-the-reference-pack">11. The reference pack</h3>
+<p><code>examples/reference_pack</code>: distribution <code>guardana-reference-pack</code>, its own version <code>0.1.0</code>
+(bumped by hand when its content changes, like any third-party pack), <code>guardana-core&gt;=0.40</code> with
+no upper bound, so its manifest's <code>extension_api</code> and <code>output_api</code> ranges decide compatibility.
+Module <code>guardana_reference_pack</code>, ids under <code>reference.</code>, output names <code>reference-summary</code> and
+<code>reference-file</code>. It provides one YAML rule and one Python rule, each with finding, clean and
+inconclusive fixtures; one evaluator; one target passing <code>assert_target_conforms</code>; one taxonomy
+catalogue; the format <code>reference-summary</code> (a Markdown summary of the run); the reporter
+<code>reference-file</code> (<code>reference-file://&lt;dir&gt;</code>: <code>prepare</code> only validates the locator; <code>deliver</code>
+writes <code>&lt;dir&gt;/guardana-&lt;run_id&gt;.md</code> through a temporary file, <code>fsync</code> and <code>os.replace</code>, then
+returns <code>delivered</code>; a missing directory is <code>unreachable</code>, an <code>OSError</code> while writing
+<code>rejected</code>); a schema-3 manifest; a committed <code>guardana-lock.yaml</code>.</p>
+<p>Its suite, installed in isolation like the other examples (<code>ci_local.sh</code>, <code>ci.yml</code>), uses only
+the conformance kit and the surface of decision 8 — a test walks its sources' imports and refuses
+any <code>guardana.*</code> name outside <code>docs/generated/api-surface.json</code> — and runs <code>guardana rule test 'reference.*'</code>, the target and output checks, <code>pack validate</code>, <code>pack lock --check</code>, and a <code>scan</code>
+with <code>--plugins allowlist --allow-plugin guardana-reference-pack --format reference-summary --reporter reference-file://…</code>. <code>clean_install_check.py</code> installs it beside the five and runs
+<code>pack validate</code> and <code>rule test</code> on it.</p>
+<p><code>release.yml</code> builds it into <code>dist-reference/</code>, attests it with <code>dist/</code>, and uploads it to the
+GitHub Release. A separate job <code>publish-reference-pack</code> (<code>needs: publish</code>, environment <code>pypi</code>,
+<code>skip-existing: true</code>) runs only when the repository variable <code>REFERENCE_PACK_PYPI</code> is <code>true</code>,
+which the owner sets after registering the pending trusted publisher for
+<code>guardana-reference-pack</code>; the GitHub Release and the images never wait on it. Criterion 3 is
+reported met only once the pack is on PyPI. <code>custom_rule</code> and <code>output_pack</code> stay as teaching
+examples.</p>
+<h3 id="12-three-outcome-fixtures-for-every-built-in">12. Three-outcome fixtures for every built-in</h3>
+<p>Prerequisite in <code>core/rule/verify.py</code>: a fixture whose target is a <code>FileReader</code> reports its
+<code>unread_sources()</code> as a decline, as the runner turns them into errors, so an artifact the rule
+could not read never classifies as clean. <code>guardana.core.testing.files_target(files: Mapping[str, bytes | str]) -&gt; ArtifactTarget</code> (re-exported from <code>guardana.core.testing</code>): an
+<code>ArtifactTarget</code> over a fresh temporary directory holding <code>files</code>, removed by <code>weakref.finalize</code>
+when the target is collected.</p>
+<p>The 39 unsampled rules declare a finding, a clean and an inconclusive fixture each, built in
+code: artifact rules through <code>files_target</code>, trace rules through <code>TraceTarget(Trace(...))</code>, MCP
+rules through <code>rules/mcp/_samples.py</code>, chat rules (<code>output.secrets</code>, <code>agent.excessive_tool_use</code>)
+through <code>EndpointTarget(&quot;http://fixture.invalid&quot;, &quot;fixture&quot;, transport=…)</code> with the scripted
+transports, as <code>core/rule/_fixture_schema.py</code> does. An inconclusive fixture shows the rule
+declining something it could not establish, never a fixture shaped to move the counter.</p>
+<p>About half of these rules have no decline path today. Each gains one where its claim can be
+prevented — an unread or over-budget input, an unparseable document, a record the trace marks
+withheld — or an entry in <code>_EXEMPT: dict[str, str]</code> in the ratchet test with the reason it can
+never be prevented, reviewed. A rule that gains a decline path changes behaviour (a run may be
+<code>inconclusive</code> where it was clean); the changelog names each under &quot;Changed&quot;. The ratchet pins
+<code>len(provide_rules()) - len(_EXEMPT)</code>; the count is generated into
+<code>docs/generated/rule-summary.md</code> and <code>docs/usage-rule-test.md</code> links it instead of stating it.
+<code>guardana rule test --write-corpus</code> over the new fixtures exits as without the flag and counts
+artifact and trace samples under its existing &quot;no scripted reply&quot; reason.</p>
+<h3 id="13-measures-2-and-3-get-generators">13. Measures 2 and 3 get generators</h3>
+<p><code>scripts/adopter_measure.py</code> mirrors <code>first_run_measure.py</code>. <code>row RUN.json --team T1 --consent yes</code> prints one row of counts from a saved run, never its content, for
+<code>docs/maintainers/adopter-runs.csv</code> (columns <code>team, guardana, schema_version, rules_selected, rules_not_applicable, rules_attempted, rules_decided, consent_to_publish</code>; teams <code>T1</code>, <code>T2</code>; a
+row without consent refused). It refuses a run older than schema 14, one with <code>stopped_by</code> set
+(rules that never started are not recorded), one without a recipe, one whose <code>recipe.kind</code> is not
+<code>application</code>, or whose <code>recipe.lock_digest</code> is null. From the run:</p>
+<ul>
+<li>selected = rules in <code>rules_run</code>, in <code>rules_skipped</code>, and named by an error before they ran;
+not applicable = skips with reason <code>not_applicable</code>; attempted = rules in <code>rules_run</code> or named
+by an error; decided = rules in <code>rules_run</code> with no error and no unverified entry naming them
+(a finding or clean);</li>
+<li><strong>coverage of the real application</strong> = attempted ÷ (selected − not applicable);</li>
+<li><strong>supported-verdict share</strong> = decided ÷ attempted, over these locked application runs, which are
+the comparable ones.</li>
+</ul>
+<p><code>docs/generated/application-measures.md</code> (rendered by <code>generate_docs.py</code>) says &quot;not measured&quot;
+until two teams have rows.</p>
+<h3 id="14-runbooks-and-what-was-exercised">14. Runbooks, and what was exercised</h3>
+<p><code>docs/deployment.md</code> gains key rotation (issue, deploy, revoke, confirm the old key answers
+<code>401</code>) and names the test that exercises each runbook: backup and restore
+(<code>test_backup_restore.py</code>), rollback and forward (<code>test_migrations.py</code>), project deletion
+(<code>test_retention_and_deletion.py</code>), and two new PostgreSQL tests in
+<code>packages/guardana-server/tests/</code>: <code>test_upgrade_from_previous_release.py</code> (migrate to the
+migration count the oldest stored release shipped, migrate forward, ingest every stored envelope,
+read back) and <code>test_key_rotation.py</code>.</p>
+<p><code>docs/maintainers/security-runbook.md</code>: a vulnerability report (private advisory, fix on a private
+fork, release, advisory published with the fixed version), a compromised or broken release (yank
+on PyPI by the owner, delete the ghcr version, move <code>vX.Y</code> back, advisory, changelog), a leaked
+collector key or database credential. <code>scripts/check_repo_settings.py</code> reads, through <code>gh api</code>,
+the settings the runbook relies on — private vulnerability reporting, the tag ruleset, the
+<code>pypi</code> environment's required approval, the release workflow's CI gate, the ghcr packages — and
+prints each PRESENT, ABSENT or NOT CHECKED (no <code>gh</code>, no auth, or a <code>403</code>/<code>404</code>); exit <code>0</code> all
+present, <code>1</code> any absent, <code>2</code> any not checked. <code>docs/maintainers/drills.md</code> records each drill:
+date, runbook, steps exercised, steps not exercised. Reading settings is not a drill: the
+security runbook counts as exercised once the owner records one.</p>
+<h3 id="15-principle-3-names-a-reporter">15. Principle 3 names a reporter</h3>
+<p>CLAUDE.md principle 3 reads: &quot;Offline, no account, always: traffic goes only to destinations the
+run names — the target under test, a judge or guard the profile configures, the authorization
+metadata the target itself advertises, and a collector or reporter <code>--reporter</code> names; the
+collector is optional in every direction.&quot; <code>docs/maintainers/lessons.md</code>, <code>docs/safe-testing.md</code>,
+<code>CONTRIBUTING.md</code>, <code>.claude/rules/server.md</code> and <code>.claude/skills/stack/SKILL.md</code> follow.</p>
+<h2 id="what-stays-outside-v041">What stays outside v0.41</h2>
+<ul>
+<li>Five first-run sessions (F2), two independent teams (F6), a recorded third-party customization.</li>
+<li>Envelope shortfalls, judge usage and measurements: M3, by raising the envelope version.</li>
+<li>An evaluator conformance check: an evaluator is exercised through its rules' fixtures.</li>
+<li>The reference pack on PyPI: the owner's pending publisher.</li>
+<li>The security runbook drill: the owner's.</li>
+</ul>
+<h2 id="options-that-lost">Options that lost</h2>
+<ul>
+<li><strong>Protocol read from capabilities alone</strong>: a target implementing only chat while fronting MCP
+would turn a real gap into <code>not_applicable</code>, and that reading would freeze at 1.0.</li>
+<li><strong>A new skip reason <code>other_protocol</code></strong>: run schema 18, recipe lock 3 and an envelope change for
+a distinction no gate uses.</li>
+<li><strong>A protocol field on <code>RuleMeta</code></strong>: every pack would have to learn it; the capability a rule
+requires already names its protocol.</li>
+<li><strong>Delivery under <code>fail_on:</code></strong>: <code>fail_on</code> decides the verdict; a delivery comes after it.</li>
+<li><strong><code>not_sent</code> exempt from a required delivery</strong>: a reporter can return it, and the job would pass
+with nothing delivered.</li>
+<li><strong>Envelope v9 before 1.0</strong>: freezing a measurement block M3 has not designed.</li>
+<li><strong>Older documents rebuilt in code only, or captured from 0.12.0</strong>: the first cannot catch a
+field an older writer emitted; the second misses envelopes 2–6 and run schema 1.</li>
+<li><strong>One document per schema version</strong>: loses changes inside one version (envelope 8 spans
+0.13–0.40).</li>
+<li><strong>Merging <code>custom_rule</code> and <code>output_pack</code> into the reference pack</strong>: renames ids the extension
+guides teach with; a separate small pack on the frozen surface costs less.</li>
+<li><strong>The reference pack versioned with Guardana</strong>: every bump would move its lock and its build
+scripts; a third-party pack has its own version.</li>
+<li><strong>A script that prints EXERCISED for a setting it read</strong>: a setting present is not a runbook
+exercised.</li>
+</ul>
+
+</main>
+</div>
+<footer class="foot"><div class="bar">
+<span class="who">Guardana 0.40.0 · Apache-2.0 ·
+maintained by Konrad Karauda</span>
+<a href="https://github.com/guardana/guardana/blob/main/docs/design/one-zero-readiness.md">Edit this page on GitHub</a>
+<a href="https://github.com/guardana/guardana">github.com/guardana</a>
+<a href="../../llms.txt">llms.txt</a>
+</div></footer>
+</body>
+</html>
