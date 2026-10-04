@@ -16,14 +16,13 @@ No remote issues were created; the GitHub open-issue query returned zero.
 |---|---|---|---|
 | B04 | Starter and three short task-oriented recipes | F2 | Clean-install offline run, edited custom check and saved artifact; recorded-answer and actual-application paths clearly distinguish their coverage. |
 | B10 | Calibration identity supports several rubric versions and verdict IDs | M1 | Match the actual grader identity. Kept for M1 in 0.30.0: re-keying the store is calibration schema 3 and F5 defines grading identity; the decline already no longer promises an impossible rerun. |
-| B11 | Collector measurement envelope and storage | M3 | Independent envelope migration carries measurements, denominator, trials, uncertainty and missingness, with tenant isolation. |
+| B11 | Collector measurement envelope and storage | M3 | The envelope is versioned apart from the run schema and published as a JSON schema (0.41.0); a later version carries measurements, denominator, trials, uncertainty, missingness, coverage shortfalls and judge usage, with tenant isolation. |
 | B12 | Non-executing declarative packs | parallel lane, decided before F2 | Keep local ID validation. Decide whether a pack can ship checks that execute no Python. The public extension-ID service is dropped (direction audit). |
 | B13 | Public contributor tasks and adoption checks | F2/F6 | Prepare small issue descriptions from B04/B06/B08; record five developer sessions and two team integrations with consent. Publishing issues is separate maintainer work. |
 | B20 | Live retrieval pilot | F6 | One retrieval target catches a poisoned document and a tenant-filter failure without an uncontrolled side effect. The checks and a reference application shipped in 0.37.0; open until a team's own retrieval target has run them. |
-| B21 | Three-outcome fixtures for every built-in | 1.0 | The ratchet in `test_builtin_fixture_coverage.py` (12 of 51 at 0.31.0) reaches every rule that can decline. |
 | B22 | A time bound for `regex` | Later | A crafted reply can make an author's backtracking pattern run for a very long time; the 65,536-character bound limits input, not time. Any fix that adds a dependency needs principle 6's justification. |
 
-B06 shipped in 0.40.0 (ROADMAP F4). B19 shipped in 0.39.0 (ROADMAP F7). B08 shipped in 0.36.0 (ROADMAP F6, first half); the F6 second half shipped in 0.37.0. B07 shipped in 0.35.0 (ROADMAP F5). B15, B16, B17 and B18 shipped in 0.32.0 (ROADMAP Q1). B01, B02, B03, B09 and B14 shipped in 0.30.0 (ROADMAP F1). The lockfile/gitleaks and
+B21 shipped in 0.41.0 (every built-in rule proves all three outcomes). B06 shipped in 0.40.0 (ROADMAP F4). B19 shipped in 0.39.0 (ROADMAP F7). B08 shipped in 0.36.0 (ROADMAP F6, first half); the F6 second half shipped in 0.37.0. B07 shipped in 0.35.0 (ROADMAP F5). B15, B16, B17 and B18 shipped in 0.32.0 (ROADMAP Q1). B01, B02, B03, B09 and B14 shipped in 0.30.0 (ROADMAP F1). The lockfile/gitleaks and
 script-parser items shipped in 0.31.0; ONNX metadata grading, ATLAS provenance and the other
 items remain open below. Before closing any item, rerun its reproduction.
 
@@ -31,15 +30,9 @@ items remain open below. Before closing any item, rerun its reproduction.
 
 Found by the pre-ship review and the false-green hunt on 2026-09-30; each was reproduced.
 
-- **A protocol the target does not speak is a capability skip.** A chat endpoint skips the
-  MCP and A2A rules, so `probe --preset release` is `indeterminate` against any single endpoint
-  unless a profile selects the rules it serves (documented). Decided: a rule for another
-  protocol is `not_applicable`, not a coverage gap; it is built in v0.41.
 - **A trace reads as `content_prefix` when `MAX_SPANS` stops a read of a file the buffer
   already held whole.** Conservative: `content` is claimed only after the raw read returned
   end of file.
-- **Every Python built-in declared `invariant` is "invariant, not sampled"** on the
-  detection-limits page until it ships samples (B21).
 - **Observation dialect detection reads the document a second time**, bounded like the
   first read.
 
@@ -48,12 +41,6 @@ Found by the pre-ship review and the false-green hunt on 2026-09-30; each was re
 A code sweep for the `know_common_errors` attestation on 2026-09-30. The first three were
 reproduced; the rest are the sweep's reading with its anchors, not yet reproduced.
 
-- **The dashboard sends no Content-Security-Policy and nothing tests its escaping** against a
-  crafted payload (`server/dashboard.py:179`); `docs/threat-model.md` T7 now says so.
-- The CLI prints model output and file names verbatim, so ANSI and other control
-  characters reach the terminal (`report/human.py:37`).
-- The endpoint, adapter and reporter HTTP clients follow redirects without the private-address
-  guard the MCP discovery client applies (`core/target/endpoint.py:231`).
 - `analyze-trace --write-trace` writes the trace unredacted (`cli/analyze_trace.py:208`).
 - A symlinked file inside a scanned directory is read even when it points outside the root
   (bounded by the reader caps).
@@ -81,21 +68,38 @@ left for the owner, or are design gaps already documented elsewhere.
   set is closed (`target/base.py`), and `Verifier` does not run trace analysis
   (`docs/python-api.md`).
 
+## Left by 1.0 readiness (0.41.0)
+
+- **Within a protocol, a missing capability stays a gap.** A chat endpoint without tools or
+  without system-prompt planting, and any target without seeded fixtures, still leaves
+  `probe --preset release` `indeterminate`; only a protocol the target does not speak is
+  `not_applicable`. The seeded rules require `seeded_data` alone, which names no protocol.
+- **`_unreadable_applicability` still asks `not_applicable_to` of rules `protocol_refusal`
+  skips**; it matters only for a target declaring a capability of a protocol it says it does not
+  speak.
+- **Some inconclusive samples write 16 or 64 MiB files** to pass a rule's own read bound
+  (`training.dataset_integrity`, `prompt.mcp_tool_poisoning`, several supply-chain rules), each
+  time the samples are built. `files_target` takes no read limit, and a rule's bound is its own
+  constant.
+- **`guardana rule test --write-corpus` counts artifact and trace samples** under "a rule that
+  declares no expectation or more than one", not under a reason naming them; the exit code is
+  right.
+- **The collector's unhandled 500 carries no `nosniff`** (it is produced outside the app's
+  middleware), and `HEAD /` answers `405`.
+- **The reference pack is not on PyPI** until the owner registers its pending trusted publisher
+  and sets `REFERENCE_PACK_PYPI`; it is attached to the GitHub Release.
+- **The security runbook is not exercised**: `check_repo_settings.py` reads the settings it
+  relies on, and `docs/maintainers/drills.md` records no drill. The two ghcr packages read as
+  NOT CHECKED without a `read:packages` token.
+- **The largest classes carry several reasons to change**: `_Probe` (MCP authorization,
+  discovery and tasks), `Verifier` (running a check and assembling its result), then `Registry`
+  and `Runner`. Split them behind behaviour tests, without a line-count target and without moving
+  the supported surface; after 1.0, since the release candidates take fixes only.
+
 ## Left by the export and webhook release (0.40.0)
 
-- **Evaluators and targets in a pack lock are pinned by id whoever registers them.** Installed
-  outputs are pinned only when the pack's own distribution registers them; an evaluator or a
-  target that another distribution now provides still matches `pack lock --check`, and only
-  `pack validate` names it.
-- **The reference webhook honours `HTTP(S)_PROXY`** through `urllib`, so a delivery may pass a
-  proxy the run did not name. Decide whether installed reporters should ignore proxies as MCP
-  discovery does.
-- **Principle 3 names the collector and no other reporter.** A reporter named in `--reporter` is
-  read as a destination the run names; the wording is the owner's to change.
 - **A probe whose installed format fails leaves an earlier `<output>.exchanges.jsonl`** in
   place; the format path removes only the earlier report.
-- **`load_verification` is not exercised against saved runs of schemas 2 to 6**, for which no
-  fixture helper exists.
 - **An installed format's text written with `newline=""` is not tested on Windows.**
 
 ## Left by protocol conformance (0.39.0)
@@ -109,7 +113,6 @@ left for the owner, or are design gaps already documented elsewhere.
   revision); **`cacheScope` on prompt and resource lists** is not graded (Guardana sends
   neither request); **older handshake revisions** (`2025-06-18`, `2025-03-26`) are reported
   as sharing no revision.
-- **`is_local_address`** warns as deprecated; remove it before 1.0.
 - **A legacy session re-opened once** adds an `initialize` and its announcement that the
   rules' `estimated_requests` do not count, so `plan probe --mcp` can price a run below what it
   sends; the meter still holds `--max-requests`.
@@ -207,9 +210,6 @@ left for the owner, or are design gaps already documented elsewhere.
 - **The five first-run sessions.** The owner recruits five people new to Guardana and runs them
   as `docs/maintainers/first-run-study.md` describes. The F2 row stays in ROADMAP's "Now" table,
   marked study pending, until `scripts/first_run_measure.py` renders five consented rows.
-- **The profile has no `schema_version`.** A 0.33 profile using `plugins:` fails loudly on 0.32,
-  which is right, but the 1.0 criterion "migrations exercised with older profile documents" needs
-  a version to migrate from.
 - **Stating `builtins` with a pack co-installed leaves every run `indeterminate`**, and the only
   way out, `fail_on_error: false`, turns off all error gating. A refusal the user stated could be
   a visible coverage note instead of an error.
@@ -280,7 +280,9 @@ the 0.26 measurement audit.)
 
 - The MITRE ATLAS catalogue records `version: 5.6.0`, which is the ATLAS *data format* release
   and not the *content* release its eighteen entries were transcribed from. ATLAS publishes the
-  two on separate tracks, and content releases have landed since that format version. The
+  two on separate tracks: format releases by semantic version (`v5.6.0`, 2026-05-04) and monthly
+  content releases as `YYYY.MM` (`v2026.09`, 2026-09-15), the content version stored in the
+  collection object (atlas-data releases page, read 2026-10-04). The
   provenance field is the first fix; mapping the agent-facing techniques the newest releases add
   is rule work for the parallel contributor lane.
 

@@ -121,6 +121,7 @@ not task guides and may describe rejected or superseded alternatives.
 - [`maintainers/ops-catalogue.md`](maintainers/ops-catalogue.md) — which script, is it safe, what it needs
 - [`maintainers/lessons.md`](maintainers/lessons.md) — why the rules are what they are
 - [`maintainers/first-run-study.md`](maintainers/first-run-study.md) — how the first-run sessions are run, consented and recorded
+- [`maintainers/adopter-study.md`](maintainers/adopter-study.md) — how two independent teams' runs are recorded, with consent, for the application measures
 - [`maintainers/security-runbook.md`](maintainers/security-runbook.md) — what to do on a vulnerability report, a compromised release or a leaked collector credential
 - [`maintainers/drills.md`](maintainers/drills.md) — the record of runbook drills, and which steps each exercised
 

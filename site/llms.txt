@@ -132,6 +132,7 @@ This file is generated from the documentation map; do not edit it by hand.
 - [maintainers/ops-catalogue.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/maintainers/ops-catalogue.md): which script, is it safe, what it needs
 - [maintainers/lessons.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/maintainers/lessons.md): why the rules are what they are
 - [maintainers/first-run-study.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/maintainers/first-run-study.md): how the first-run sessions are run, consented and recorded
+- [maintainers/adopter-study.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/maintainers/adopter-study.md): how two independent teams' runs are recorded, with consent, for the application measures
 - [maintainers/security-runbook.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/maintainers/security-runbook.md): what to do on a vulnerability report, a compromised release or a leaked collector credential
 - [maintainers/drills.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/maintainers/drills.md): the record of runbook drills, and which steps each exercised
 - [../SECURITY.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/SECURITY.md): report vulnerabilities and understand support
