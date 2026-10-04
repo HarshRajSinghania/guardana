@@ -11,7 +11,7 @@ from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING
 
 from guardana.core.budget import Budgets
-from guardana.core.target.base import Capability, Target, TargetKind
+from guardana.core.target.base import Capability, Target, TargetKind, WireProtocol
 from guardana.core.target.endpoint import (
     ChatMessage,
     EndpointTarget,
@@ -95,6 +95,10 @@ class SeededTarget(Target):
     def capabilities(self) -> set[Capability]:
         """Declare what the run's endpoint declares, plus `SEEDED_DATA`."""
         return {*self._endpoint.capabilities(), Capability.SEEDED_DATA}
+
+    def speaks(self) -> frozenset[WireProtocol]:
+        """Speak chat, as the run's endpoint and every tenant's endpoint do."""
+        return frozenset({WireProtocol.CHAT})
 
     def chat(self, messages: Sequence[ChatMessage]) -> str:
         """Send `messages` through the run's own endpoint."""

@@ -14,7 +14,7 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from guardana.core.budget import BudgetExhausted, Budgets
 from guardana.core.target._url import display_url
-from guardana.core.target.base import Capability, Target, TargetKind
+from guardana.core.target.base import Capability, Target, TargetKind, WireProtocol
 from guardana.core.target.decline import RequestDeclined
 from guardana.core.usage import TargetUsage, TokenUsage, UsageMeter
 
@@ -746,6 +746,10 @@ class EndpointTarget(Target):
         if isinstance(self._transport, ToolCallingTransport):
             caps.add(Capability.CALL_TOOLS)
         return caps
+
+    def speaks(self) -> frozenset[WireProtocol]:
+        """Speak chat, whatever transport carries it."""
+        return frozenset({WireProtocol.CHAT})
 
     @property
     def transport(self) -> ChatTransport:

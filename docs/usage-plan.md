@@ -312,7 +312,9 @@ on stderr, one line per cause:
   a graded recording whose run stopped, or, for `plan scan`, a path that holds no file
   other than `.guardanaignore` files (`empty_target`, the shortfall `scan` records);
 - **a rule it would skip while `fail_on.fail_on_skipped` is on** — a capability the
-  target does not declare, or a safety mode that refuses the rule;
+  target does not declare, or a safety mode that refuses the rule. A rule about a protocol
+  the target does not speak (an MCP or A2A rule against a chat endpoint, a chat rule
+  against an MCP server or an A2A agent) is skipped `not_applicable` and is not one;
 - **a file under `calibrations:` that would stop the run** — missing, unreadable, or
   measuring an evaluator another file measures too;
 - **an error the run would record before its first rule** — a rule file that does not

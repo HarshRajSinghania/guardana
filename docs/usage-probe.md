@@ -73,13 +73,16 @@ system-prompt, and MCP connection flags. The plugin owns construction; Guardana
 still owns rule selection, policy, budgets, evidence, and exit codes. A custom
 endpoint implements `SystemPromptPlanter` to receive isolated canary passes; if
 it does not, canary rules are explicitly skipped rather than graded without a
-marker. See [`extending.md`](extending.md#adding-a-target).
+marker. A target that says it speaks chat (`Target.speaks()`) has every MCP and A2A rule
+skipped as `not_applicable`; one that does not say has them skipped for a missing
+capability. See [`extending.md`](extending.md#adding-a-target).
 
 ## Probing an MCP server
 
 `--mcp` points `probe` at a Model Context Protocol server rather than a chat
-endpoint. There is no model to talk to, so every chat rule is skipped by
-capability and says so; what runs instead is the manifest check, the nine
+endpoint. There is no model to talk to: the server speaks MCP, so every chat and A2A
+rule, canary rules included, is skipped as `not_applicable` and says so, and
+`fail_on_skipped` does not count it. What runs instead is the manifest check, the nine
 authorization checks and, with `--mcp-registry-entry`, the registry comparison.
 
 ```bash
@@ -326,8 +329,8 @@ it is.
 
 ## Probing an A2A agent
 
-`--a2a` points `probe` at an A2A v1 agent. Every chat and MCP
-rule is skipped by capability; three checks run instead.
+`--a2a` points `probe` at an A2A v1 agent. It speaks A2A, so every chat and MCP rule is
+skipped as `not_applicable`; three checks run instead.
 
 ```bash
 export A2A_ALICE=… A2A_BOB=…

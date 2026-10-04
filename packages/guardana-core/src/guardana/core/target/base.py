@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 from enum import StrEnum
+from types import MappingProxyType
 from typing import TYPE_CHECKING, ClassVar, Self
 
 from guardana.core.budget import BudgetExhausted, Budgets
@@ -65,6 +66,45 @@ class Capability(StrEnum):
     """The target holds a fixtures file's seeded items and one endpoint per declared tenant."""
 
 
+class WireProtocol(StrEnum):
+    """The protocol a target speaks to its callers, and the one a rule's capabilities examine.
+
+    The MCP and A2A values equal the keys of `Target.protocols()`, so a negotiated
+    version and a spoken protocol are named alike.
+    """
+
+    CHAT = "chat"
+    MCP = "mcp"
+    A2A = "a2a"
+
+
+WIRE_PROTOCOL_OF: Mapping[Capability, WireProtocol] = MappingProxyType(
+    {
+        Capability.CHAT: WireProtocol.CHAT,
+        Capability.CALL_TOOLS: WireProtocol.CHAT,
+        Capability.PLANT_SYSTEM_PROMPT: WireProtocol.CHAT,
+        Capability.LIST_TOOLS: WireProtocol.MCP,
+        Capability.INSPECT_AUTHORIZATION: WireProtocol.MCP,
+        Capability.REGISTRY_ENTRY: WireProtocol.MCP,
+        Capability.INSPECT_A2A: WireProtocol.A2A,
+    }
+)
+"""The wire protocol each protocol-bound capability belongs to.
+
+A capability left out (file reads, trace dimensions, seeded data) names no protocol, so
+a rule requiring only those is never read as being about another protocol.
+"""
+
+
+def wire_protocols_of(capabilities: Collection[Capability]) -> frozenset[WireProtocol]:
+    """Return the wire protocols `capabilities` examine; empty when none names one."""
+    return frozenset(
+        WIRE_PROTOCOL_OF[capability]
+        for capability in capabilities
+        if capability in WIRE_PROTOCOL_OF
+    )
+
+
 class LocatorError(ValueError):
     """A target locator or one of its non-secret options is invalid."""
 
@@ -105,6 +145,17 @@ class Target(ABC):
     @abstractmethod
     def ref(self) -> str:
         """Stable identifier used in findings and reports."""
+
+    def speaks(self) -> frozenset[WireProtocol] | None:
+        """Return the wire protocols this target speaks, or None when it does not say.
+
+        What a target implements is its capabilities; what it is is its protocol. A target
+        that fronts MCP tools may implement only `chat` and `call_tools`, so the protocol
+        cannot be read from the capabilities. A rule examining only protocols this target
+        does not speak is skipped as not applicable; with None, a missing capability stays
+        a coverage gap.
+        """
+        return None
 
     def protocols(self) -> dict[str, str]:
         """Protocol versions this target actually negotiated, by protocol name.

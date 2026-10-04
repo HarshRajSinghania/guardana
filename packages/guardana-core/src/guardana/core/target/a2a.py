@@ -12,7 +12,7 @@ from guardana.core.target._a2a_view import (
 )
 from guardana.core.target._mcp_http import HttpSender, Sender
 from guardana.core.target._url import display_url
-from guardana.core.target.base import Capability, Target, TargetKind
+from guardana.core.target.base import Capability, Target, TargetKind, WireProtocol
 from guardana.core.usage import TargetUsage, UsageMeter
 
 __all__ = [
@@ -55,8 +55,9 @@ class A2aAgentTarget(Target):
     the second caller asks for the first caller's tasks. Every request goes through
     `sender`, the built-in pinned client unless a test double is given.
 
-    Kind is `endpoint`, and the one capability is `INSPECT_A2A`, so every chat and MCP
-    rule is skipped by capability. What an answer means is the rules' business.
+    Kind is `endpoint`, it speaks A2A and the one capability is `INSPECT_A2A`, so every
+    chat and MCP rule is skipped as not applicable. What an answer means is the rules'
+    business.
     """
 
     kind = TargetKind.ENDPOINT
@@ -98,6 +99,10 @@ class A2aAgentTarget(Target):
     def capabilities(self) -> set[Capability]:
         """Declare A2A inspection, and nothing a chat or MCP rule could ask for."""
         return {Capability.INSPECT_A2A}
+
+    def speaks(self) -> frozenset[WireProtocol]:
+        """Speak A2A."""
+        return frozenset({WireProtocol.A2A})
 
     @property
     def ref(self) -> str:

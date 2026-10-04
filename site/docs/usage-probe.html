@@ -505,11 +505,14 @@ system-prompt, and MCP connection flags. The plugin owns construction; Guardana
 still owns rule selection, policy, budgets, evidence, and exit codes. A custom
 endpoint implements <code>SystemPromptPlanter</code> to receive isolated canary passes; if
 it does not, canary rules are explicitly skipped rather than graded without a
-marker. See <a href="extending.html#adding-a-target"><code>extending.md</code></a>.</p>
+marker. A target that says it speaks chat (<code>Target.speaks()</code>) has every MCP and A2A rule
+skipped as <code>not_applicable</code>; one that does not say has them skipped for a missing
+capability. See <a href="extending.html#adding-a-target"><code>extending.md</code></a>.</p>
 <h2 id="probing-an-mcp-server">Probing an MCP server</h2>
 <p><code>--mcp</code> points <code>probe</code> at a Model Context Protocol server rather than a chat
-endpoint. There is no model to talk to, so every chat rule is skipped by
-capability and says so; what runs instead is the manifest check, the nine
+endpoint. There is no model to talk to: the server speaks MCP, so every chat and A2A
+rule, canary rules included, is skipped as <code>not_applicable</code> and says so, and
+<code>fail_on_skipped</code> does not count it. What runs instead is the manifest check, the nine
 authorization checks and, with <code>--mcp-registry-entry</code>, the registry comparison.</p>
 <pre><code class="language-bash">export MCP_TOKEN=…
 guardana probe \
@@ -786,8 +789,8 @@ each rule declares what it would cost <em>alone</em>, because a plan cannot know
 one runs first and buys the shared observation — so treat it as the upper bound
 it is.</p>
 <h2 id="probing-an-a2a-agent">Probing an A2A agent</h2>
-<p><code>--a2a</code> points <code>probe</code> at an A2A v1 agent. Every chat and MCP
-rule is skipped by capability; three checks run instead.</p>
+<p><code>--a2a</code> points <code>probe</code> at an A2A v1 agent. It speaks A2A, so every chat and MCP rule is
+skipped as <code>not_applicable</code>; three checks run instead.</p>
 <pre><code class="language-bash">export A2A_ALICE=… A2A_BOB=…
 guardana probe --a2a https://agent.example.com \
   --a2a-token-env A2A_ALICE \

@@ -703,6 +703,23 @@ execution), <code>McpServerTarget</code>, <code>A2aAgentTarget</code> and <code>
 run's meter; <code>guardana.core.testing.seeded_target</code> builds one over a double). A rule declares the capabilities it needs via
 <code>required_capabilities</code> in <code>RuleMeta</code>; the <code>Runner</code> skips a rule whose target
 cannot satisfy them rather than crashing.</p>
+<p><strong>Say which protocol your target speaks.</strong> A capability says what a target implements, not
+what it is: an agent that fronts MCP tools may implement only <code>chat</code> and <code>call_tools</code>.
+Override <code>Target.speaks()</code> to return the <code>WireProtocol</code> values your target speaks
+(<code>CHAT</code>, <code>MCP</code>, <code>A2A</code>, from <code>guardana.core.target</code>). A rule's protocol comes from the
+capabilities it requires (<code>wire_protocols_of</code>: <code>chat</code>, <code>call_tools</code> and
+<code>plant_system_prompt</code> are chat; <code>list_tools</code>, <code>inspect_authorization</code> and <code>registry_entry</code>
+are MCP; <code>inspect_a2a</code> is A2A). A rule whose protocols your target does not speak is
+skipped as <code>not_applicable</code>, which <code>fail_on_skipped</code> and <code>--preset release</code> do not count;
+a capability missing within a protocol it speaks stays a <code>missing_capability</code> gap. The
+default, <code>None</code>, says nothing, and every rule the target cannot serve is a
+<code>missing_capability</code> gap. A wrapper or a view returns what the target it wraps speaks.</p>
+<pre><code class="language-python">from guardana.core.target import WireProtocol
+
+class MyAgentTarget(Target):
+    def speaks(self) -&gt; frozenset[WireProtocol] | None:
+        return frozenset({WireProtocol.CHAT})
+</code></pre>
 <p><strong>Check it, rather than assuming it.</strong> <code>guardana.testing.conformance</code> ships in the
 package for this, and it checks <em>both</em> directions — including the one that produces
 no error at all:</p>

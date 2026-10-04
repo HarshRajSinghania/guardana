@@ -399,6 +399,26 @@ run's meter; `guardana.core.testing.seeded_target` builds one over a double). A 
 `required_capabilities` in `RuleMeta`; the `Runner` skips a rule whose target
 cannot satisfy them rather than crashing.
 
+**Say which protocol your target speaks.** A capability says what a target implements, not
+what it is: an agent that fronts MCP tools may implement only `chat` and `call_tools`.
+Override `Target.speaks()` to return the `WireProtocol` values your target speaks
+(`CHAT`, `MCP`, `A2A`, from `guardana.core.target`). A rule's protocol comes from the
+capabilities it requires (`wire_protocols_of`: `chat`, `call_tools` and
+`plant_system_prompt` are chat; `list_tools`, `inspect_authorization` and `registry_entry`
+are MCP; `inspect_a2a` is A2A). A rule whose protocols your target does not speak is
+skipped as `not_applicable`, which `fail_on_skipped` and `--preset release` do not count;
+a capability missing within a protocol it speaks stays a `missing_capability` gap. The
+default, `None`, says nothing, and every rule the target cannot serve is a
+`missing_capability` gap. A wrapper or a view returns what the target it wraps speaks.
+
+```python
+from guardana.core.target import WireProtocol
+
+class MyAgentTarget(Target):
+    def speaks(self) -> frozenset[WireProtocol] | None:
+        return frozenset({WireProtocol.CHAT})
+```
+
 **Check it, rather than assuming it.** `guardana.testing.conformance` ships in the
 package for this, and it checks *both* directions — including the one that produces
 no error at all:

@@ -79,7 +79,8 @@ with the line at fault (exit `3`).
 | Rule | Outcome |
 |---|---|
 | A suite, single-turn or scenario rule the recording answers | Graded as in a probe. |
-| A rule that plants a canary, offers tools or inspects an MCP server | Skipped for a missing capability, as against any endpoint that lacks it. |
+| A rule that plants a canary or offers tools | Skipped for a missing capability, as against any endpoint that lacks it. |
+| An MCP or A2A rule | Skipped as `not_applicable`: the recording speaks chat and the rule examines another protocol, so nothing is missing and `fail_on_skipped` does not count it. |
 | A rule no line names, and the recording's `origin` does not list | Skipped as `not_recorded`, before it runs; `plan grade` lists it too. |
 
 Nothing missing is ever read as a pass:

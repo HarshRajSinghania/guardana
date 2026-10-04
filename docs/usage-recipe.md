@@ -192,6 +192,12 @@ sends nothing until the pins hold; then the run's gate decides its exit code as 
 `evaluator_removed`, `target_changed`, `source_added`, `source_removed`, `source_changed`.
 Review the change, then run `guardana recipe lock` again.
 
+A rule about a protocol the subject does not speak is pinned as skipped `not_applicable`: an
+MCP or A2A rule against a chat endpoint or a recording, a chat rule against an MCP server
+or an A2A agent. A lock that pinned such a rule under another reason, `missing_capability`
+or, under `--safety passive`, `unsafe_mode`, drifts `skip_changed` for it; take the lock
+again.
+
 All three commands regrade the regression pairs of every selected suite
 ([`guardana case add`](usage-case.md)) before they compare anything, sending nothing: each
 pair's `observed` must still grade `fail` and its `accepted` `pass` with the rule as it is

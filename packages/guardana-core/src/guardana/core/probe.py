@@ -22,6 +22,7 @@ from guardana.core.rule import Rule
 from guardana.core.runner import (
     DEFAULT_ENDPOINT_CONCURRENCY,
     Runner,
+    protocol_refusal,
     reported_once,
     safety_refusal,
 )
@@ -213,7 +214,7 @@ def _unplantable_skips(
     for rule in rules:
         if rule.meta.target_kind is not target.kind or not profile.policy.matches(rule.meta.id):
             continue
-        refusal = safety_refusal(profile, rule)
+        refusal = protocol_refusal(rule, target) or safety_refusal(profile, rule)
         if refusal is not None:
             skipped.append(refusal)
             continue

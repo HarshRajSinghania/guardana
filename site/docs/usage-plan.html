@@ -624,7 +624,9 @@ run that verifies nothing reports no verdict;</li>
 a graded recording whose run stopped, or, for <code>plan scan</code>, a path that holds no file
 other than <code>.guardanaignore</code> files (<code>empty_target</code>, the shortfall <code>scan</code> records);</li>
 <li><strong>a rule it would skip while <code>fail_on.fail_on_skipped</code> is on</strong> — a capability the
-target does not declare, or a safety mode that refuses the rule;</li>
+target does not declare, or a safety mode that refuses the rule. A rule about a protocol
+the target does not speak (an MCP or A2A rule against a chat endpoint, a chat rule
+against an MCP server or an A2A agent) is skipped <code>not_applicable</code> and is not one;</li>
 <li><strong>a file under <code>calibrations:</code> that would stop the run</strong> — missing, unreadable, or
 measuring an evaluator another file measures too;</li>
 <li><strong>an error the run would record before its first rule</strong> — a rule file that does not

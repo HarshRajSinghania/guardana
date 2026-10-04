@@ -35,11 +35,14 @@ from guardana.core.target.a2a import (
 from guardana.core.target.adapter import AdapterConfig, HttpAdapterTransport
 from guardana.core.target.artifact import ArtifactTarget
 from guardana.core.target.base import (
+    WIRE_PROTOCOL_OF,
     Capability,
     LocatorError,
     Target,
     TargetKind,
+    WireProtocol,
     examined_by_rules_only,
+    wire_protocols_of,
 )
 from guardana.core.target.decline import (
     DeclaredDecline,
@@ -92,6 +95,7 @@ from guardana.core.target.trace import TraceTarget, capability_for, dimensions_o
 
 __all__ = [
     "REQUEST_TIMEOUT_SECONDS",
+    "WIRE_PROTOCOL_OF",
     "A2aAgentTarget",
     "A2aAnonymous",
     "A2aAnswer",
@@ -162,6 +166,7 @@ __all__ = [
     "TraceReader",
     "TraceTarget",
     "UnreadableReply",
+    "WireProtocol",
     "capability_for",
     "challenge_parameters",
     "dimensions_of",
@@ -173,4 +178,5 @@ __all__ = [
     "same_origin",
     "scopes_in",
     "send",
+    "wire_protocols_of",
 ]

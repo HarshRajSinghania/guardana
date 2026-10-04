@@ -318,7 +318,7 @@
 <li><code>ArtifactTarget</code> walks a directory and gives rules model files, manifests, and source. It skips <code>.git</code>, <code>.venv</code>, <code>node_modules</code>, and similar directories.</li>
 <li><code>EndpointTarget</code> connects to a live chat endpoint. It provides <code>chat(messages)</code> and, when supported, <code>offer_tools(messages, tools)</code>. It hides the wire protocol selected by <code>--provider openai|ollama|tgi</code>.</li>
 </ul>
-<p>Targets advertise <code>READ_FILES</code>, <code>CHAT</code>, <code>PLANT_SYSTEM_PROMPT</code>, and <code>CALL_TOOLS</code> capabilities. Rules declare what they need. The runner records a skip when a target lacks a required capability.</p>
+<p>Targets advertise capabilities such as <code>READ_FILES</code>, <code>CHAT</code>, <code>PLANT_SYSTEM_PROMPT</code>, and <code>CALL_TOOLS</code>, and say which wire protocol they speak: chat, MCP or A2A (<code>Target.speaks()</code>). Rules declare the capabilities they need, and those capabilities name the protocol the rule examines. A rule about a protocol the target does not speak is skipped as <code>not_applicable</code>, which is not a coverage gap. Otherwise the runner records a <code>missing_capability</code> skip when a target lacks a required capability, and that is a gap.</p>
 <h3 id="rule--what-to-look-for">Rule — what to look for</h3>
 <p>A Rule is one check. Declarative YAML sends prompts to an evaluator or runs a multi-turn <code>steps:</code> scenario. Python plugins handle parsing a pickle, walking an AST, reading a model config, or driving a tool-calling probe.</p>
 <p>Each rule carries <code>RuleMeta</code>: its id, severity, <code>surface</code>, standards taxonomy, and required capabilities. The <code>surface</code> is derived automatically: artifact ⇒ build; endpoint ⇒ runtime.</p>
@@ -342,7 +342,7 @@
 <h3 id="registry--runner--discovery-and-execution">Registry + Runner — discovery and execution</h3>
 <ul>
 <li>The <strong>Registry</strong> discovers built-in and third-party rules and evaluators through Python entry points. Private rules use the same path as built-ins.</li>
-<li>The <strong>Runner</strong> takes a registry, profile, and target. It skips rules excluded by layer, profile, or target capabilities. It catches and records rule exceptions so a failed rule cannot abort the scan or appear to pass. It sorts results into findings or <code>unverified</code> and returns a <code>ScanResult</code>.</li>
+<li>The <strong>Runner</strong> takes a registry, profile, and target. It skips rules excluded by layer, profile, the target's protocol, or target capabilities. It catches and records rule exceptions so a failed rule cannot abort the scan or appear to pass. It sorts results into findings or <code>unverified</code> and returns a <code>ScanResult</code>.</li>
 </ul>
 <h3 id="one-scan-end-to-end">One scan, end to end</h3>
 <p><code>guardana scan ./model-dir</code> builds an <code>ArtifactTarget</code>. <code>Registry.discover(trust)</code> finds the installed rules the plugin trust admits. Guardana resolves the default profile, <code>guardana.yaml</code>, or <code>--preset</code>. <code>Runner</code> runs build rules the target can support. The renderer prints the findings, and <code>gate()</code> sets a non-zero exit code when a result meets the failure bar or zero rules actually ran.</p>

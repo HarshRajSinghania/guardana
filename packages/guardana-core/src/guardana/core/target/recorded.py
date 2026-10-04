@@ -17,7 +17,7 @@ from guardana.core.assessment import UnmeasuredReason
 from guardana.core.budget import Budgets
 from guardana.core.fingerprint import DocumentDigest
 from guardana.core.recording import RecordedExchange, Recording, messages_key
-from guardana.core.target.base import Capability, Target, TargetKind
+from guardana.core.target.base import Capability, Target, TargetKind, WireProtocol
 from guardana.core.target.decline import RequestDeclined
 from guardana.core.target.endpoint import ChatMessage, ChatReply
 from guardana.core.usage import TargetUsage
@@ -45,8 +45,9 @@ class ReplyUnavailable(Exception):  # noqa: N818 — named for what the rule mee
 class RecordedTarget(Target):
     """A chat endpoint whose replies come from a recording; nothing leaves the machine.
 
-    Only `chat` is offered, so a rule needing a planted canary, offered tools or an MCP
-    server is skipped for the missing capability as on any endpoint lacking it. The ref
+    Only `chat` is offered, so a rule needing a planted canary or offered tools is skipped
+    for the missing capability as on any endpoint lacking it; an MCP or A2A rule examines
+    a protocol a recording does not speak and is skipped as not applicable. The ref
     names the recording, so it never shares a fingerprint or a baseline waiver with a live
     target.
     """
@@ -96,6 +97,10 @@ class RecordedTarget(Target):
     def capabilities(self) -> set[Capability]:
         """Declare `chat` and nothing else."""
         return {Capability.CHAT}
+
+    def speaks(self) -> frozenset[WireProtocol]:
+        """Speak chat: a recording replays a chat endpoint's answers."""
+        return frozenset({WireProtocol.CHAT})
 
     def usage(self) -> TargetUsage:
         """Report zero requests and tokens: replaying a recording sends nothing."""
@@ -196,6 +201,10 @@ class _RecordedView(Target):
     def capabilities(self) -> set[Capability]:
         """Return the base target's capabilities."""
         return self._base.capabilities()
+
+    def speaks(self) -> frozenset[WireProtocol]:
+        """Return the base target's protocol: chat."""
+        return self._base.speaks()
 
     def usage(self) -> TargetUsage:
         """Return the base target's usage: nothing sent."""

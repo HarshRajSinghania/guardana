@@ -190,8 +190,28 @@ def test_the_budget_refusal_still_exits_3(monkeypatch: pytest.MonkeyPatch, tmp_p
 def test_a_plan_refuses_a_rule_it_would_skip_while_fail_on_skipped_is_on(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    # An MCP rule against a chat endpoint is skipped for a missing capability; with
-    # `fail_on_skipped` on, the run is indeterminate before it sends anything.
+    # A tool rule against a chat endpoint that cannot offer tools is skipped for a
+    # missing capability; with `fail_on_skipped` on, the run is indeterminate before it
+    # sends anything.
+    profile = tmp_path / "guardana.yaml"
+    profile.write_text(
+        "name: t\nrules:\n  include: ['guardana.agent.excessive_tool_use', "
+        "'guardana.prompt.injection.*']\nfail_on:\n  fail_on_skipped: true\n",
+        encoding="utf-8",
+    )
+
+    result = _plan(monkeypatch, "probe", tmp_path, "--profile", str(profile))
+
+    assert result.exit_code == ExitCode.INVALID_USAGE, result.output
+    assert "fail_on_skipped is on" in _plain(result.output)
+    assert "guardana.agent.excessive_tool_use" in _plain(result.output)
+
+
+def test_a_rule_about_another_protocol_does_not_refuse_the_plan_while_fail_on_skipped_is_on(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # A chat endpoint speaks no MCP, so an MCP rule has nothing to check there: it is
+    # recorded `not_applicable`, which no `fail_on_*` switch counts.
     profile = tmp_path / "guardana.yaml"
     profile.write_text(
         "name: t\nrules:\n  include: ['guardana.mcp.cache_scope', 'guardana.prompt.injection.*']\n"
@@ -201,9 +221,8 @@ def test_a_plan_refuses_a_rule_it_would_skip_while_fail_on_skipped_is_on(
 
     result = _plan(monkeypatch, "probe", tmp_path, "--profile", str(profile))
 
-    assert result.exit_code == ExitCode.INVALID_USAGE, result.output
-    assert "fail_on_skipped is on" in _plain(result.output)
-    assert "guardana.mcp.cache_scope" in _plain(result.output)
+    assert result.exit_code == ExitCode.OK, result.output
+    assert "guardana.mcp.cache_scope" not in _plain(result.stderr)
 
 
 def test_a_skipped_rule_does_not_refuse_the_plan_while_fail_on_skipped_is_off(
@@ -264,14 +283,17 @@ def test_the_release_preset_passes_a_clean_scan_plan_and_still_says_what_it_cann
 def test_the_release_preset_refuses_a_probe_plan_the_endpoint_cannot_cover(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    # A chat endpoint declares no MCP surface, so every MCP rule is a skip the release
-    # gate refuses; the endpoint may still skip more at run time, which the note says.
+    # An endpoint that cannot offer tools skips every tool rule, a skip the release gate
+    # refuses; an MCP rule is not one, since a chat endpoint speaks no MCP. The endpoint
+    # may still skip more at run time, which the note says.
     result = _plan(monkeypatch, "probe", tmp_path, "--preset", "release")
 
     assert result.exit_code == ExitCode.INVALID_USAGE, result.output
     stderr = _plain(result.stderr)
     assert "fail_on_skipped is on" in stderr
-    assert "guardana.mcp.cache_scope" in stderr
+    assert "guardana.agent.excessive_tool_use" in stderr
+    assert "guardana.mcp." not in stderr
+    assert "guardana.a2a." not in stderr
     assert _ENDPOINT_NOTE in stderr
     assert _DECLINES_NOTE in stderr
 

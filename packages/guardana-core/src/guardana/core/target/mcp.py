@@ -25,7 +25,7 @@ from guardana.core.target._mcp_http import DiscoverySender, HttpSender, McpError
 from guardana.core.target._mcp_registry import RegistryEntry, ReportedServer
 from guardana.core.target._mcp_wire import Era
 from guardana.core.target._url import display_url
-from guardana.core.target.base import Capability, Target, TargetKind
+from guardana.core.target.base import Capability, Target, TargetKind, WireProtocol
 from guardana.core.usage import TargetUsage, UsageMeter
 
 __all__ = [
@@ -81,9 +81,9 @@ class McpServerTarget(Target):
     `registry_entry` is the operator's copy of the server's registry `server.json`;
     `REGISTRY_ENTRY` is declared only when one was given, over HTTP or stdio.
 
-    Kind is `endpoint` — this is a live service, not files. It advertises
-    `LIST_TOOLS` always, so every chat rule is skipped against it by capability
-    rather than by a type check that could quietly return nothing, and
+    Kind is `endpoint` — this is a live service, not files. It speaks MCP, so every
+    chat or A2A rule is skipped against it as not applicable rather than by a type
+    check that could quietly return nothing. It advertises `LIST_TOOLS` always, and
     `INSPECT_AUTHORIZATION` **only over HTTP**: the specification says an stdio
     server should take its credentials from the environment instead of following
     the authorization spec, so grading one against OAuth requirements would be
@@ -172,6 +172,10 @@ class McpServerTarget(Target):
         if self._registry_entry is not None:
             declared.add(Capability.REGISTRY_ENTRY)
         return declared
+
+    def speaks(self) -> frozenset[WireProtocol]:
+        """Speak MCP, over HTTP or stdio."""
+        return frozenset({WireProtocol.MCP})
 
     def registry_entry(self) -> RegistryEntry:
         """Return the registry entry the operator supplied; raise when there is none."""

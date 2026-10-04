@@ -417,8 +417,12 @@ with the line at fault (exit <code>3</code>).</p>
 <td>Graded as in a probe.</td>
 </tr>
 <tr>
-<td>A rule that plants a canary, offers tools or inspects an MCP server</td>
+<td>A rule that plants a canary or offers tools</td>
 <td>Skipped for a missing capability, as against any endpoint that lacks it.</td>
+</tr>
+<tr>
+<td>An MCP or A2A rule</td>
+<td>Skipped as <code>not_applicable</code>: the recording speaks chat and the rule examines another protocol, so nothing is missing and <code>fail_on_skipped</code> does not count it.</td>
 </tr>
 <tr>
 <td>A rule no line names, and the recording's <code>origin</code> does not list</td>

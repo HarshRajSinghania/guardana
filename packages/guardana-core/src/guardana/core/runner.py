@@ -31,6 +31,7 @@ from guardana.core.target import (
     ReplyUnavailable,
     Target,
     TargetKind,
+    wire_protocols_of,
 )
 from guardana.core.target._scoped import RuleScoped
 from guardana.core.target.endpoint import TargetChanged, secrets_sent_by
@@ -704,7 +705,8 @@ def select_rules(
         if meta.target_kind != target.kind or not profile.policy.matches(meta.id):
             continue
         refusal = (
-            safety_refusal(profile, rule)
+            protocol_refusal(rule, target)
+            or safety_refusal(profile, rule)
             or capability_refusal(rule, target.ref, capabilities)
             or applicability_refusal(rule, target)
         )
@@ -728,6 +730,29 @@ def _unrecorded(rule: Rule, target: RecordedTarget) -> SkippedRule | None:
         detail=(
             f"{target.ref} holds no reply for {rule.meta.id} and does not list it among the "
             f"rules it was recorded for, so the check did not happen"
+        ),
+    )
+
+
+def protocol_refusal(rule: Rule, target: Target) -> SkippedRule | None:
+    """Skip a rule that examines only protocols `target` does not speak, as not applicable.
+
+    Asked before every other refusal: a rule about another protocol has nothing to check
+    here, so neither a safety ceiling nor a missing capability is what kept it from
+    running. A rule whose capabilities name no protocol, or a target that does not say
+    what it speaks, is left to the refusals after this one.
+    """
+    needed = wire_protocols_of(rule.meta.required_capabilities)
+    spoken = target.speaks()
+    if not needed or spoken is None or needed & spoken:
+        return None
+    return SkippedRule(
+        rule_id=rule.meta.id,
+        reason=SkipReason.NOT_APPLICABLE,
+        missing=(),
+        detail=(
+            f"{target.ref} speaks {', '.join(sorted(spoken))}, and {rule.meta.id} "
+            f"examines {', '.join(sorted(needed))}"
         ),
     )
 
@@ -1063,6 +1088,7 @@ __all__ = [
     "gate",
     "gate_outcome",
     "incomplete_recording",
+    "protocol_refusal",
     "refused_by_this_run",
     "safety_refusal",
     "target_failures",
