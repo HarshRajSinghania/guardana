@@ -1,12 +1,14 @@
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 
 from guardana.core.report import Finding
 from guardana.core.rule import RuleMeta
+from guardana.core.rule.fixture import FixtureOutcome, RuleFixture, materialise
 from guardana.core.safety import Detection
 from guardana.core.severity import Severity
 from guardana.core.target import Capability, TargetKind
 from guardana.core.taxonomy import OWASP_ASI03_2026, OWASP_LLM03_2026, OWASP_MCP02_2025
-from guardana.core.trace import Trace
+from guardana.core.trace import Consent, Delegation, Span, SpanKind, Trace
+from guardana.rules.trace import _samples
 from guardana.rules.trace._base import TraceRule
 
 
@@ -34,6 +36,28 @@ class ConsentScopeExceededRule(TraceRule):
     )
 
     claim = "whether an ungranted scope was exercised is not established"
+
+    def fixtures(self) -> Iterable[RuleFixture]:
+        """Sample a scope beyond the grant, one within it, and a hop that kept its scopes quiet."""
+        return materialise(
+            (
+                _samples.sample(
+                    "a client granted read access calling with read and write",
+                    FixtureOutcome.FINDING,
+                    lambda: _samples.target(_granted(), _used(("docs:read", "docs:write"))),
+                ),
+                _samples.sample(
+                    "a client calling with the one scope it was granted",
+                    FixtureOutcome.CLEAN,
+                    lambda: _samples.target(_granted(), _used(("docs:read",))),
+                ),
+                _samples.sample(
+                    "a client whose call does not record which scopes it used",
+                    FixtureOutcome.INCONCLUSIVE,
+                    lambda: _samples.target(_granted(), _used(None)),
+                ),
+            )
+        )
 
     def examine(self, trace: Trace) -> Iterator[Finding]:
         """Compare exercised scopes against granted ones, declining where either is silent.
@@ -104,3 +128,23 @@ class ConsentScopeExceededRule(TraceRule):
                 else:
                     granted[consent.client].update(consent.scopes)
         return granted, silent
+
+
+def _granted() -> Span:
+    """Build the consent screen granting the client `docs:read` and nothing else."""
+    return Span(
+        span_id="s1",
+        kind=SpanKind.TOOL_EXECUTION,
+        name="consent",
+        consents=(Consent(client="client-1", granted=True, scopes=("docs:read",)),),
+    )
+
+
+def _used(scopes: tuple[str, ...] | None) -> Span:
+    """Build the client calling the documents service with `scopes`, or without saying which."""
+    return Span(
+        span_id="s2",
+        kind=SpanKind.TOOL_EXECUTION,
+        name="docs",
+        delegations=(Delegation(actor="client-1", boundary="client->docs", scopes=scopes),),
+    )

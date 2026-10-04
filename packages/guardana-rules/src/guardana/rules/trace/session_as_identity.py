@@ -1,12 +1,24 @@
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 
 from guardana.core.report import Finding
 from guardana.core.rule import RuleMeta
+from guardana.core.rule.fixture import FixtureOutcome, RuleFixture, materialise
 from guardana.core.safety import Detection
 from guardana.core.severity import Severity
 from guardana.core.target import Capability, TargetKind
 from guardana.core.taxonomy import OWASP_ASI03_2026, OWASP_MCP07_2025
-from guardana.core.trace import Trace
+from guardana.core.trace import (
+    CredentialKind,
+    CredentialRef,
+    Identity,
+    SessionRef,
+    Span,
+    SpanKind,
+    ToolExecution,
+    Trace,
+    TraceTruncation,
+)
+from guardana.rules.trace import _samples
 from guardana.rules.trace._base import TraceRule
 
 
@@ -36,6 +48,31 @@ class SessionAsIdentityRule(TraceRule):
 
     claim = "whether a state-changing step was authenticated is not established"
 
+    def fixtures(self) -> Iterable[RuleFixture]:
+        """Sample a write on a bare session, one with a credential, and one cut by the reader."""
+        return materialise(
+            (
+                _samples.sample(
+                    "a record update identified by its session id alone",
+                    FixtureOutcome.FINDING,
+                    lambda: _samples.target(_update(credential=None)),
+                ),
+                _samples.sample(
+                    "a record update presenting a credential beside its session",
+                    FixtureOutcome.CLEAN,
+                    lambda: _samples.target(_update(credential=_CREDENTIAL)),
+                ),
+                _samples.sample(
+                    "an authenticated update in a trace the reader stopped at its ceiling",
+                    FixtureOutcome.INCONCLUSIVE,
+                    lambda: _samples.target(
+                        _update(credential=_CREDENTIAL), truncated=TraceTruncation.READ_LIMIT
+                    ),
+                    "a later write on a bare session may be in the part that was not read",
+                ),
+            )
+        )
+
     def examine(self, trace: Trace) -> Iterator[Finding]:
         """Find spans that changed something while carrying only a session reference.
 
@@ -59,3 +96,19 @@ class SessionAsIdentityRule(TraceRule):
                 f"to, so anything holding the id inherits what the session could do",
                 span=span,
             )
+
+
+_CREDENTIAL = CredentialRef(kind=CredentialKind.BEARER, digest="sha256:token")
+
+
+def _update(*, credential: CredentialRef | None) -> Span:
+    """Build a tool call the producer recorded as mutating, on an MCP session."""
+    return Span(
+        span_id="s1",
+        kind=SpanKind.TOOL_EXECUTION,
+        name="update_record",
+        tool=ToolExecution(name="update_record", mutates=True),
+        identity=Identity(
+            credential=credential, session=SessionRef(id="session-1", protocol="mcp")
+        ),
+    )

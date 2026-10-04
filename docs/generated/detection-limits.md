@@ -246,7 +246,7 @@ A framework mapping says a rule is relevant to that entry, not that the entry is
 
 ## trace
 
-### Invariant, not sampled
+### Tested invariant
 
 - `guardana.trace.consent_scope_exceeded`: A scope was exercised that no consent record granted
 - `guardana.trace.credential_passthrough`: A credential was presented across two different trust boundaries

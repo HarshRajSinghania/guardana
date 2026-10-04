@@ -1,12 +1,14 @@
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 
 from guardana.core.report import Finding
 from guardana.core.rule import RuleMeta
+from guardana.core.rule.fixture import FixtureOutcome, RuleFixture, materialise
 from guardana.core.safety import Detection
 from guardana.core.severity import Severity
 from guardana.core.target import Capability, TargetKind
 from guardana.core.taxonomy import OWASP_ASI03_2026, OWASP_MCP01_2025
-from guardana.core.trace import Trace
+from guardana.core.trace import CredentialKind, CredentialRef, Identity, Span, SpanKind, Trace
+from guardana.rules.trace import _samples
 from guardana.rules.trace._base import TraceRule
 
 
@@ -33,6 +35,29 @@ class IdentityDisagreementRule(TraceRule):
     )
 
     claim = "whether a token was presented outside its audience is not established"
+
+    def fixtures(self) -> Iterable[RuleFixture]:
+        """Sample a mismatched audience, a matching one, and a matching one beside a lost record."""
+        return materialise(
+            (
+                _samples.sample(
+                    "a token minted for billing presented to the reports service",
+                    FixtureOutcome.FINDING,
+                    lambda: _samples.target(_presented("https://billing.invalid/")),
+                ),
+                _samples.sample(
+                    "a token presented to the resource its audience names",
+                    FixtureOutcome.CLEAN,
+                    lambda: _samples.target(_presented(_RESOURCE)),
+                ),
+                _samples.sample(
+                    "a matching presentation beside a record the reader could not interpret",
+                    FixtureOutcome.INCONCLUSIVE,
+                    lambda: _samples.target(_presented(_RESOURCE), unreadable=1),
+                    "the unread record may be a presentation outside its audience",
+                ),
+            )
+        )
 
     def examine(self, trace: Trace) -> Iterator[Finding]:
         """Compare audience against claimed resource, and decline where either is absent.
@@ -68,3 +93,21 @@ class IdentityDisagreementRule(TraceRule):
         covered by `https://a`.
         """
         return audience.rstrip("/") == resource.rstrip("/")
+
+
+_RESOURCE = "https://reports.invalid"
+
+
+def _presented(audience: str) -> Span:
+    """Build a call to the reports service carrying a token minted for `audience`."""
+    return Span(
+        span_id="s1",
+        kind=SpanKind.TOOL_EXECUTION,
+        name="fetch_report",
+        identity=Identity(
+            credential=CredentialRef(
+                kind=CredentialKind.BEARER, digest="sha256:token", audience=(audience,)
+            ),
+            claimed_resource=_RESOURCE,
+        ),
+    )

@@ -1,12 +1,16 @@
-from collections.abc import Iterator
+import json
+from collections.abc import Iterable, Iterator
 
 from guardana.core.report import Finding
 from guardana.core.rule import RuleMeta
+from guardana.core.rule.fixture import FixtureOutcome, RuleFixture, materialise
 from guardana.core.safety import Detection
 from guardana.core.severity import Severity
 from guardana.core.target import Capability, TargetKind
 from guardana.core.taxonomy import ATLAS_T0057, OWASP_ASI03_2026, OWASP_LLM02_2026
-from guardana.core.trace import Span, Trace
+from guardana.core.testing import fake_llm_key
+from guardana.core.trace import Span, SpanKind, ToolExecution, Trace
+from guardana.rules.trace import _samples
 from guardana.rules.trace._base import TraceRule
 
 from guardana.rules._secrets import (  # isort: skip — shared with the two scanning rules
@@ -42,6 +46,29 @@ class SecretInToolArgumentRule(TraceRule):
     )
 
     claim = "whether a credential travelled in a tool argument is not established"
+
+    def fixtures(self) -> Iterable[RuleFixture]:
+        """Sample a key in a request header, a plain request, and one beside an unread record."""
+        return materialise(
+            (
+                _samples.sample(
+                    "an API key passed to an HTTP tool as a request header",
+                    FixtureOutcome.FINDING,
+                    lambda: _samples.target(_request(header=fake_llm_key())),
+                ),
+                _samples.sample(
+                    "an HTTP tool called with a URL and nothing secret",
+                    FixtureOutcome.CLEAN,
+                    lambda: _samples.target(_request()),
+                ),
+                _samples.sample(
+                    "a plain request beside a record the reader could not interpret",
+                    FixtureOutcome.INCONCLUSIVE,
+                    lambda: _samples.target(_request(), unreadable=1),
+                    "the unread record may be a tool call carrying a credential",
+                ),
+            )
+        )
 
     def examine(self, trace: Trace) -> Iterator[Finding]:
         """Scan every recorded tool argument, from the execution and from the message part.
@@ -81,3 +108,16 @@ class SecretInToolArgumentRule(TraceRule):
                 found = match.group(0)
                 if found not in ALLOWLIST:
                     yield label, found
+
+
+def _request(*, header: str | None = None) -> Span:
+    """Build an HTTP tool call, sending `header` as its API key when one is given."""
+    arguments: dict[str, object] = {"url": "https://api.invalid/v1/items"}
+    if header is not None:
+        arguments["headers"] = {"x-api-key": header}
+    return Span(
+        span_id="s1",
+        kind=SpanKind.TOOL_EXECUTION,
+        name="http_request",
+        tool=ToolExecution(name="http_request", arguments=json.dumps(arguments)),
+    )

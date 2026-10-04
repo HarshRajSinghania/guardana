@@ -1,12 +1,22 @@
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 
 from guardana.core.report import Finding
 from guardana.core.rule import RuleMeta
+from guardana.core.rule.fixture import FixtureOutcome, RuleFixture, materialise
 from guardana.core.safety import Detection
 from guardana.core.severity import Severity
 from guardana.core.target import Capability, TargetKind
 from guardana.core.taxonomy import OWASP_ASI03_2026, OWASP_LLM03_2026, OWASP_MCP01_2025
-from guardana.core.trace import Delegation, Trace
+from guardana.core.trace import (
+    CredentialKind,
+    CredentialRef,
+    Delegation,
+    Span,
+    SpanKind,
+    Trace,
+    TraceTruncation,
+)
+from guardana.rules.trace import _samples
 from guardana.rules.trace._base import TraceRule
 
 _HOPS_NEEDED_TO_COMPARE = 2
@@ -39,6 +49,31 @@ class CredentialPassthroughRule(TraceRule):
     )
 
     claim = "whether one credential crossed two boundaries is not established"
+
+    def fixtures(self) -> Iterable[RuleFixture]:
+        """Sample a forwarded token, an exchanged one, and a trace cut after the first hop."""
+        return materialise(
+            (
+                _samples.sample(
+                    "a gateway presenting its caller's token to the service behind it",
+                    FixtureOutcome.FINDING,
+                    lambda: _samples.target(_hop("s1", "caller"), _onward("s2", "caller")),
+                ),
+                _samples.sample(
+                    "a gateway exchanging its caller's token before calling onward",
+                    FixtureOutcome.CLEAN,
+                    lambda: _samples.target(_hop("s1", "caller"), _onward("s2", "exchanged")),
+                ),
+                _samples.sample(
+                    "a trace whose producer stopped writing after the first credentialed hop",
+                    FixtureOutcome.INCONCLUSIVE,
+                    lambda: _samples.target(
+                        _hop("s1", "caller"), truncated=TraceTruncation.UNTERMINATED
+                    ),
+                    "the onward hop that would carry the same token may be in the missing part",
+                ),
+            )
+        )
 
     def examine(self, trace: Trace) -> Iterator[Finding]:
         """Compare every credentialed hop against every other, by digest.
@@ -90,3 +125,23 @@ class CredentialPassthroughRule(TraceRule):
 
     def _digest(self, hop: Delegation) -> str:
         return hop.credential.digest or "" if hop.credential is not None else ""
+
+
+def _hop(span_id: str, token: str) -> Span:
+    """Build the agent calling its gateway with a token whose digest names `token`."""
+    return _delegating(span_id, "agent", "agent->gateway", token)
+
+
+def _onward(span_id: str, token: str) -> Span:
+    """Build the gateway calling billing with a token whose digest names `token`."""
+    return _delegating(span_id, "gateway", "gateway->billing", token)
+
+
+def _delegating(span_id: str, actor: str, boundary: str, token: str) -> Span:
+    credential = CredentialRef(kind=CredentialKind.BEARER, digest=f"sha256:{token}")
+    return Span(
+        span_id=span_id,
+        kind=SpanKind.TOOL_EXECUTION,
+        name=boundary,
+        delegations=(Delegation(actor=actor, boundary=boundary, credential=credential),),
+    )

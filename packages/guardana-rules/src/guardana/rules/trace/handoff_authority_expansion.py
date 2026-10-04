@@ -1,12 +1,14 @@
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 
 from guardana.core.report import Finding
 from guardana.core.rule import RuleMeta
+from guardana.core.rule.fixture import FixtureOutcome, RuleFixture, materialise
 from guardana.core.safety import Detection
 from guardana.core.severity import Severity
 from guardana.core.target import Capability, TargetKind
 from guardana.core.taxonomy import OWASP_ASI03_2026, OWASP_ASI07_2026, OWASP_LLM03_2026
-from guardana.core.trace import Span, Trace
+from guardana.core.trace import AgentRef, Delegation, Handoff, Span, SpanKind, Trace
+from guardana.rules.trace import _samples
 from guardana.rules.trace._base import TraceRule
 
 
@@ -38,6 +40,28 @@ class HandoffAuthorityExpansionRule(TraceRule):
     )
 
     claim = "whether an agent gained authority across a handoff is not established"
+
+    def fixtures(self) -> Iterable[RuleFixture]:
+        """Sample a receiver exceeding the handoff, one within it, and a handoff silent on scope."""
+        return materialise(
+            (
+                _samples.sample(
+                    "a writer handed read access to documents, then writing to the CRM",
+                    FixtureOutcome.FINDING,
+                    lambda: _samples.target(_handoff(("docs:read",)), _writer("crm:write")),
+                ),
+                _samples.sample(
+                    "a writer handed read access to documents, then reading documents",
+                    FixtureOutcome.CLEAN,
+                    lambda: _samples.target(_handoff(("docs:read",)), _writer("docs:read")),
+                ),
+                _samples.sample(
+                    "a handoff that does not record which scopes crossed",
+                    FixtureOutcome.INCONCLUSIVE,
+                    lambda: _samples.target(_handoff(None), _writer("docs:read")),
+                ),
+            )
+        )
 
     def examine(self, trace: Trace) -> Iterator[Finding]:
         """Compare what crossed each handoff against what the receiving agent then used.
@@ -123,3 +147,25 @@ class HandoffAuthorityExpansionRule(TraceRule):
                 f"delegated across {'; '.join(unrecorded)} without recording which scopes it "
                 f"used, so {self.claim} for those hops",
             )
+
+
+def _handoff(carried: tuple[str, ...] | None) -> Span:
+    """Build the researcher handing work to the writer with `carried`, or unsaid."""
+    return Span(
+        span_id="h1",
+        kind=SpanKind.HANDOFF,
+        name="handoff",
+        agent=AgentRef(name="researcher"),
+        handoff=Handoff(from_agent="researcher", to_agent="writer", carried_scopes=carried),
+    )
+
+
+def _writer(scope: str) -> Span:
+    """Build the writer, after the handoff, delegating with `scope`."""
+    return Span(
+        span_id="s2",
+        kind=SpanKind.TOOL_EXECUTION,
+        name="delegate",
+        agent=AgentRef(name="writer"),
+        delegations=(Delegation(actor="writer", boundary="writer->service", scopes=(scope,)),),
+    )
