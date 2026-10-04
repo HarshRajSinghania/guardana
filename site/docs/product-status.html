@@ -71,6 +71,7 @@
 <li><a href="usage-rule-test.html">guardana rule test</a></li>
 <li><a href="usage-new-pack.html">guardana new-pack</a></li>
 <li><a href="usage-pack.html">guardana pack</a></li>
+<li><a href="outputs.html">Installed outputs<span class="tag">beta</span></a></li>
 <li><a href="extending.html">Extending Guardana</a></li>
 <li><a href="model-formats.html">Reading model formats</a></li>
 </ul>
@@ -202,6 +203,7 @@
 <li><a href="usage-rule-test.html">guardana rule test</a></li>
 <li><a href="usage-new-pack.html">guardana new-pack</a></li>
 <li><a href="usage-pack.html">guardana pack</a></li>
+<li><a href="outputs.html">Installed outputs<span class="tag">beta</span></a></li>
 <li><a href="extending.html">Extending Guardana</a></li>
 <li><a href="model-formats.html">Reading model formats</a></li>
 </ul>
@@ -353,7 +355,8 @@ so this page is maintained as carefully as the code.</p>
 <p><strong>Experimental:</strong> Judge-graded suites use <code>answered</code> and <code>reference_judge</code>. Judge-error correction adjusts trial and suite rates using Rogan–Gladen and a calibration recorded on the team's own corpus with <code>guardana calibrate --record</code>. Without a usable calibration, the suite declines; it never passes on an uncorrected judge rate. Experimental means shipped, but behaviour, thresholds, and saved fields may change in a minor release.</p>
 <p><strong>Released (beta), first half of F6:</strong> <a href="usage-recipe.html">repository recipes</a> that pin a team's checks and refuse a run whose pins moved, one set of connection settings across <code>probe</code>, <code>plan probe</code>, <code>target inspect</code>, <code>monitor</code> and every judge, and a tested <a href="providers.html">provider table</a>.</p>
 <p><strong>Released (beta), F7:</strong> MCP checks proven against servers built on the <code>mcp</code> SDK in both revisions, and the A2A checks against agents built on <code>a2a-sdk</code>; a capability a server does not offer is recorded as skipped <code>not_offered</code>, a coverage gap.</p>
-<p><strong>Not released:</strong> The five-user first-run study (F2), the rest of F6 (the team regression loop and the live retrieval pilot), and one redacted export with a webhook (F4) are roadmap items in <code>ROADMAP.md</code>. Pages under <code>docs/design/</code> record decisions; each page's status line says whether it shipped.</p>
+<p><strong>Released (beta), F4:</strong> an installed package adds a format for <code>--format</code> and a reporter for <code>--reporter</code> (<a href="outputs.html">installed outputs</a>), imported only when named, behind the redaction the saved run went through, with a delivery line on every path and exit <code>8</code> when an installed output fails. <code>examples/output_pack</code> is the reference: a CSV export and a Standard Webhooks sender. It is an example to copy, not a published package, and the output contract is versioned by its own <code>output_api</code>. Not supported: diff renderers, binary formats, more than one reporter per run, and installed outputs on <code>monitor</code>, <code>import-observations</code> and <code>recipe run</code>.</p>
+<p><strong>Not released:</strong> The five-user first-run study (F2) and the rest of F6 (the team regression loop and the live retrieval pilot) are roadmap items in <code>ROADMAP.md</code>. Pages under <code>docs/design/</code> record decisions; each page's status line says whether it shipped.</p>
 <h2 id="known-limitations">Known limitations</h2>
 <p>Stated plainly, because finding these out after adoption is worse than reading
 them now.</p>

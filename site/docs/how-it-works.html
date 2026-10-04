@@ -71,6 +71,7 @@
 <li><a href="usage-rule-test.html">guardana rule test</a></li>
 <li><a href="usage-new-pack.html">guardana new-pack</a></li>
 <li><a href="usage-pack.html">guardana pack</a></li>
+<li><a href="outputs.html">Installed outputs<span class="tag">beta</span></a></li>
 <li><a href="extending.html">Extending Guardana</a></li>
 <li><a href="model-formats.html">Reading model formats</a></li>
 </ul>
@@ -202,6 +203,7 @@
 <li><a href="usage-rule-test.html">guardana rule test</a></li>
 <li><a href="usage-new-pack.html">guardana new-pack</a></li>
 <li><a href="usage-pack.html">guardana pack</a></li>
+<li><a href="outputs.html">Installed outputs<span class="tag">beta</span></a></li>
 <li><a href="extending.html">Extending Guardana</a></li>
 <li><a href="model-formats.html">Reading model formats</a></li>
 </ul>
@@ -394,7 +396,7 @@ mypack = &quot;mypack:provide_rules&quot;
 [project.entry-points.&quot;guardana.evaluators&quot;]
 mypack = &quot;mypack:provide_evaluators&quot;
 </code></pre>
-<p><code>provide_rules()</code> returns your <code>Rule</code> instances (or a list). <code>Registry.discover(trust)</code> finds them with the built-ins once trust admits your distribution. Use your own id prefix, such as <code>acme.*</code>; <code>guardana.*</code> is reserved for built-ins. Profiles can include or exclude ids by glob. Entry points also register <code>guardana.targets</code> and <code>guardana.taxonomies</code>: four groups in total, all discovered the same way. See <a href="architecture.html#current-entry-point-groups"><code>architecture.md</code></a>.</p>
+<p><code>provide_rules()</code> returns your <code>Rule</code> instances (or a list). <code>Registry.discover(trust)</code> finds them with the built-ins once trust admits your distribution. Use your own id prefix, such as <code>acme.*</code>; <code>guardana.*</code> is reserved for built-ins. Profiles can include or exclude ids by glob. Entry points also register <code>guardana.targets</code> and <code>guardana.taxonomies</code>: four groups discovered the same way. Two more, <code>guardana.renderers</code> and <code>guardana.reporters</code>, add a format or a reporter that is imported only when <code>--format</code> or <code>--reporter</code> names it (<a href="outputs.html"><code>outputs.md</code></a>). See <a href="architecture.html#current-entry-point-groups"><code>architecture.md</code></a>.</p>
 <h3 id="the-two-authoring-paths">The two authoring paths</h3>
 <ul>
 <li><strong>YAML</strong> defines single-turn <code>prompts:</code> or multi-turn <code>steps:</code> scenarios. <code>guardana new-rule acme.prompt.my_check</code> scaffolds a rule. <code>--rules ./dir</code> runs a directory without packaging.</li>
@@ -407,10 +409,10 @@ mypack = &quot;mypack:provide_evaluators&quot;
 <h3 id="test-doubles-so-your-rule-ships-with-proof">Test doubles, so your rule ships with proof</h3>
 <p>Every rule needs a positive and a negative fixture: one showing it fires and one showing it stays quiet. <code>guardana.core.testing</code> provides <code>ScriptedTransport</code>, <code>RefusingTransport</code>, <code>ToolCallingScriptedTransport</code>, and other scripted model doubles for network-free dynamic tests. <code>build_gguf</code>, <code>build_safetensors</code>, and <code>build_onnx</code> build malicious static fixtures from dict literals instead of committed binaries.</p>
 <h3 id="a-complete-runnable-example">A complete, runnable example</h3>
-<p><code>examples/custom_rule/</code> is a third-party package with two plugin rules, three YAML rules, a custom classifier, a custom target, and a custom taxonomy. It registers all four entry-point groups and needs no Guardana changes. One plugin rule inspects a GGUF model file using engine parsing, leaving only policy in the rule.</p>
+<p><code>examples/custom_rule/</code> is a third-party package with two plugin rules, three YAML rules, a custom classifier, a custom target, and a custom taxonomy. It registers all four run groups and needs no Guardana changes; <code>examples/output_pack/</code> does the same for an export and a webhook. One plugin rule inspects a GGUF model file using engine parsing, leaving only policy in the rule.</p>
 <hr />
 <h2 id="7-central-monitoring-and-why-the-collector-is-separate">7. Central monitoring, and why the collector is separate</h2>
-<p>A scan, a trace analysis and every report format work offline. A probe or <code>monitor</code> talks to its target, a judge configured under <code>evaluators:</code> to its own endpoint, and <code>--reporter</code> to the collector; nothing else leaves the machine. For fleet-wide visibility, <code>--reporter server://…</code> forwards normalized findings in a versioned JSON envelope at schema version 8. The envelope includes <code>unverified</code>, so the collector cannot show a false all-clear. Self-hosted <code>guardana-server</code> provides ingest, list, trend, and an opt-in monitoring dashboard, with scoped API-key authentication and PostgreSQL persistence.</p>
+<p>A scan, a trace analysis and every report format work offline. A probe or <code>monitor</code> talks to its target, a judge configured under <code>evaluators:</code> to its own endpoint, and <code>--reporter</code> to the collector or to the destination an installed reporter is given; nothing else leaves the machine. For fleet-wide visibility, <code>--reporter server://…</code> forwards normalized findings in a versioned JSON envelope at schema version 8. The envelope includes <code>unverified</code>, so the collector cannot show a false all-clear. Self-hosted <code>guardana-server</code> provides ingest, list, trend, and an opt-in monitoring dashboard, with scoped API-key authentication and PostgreSQL persistence.</p>
 <p><code>guardana-core</code> never imports <code>guardana-server</code>, directly or transitively. An import-linter contract and a test enforce that boundary. The open-source engine runs on its own; the collector is a separate layer.</p>
 <hr />
 <h2 id="8-the-one-invariant-that-matters-most">8. The one invariant that matters most</h2>

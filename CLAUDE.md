@@ -93,8 +93,8 @@ Full wording and the incidents behind each: `docs/maintainers/lessons.md`.
 
 `schema_version` of every persisted document (run manifest, report envelope, baseline, lock
 file, profile, pack manifest; `schemas/`) · exit codes (`docs/exit-codes.md`) · rule ids and
-the reserved `guardana.*` namespace · the four entry-point groups (`guardana.rules`,
-`guardana.evaluators`, `guardana.targets`, `guardana.taxonomies`) · CLI flags and locator
+the reserved `guardana.*` namespace · the six entry-point groups (`guardana.rules`,
+`guardana.evaluators`, `guardana.targets`, `guardana.taxonomies`, `guardana.renderers`, `guardana.reporters`) · CLI flags and locator
 schemes · the collector's routes and envelope · `action.yml` inputs and the moving `vX.Y`
 tags · image tags and `deploy/` shapes · the trace format integrators write.
 

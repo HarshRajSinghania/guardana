@@ -190,6 +190,7 @@ Worth knowing
 | `5` | An internal error. |
 | `6` | A judge's budget ran out. |
 | `7` | Interrupted. |
+| `8` | An [installed format](outputs.md) named by `--format` failed; the verdict is printed. |
 
 See [exit codes](exit-codes.md). `grade` has no `--reporter`: the collector does not receive
-graded runs.
+graded runs. `--format` takes the built-in formats or an [installed one](outputs.md).

@@ -38,7 +38,9 @@ so this page is maintained as carefully as the code.
 
 **Released (beta), F7:** MCP checks proven against servers built on the `mcp` SDK in both revisions, and the A2A checks against agents built on `a2a-sdk`; a capability a server does not offer is recorded as skipped `not_offered`, a coverage gap.
 
-**Not released:** The five-user first-run study (F2), the rest of F6 (the team regression loop and the live retrieval pilot), and one redacted export with a webhook (F4) are roadmap items in `ROADMAP.md`. Pages under `docs/design/` record decisions; each page's status line says whether it shipped.
+**Released (beta), F4:** an installed package adds a format for `--format` and a reporter for `--reporter` ([installed outputs](outputs.md)), imported only when named, behind the redaction the saved run went through, with a delivery line on every path and exit `8` when an installed output fails. `examples/output_pack` is the reference: a CSV export and a Standard Webhooks sender. It is an example to copy, not a published package, and the output contract is versioned by its own `output_api`. Not supported: diff renderers, binary formats, more than one reporter per run, and installed outputs on `monitor`, `import-observations` and `recipe run`.
+
+**Not released:** The five-user first-run study (F2) and the rest of F6 (the team regression loop and the live retrieval pilot) are roadmap items in `ROADMAP.md`. Pages under `docs/design/` record decisions; each page's status line says whether it shipped.
 
 ## Known limitations
 

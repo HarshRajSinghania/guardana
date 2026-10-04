@@ -71,6 +71,7 @@
 <li><a href="usage-rule-test.html">guardana rule test</a></li>
 <li><a href="usage-new-pack.html">guardana new-pack</a></li>
 <li><a href="usage-pack.html" aria-current="page">guardana pack</a></li>
+<li><a href="outputs.html">Installed outputs<span class="tag">beta</span></a></li>
 <li><a href="extending.html">Extending Guardana</a></li>
 <li><a href="model-formats.html">Reading model formats</a></li>
 </ul>
@@ -202,6 +203,7 @@
 <li><a href="usage-rule-test.html">guardana rule test</a></li>
 <li><a href="usage-new-pack.html">guardana new-pack</a></li>
 <li><a href="usage-pack.html" aria-current="page">guardana pack</a></li>
+<li><a href="outputs.html">Installed outputs<span class="tag">beta</span></a></li>
 <li><a href="extending.html">Extending Guardana</a></li>
 <li><a href="model-formats.html">Reading model formats</a></li>
 </ul>
@@ -317,7 +319,9 @@ provides:
   taxonomies:
     - ACME-CONTROLS
 </code></pre>
-<p><code>provides:</code> names all four extension groups. <code>taxonomies:</code> lists <strong>framework
+<p><code>provides:</code> names all four run groups. A pack that adds an <a href="outputs.html">installed output</a>
+also lists <code>renderers:</code> and <code>reporters:</code> by name, declares the output API it was written
+against as <code>output_api: &quot;&gt;=1,&lt;2&quot;</code>, and uses <code>schema_version: 3</code>. <code>taxonomies:</code> lists <strong>framework
 names</strong>, not individual controls — a pack registers a catalogue, and a team shipping
 two hundred controls would otherwise maintain two hundred lines that say one thing.</p>
 <p>It goes inside the package because <code>pack validate</code> runs against an <strong>installed
@@ -440,6 +444,10 @@ for it to name. <code>pack validate</code> says so where it happened:</p>
 <p>A schema 1 manifest that <em>does</em> name <code>taxonomies:</code> is refused. A key invented after
 the version that names it is a manifest whose own <code>schema_version</code> no longer
 describes it, and an older build reading the same file would drop the key silently.</p>
+<p><strong>Schema 3 adds <code>provides.renderers</code>, <code>provides.reporters</code> and <code>output_api</code>.</strong> Write it only
+for a pack that adds an output: schema 2 is still current, and a pack without outputs stays
+readable by older builds at 2. <code>output_api</code> is required exactly when an output is declared.
+A schema 2 manifest naming any of the three is refused, as above.</p>
 <p><strong>There is no <code>pack migrate</code> command, deliberately.</strong> A saved run is generated and
 Guardana may rewrite it; a manifest is hand-written and belongs to you.</p>
 <h2 id="guardana-pack-lock--pin-what-a-check-is"><code>guardana pack lock</code> — pin what a check <em>is</em></h2>
@@ -499,12 +507,22 @@ teammate's lock in the older layout.</p>
 <td>a third-party catalogue has no <em>file</em> to pin, but what it registered is content</td>
 </tr>
 <tr>
+<td>formats, reporters</td>
+<td>name only, as <code>renderers:</code> and <code>reporters:</code> in the pack entry</td>
+<td>Python, with nothing declared to hash, as for evaluators</td>
+</tr>
+<tr>
 <td>everything else</td>
 <td>the distribution name and version beside it</td>
 <td>the coarse pin, and the only one that covers an implementation whose declaration did not move</td>
 </tr>
 </tbody>
 </table></div>
+<p>A lock is schema 3 only when it pins a format or reporter, or lists one under <code>unlocked:</code>
+as <code>renderer:&lt;name&gt;</code> or <code>reporter:&lt;name&gt;</code>; otherwise it stays schema 2, which older builds
+read. A schema 2 lock checked against a build with an installed output reports the output as
+added and asks for <code>guardana pack lock</code>. Both commands also exit <code>2</code> when trust refused an
+installed output, it failed to load, or two distributions install one output name.</p>
 <p><code>unlocked:</code> lists extensions registered by a package that declares <strong>no manifest</strong>.
 They are recorded and not attributed to a pack, and the command says so on stderr —
 a lock that stayed silent about them would read as a fully pinned repository that

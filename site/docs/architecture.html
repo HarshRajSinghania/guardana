@@ -71,6 +71,7 @@
 <li><a href="usage-rule-test.html">guardana rule test</a></li>
 <li><a href="usage-new-pack.html">guardana new-pack</a></li>
 <li><a href="usage-pack.html">guardana pack</a></li>
+<li><a href="outputs.html">Installed outputs<span class="tag">beta</span></a></li>
 <li><a href="extending.html">Extending Guardana</a></li>
 <li><a href="model-formats.html">Reading model formats</a></li>
 </ul>
@@ -202,6 +203,7 @@
 <li><a href="usage-rule-test.html">guardana rule test</a></li>
 <li><a href="usage-new-pack.html">guardana new-pack</a></li>
 <li><a href="usage-pack.html">guardana pack</a></li>
+<li><a href="outputs.html">Installed outputs<span class="tag">beta</span></a></li>
 <li><a href="extending.html">Extending Guardana</a></li>
 <li><a href="model-formats.html">Reading model formats</a></li>
 </ul>
@@ -468,31 +470,26 @@ class Profile:
 <p><code>guardana.core.registry.Registry</code> is the one place that finds rules and
 evaluators, built-in or third-party, so nothing else in the engine
 hard-codes a list of them:</p>
-<pre><code class="language-python">_TAXONOMY_GROUP = &quot;guardana.taxonomies&quot;
-_RULE_GROUP = &quot;guardana.rules&quot;
-_EVALUATOR_GROUP = &quot;guardana.evaluators&quot;
-_TARGET_GROUP = &quot;guardana.targets&quot;
-
-class Registry:
+<pre><code class="language-python">class Registry:
     @classmethod
     def discover(cls, trust: PluginTrust) -&gt; Self:
         reg = cls()
-        for group, register in (
+        handlers = {
             # Taxonomies first: a YAML rule's `taxonomy:` resolves while its
             # own entry point is still loading.
-            (_TAXONOMY_GROUP, register_taxonomy),
-            (_RULE_GROUP, reg.register_rule),
-            (_EVALUATOR_GROUP, reg.register_evaluator),
-            (_TARGET_GROUP, reg.register_target),
-        ):
-            for ep in entry_points(group=group):
-                if not trust.allows(ep):
-                    reg.record_load_error(...)   # refused, never imported
-                    continue
-                _absorb(ep.load()(), register)
+            TAXONOMY_GROUP: (TaxonomyRef, reg._record_taxonomy),
+            RULE_GROUP: (Rule, reg.register_rule),
+            EVALUATOR_GROUP: (Evaluator, reg.register_evaluator),
+            TARGET_GROUP: (Target, reg.register_target),
+        }
+        for entry_point in installed_entry_points():  # the four groups, in that order
+            if not trust.allows(entry_point.distribution):
+                ...  # recorded as a refusal; never imported
+                continue
+            ...  # imported; its provider registers everything or nothing
         return reg
 </code></pre>
-<p><code>Registry.discover(trust)</code> walks every installed package's four entry-point
+<p><code>Registry.discover(trust)</code> walks every installed package's four run
 groups — <code>guardana.taxonomies</code>, <code>guardana.rules</code>, <code>guardana.evaluators</code>, and
 <code>guardana.targets</code> <a href="https://packaging.python.org/en/latest/specifications/entry-points/">entry points</a>
 — and calls each one <code>trust</code> allows (a zero-arg callable returning either a
@@ -552,6 +549,16 @@ via <code>guardana.yaml</code>'s <code>rules.paths</code>) on <code>scan</code>,
 <td><code>guardana.targets</code></td>
 <td>one <code>Target</code> subclass, or an iterable</td>
 <td><strong>Yes</strong> — <code>Registry.discover(trust)</code>. <code>Registry.targets()</code> exposes the discovered classes; a class declaring a unique <code>scheme</code> and <code>from_locator</code> is also selectable as <code>--target scheme://…</code> by commands accepting its kind. See <a href="extending.html#adding-a-target"><code>extending.md</code></a>.</td>
+</tr>
+<tr>
+<td><code>guardana.renderers</code></td>
+<td>one <code>RendererSpec</code></td>
+<td><strong>No</strong> — imported only when <code>--format</code> names it; see <a href="outputs.html"><code>outputs.md</code></a></td>
+</tr>
+<tr>
+<td><code>guardana.reporters</code></td>
+<td>one <code>ReporterSpec</code></td>
+<td><strong>No</strong> — imported only when <code>--reporter &lt;name&gt;://</code> names it</td>
 </tr>
 </tbody>
 </table></div>

@@ -32,7 +32,7 @@ guardana monitor (--url <base-url> --model <name> | --target <scheme://locator>)
 | `--profile PATH` | none (built-in default profile) | Path to a `guardana.yaml` policy file |
 | `--preset [ci\|pre-training\|monitor\|release]` | none | Named policy preset (mutually exclusive with `--profile`); `--preset monitor` fails on HIGH **and** on inconclusive — see [`profiles.md`](profiles.md#named-presets---preset) |
 | `--rules PATH` | none | Directory or file of custom YAML rules; repeatable. Combined with the profile's `rules.paths` — see [`writing-rules.md`](writing-rules.md). A malformed rule file is a warning, never an abort. |
-| `--reporter TEXT` | none | Forward each **alert's** findings to a collector, e.g. `server://https://collector.example.com` |
+| `--reporter TEXT` | none | Forward each **alert's** findings to a collector, e.g. `server://https://collector.example.com`; an [installed reporter](outputs.md) needs a saved run, so `<name>://` is refused with exit `3` |
 | `--ai-system TEXT` | none | Which AI system this watch verifies, e.g. `support-agent`, sent with each forwarded alert. Never guessed. |
 | `--environment TEXT` | none | Where it runs, e.g. `production`. Never guessed from a branch name. |
 | `--deployment-id TEXT` | none | Which version of it, if you have an identifier. |

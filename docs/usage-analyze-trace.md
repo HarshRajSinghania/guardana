@@ -236,9 +236,9 @@ session that ends when the process does is `unterminated` by construction.
 | `--dialect guardana\|otel` | Override detection |
 | `--write-trace PATH` | Also write the trace in the native dialect |
 | `--profile`, `--preset` | Policy, as for every other command — see [`profiles.md`](profiles.md) |
-| `--format human\|json\|sarif\|junit` | `json` is what [`guardana diff`](usage-diff.md) reads |
+| `--format human\|json\|sarif\|junit` | `json` is what [`guardana diff`](usage-diff.md) reads; an [installed format](outputs.md) is named the same way |
 | `--output PATH` | Save the run |
-| `--reporter server://URL` | Forward findings to a collector |
+| `--reporter server://URL` | Forward findings to a collector, or to an [installed reporter](outputs.md) as `<name>://<locator>` |
 | `--ai-system`, `--environment`, `--deployment-id` | What this trace came from. Never guessed |
 | `--rules`, `--plugins`, `--allow-plugin` | Rule loading and plugin trust, as for `scan`: `builtins` unless the flag or the profile's `plugins:` says otherwise |
 | `--contract PATH` | A [security contract](usage-contracts.md) to check this execution against; repeatable, and a directory loads every `.yaml` in it |

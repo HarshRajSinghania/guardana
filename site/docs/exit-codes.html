@@ -71,6 +71,7 @@
 <li><a href="usage-rule-test.html">guardana rule test</a></li>
 <li><a href="usage-new-pack.html">guardana new-pack</a></li>
 <li><a href="usage-pack.html">guardana pack</a></li>
+<li><a href="outputs.html">Installed outputs<span class="tag">beta</span></a></li>
 <li><a href="extending.html">Extending Guardana</a></li>
 <li><a href="model-formats.html">Reading model formats</a></li>
 </ul>
@@ -202,6 +203,7 @@
 <li><a href="usage-rule-test.html">guardana rule test</a></li>
 <li><a href="usage-new-pack.html">guardana new-pack</a></li>
 <li><a href="usage-pack.html">guardana pack</a></li>
+<li><a href="outputs.html">Installed outputs<span class="tag">beta</span></a></li>
 <li><a href="extending.html">Extending Guardana</a></li>
 <li><a href="model-formats.html">Reading model formats</a></li>
 </ul>
@@ -399,8 +401,16 @@ policy failure, or a typo in a config file reads as a security finding.</p>
 Nothing the command had not yet written is written afterwards, and the code says
 the run did not finish. Stopping <code>guardana monitor</code> with Ctrl-C exits <code>7</code> too, even
 after an alert: the alerts it printed are the record of the cycles that raised them.</p>
+<p><strong><code>8</code> is separate from <code>5</code>.</strong> An <a href="outputs.html">installed output</a> is code another
+distribution shipped: a format that raised or returned no text, so nothing was written,
+or a reporter whose delivery is <code>unknown</code> because it raised, returned no valid status or
+ran past its deadline. The bug report belongs to that distribution, so the code is not
+<code>5</code>. The verdict is printed before the error, <code>8</code> replaces <code>0</code>, <code>1</code> and <code>2</code>, and a run
+that stopped keeps <code>4</code>, <code>6</code> or <code>7</code>. A receiver that refused or did not answer is not
+<code>8</code>: the delivery line says so and the verdict keeps its code, as for the collector.</p>
 <h2 id="which-commands-produce-which">Which commands produce which</h2>
-<p><code>scan</code>, <code>probe</code> and <code>monitor</code> can produce any of them. A <code>monitor</code> bounded by
+<p><code>scan</code>, <code>probe</code> and <code>monitor</code> can produce any of them, except that <code>8</code> needs an installed
+format or reporter, which <code>monitor</code> refuses. A <code>monitor</code> bounded by
 <code>--max-cycles</code> exits with the worst outcome any cycle earned, judged as <code>probe</code> judges
 the cycle and as <code>diff</code> judges it against the first one; a policy failure outranks a
 stop, and a cycle the endpoint dropped or its target stopped is <code>4</code> when nothing worse was seen. <code>diff</code> has no target to be

@@ -46,6 +46,13 @@ If a pack is installed and you have not set trust, `doctor` lists every Guardana
     or --plugins all, which loads every installed distribution
 ```
 
+An installed format or reporter is listed in its distribution's block with a state decided
+from its name and the trust, since no run imports it until `--format` or `--reporter` names
+it: `imported only when selected`, `refused if selected under plugin trust builtins`, or
+`never selectable` for a reserved or invalid name or a name two distributions install. A
+name two distributions install also gets its own `output collision` warning. None of these
+fails `doctor` ([installed outputs](outputs.md)).
+
 A refusal is a warning because it reflects a trust choice. An admitted pack that fails to import is a failure. Each failure is shown on the entry point that raised it, whatever other entry points share its name. The list covers only Guardana entry points. A package's dependencies and `.pth` startup hooks run when Python starts, before Guardana decides trust; `doctor` does not claim to cover them. Like other commands, `doctor` accepts `--plugins`, `--allow-plugin` and `--profile`. It warns when a profile's `plugins:` widens trust beyond the built-ins. A pipeline checking untrusted contributions should pass a flag to keep trust on `builtins`.
 
 **It contacts nothing.** A diagnostic that costs money or shows up in somebody's

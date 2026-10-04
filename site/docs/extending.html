@@ -71,6 +71,7 @@
 <li><a href="usage-rule-test.html">guardana rule test</a></li>
 <li><a href="usage-new-pack.html">guardana new-pack</a></li>
 <li><a href="usage-pack.html">guardana pack</a></li>
+<li><a href="outputs.html">Installed outputs<span class="tag">beta</span></a></li>
 <li><a href="extending.html" aria-current="page">Extending Guardana</a></li>
 <li><a href="model-formats.html">Reading model formats</a></li>
 </ul>
@@ -202,6 +203,7 @@
 <li><a href="usage-rule-test.html">guardana rule test</a></li>
 <li><a href="usage-new-pack.html">guardana new-pack</a></li>
 <li><a href="usage-pack.html">guardana pack</a></li>
+<li><a href="outputs.html">Installed outputs<span class="tag">beta</span></a></li>
 <li><a href="extending.html" aria-current="page">Extending Guardana</a></li>
 <li><a href="model-formats.html">Reading model formats</a></li>
 </ul>
@@ -797,8 +799,21 @@ they are never graded against a marker that was not planted.</p>
 <td>one <code>Target</code> subclass, or an iterable</td>
 <td><code>Registry.discover(trust)</code></td>
 </tr>
+<tr>
+<td><code>guardana.renderers</code></td>
+<td>one <code>RendererSpec</code>; the entry point's name is the format's name</td>
+<td>only when <code>--format</code> names it (<a href="outputs.html">installed outputs</a>)</td>
+</tr>
+<tr>
+<td><code>guardana.reporters</code></td>
+<td>one <code>ReporterSpec</code>; the entry point's name is the reporter's name</td>
+<td>only when <code>--reporter &lt;name&gt;://</code> names it</td>
+</tr>
 </tbody>
 </table></div>
+<p>The two output groups are never walked by <code>Registry.discover</code>: an installed format or
+reporter is imported when a command selects it, and a run that does not select it neither
+imports nor records it. <a href="outputs.html#write-your-own"><code>outputs.md</code></a> describes the contract.</p>
 <p>A package registers by adding to its <code>pyproject.toml</code>:</p>
 <pre><code class="language-toml">[project.entry-points.&quot;guardana.taxonomies&quot;]
 my_taxonomies = &quot;acme_rules:provide_taxonomies&quot;

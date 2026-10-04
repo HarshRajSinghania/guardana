@@ -7,8 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **An installed package can add a format for `--format` and a reporter for `--reporter`, with no CLI change.** Two entry-point groups, `guardana.renderers` and `guardana.reporters`; the entry point's name is the output's name. An installed output is imported only when a command names it, so a run that does not select one neither imports nor records it. Selection happens before anything is sent and exits `3` for an unknown or reserved name, a name two distributions install, a distribution plugin trust does not admit, or an output that fails to load. See [installed outputs](docs/outputs.md).
+- **An installed output receives what the saved run holds.** The result gets the second redaction pass the built-in formats get; stop messages are never handed over; a reporter gets the target address redacted and never kept exchanges.
+- **A reporter prints one delivery line on every path:** `delivery: <status> — <name> to <destination>[ (HTTP <code>, <n> attempts)][: <detail>]`, with the status `delivered`, `rejected`, `unreachable`, `not_sent` or `unknown`. The prefix and status words are stable. A reporter that raises, returns no valid status or runs past 30 seconds is `unknown`.
+- **Exit code `8`: an installed output failed.** A format that raised or returned no text, so nothing was written, or a reporter whose delivery is `unknown`. The verdict is printed first; `8` replaces `0`, `1` and `2`, and a stopped run keeps `4`, `6` or `7`. A receiver that refused or did not answer keeps the verdict's code, as for the collector.
+- **`guardana.core.verify.load_verification(path)`** reads a saved run of any schema back as a `Verification` with the gate it recorded, so a saved run can be exported without sending anything. `guardana.core.output` holds the output contract, versioned by `OUTPUT_API_VERSION = 1`.
+- **`examples/output_pack`**, an independently installed package with `acme-table`, a CSV export of every outcome with formula cells neutralised, and `acme-webhook`, a Standard Webhooks sender. Its suite verifies every delivery with the specification's reference verifier, `standardwebhooks` 1.1.0, as a test-only dependency.
+- **Pack manifest schema 3 and pack lock schema 3** ([`pack-manifest-v3.schema.json`](schemas/pack-manifest-v3.schema.json), [`pack-lock-v3.schema.json`](schemas/pack-lock-v3.schema.json)). A manifest declares `provides.renderers`, `provides.reporters` and an `output_api` range; a lock pins outputs by name. Both are written only when an output is declared or pinned; otherwise manifests and locks stay schema 2.
+- **`guardana doctor` lists installed formats and reporters** without importing them, as imported only when selected, refused if selected, or never selectable, and warns when two distributions install one output name.
+
 ### Changed
 
+- **`--format` on `scan`, `probe`, `grade` and `analyze-trace` takes an installed format name, and `--reporter` takes `<name>://<locator>`** for an installed reporter. `monitor` and `import-observations` refuse `<name>://` with exit `3`, a mistyped scheme such as `htps://` included; `scan --write-baseline` and `probe --write-mcp-pin` refuse an installed output.
+- **`pack validate` and `pack lock` exit `2` when plugin trust refused an installed output, it failed to load, or two distributions install one output name**, before reading any manifest.
+- **Upgrade note:** a pack manifest or lock that declares or pins an output is schema 3, which Guardana 0.39 refuses; manifests and locks without outputs are unchanged.
 - **`--safety passive` is documented as sending nothing.** The `passive` impact covers files, traces and saved runs; any request to a live target, a manifest read included, is `active`, which every built-in endpoint rule already declares.
 
 ## [0.39.0] - 2026-10-04 — MCP and A2A probes with explicit coverage and saved stops

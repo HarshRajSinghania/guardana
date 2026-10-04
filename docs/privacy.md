@@ -18,8 +18,9 @@ Every command defaults to `redacted`; artifact scans send nothing, and Guardana 
 telemetry and needs no account. Probes contact the named target and send graded exchanges
 to judges or guards under `evaluators:`; when an MCP target requires authorization, they
 also read its advertised protected-resource metadata and the metadata of the authorization
-server it names, possibly on other hosts. Nothing else is contacted, and the collector
-receives results only with `--reporter`.
+server it names, possibly on other hosts. Nothing else is contacted. The collector, or a reporter
+an installed package adds, receives results only when `--reporter` names it, and a reporter never
+receives kept exchanges ([installed outputs](outputs.md#what-an-output-receives)).
 
 ```yaml
 privacy:

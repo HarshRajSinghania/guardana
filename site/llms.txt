@@ -62,6 +62,7 @@ This file is generated from the documentation map; do not edit it by hand.
 - [extending.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/extending.md): provide rules, evaluators, targets, or taxonomies
 - [usage-new-pack.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/usage-new-pack.md): scaffold an installable pack that already passes
 - [usage-pack.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/usage-pack.md): validate and lock extension packs
+- [outputs.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/outputs.md): add an export or a webhook from an installed package
 - [usage-taxonomy.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/usage-taxonomy.md): resolve framework editions and crosswalks
 - [model-formats.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/model-formats.md): use the bounded artifact readers
 

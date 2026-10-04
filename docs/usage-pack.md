@@ -52,7 +52,9 @@ provides:
     - ACME-CONTROLS
 ```
 
-`provides:` names all four extension groups. `taxonomies:` lists **framework
+`provides:` names all four run groups. A pack that adds an [installed output](outputs.md)
+also lists `renderers:` and `reporters:` by name, declares the output API it was written
+against as `output_api: ">=1,<2"`, and uses `schema_version: 3`. `taxonomies:` lists **framework
 names**, not individual controls — a pack registers a catalogue, and a team shipping
 two hundred controls would otherwise maintain two hundred lines that say one thing.
 
@@ -151,6 +153,11 @@ A schema 1 manifest that *does* name `taxonomies:` is refused. A key invented af
 the version that names it is a manifest whose own `schema_version` no longer
 describes it, and an older build reading the same file would drop the key silently.
 
+**Schema 3 adds `provides.renderers`, `provides.reporters` and `output_api`.** Write it only
+for a pack that adds an output: schema 2 is still current, and a pack without outputs stays
+readable by older builds at 2. `output_api` is required exactly when an output is declared.
+A schema 2 manifest naming any of the three is refused, as above.
+
 **There is no `pack migrate` command, deliberately.** A saved run is generated and
 Guardana may rewrite it; a manifest is hand-written and belongs to you.
 
@@ -199,7 +206,14 @@ teammate's lock in the older layout.
 | rules | `Rule.digest()` — the declaration, hashed | a sharpened corpus is visible; the Python behind it is not |
 | evaluators, targets | id only | an `Evaluator` is Python and has no declaration to hash; inventing a digest from a class name would claim to detect a change it cannot see |
 | catalogues | a digest over the references the pack registers | a third-party catalogue has no *file* to pin, but what it registered is content |
+| formats, reporters | name only, as `renderers:` and `reporters:` in the pack entry | Python, with nothing declared to hash, as for evaluators |
 | everything else | the distribution name and version beside it | the coarse pin, and the only one that covers an implementation whose declaration did not move |
+
+A lock is schema 3 only when it pins a format or reporter, or lists one under `unlocked:`
+as `renderer:<name>` or `reporter:<name>`; otherwise it stays schema 2, which older builds
+read. A schema 2 lock checked against a build with an installed output reports the output as
+added and asks for `guardana pack lock`. Both commands also exit `2` when trust refused an
+installed output, it failed to load, or two distributions install one output name.
 
 `unlocked:` lists extensions registered by a package that declares **no manifest**.
 They are recorded and not attributed to a pack, and the command says so on stderr —

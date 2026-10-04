@@ -184,6 +184,12 @@ isolation for packs that do execute has no stated release.
 Python package into your environment — because that is what it is. `SECURITY.md`
 says so.
 
+An installed format or reporter ([installed outputs](outputs.md)) is the same kind of code
+with one difference: no run imports it until `--format` or `--reporter` names it, so a run
+that does not select one is not exposed to it at all. A selected reporter sends data off the
+machine to a destination the operator names, as a probe target is named; Guardana applies no
+address policy to it.
+
 ### T4 — Evidence containing secrets
 
 **Scenario:** a rule finds a leaked API key, records it as evidence, and the
@@ -195,7 +201,10 @@ responses are not stored by default; `full` evidence mode warns loudly.
 
 **Residual risk:** a third-party rule that writes a secret into a field the
 redactor does not know about. Mitigated by redacting at one seam every output path
-goes through, rather than trusting rules.
+goes through, rather than trusting rules. An installed output receives what the saved run
+holds, redacted a second time, and a reporter never receives kept exchanges. The reference
+webhook sends no evidence, yet its rule ids, severities and titles per deployment are an
+inventory of weaknesses: it should go only where the report itself may go.
 
 ### T5 — A compromised collector API key
 

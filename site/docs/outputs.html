@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Security contracts — Guardana documentation</title>
-<meta name="description" content="security contracts: your application&#x27;s own invariants — tenant boundary, required approval, allowed scopes, credential boundary, forbidden sink — as a versioned file the engine compiles into rules">
-<link rel="canonical" href="https://guardana.dev/docs/usage-contracts">
+<title>Installed outputs — Guardana documentation</title>
+<meta name="description" content="an installed format for --format and an installed reporter for --reporter: choosing one, plugin trust, the delivery line, exit 8, exporting a saved run from Python, and writing your own">
+<link rel="canonical" href="https://guardana.dev/docs/outputs">
 <link rel="icon" href="../favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="../assets/brand/v1/tokens.css">
 <link rel="stylesheet" href="docs.css">
@@ -60,7 +60,7 @@
 <li><a href="usage-analyze-trace.html">guardana analyze-trace</a></li>
 <li><a href="usage-grade.html">guardana grade<span class="tag">beta</span></a></li>
 <li><a href="usage-trace-inspect.html">guardana trace inspect</a></li>
-<li><a href="usage-contracts.html" aria-current="page">Security contracts</a></li>
+<li><a href="usage-contracts.html">Security contracts</a></li>
 <li><a href="usage-import-observations.html">guardana import-observations</a></li>
 <li><a href="writing-an-integrator.html">Writing an integrator<span class="tag">beta</span></a></li>
 </ul>
@@ -71,7 +71,7 @@
 <li><a href="usage-rule-test.html">guardana rule test</a></li>
 <li><a href="usage-new-pack.html">guardana new-pack</a></li>
 <li><a href="usage-pack.html">guardana pack</a></li>
-<li><a href="outputs.html">Installed outputs<span class="tag">beta</span></a></li>
+<li><a href="outputs.html" aria-current="page">Installed outputs<span class="tag">beta</span></a></li>
 <li><a href="extending.html">Extending Guardana</a></li>
 <li><a href="model-formats.html">Reading model formats</a></li>
 </ul>
@@ -151,7 +151,7 @@
 </ul>
 </nav>
 <details class="mnav">
-<summary>Menu · <b>Security contracts</b></summary>
+<summary>Menu · <b>Installed outputs</b></summary>
 <nav class="inner" aria-label="Documentation">
 <ul class="home"><li><a href="index.html">Overview</a></li></ul>
 <h2>First run</h2><ul>
@@ -192,7 +192,7 @@
 <li><a href="usage-analyze-trace.html">guardana analyze-trace</a></li>
 <li><a href="usage-grade.html">guardana grade<span class="tag">beta</span></a></li>
 <li><a href="usage-trace-inspect.html">guardana trace inspect</a></li>
-<li><a href="usage-contracts.html" aria-current="page">Security contracts</a></li>
+<li><a href="usage-contracts.html">Security contracts</a></li>
 <li><a href="usage-import-observations.html">guardana import-observations</a></li>
 <li><a href="writing-an-integrator.html">Writing an integrator<span class="tag">beta</span></a></li>
 </ul>
@@ -203,7 +203,7 @@
 <li><a href="usage-rule-test.html">guardana rule test</a></li>
 <li><a href="usage-new-pack.html">guardana new-pack</a></li>
 <li><a href="usage-pack.html">guardana pack</a></li>
-<li><a href="outputs.html">Installed outputs<span class="tag">beta</span></a></li>
+<li><a href="outputs.html" aria-current="page">Installed outputs<span class="tag">beta</span></a></li>
 <li><a href="extending.html">Extending Guardana</a></li>
 <li><a href="model-formats.html">Reading model formats</a></li>
 </ul>
@@ -284,313 +284,205 @@
 </nav>
 </details>
 <main>
-<h1>Security contracts — your application's threat model, executable</h1><p class="lede"><strong>security contracts</strong>: your application's own invariants — tenant boundary, required approval, allowed scopes, credential boundary, forbidden sink — as a versioned file the engine compiles into rules</p><p><code>guardana analyze-trace</code> checks a recorded execution against a security contract when you need to verify application rules. Your team keeps the contract in its repository. Guardana compiles it into rules and grades the trace offline.</p>
-<pre><code class="language-bash">guardana analyze-trace run.jsonl --contract checkout.yaml --ai-system checkout-agent
+<h1>Installed outputs: formats and reporters a package adds<span class="status beta">beta</span></h1><p class="lede">an installed format for --format and an installed reporter for --reporter: choosing one, plugin trust, the delivery line, exit 8, exporting a saved run from Python, and writing your own</p><p>A package can add a format, selected with <code>--format</code>, and a reporter, selected with
+<code>--reporter</code>. Guardana needs no change and no new flag for either. An installed output is
+imported only when a command names it, and it receives what the saved run holds, never more.</p>
+<p><code>examples/output_pack</code> is a complete package with one of each: <code>acme-table</code>, a CSV export of
+every outcome, and <code>acme-webhook</code>, a signed webhook.</p>
+<h2 id="choose-one">Choose one</h2>
+<pre><code class="language-bash">pip install ./examples/output_pack
+guardana scan models/ --format acme-table --output run.csv \
+  --plugins allowlist --allow-plugin acme-guardana-outputs
+guardana probe --url https://api.example.com --model m \
+  --format json --output run.json \
+  --reporter acme-webhook://env:ACME_WEBHOOK_URL \
+  --plugins allowlist --allow-plugin acme-guardana-outputs
 </code></pre>
-<h2 id="a-contract">A contract</h2>
-<pre><code class="language-yaml">schema_version: 1
-name: checkout
-applies_to:
-  ai_system: checkout-agent
-
-assertions:
-  - id: one-tenant-per-run
-    type: tenant_boundary
-    title: A single execution serves a single tenant
-    severity: critical
-
-  - id: never-shell
-    type: forbidden_sink
-    title: The checkout agent has no business running a shell
-    severity: critical
-    sinks: [shell, code_execution]
-
-  - id: refunds-need-a-human
-    type: approval_required
-    title: A refund is approved by a person before it goes out
-    severity: high
-    actions: [&quot;payment.*&quot;]
-    approvers: [&quot;human:*&quot;]
-
-  - id: no-token-to-the-open-web
-    type: credential_boundary
-    title: Nothing we send to the public web carries a credential
-    severity: critical
-    boundaries: [&quot;https://*.public.example/*&quot;]
-
-  - id: payment-scopes
-    type: allowed_scopes
-    title: The payments hop may only move money
-    severity: high
-    boundaries: [&quot;https://pay.example/*&quot;]
-    allow: [&quot;payments.*&quot;]
-</code></pre>
-<p>Each assertion becomes a rule with the id <code>contract.&lt;name&gt;.&lt;assertion-id&gt;</code>, so a
-profile can exclude one with a glob and a baseline can waive one without waiving
-the rest.</p>
-<h2 id="the-five-assertion-kinds">The five assertion kinds</h2>
 <div class="table-wrap"><table>
 <thead>
 <tr>
-<th><code>type</code></th>
-<th>The invariant it proves</th>
-<th>Evidence it needs</th>
+<th>Flag</th>
+<th>Built in</th>
+<th>Installed</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>tenant_boundary</code></td>
-<td>one execution stayed on one tenant, and every document it read belongs to that tenant</td>
-<td><code>retrieval</code></td>
+<td><code>--format</code> on <code>scan</code>, <code>probe</code>, <code>grade</code>, <code>analyze-trace</code></td>
+<td><code>human</code>, <code>json</code>, <code>sarif</code>, <code>junit</code></td>
+<td>any installed format name</td>
 </tr>
 <tr>
-<td><code>approval_required</code></td>
-<td>an action in scope happened only after an approval was <strong>granted</strong></td>
-<td><code>approval</code> + <code>effects</code></td>
-</tr>
-<tr>
-<td><code>allowed_scopes</code></td>
-<td>a hop across a named boundary exercised only scopes on the allow list</td>
-<td><code>delegation</code></td>
-</tr>
-<tr>
-<td><code>credential_boundary</code></td>
-<td>a named boundary never received a credential at all</td>
-<td><code>delegation</code></td>
-</tr>
-<tr>
-<td><code>forbidden_sink</code></td>
-<td>no side effect landed on a sink the application forbids</td>
-<td><code>effects</code></td>
+<td><code>--reporter</code> on <code>scan</code>, <code>probe</code>, <code>analyze-trace</code></td>
+<td><code>server://URL</code> or an <code>http(s)://</code> collector URL</td>
+<td><code>&lt;name&gt;://&lt;locator&gt;</code>; the reporter reads the locator</td>
 </tr>
 </tbody>
 </table></div>
-<h3 id="tenant_boundary"><code>tenant_boundary</code></h3>
-<p>Wider than the built-in <code>guardana.trace.cross_tenant_retrieval</code>, which compares one
-retrieval against the documents it returned. An agent that retrieves for tenant A
-and then, three steps later, for tenant B breaks no single retrieval — and whether
-a run is <em>allowed</em> to serve two tenants is a fact only you know.</p>
-<ul>
-<li><code>sources: [glob]</code> — limit it to certain stores. A selector that matches no
-retrieval <strong>declines</strong> rather than passing: a store glob is free text, and
-nothing at load time can tell <code>kb://*</code> from a typo.</li>
-</ul>
-<h3 id="approval_required"><code>approval_required</code></h3>
-<p>Granted, not merely recorded: <code>denied</code>, <code>timed_out</code> and <code>not_requested</code> are each
-the absence of authority.</p>
-<ul>
-<li><code>actions: [glob]</code>, <code>sinks: [name]</code> — narrow what needs approval.</li>
-<li><code>approvers: [glob]</code> — who may grant it. An approval whose approver nobody
-recorded makes the check <strong>inconclusive</strong>, not a finding: it may have been the
-right approver.</li>
-<li>Approvals recorded on the <em>same</em> step as the effect count. A span has no internal
-order, and one decision is commonly one span.</li>
-<li>Only <code>executed</code> and <code>attempted</code> effects need authority. A <code>failed</code> one changed
-nothing, and the refusal is the control working.</li>
-</ul>
-<h3 id="allowed_scopes"><code>allowed_scopes</code></h3>
-<p>Graded on what the hop <strong>exercised</strong>, not on what its credential <em>carries</em>. A token
-minted with five scopes and used for one is a well-behaved hop.</p>
-<ul>
-<li><code>boundaries: [glob]</code>, <code>allow: [glob]</code> — <code>allow</code> is required and may not be empty.</li>
-<li>A hop whose scopes the producer did not record makes the check inconclusive:
-reading &quot;not recorded&quot; as &quot;none exercised&quot; would pass every framework that omits
-the field.</li>
-</ul>
-<h3 id="credential_boundary"><code>credential_boundary</code></h3>
-<ul>
-<li><code>boundaries: [glob]</code> — required. These must receive no credential at all.</li>
-<li>If <strong>no</strong> delegation anywhere in the trace records a credential, the check
-declines: this producer may not record them, and reading that as &quot;no credential
-was sent&quot; would be a quiet fail-open.</li>
-</ul>
-<h3 id="forbidden_sink"><code>forbidden_sink</code></h3>
-<ul>
-<li><code>sinks: [name]</code> — required, and checked against the closed sink list at load, so
-a typo cannot become a sink that never matches. One of <code>sql</code>, <code>shell</code>,
-<code>filesystem</code>, <code>http</code>, <code>messaging</code>, <code>email</code>, <code>payment</code>, <code>cloud_api</code>,
-<code>code_execution</code>, <code>other</code>.</li>
-<li><code>actions: [glob]</code> — narrow it further.</li>
-<li><code>statuses: [executed|attempted|failed]</code> — defaults to <code>executed</code> and <code>attempted</code>.
-An agent stopped mid-reach still reached; a <code>failed</code> effect is the system
-refusing, so counting it would report every working guardrail.</li>
-</ul>
-<h2 id="four-outcomes-and-only-one-is-exit-0">Four outcomes, and only one is exit <code>0</code></h2>
-<p>This is the part worth reading twice. A contract that could not be checked and a
-contract that held used to look identical.</p>
+<p><code>monitor</code> and <code>import-observations</code> take only the built-in forms, and refuse an installed one
+with exit <code>3</code>. So do <code>scan --write-baseline</code> and <code>probe --write-mcp-pin</code>, which produce no
+report for an output to receive.</p>
+<p>Every command starts with Guardana's own distributions only, so an installed output is
+refused until you admit its distribution: <code>--plugins allowlist --allow-plugin &lt;distribution&gt;</code>
+or <code>plugins:</code> in a profile (<a href="profiles.html#plugin-trust-plugins">plugin trust</a>). The output is
+then selected before the run sends anything. An unknown name, a name two installed
+distributions claim, a refused distribution or an output that fails to load exits <code>3</code> with the
+reason, and nothing is sent. <code>guardana doctor</code> lists each installed output, imports none of
+them, and says whether it would be refused.</p>
+<h2 id="what-an-output-receives">What an output receives</h2>
 <div class="table-wrap"><table>
 <thead>
 <tr>
-<th>Situation</th>
-<th>Verdict</th>
-<th>Exit</th>
+<th></th>
+<th>Format</th>
+<th>Reporter</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>the contract applies and every invariant holds</td>
-<td>pass</td>
-<td><code>0</code></td>
+<td>findings, unverified, errors, skips, shortfalls, cases</td>
+<td>redacted under the profile, then again as the built-in formats are</td>
+<td>the same</td>
 </tr>
 <tr>
-<td>an invariant does not hold</td>
-<td>fail</td>
-<td><code>1</code></td>
+<td>the run description and verdict</td>
+<td>as saved</td>
+<td>as saved, with the target's address redacted</td>
 </tr>
 <tr>
-<td>the contract needs evidence this producer does not record</td>
-<td><strong>indeterminate</strong></td>
-<td><code>2</code></td>
-</tr>
-<tr>
-<td>contracts were loaded and none of them was about this execution</td>
-<td><strong>indeterminate</strong></td>
-<td><code>2</code></td>
-</tr>
-<tr>
-<td>the contract names an AI system and you gave no <code>--ai-system</code></td>
-<td>refused</td>
-<td><code>3</code></td>
-</tr>
-<tr>
-<td>the contract file is missing or malformed</td>
-<td>refused</td>
-<td><code>3</code></td>
+<td>kept exchanges</td>
+<td>redacted again</td>
+<td>never</td>
 </tr>
 </tbody>
 </table></div>
-<p><strong>An assertion you wrote is coverage you are paying for.</strong> So a dimension it needs
-and the producer does not record makes the run indeterminate with no <code>fail_on_*</code> in
-front of it — <code>fail_on_skipped</code> defaults to off, and without this the default path
-for &quot;your contract could not be checked&quot; would be a green build.</p>
-<p>Use <a href="usage-trace-inspect.html"><code>guardana trace inspect</code></a> to see which dimensions a
-producer records before you write assertions that depend on them.</p>
-<p><strong>Excluding an assertion withdraws what it demanded.</strong> <code>rules.exclude:</code> matching a
-compiled rule id switches that assertion off <em>and</em> stops the run requiring the
-evidence it would have read — and the exclusion is printed, so a green report never
-reads as &quot;your invariant held&quot;. <code>trace.require:</code> behaves the opposite way and is
-meant to: it is a demand you stated outright rather than one implied by a check, so
-it stands whether or not a rule wants the dimension.</p>
-<h2 id="what-your-framework-can-actually-prove-today">What your framework can actually prove today</h2>
-<p>Measured, not estimated — against a real run from each adapter, not a fixture:</p>
-<div class="table-wrap"><table>
-<thead>
-<tr>
-<th>Producer</th>
-<th>Dimensions it records</th>
-<th>Assertion kinds it can grade</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><strong>pydantic-ai</strong> 2.27</td>
-<td><code>messages</code>, <code>tools</code></td>
-<td>none of the five</td>
-</tr>
-<tr>
-<td><strong>llama-index</strong> 0.14</td>
-<td><code>messages</code>, <code>retrieval</code></td>
-<td><code>tenant_boundary</code></td>
-</tr>
-<tr>
-<td><strong>crewai</strong> 1.15</td>
-<td><code>messages</code>, <code>handoff</code></td>
-<td>none of the five</td>
-</tr>
-<tr>
-<td><strong>OpenTelemetry GenAI</strong></td>
-<td>whatever your instrumentation emits</td>
-<td>whatever it emits</td>
-</tr>
-<tr>
-<td><strong>Guardana native</strong></td>
-<td>whatever you write</td>
-<td>all five</td>
-</tr>
-</tbody>
-</table></div>
-<p>So four of the five kinds — <code>approval_required</code>, <code>allowed_scopes</code>,
-<code>credential_boundary</code>, <code>forbidden_sink</code> — decline against every framework adapter
-that ships today, because no framework records approvals, delegations or side
-effects on its own. <strong>Contracts are for a team that instruments its own agent</strong>:
-emit Guardana's native dialect, or add the dimensions to an OpenTelemetry exporter,
-or take <code>--write-trace</code> output and fill in what your framework left out. The
-declines are the feature working — an assertion graded against evidence nobody
-recorded would be the false green this whole mechanism exists to refuse — but they
-are also why writing a contract before you have instrumented anything buys a run
-that can only ever be <code>indeterminate</code>.</p>
-<h2 id="applies_to--saying-not-mine-without-saying-fine"><code>applies_to</code> — saying &quot;not mine&quot; without saying &quot;fine&quot;</h2>
-<pre><code class="language-yaml">applies_to:
-  ai_system: checkout-agent
+<p>No option hands an output an unredacted result. The verdict comes from the saved run: an
+output cannot decide that a run with open questions is clean.</p>
+<h2 id="delivery-status">Delivery status</h2>
+<p>A reporter prints one line to stderr on every path, success included:</p>
+<pre><code>delivery: &lt;status&gt; — &lt;name&gt; to &lt;destination&gt;[ (HTTP &lt;code&gt;, &lt;n&gt; attempt|attempts)][: &lt;detail&gt;]
 </code></pre>
-<p>Matched against <code>--ai-system</code>, which <code>analyze-trace</code> already takes and never
-guesses.</p>
-<ul>
-<li><strong>not set</strong> — the contract applies to whatever you point it at.</li>
-<li><strong>set and matching</strong> — it applies.</li>
-<li><strong>set and not matching</strong> — its assertions are recorded as <em>not applicable</em>.
-Nothing is missing, so it is not a coverage gap; it is also not a pass, and it is
-printed rather than dropped.</li>
-<li><strong>set, and no <code>--ai-system</code> given</strong> — refused, exit <code>3</code>. A contract that cannot
-tell whether it applies must not report clean.</li>
-</ul>
-<p>A team with one contract per agent can point all of them at every trace: as long as
-<strong>one</strong> applies, the run proceeds. If none does, the run is indeterminate — that is
-the wrong-file case, and it is the only way &quot;not applicable&quot; could become a silent
-green.</p>
-<h2 id="loading-contracts">Loading contracts</h2>
-<pre><code class="language-bash"># one file, repeatable
-guardana analyze-trace run.jsonl --contract checkout.yaml --contract support.yaml
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Meaning</th>
+<th>Exit code</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>delivered</code></td>
+<td>the receiver acknowledged it</td>
+<td>the verdict's</td>
+</tr>
+<tr>
+<td><code>rejected</code></td>
+<td>the receiver answered and did not accept it</td>
+<td>the verdict's</td>
+</tr>
+<tr>
+<td><code>unreachable</code></td>
+<td>the receiver did not answer</td>
+<td>the verdict's</td>
+</tr>
+<tr>
+<td><code>not_sent</code></td>
+<td>nothing left the machine: the run ended before its report existed, or the reporter declined to send</td>
+<td>the verdict's</td>
+</tr>
+<tr>
+<td><code>unknown</code></td>
+<td>the reporter failed, or ran past 30 seconds; whether anything left is unknown</td>
+<td><code>8</code></td>
+</tr>
+</tbody>
+</table></div>
+<p>The destination is shown without a path, query or credential. The line's prefix and status
+words are stable; a script may read them.</p>
+<h2 id="exit-code-8">Exit code 8</h2>
+<p>Exit <code>8</code> means an installed output failed: a format raised or returned no text, so nothing was
+written, or a reporter's delivery is <code>unknown</code>. The verdict is printed first, as <code>the run's verdict: &lt;gate&gt; (exit &lt;code&gt;)</code>, and the error names the distribution to report it to. A run
+its target or budget stopped keeps exit <code>4</code> or <code>6</code>. See <a href="exit-codes.html">exit codes</a>.</p>
+<h2 id="export-a-saved-run-from-python">Export a saved run from Python</h2>
+<p>A paid probe saved with <code>--format json --output run.json</code> can be exported later, with no
+request to anything:</p>
+<pre><code class="language-python">from pathlib import Path
 
-# a directory: every .yaml / .yml in it
-guardana analyze-trace run.jsonl --contract ./contracts/
+from guardana.core.output import render, select_renderer
+from guardana.core.plugins import PluginMode, PluginTrust
+from guardana.core.verify import load_verification
+
+trust = PluginTrust(mode=PluginMode.ALLOWLIST, allowed=frozenset({&quot;acme-guardana-outputs&quot;}))
+table = render(select_renderer(&quot;acme-table&quot;, trust), load_verification(Path(&quot;run.json&quot;)))
+Path(&quot;run.csv&quot;).write_text(table, encoding=&quot;utf-8&quot;, newline=&quot;&quot;)
 </code></pre>
-<p>Or once, in <code>guardana.yaml</code>:</p>
-<pre><code class="language-yaml">name: production
-contracts:
-  - ./contracts/checkout.yaml
-  - ./contracts/support.yaml
-</code></pre>
-<p>A path that does not exist, a directory with no contracts in it, and a file that
-does not parse are all <strong>exit <code>3</code></strong>, never a warning. A mistyped path would
-otherwise run the built-ins, grade none of your invariants, and exit <code>0</code>.</p>
-<h2 id="versioning">Versioning</h2>
-<p><code>schema_version</code> is required, and a version this build has never heard of is
-refused rather than read optimistically. Older versions migrate forward in memory
-at load. There is no <code>contract migrate</code> command, deliberately: a saved run is
-generated and Guardana may rewrite it, while a contract is hand-written and belongs
-to you.</p>
-<p>Unknown keys raise at load — including per-kind, so <code>sinks:</code> on a scope assertion
-is caught rather than ignored. A gate you think you configured and did not is worse
-than no gate.</p>
-<h2 id="what-a-satisfied-contract-does-and-does-not-mean">What a satisfied contract does and does not mean</h2>
-<p>It says: <em>in this recorded execution, these invariants held.</em> It does not say the
-system is secure — the attacker's request may simply not be in the file. That is
-the same bound <a href="usage-analyze-trace.html"><code>usage-analyze-trace.md</code></a> states for the
-built-in trace rules.</p>
-<p>Contract assertions send nothing. They grade a recording. Generated attacks aimed
-at <em>breaking</em> an invariant are deliberately not part of this: the order is state
-the invariant, prove it, and only then start generating traffic.</p>
-<h2 id="a-complete-example">A complete example</h2>
-<p><a href="https://github.com/guardana/guardana/blob/main/examples/contracts/checkout-agent.yaml"><code>examples/contracts/checkout-agent.yaml</code></a>
-ships all five kinds with the reasoning inline. It is not an illustration — a test
-loads it through the real loader and compiles it, so a sample that stopped parsing
-fails the build rather than teaching the schema wrong.</p>
-<h2 id="related">Related</h2>
+<p><code>guardana recipe run</code> saves <code>run.json</code> in its artifact directory; export it the same way.</p>
+<h2 id="the-reference-webhook">The reference webhook</h2>
+<p><code>acme-webhook</code> follows <a href="https://github.com/standard-webhooks/standard-webhooks">Standard Webhooks</a>:
+a JSON body <code>{&quot;type&quot;: &quot;run.completed&quot;, &quot;timestamp&quot;: …, &quot;data&quot;: {…}}</code>, signed with
+HMAC-SHA256 under <code>webhook-id</code>, <code>webhook-timestamp</code> and <code>webhook-signature</code>. A receiver verifies
+it with any Standard Webhooks library and the secret in <code>ACME_WEBHOOK_SECRET</code> (<code>whsec_…</code>).</p>
 <ul>
-<li><a href="usage-trace-inspect.html"><code>usage-trace-inspect.md</code></a> — what a producer records</li>
-<li><a href="usage-analyze-trace.html"><code>usage-analyze-trace.md</code></a> — grading an execution</li>
-<li><a href="design/security-contracts.html"><code>design/security-contracts.md</code></a> — why a contract is
-a third entity rather than a rule or a profile, and what was rejected</li>
-<li><a href="profiles.html"><code>profiles.md</code></a> — <code>contracts:</code> and <code>trace.require:</code> in <code>guardana.yaml</code></li>
+<li><strong>Destination.</strong> <code>acme-webhook://https://host/path</code>, or <code>acme-webhook://env:VARIABLE</code> to keep
+a URL that carries a token out of shell history and CI logs. Plain <code>http</code> is accepted only for
+<code>localhost</code>, <code>127.0.0.1</code> and <code>::1</code>. You name the address, as you name a probe target; nothing
+else is contacted.</li>
+<li><strong>Content.</strong> The run id, verdict, exit code, open questions, counts per outcome, the target,
+declared deployment fields, and up to 50 findings as rule id, severity and title. No evidence,
+prompt or reply is sent. That is still an inventory of what is wrong with a named deployment:
+send it only to a receiver you would show the report to.</li>
+<li><strong>Delivery.</strong> At most three attempts within 25 seconds, retrying on no answer, <code>408</code>, <code>429</code>
+and <code>5xx</code>; redirects are not followed. <code>webhook-id</code> is the same on every attempt, so a
+receiver can drop a repeat.</li>
 </ul>
+<h2 id="write-your-own">Write your own</h2>
+<p>An output is one entry point; its name is the output's name.</p>
+<pre><code class="language-toml">[project.entry-points.&quot;guardana.renderers&quot;]
+acme-table = &quot;acme_outputs:provide_table&quot;
+
+[project.entry-points.&quot;guardana.reporters&quot;]
+acme-webhook = &quot;acme_outputs:provide_webhook&quot;
+</code></pre>
+<p>Name the package module, not a submodule, so <code>guardana pack validate</code> finds your manifest, and
+import heavy code inside the provider so selecting one output never imports another. A name is
+lowercase letters, digits and <code>-</code>, at most 40 characters; <code>human</code>, <code>json</code>, <code>sarif</code>, <code>junit</code>,
+<code>server</code>, <code>http</code>, <code>https</code> and any name starting with <code>guardana</code> are reserved.</p>
+<pre><code class="language-python">from guardana.core.output import Delivery, DeliveryStatus, RendererSpec, ReporterSpec
+
+def provide_table() -&gt; RendererSpec:
+    return RendererSpec(name=&quot;acme-table&quot;, summary=&quot;CSV of every outcome&quot;, render=to_csv)
+
+def provide_webhook() -&gt; ReporterSpec:
+    return ReporterSpec(name=&quot;acme-webhook&quot;, summary=&quot;signed webhook&quot;, prepare=prepare)
+</code></pre>
+<ul>
+<li><code>render(verification)</code> returns the text. Read <code>verification.gate</code>, <code>exit_code</code> and
+<code>open_questions</code> for whether the run is clean; never decide it yourself.</li>
+<li><code>prepare(ReporterRequest(locator))</code> checks the destination and credentials and sends
+nothing; raise <code>ValueError</code> with the reason to refuse. It returns an object with
+<code>destination</code> (shown in the delivery line), <code>sent_secrets()</code> (withheld from every line) and
+<code>deliver(verification) -&gt; Delivery</code>.</li>
+</ul>
+<p>Declare both in <code>guardana-pack.yaml</code> (schema 3) with the output API you were written against:</p>
+<pre><code class="language-yaml">schema_version: 3
+name: acme-outputs
+extension_api: &quot;&gt;=2,&lt;3&quot;
+output_api: &quot;&gt;=1,&lt;2&quot;
+provides:
+  renderers: [acme-table]
+  reporters: [acme-webhook]
+</code></pre>
+<p><code>guardana pack validate</code> checks that each declared output is delivered by your distribution and
+by no other, and <code>guardana pack lock</code> pins it (<a href="usage-pack.html"><code>usage-pack.md</code></a>). A lock that
+pins an output is schema 3, which Guardana 0.39 refuses.</p>
 
 </main>
 </div>
 <footer class="foot"><div class="bar">
 <span class="who">Guardana 0.39.0 · Apache-2.0 ·
 maintained by Konrad Karauda</span>
-<a href="https://github.com/guardana/guardana/blob/main/docs/usage-contracts.md">Edit this page on GitHub</a>
+<a href="https://github.com/guardana/guardana/blob/main/docs/outputs.md">Edit this page on GitHub</a>
 <a href="https://github.com/guardana/guardana">github.com/guardana</a>
 <a href="../llms.txt">llms.txt</a>
 </div></footer>

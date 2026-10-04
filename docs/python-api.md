@@ -109,6 +109,15 @@ A target runs once. Running the same object again, starting a second run while t
 
 SARIF, JUnit and the terminal report are rendered by `guardana-report`: `guardana.report.get_renderer("sarif", run=verification.manifest).render(verification.result)`.
 
+## Read a saved run back
+
+`load_verification(path)` reads a run saved by `--format json --output` or `save()`, of any
+run schema, into a `Verification` with the gate the run recorded; `exchanges` is `None`. A run
+that recorded no gate raises `ReportLoadError` from `guardana.core.report.load`. An
+[installed format](outputs.md#export-a-saved-run-from-python) can then export it without
+sending anything: `render(select_renderer(name, trust), load_verification(path))` from
+`guardana.core.output`.
+
 ## When a run cannot be carried out
 
 Every error derives from `VerificationError`.
@@ -131,6 +140,6 @@ A profile that does not load raises `ProfileError` from `guardana.core.profile`.
 
 ## What is supported
 
-The supported surface is `guardana.core.verify.__all__`: `Verifier`, `Verification`, `EndpointBuilder`, `exchanges_path` and the errors above, with the argument and field names on this page; and `guardana.core.doubles.__all__`: `open_doubles`, `Doubles`, `DoublesError`, `PRODUCER` and `INSTRUMENTED`. A test pins their signatures. Everything else is internal and may change in any release: the `Runner`, the registry's load state, `guardana.cli.*`, and every module or name that starts with `_`.
+The supported surface is `guardana.core.verify.__all__`: `Verifier`, `Verification`, `EndpointBuilder`, `exchanges_path`, `load_verification` and the errors above, with the argument and field names on this page; and `guardana.core.doubles.__all__`: `open_doubles`, `Doubles`, `DoublesError`, `PRODUCER` and `INSTRUMENTED`. A test pins their signatures. The output contract in `guardana.core.output` is versioned by its own `OUTPUT_API_VERSION` ([installed outputs](outputs.md#write-your-own)). Everything else is internal and may change in any release: the `Runner`, the registry's load state, `guardana.cli.*`, and every module or name that starts with `_`.
 
 Until 1.0, a change to the supported surface is announced under "Changed — breaking" in the [changelog](../CHANGELOG.md) with what to write instead, and the old spelling keeps working with a `DeprecationWarning` for at least one minor release wherever that is possible. Not covered yet: `monitor`, `baseline create`, trace analysis and the import of observations run only from the command line, and a run whose judge failed mid-run keeps no partial result.

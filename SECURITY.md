@@ -35,14 +35,16 @@ report those to the package's own maintainers (see the trust model below).
 
 ## The plugin trust model
 
-Guardana supports plugins through entry points. An installed package can register under `guardana.rules`, `guardana.evaluators`, `guardana.targets` or `guardana.taxonomies`. Once Guardana loads it, it works like a built-in and its code runs. This lets a company ship a private rule package. It also means:
+Guardana supports plugins through entry points. An installed package can register under `guardana.rules`, `guardana.evaluators`, `guardana.targets` or `guardana.taxonomies`, and add an output under `guardana.renderers` or `guardana.reporters`. Once Guardana loads it, it works like a built-in and its code runs. This lets a company ship a private rule package. It also means:
 
-- **A third-party rule, evaluator, or target package runs arbitrary Python in your process once it is admitted.** Review `pip install`/`uv add` of a Guardana plugin as you would any dependency that can run code when imported.
+- **A third-party rule, evaluator, target or output package runs arbitrary Python in your process once it is admitted.** Review `pip install`/`uv add` of a Guardana plugin as you would any dependency that can run code when imported.
 - Guardana's built-in rules (`guardana-rules`) are reviewed in this repository and meet the same code quality and test standards as the engine. A third-party plugin is a separate package outside this project's supply chain.
 
 ### Every command starts with built-in trust
 
 Every CLI command loads Guardana's own distributions (`guardana-core`, `guardana-rules`, `guardana-report`). It refuses other installed entry points before importing them unless you admit them. Guardana records each refusal as an error. While any installed pack is refused, every run whose gate fails on errors (the default) is `indeterminate`, whether or not it would have used the pack: `scan` and `probe` exit `2`, and `monitor` raises a gate-failed alert every cycle. The command prints the refused distributions and how to admit them on stderr. Admit the pack, or uninstall it. `guardana doctor` lists every third-party Guardana entry point, the module it would import, and whether the current trust setting would load it. It does this without importing the entry point.
+
+An installed format or reporter is different: no run imports it unless `--format` or `--reporter` names it, so an unselected one is never refused and never an error. When a command names a refused one, the command exits `3` before it sends anything ([installed outputs](docs/outputs.md)).
 
 ```bash
 guardana scan .                              # builtins: Guardana's own distributions only
@@ -62,7 +64,7 @@ Trust controls which **Guardana entry points** Guardana imports. It does not con
 A restricted run reports what it refused as well as what it ran. `scan`, `probe`, `monitor`, `analyze-trace`, and `baseline create`/`update` put `registry.load_errors` in the run's `errors` channel. A refused rule pack therefore appears in the run report and fails the gate by default. `plan scan`, `plan probe`, `rule test`, `rules`, `taxonomy`, `calibrate`, `target inspect`, `trace inspect`, `pack validate`, and `pack lock` have no run report for a refusal, so they print it on stderr. You can verify what a trust restriction refused.
 
 A restrictive mode affects exit codes too. `rules` and `taxonomy
-<reference>` exit `2` (indeterminate) rather than `0` when a restrictive `--plugins` mode leaves an empty rule list or a reference that no *loaded* catalogue defines. Neither is a clean result. `pack validate` and `pack lock` refuse before reading any manifest if plugin trust refused anything. Reading a manifest imports its package, and both commands check or pin this build's *own* registrations. A registry that omitted extensions cannot determine that a pack "does not register" something it was not allowed to load. In CI, check the exit code when you restrict trust; do not rely only on a warning on stderr.
+<reference>` exit `2` (indeterminate) rather than `0` when a restrictive `--plugins` mode leaves an empty rule list or a reference that no *loaded* catalogue defines. Neither is a clean result. `pack validate` and `pack lock` refuse before reading any manifest if plugin trust refused anything, an installed format or reporter included, or if two distributions install one output name. Reading a manifest imports its package, and both commands check or pin this build's *own* registrations. A registry that omitted extensions cannot determine that a pack "does not register" something it was not allowed to load. In CI, check the exit code when you restrict trust; do not rely only on a warning on stderr.
 
 `--no-plugins` remains as a deprecated alias for `--plugins disabled` on `scan` and `plan scan` only.
 

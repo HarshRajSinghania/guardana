@@ -71,6 +71,7 @@
 <li><a href="usage-rule-test.html">guardana rule test</a></li>
 <li><a href="usage-new-pack.html">guardana new-pack</a></li>
 <li><a href="usage-pack.html">guardana pack</a></li>
+<li><a href="outputs.html">Installed outputs<span class="tag">beta</span></a></li>
 <li><a href="extending.html">Extending Guardana</a></li>
 <li><a href="model-formats.html">Reading model formats</a></li>
 </ul>
@@ -202,6 +203,7 @@
 <li><a href="usage-rule-test.html">guardana rule test</a></li>
 <li><a href="usage-new-pack.html">guardana new-pack</a></li>
 <li><a href="usage-pack.html">guardana pack</a></li>
+<li><a href="outputs.html">Installed outputs<span class="tag">beta</span></a></li>
 <li><a href="extending.html">Extending Guardana</a></li>
 <li><a href="model-formats.html">Reading model formats</a></li>
 </ul>
@@ -448,6 +450,13 @@ agent = A2aAgentTarget(&quot;https://agent.example.com&quot;, credential=alice, 
 </tbody>
 </table></div>
 <p>SARIF, JUnit and the terminal report are rendered by <code>guardana-report</code>: <code>guardana.report.get_renderer(&quot;sarif&quot;, run=verification.manifest).render(verification.result)</code>.</p>
+<h2 id="read-a-saved-run-back">Read a saved run back</h2>
+<p><code>load_verification(path)</code> reads a run saved by <code>--format json --output</code> or <code>save()</code>, of any
+run schema, into a <code>Verification</code> with the gate the run recorded; <code>exchanges</code> is <code>None</code>. A run
+that recorded no gate raises <code>ReportLoadError</code> from <code>guardana.core.report.load</code>. An
+<a href="outputs.html#export-a-saved-run-from-python">installed format</a> can then export it without
+sending anything: <code>render(select_renderer(name, trust), load_verification(path))</code> from
+<code>guardana.core.output</code>.</p>
 <h2 id="when-a-run-cannot-be-carried-out">When a run cannot be carried out</h2>
 <p>Every error derives from <code>VerificationError</code>.</p>
 <div class="table-wrap"><table>
@@ -500,7 +509,7 @@ agent = A2aAgentTarget(&quot;https://agent.example.com&quot;, credential=alice, 
 <h2 id="serve-your-applications-tools-in-ci">Serve your application's tools in CI</h2>
 <p><code>guardana.core.doubles</code> is public too: <code>open_doubles(FILE, trace=PATH)</code> returns <code>Doubles</code> over the tools and records a fixtures file declares, with <code>acting_as(tenant)</code>, <code>call(name, **arguments)</code>, <code>tool(name)</code> and <code>close()</code>, and raises <code>DoublesError</code> for a call or a setup it refuses. Its behaviour and its trace are described in <a href="usage-doubles.html"><code>usage-doubles.md</code></a>.</p>
 <h2 id="what-is-supported">What is supported</h2>
-<p>The supported surface is <code>guardana.core.verify.__all__</code>: <code>Verifier</code>, <code>Verification</code>, <code>EndpointBuilder</code>, <code>exchanges_path</code> and the errors above, with the argument and field names on this page; and <code>guardana.core.doubles.__all__</code>: <code>open_doubles</code>, <code>Doubles</code>, <code>DoublesError</code>, <code>PRODUCER</code> and <code>INSTRUMENTED</code>. A test pins their signatures. Everything else is internal and may change in any release: the <code>Runner</code>, the registry's load state, <code>guardana.cli.*</code>, and every module or name that starts with <code>_</code>.</p>
+<p>The supported surface is <code>guardana.core.verify.__all__</code>: <code>Verifier</code>, <code>Verification</code>, <code>EndpointBuilder</code>, <code>exchanges_path</code>, <code>load_verification</code> and the errors above, with the argument and field names on this page; and <code>guardana.core.doubles.__all__</code>: <code>open_doubles</code>, <code>Doubles</code>, <code>DoublesError</code>, <code>PRODUCER</code> and <code>INSTRUMENTED</code>. A test pins their signatures. The output contract in <code>guardana.core.output</code> is versioned by its own <code>OUTPUT_API_VERSION</code> (<a href="outputs.html#write-your-own">installed outputs</a>). Everything else is internal and may change in any release: the <code>Runner</code>, the registry's load state, <code>guardana.cli.*</code>, and every module or name that starts with <code>_</code>.</p>
 <p>Until 1.0, a change to the supported surface is announced under &quot;Changed — breaking&quot; in the <a href="https://github.com/guardana/guardana/blob/main/CHANGELOG.md">changelog</a> with what to write instead, and the old spelling keeps working with a <code>DeprecationWarning</code> for at least one minor release wherever that is possible. Not covered yet: <code>monitor</code>, <code>baseline create</code>, trace analysis and the import of observations run only from the command line, and a run whose judge failed mid-run keeps no partial result.</p>
 
 </main>

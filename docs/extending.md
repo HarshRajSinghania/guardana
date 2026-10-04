@@ -495,6 +495,12 @@ they are never graded against a marker that was not planted.
 | `guardana.rules` | one `Rule`, or an iterable of `Rule`s | `Registry.discover(trust)` |
 | `guardana.evaluators` | one `Evaluator`, or an iterable | `Registry.discover(trust)` |
 | `guardana.targets` | one `Target` subclass, or an iterable | `Registry.discover(trust)` |
+| `guardana.renderers` | one `RendererSpec`; the entry point's name is the format's name | only when `--format` names it ([installed outputs](outputs.md)) |
+| `guardana.reporters` | one `ReporterSpec`; the entry point's name is the reporter's name | only when `--reporter <name>://` names it |
+
+The two output groups are never walked by `Registry.discover`: an installed format or
+reporter is imported when a command selects it, and a run that does not select it neither
+imports nor records it. [`outputs.md`](outputs.md#write-your-own) describes the contract.
 
 A package registers by adding to its `pyproject.toml`:
 

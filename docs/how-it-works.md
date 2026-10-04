@@ -160,7 +160,7 @@ mypack = "mypack:provide_rules"
 mypack = "mypack:provide_evaluators"
 ```
 
-`provide_rules()` returns your `Rule` instances (or a list). `Registry.discover(trust)` finds them with the built-ins once trust admits your distribution. Use your own id prefix, such as `acme.*`; `guardana.*` is reserved for built-ins. Profiles can include or exclude ids by glob. Entry points also register `guardana.targets` and `guardana.taxonomies`: four groups in total, all discovered the same way. See [`architecture.md`](architecture.md#current-entry-point-groups).
+`provide_rules()` returns your `Rule` instances (or a list). `Registry.discover(trust)` finds them with the built-ins once trust admits your distribution. Use your own id prefix, such as `acme.*`; `guardana.*` is reserved for built-ins. Profiles can include or exclude ids by glob. Entry points also register `guardana.targets` and `guardana.taxonomies`: four groups discovered the same way. Two more, `guardana.renderers` and `guardana.reporters`, add a format or a reporter that is imported only when `--format` or `--reporter` names it ([`outputs.md`](outputs.md)). See [`architecture.md`](architecture.md#current-entry-point-groups).
 
 ### The two authoring paths
 
@@ -181,13 +181,13 @@ Every rule needs a positive and a negative fixture: one showing it fires and one
 
 ### A complete, runnable example
 
-`examples/custom_rule/` is a third-party package with two plugin rules, three YAML rules, a custom classifier, a custom target, and a custom taxonomy. It registers all four entry-point groups and needs no Guardana changes. One plugin rule inspects a GGUF model file using engine parsing, leaving only policy in the rule.
+`examples/custom_rule/` is a third-party package with two plugin rules, three YAML rules, a custom classifier, a custom target, and a custom taxonomy. It registers all four run groups and needs no Guardana changes; `examples/output_pack/` does the same for an export and a webhook. One plugin rule inspects a GGUF model file using engine parsing, leaving only policy in the rule.
 
 ---
 
 ## 7. Central monitoring, and why the collector is separate
 
-A scan, a trace analysis and every report format work offline. A probe or `monitor` talks to its target, a judge configured under `evaluators:` to its own endpoint, and `--reporter` to the collector; nothing else leaves the machine. For fleet-wide visibility, `--reporter server://…` forwards normalized findings in a versioned JSON envelope at schema version 8. The envelope includes `unverified`, so the collector cannot show a false all-clear. Self-hosted `guardana-server` provides ingest, list, trend, and an opt-in monitoring dashboard, with scoped API-key authentication and PostgreSQL persistence.
+A scan, a trace analysis and every report format work offline. A probe or `monitor` talks to its target, a judge configured under `evaluators:` to its own endpoint, and `--reporter` to the collector or to the destination an installed reporter is given; nothing else leaves the machine. For fleet-wide visibility, `--reporter server://…` forwards normalized findings in a versioned JSON envelope at schema version 8. The envelope includes `unverified`, so the collector cannot show a false all-clear. Self-hosted `guardana-server` provides ingest, list, trend, and an opt-in monitoring dashboard, with scoped API-key authentication and PostgreSQL persistence.
 
 `guardana-core` never imports `guardana-server`, directly or transitively. An import-linter contract and a test enforce that boundary. The open-source engine runs on its own; the collector is a separate layer.
 

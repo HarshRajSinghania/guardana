@@ -241,32 +241,27 @@ evaluators, built-in or third-party, so nothing else in the engine
 hard-codes a list of them:
 
 ```python
-_TAXONOMY_GROUP = "guardana.taxonomies"
-_RULE_GROUP = "guardana.rules"
-_EVALUATOR_GROUP = "guardana.evaluators"
-_TARGET_GROUP = "guardana.targets"
-
 class Registry:
     @classmethod
     def discover(cls, trust: PluginTrust) -> Self:
         reg = cls()
-        for group, register in (
+        handlers = {
             # Taxonomies first: a YAML rule's `taxonomy:` resolves while its
             # own entry point is still loading.
-            (_TAXONOMY_GROUP, register_taxonomy),
-            (_RULE_GROUP, reg.register_rule),
-            (_EVALUATOR_GROUP, reg.register_evaluator),
-            (_TARGET_GROUP, reg.register_target),
-        ):
-            for ep in entry_points(group=group):
-                if not trust.allows(ep):
-                    reg.record_load_error(...)   # refused, never imported
-                    continue
-                _absorb(ep.load()(), register)
+            TAXONOMY_GROUP: (TaxonomyRef, reg._record_taxonomy),
+            RULE_GROUP: (Rule, reg.register_rule),
+            EVALUATOR_GROUP: (Evaluator, reg.register_evaluator),
+            TARGET_GROUP: (Target, reg.register_target),
+        }
+        for entry_point in installed_entry_points():  # the four groups, in that order
+            if not trust.allows(entry_point.distribution):
+                ...  # recorded as a refusal; never imported
+                continue
+            ...  # imported; its provider registers everything or nothing
         return reg
 ```
 
-`Registry.discover(trust)` walks every installed package's four entry-point
+`Registry.discover(trust)` walks every installed package's four run
 groups — `guardana.taxonomies`, `guardana.rules`, `guardana.evaluators`, and
 `guardana.targets` [entry points](https://packaging.python.org/en/latest/specifications/entry-points/)
 — and calls each one `trust` allows (a zero-arg callable returning either a
@@ -308,6 +303,8 @@ via `guardana.yaml`'s `rules.paths`) on `scan`, `probe`, and `monitor`.
 | `guardana.rules` | one `Rule`, or an iterable of `Rule`s | **Yes** — `Registry.discover(trust)` |
 | `guardana.evaluators` | one `Evaluator`, or an iterable | **Yes** — `Registry.discover(trust)` |
 | `guardana.targets` | one `Target` subclass, or an iterable | **Yes** — `Registry.discover(trust)`. `Registry.targets()` exposes the discovered classes; a class declaring a unique `scheme` and `from_locator` is also selectable as `--target scheme://…` by commands accepting its kind. See [`extending.md`](extending.md#adding-a-target). |
+| `guardana.renderers` | one `RendererSpec` | **No** — imported only when `--format` names it; see [`outputs.md`](outputs.md) |
+| `guardana.reporters` | one `ReporterSpec` | **No** — imported only when `--reporter <name>://` names it |
 
 ## The Runner
 

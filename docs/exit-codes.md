@@ -103,9 +103,18 @@ Nothing the command had not yet written is written afterwards, and the code says
 the run did not finish. Stopping `guardana monitor` with Ctrl-C exits `7` too, even
 after an alert: the alerts it printed are the record of the cycles that raised them.
 
+**`8` is separate from `5`.** An [installed output](outputs.md) is code another
+distribution shipped: a format that raised or returned no text, so nothing was written,
+or a reporter whose delivery is `unknown` because it raised, returned no valid status or
+ran past its deadline. The bug report belongs to that distribution, so the code is not
+`5`. The verdict is printed before the error, `8` replaces `0`, `1` and `2`, and a run
+that stopped keeps `4`, `6` or `7`. A receiver that refused or did not answer is not
+`8`: the delivery line says so and the verdict keeps its code, as for the collector.
+
 ## Which commands produce which
 
-`scan`, `probe` and `monitor` can produce any of them. A `monitor` bounded by
+`scan`, `probe` and `monitor` can produce any of them, except that `8` needs an installed
+format or reporter, which `monitor` refuses. A `monitor` bounded by
 `--max-cycles` exits with the worst outcome any cycle earned, judged as `probe` judges
 the cycle and as `diff` judges it against the first one; a policy failure outranks a
 stop, and a cycle the endpoint dropped or its target stopped is `4` when nothing worse was seen. `diff` has no target to be

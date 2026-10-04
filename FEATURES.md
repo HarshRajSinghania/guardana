@@ -200,7 +200,7 @@ without guessing from a short id.
   and shell-hook integration examples.
 - No account and no telemetry; an artifact scan opens no network connection unless a `--reporter` is configured.
 - JSON Schemas for saved runs, plans, comparisons, traces, recordings, suite datasets, recipes,
-  recipe locks, recipe artifacts and fixtures files, served at the URL each
+  recipe locks, recipe artifacts, fixtures files, pack manifests and pack locks, served at the URL each
   `$id` names under `https://guardana.dev/schemas/`.
 
 ## Extension surface
@@ -221,6 +221,15 @@ passes `pack validate` and `rule test` before it is edited. `pack validate` chec
 distribution declaring a rule, evaluator, target or taxonomy framework is the one that
 registers it. Pack manifests declare API
 compatibility and locks pin the exact installed extensions.
+
+A package can also add a format for `--format` and a reporter for `--reporter`
+([installed outputs](docs/outputs.md)), with no change to the CLI. Each is imported only when
+a command names it, refused with exit `3` before anything is sent when trust does not admit it
+or two distributions claim its name, and handed what the saved run holds, never kept
+exchanges when it leaves the machine. A reporter prints one stable delivery line whatever
+happens; a failed installed output exits `8` with the verdict printed. `examples/output_pack`
+ships a CSV export of every outcome and a Standard Webhooks sender, tested against the
+specification's reference verifier.
 The shipped conformance helpers verify capability claims and fail closed on an
 incomplete implementation.
 

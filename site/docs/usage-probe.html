@@ -71,6 +71,7 @@
 <li><a href="usage-rule-test.html">guardana rule test</a></li>
 <li><a href="usage-new-pack.html">guardana new-pack</a></li>
 <li><a href="usage-pack.html">guardana pack</a></li>
+<li><a href="outputs.html">Installed outputs<span class="tag">beta</span></a></li>
 <li><a href="extending.html">Extending Guardana</a></li>
 <li><a href="model-formats.html">Reading model formats</a></li>
 </ul>
@@ -202,6 +203,7 @@
 <li><a href="usage-rule-test.html">guardana rule test</a></li>
 <li><a href="usage-new-pack.html">guardana new-pack</a></li>
 <li><a href="usage-pack.html">guardana pack</a></li>
+<li><a href="outputs.html">Installed outputs<span class="tag">beta</span></a></li>
 <li><a href="extending.html">Extending Guardana</a></li>
 <li><a href="model-formats.html">Reading model formats</a></li>
 </ul>
@@ -364,9 +366,9 @@ instead of a model.</p>
 <td>Named policy preset (mutually exclusive with <code>--profile</code>) — see <a href="profiles.html#named-presets---preset"><code>profiles.md</code></a></td>
 </tr>
 <tr>
-<td><code>--format [human|json|sarif|junit]</code></td>
+<td><code>--format TEXT</code></td>
 <td><code>human</code></td>
-<td>Output format</td>
+<td>Output format: <code>human</code>, <code>json</code>, <code>sarif</code>, <code>junit</code>, or an <a href="outputs.html">installed format</a></td>
 </tr>
 <tr>
 <td><code>--rules PATH</code></td>
@@ -396,7 +398,7 @@ instead of a model.</p>
 <tr>
 <td><code>--reporter TEXT</code></td>
 <td>none</td>
-<td>Forward findings to a collector, e.g. <code>server://https://collector.example.com</code></td>
+<td>Forward findings to a collector, e.g. <code>server://https://collector.example.com</code>, or to an <a href="outputs.html">installed reporter</a> as <code>&lt;name&gt;://&lt;locator&gt;</code></td>
 </tr>
 <tr>
 <td><code>--mcp TEXT</code></td>

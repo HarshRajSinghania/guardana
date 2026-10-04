@@ -121,7 +121,7 @@ unreadable — not assumed to be a pass.
 | `--producer garak\|promptfoo\|generic` | Override detection |
 | `--target REF` | What the other tool was pointed at, when the file does not say |
 | `--format`, `--output` | As for every command; `json` is what `diff` reads |
-| `--reporter server://URL` | Forward the claims to a collector |
+| `--reporter server://URL` | Forward the claims to a collector; the command loads no plugins, so an [installed reporter](outputs.md) is refused with exit `3` |
 | `--ai-system`, `--environment` | What these results are about. Never guessed |
 | `--profile`, `--preset` | Policy — `fail_on_inconclusive` is the switch that makes imported claims block |
 
