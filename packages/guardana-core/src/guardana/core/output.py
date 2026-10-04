@@ -235,6 +235,20 @@ class OutputDiscovery:
     """`renderer:<name>` or `reporter:<name>`, to each distribution that installs it."""
 
 
+@dataclass(frozen=True, slots=True)
+class OutputCollision:
+    """One selectable output name that more than one distinct install provides."""
+
+    group: str
+    name: str
+    entry_points: tuple[InstalledEntryPoint, ...]
+
+    @property
+    def distributions(self) -> tuple[str, ...]:
+        """Each install's distribution and version, sorted, as a message names them."""
+        return tuple(sorted(_describe(ep) for ep in self.entry_points))
+
+
 _Spec = TypeVar("_Spec", RendererSpec, ReporterSpec)
 
 
@@ -326,8 +340,44 @@ def _named(entry_points: Iterable[InstalledEntryPoint]) -> tuple[str, ...]:
     )
 
 
+_KINDS = {RENDERER_GROUP: _RENDERER, REPORTER_GROUP: _REPORTER}
+
+
+def unselectable_reason(group: str, name: str) -> str | None:
+    """Say why an output entry point named `name` in `group` can never be selected, or None.
+
+    `group` must be one of `OUTPUT_GROUPS`. A reserved name is reported before an invalid one.
+    """
+    if group not in _KINDS:
+        msg = f"{group} is not an output entry-point group"
+        raise ValueError(msg)
+    if _KINDS[group].is_reserved(name):
+        return "reserved name"
+    if not is_output_name(name):
+        return "invalid name"
+    return None
+
+
+def output_collisions(entry_points: Iterable[InstalledEntryPoint]) -> tuple[OutputCollision, ...]:
+    """Find every selectable output name that more than one distinct install provides.
+
+    Entry points outside `OUTPUT_GROUPS` and names that can never be selected are ignored;
+    selection refuses each collision found here without importing any of its entry points.
+    """
+    by_group: dict[str, list[InstalledEntryPoint]] = {}
+    for entry_point in entry_points:
+        if entry_point.group in _KINDS:
+            by_group.setdefault(entry_point.group, []).append(entry_point)
+    return tuple(
+        OutputCollision(group, name, found)
+        for group in OUTPUT_GROUPS
+        for name, found in _by_name(by_group.get(group, ())).items()
+        if len(found) > 1 and unselectable_reason(group, name) is None
+    )
+
+
 def _collision_message(kind: _Kind, name: str, found: tuple[InstalledEntryPoint, ...]) -> str:
-    which = ", ".join(sorted(_describe(ep) for ep in found))
+    which = ", ".join(OutputCollision(kind.group, name, found).distributions)
     nobody = "neither" if len(found) == 2 else "none"  # noqa: PLR2004 — the grammar of two
     return (
         f"the {kind.noun} {name} is installed by {len(found)} distributions ({which}), "
@@ -340,7 +390,7 @@ def _installed_listing(
 ) -> str:
     states: list[str] = []
     for name, found in sorted(_by_name(entry_points).items()):
-        if kind.is_reserved(name) or not is_output_name(name):
+        if unselectable_reason(kind.group, name) is not None:
             continue
         if len(found) > 1:
             state = "collision"
@@ -713,6 +763,7 @@ def discover_outputs(trust: PluginTrust) -> OutputDiscovery:
     failed: list[tuple[InstalledEntryPoint, str]] = []
     collisions: dict[str, tuple[str, ...]] = {}
     installed = installed_entry_points(groups=OUTPUT_GROUPS)
+    colliding = {(c.group, c.name): c for c in output_collisions(installed)}
     kinds: tuple[tuple[_Kind, Callable[[InstalledEntryPoint], object], dict[str, Origin]], ...] = (
         (_RENDERER, _provide_renderer, renderers),
         (_REPORTER, _provide_reporter, reporters),
@@ -720,10 +771,11 @@ def discover_outputs(trust: PluginTrust) -> OutputDiscovery:
     for kind, provide, found_into in kinds:
         group = tuple(ep for ep in installed if ep.group == kind.group)
         for name, found in _by_name(group).items():
-            if kind.is_reserved(name) or not is_output_name(name):
+            if unselectable_reason(kind.group, name) is not None:
                 continue
-            if len(found) > 1:
-                collisions[f"{kind.key}:{name}"] = tuple(sorted(_describe(ep) for ep in found))
+            collision = colliding.get((kind.group, name))
+            if collision is not None:
+                collisions[f"{kind.key}:{name}"] = collision.distributions
                 continue
             (entry_point,) = found
             if not trust.allows(entry_point.distribution):
@@ -756,6 +808,7 @@ __all__ = [
     "Deliverer",
     "Delivery",
     "DeliveryStatus",
+    "OutputCollision",
     "OutputDiscovery",
     "OutputError",
     "OutputSelectionError",
@@ -772,8 +825,10 @@ __all__ = [
     "is_reserved_renderer_name",
     "is_reserved_reporter_name",
     "outbound",
+    "output_collisions",
     "render",
     "sanitise_reason",
     "select_renderer",
     "select_reporter",
+    "unselectable_reason",
 ]

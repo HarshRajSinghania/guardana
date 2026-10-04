@@ -617,8 +617,9 @@ change.</p>
 <code>refused</code>.</p>
 <p><code>doctor</code> decides the state of an output entry point from metadata and trust, never from the
 registry, which never sees it: <code>_State</code> gains <code>ON_SELECTION</code> (<code>imported only when selected</code>),
-<code>REFUSED_OUTPUT</code> (<code>refused if selected under plugin trust &lt;mode&gt;</code>) and <code>UNSELECTABLE</code> (<code>never selectable: reserved name</code> / <code>invalid name</code>). An entry point in a collision gets its own <code>WARN</code>
-check: <code>the format acme-table is installed by 2 distributions (a, b); selecting it is refused</code>.
+<code>REFUSED_OUTPUT</code> (<code>refused if selected under plugin trust &lt;mode&gt;</code>) and <code>UNSELECTABLE</code> (<code>never selectable: reserved name</code> / <code>invalid name</code> / <code>name installed by N distributions</code>). Each
+collision also gets its own <code>WARN</code> check, <code>output collision</code>: <code>the format acme-table is installed by 2 distributions (acme-a 1.0, acme-b 2.0); selecting it is refused</code>. Doctor and selection share
+<code>unselectable_reason</code> and <code>output_collisions</code> (<code>core/output.py</code>), so they cannot disagree.
 Output states are left out of <code>_consequence</code>, whose gate sentence is false for them, and do not
 raise a distribution block above <code>WARN</code>. The &quot;N loaded, M refused&quot; counts keep counting
 <code>GROUPS</code> only, and a block lists the output entry points under them.</p>

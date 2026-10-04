@@ -371,8 +371,10 @@ Selection uses the `ResolvedTrust` the command already resolved from `--plugins`
 `doctor` decides the state of an output entry point from metadata and trust, never from the
 registry, which never sees it: `_State` gains `ON_SELECTION` (`imported only when selected`),
 `REFUSED_OUTPUT` (`refused if selected under plugin trust <mode>`) and `UNSELECTABLE` (`never
-selectable: reserved name` / `invalid name`). An entry point in a collision gets its own `WARN`
-check: `the format acme-table is installed by 2 distributions (a, b); selecting it is refused`.
+selectable: reserved name` / `invalid name` / `name installed by N distributions`). Each
+collision also gets its own `WARN` check, `output collision`: `the format acme-table is installed
+by 2 distributions (acme-a 1.0, acme-b 2.0); selecting it is refused`. Doctor and selection share
+`unselectable_reason` and `output_collisions` (`core/output.py`), so they cannot disagree.
 Output states are left out of `_consequence`, whose gate sentence is false for them, and do not
 raise a distribution block above `WARN`. The "N loaded, M refused" counts keep counting
 `GROUPS` only, and a block lists the output entry points under them.

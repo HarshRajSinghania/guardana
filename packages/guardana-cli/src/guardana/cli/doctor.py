@@ -31,8 +31,21 @@ from guardana.cli._plugins import (
 from guardana.cli._profile import PRESET_HELP, resolve_profile
 from guardana.cli._profile_files import read_profile_files
 from guardana.cli.exit_codes import ExitCode
-from guardana.core.entrypoints import InstalledEntryPoint, installed_entry_points
-from guardana.core.plugins import BUILTIN_DISTRIBUTIONS, PluginMode, normalize_distribution
+from guardana.core.entrypoints import (
+    GROUPS,
+    OUTPUT_GROUPS,
+    RENDERER_GROUP,
+    REPORTER_GROUP,
+    InstalledEntryPoint,
+    installed_entry_points,
+)
+from guardana.core.output import output_collisions, unselectable_reason
+from guardana.core.plugins import (
+    BUILTIN_DISTRIBUTIONS,
+    PluginMode,
+    PluginTrust,
+    normalize_distribution,
+)
 from guardana.core.profile import Profile
 from guardana.core.redaction import EvidenceMode
 from guardana.core.registry import Registry
@@ -124,11 +137,19 @@ def _plugins(registry: Registry, failures: Sequence[CheckError]) -> list[Check]:
 
 
 class _State(StrEnum):
-    """What this run did with one installed entry point."""
+    """What this run did with one installed entry point, or what selecting an output would do."""
 
     LOADED = "loaded"
     REFUSED = "refused"
     FAILED = "failed to import"
+    ON_SELECTION = "imported only when selected"
+    REFUSED_OUTPUT = "refused if selected"
+    UNSELECTABLE = "never selectable"
+
+
+_RUN_STATES = (_State.LOADED, _State.REFUSED, _State.FAILED)
+_OUTPUT_STATES = (_State.ON_SELECTION, _State.REFUSED_OUTPUT, _State.UNSELECTABLE)
+_NOUN = {RENDERER_GROUP: "format", REPORTER_GROUP: "reporter"}
 
 
 @dataclass(frozen=True, slots=True)
@@ -138,6 +159,17 @@ class _Seen:
     entry_point: InstalledEntryPoint
     state: _State
     reason: str = ""
+
+    @property
+    def shown(self) -> str:
+        """The state as the entry point's line prints it."""
+        if not self.reason:
+            return str(self.state)
+        if self.state is _State.FAILED:
+            return f"{self.state} ({self.reason})"
+        if self.state is _State.UNSELECTABLE:
+            return f"{self.state}: {self.reason}"
+        return f"{self.state} {self.reason}"
 
 
 def _is_builtin(entry_point: InstalledEntryPoint) -> bool:
@@ -176,6 +208,51 @@ def _classify(
     return seen, leftover
 
 
+def _classify_outputs(
+    third_party: Sequence[InstalledEntryPoint],
+    every_output: Sequence[InstalledEntryPoint],
+    trust: PluginTrust,
+) -> list[_Seen]:
+    """Say what selecting each third-party output would do, from metadata and trust alone.
+
+    The registry never sees an output, so nothing it recorded applies. The checks run
+    in the order selection refuses in: the name, then a collision, then trust.
+    """
+    colliding = {
+        (collision.group, collision.name): collision
+        for collision in output_collisions(every_output)
+    }
+    seen: list[_Seen] = []
+    for entry_point in third_party:
+        unselectable = unselectable_reason(entry_point.group, entry_point.name)
+        collision = colliding.get((entry_point.group, entry_point.name))
+        if unselectable is not None:
+            seen.append(_Seen(entry_point, _State.UNSELECTABLE, unselectable))
+        elif collision is not None:
+            reason = f"name installed by {len(collision.entry_points)} distributions"
+            seen.append(_Seen(entry_point, _State.UNSELECTABLE, reason))
+        elif trust.allows(entry_point.distribution):
+            seen.append(_Seen(entry_point, _State.ON_SELECTION))
+        else:
+            reason = f"under plugin trust {trust.describe()}"
+            seen.append(_Seen(entry_point, _State.REFUSED_OUTPUT, reason))
+    return seen
+
+
+def _collisions(every_output: Sequence[InstalledEntryPoint]) -> list[Check]:
+    """One warning per output name that more than one distribution installs."""
+    return [
+        Check(
+            "output collision",
+            Level.WARN,
+            f"the {_NOUN[collision.group]} {collision.name} is installed by "
+            f"{len(collision.entry_points)} distributions "
+            f"({', '.join(collision.distributions)}); selecting it is refused",
+        )
+        for collision in output_collisions(every_output)
+    ]
+
+
 def _normalized(distribution: str | None) -> str | None:
     return normalize_distribution(distribution) if distribution else None
 
@@ -198,19 +275,32 @@ def _pack_check(items: Sequence[_Seen]) -> Check:
     counts = Counter(item.state for item in items)
     if counts[_State.FAILED]:
         level = Level.FAIL
-    elif counts[_State.REFUSED]:
+    elif counts[_State.REFUSED] or counts[_State.UNSELECTABLE]:
         level = Level.WARN
     else:
         level = Level.OK
-    summary = ", ".join(f"{counts[state]} {state}" for state in _State if counts[state])
-    lines = [f"{len(items)} Guardana entry point(s) — {summary}"]
+    headings = [
+        _heading(noun, counts, states)
+        for noun, states in (
+            ("Guardana entry point(s)", _RUN_STATES),
+            ("output entry point(s)", _OUTPUT_STATES),
+        )
+        if any(counts[state] for state in states)
+    ]
+    lines = ["; ".join(headings)]
     for item in items:
-        state = f"{item.state} ({item.reason})" if item.reason else str(item.state)
         entry_point = item.entry_point
         lines.append(
-            f"    {entry_point.group} {entry_point.name} → module {entry_point.module}: {state}"
+            f"    {entry_point.group} {entry_point.name} → module {entry_point.module}: "
+            f"{item.shown}"
         )
     return Check(name, level, "\n".join(lines))
+
+
+def _heading(noun: str, counts: Counter[_State], states: Sequence[_State]) -> str:
+    total = sum(counts[state] for state in states)
+    summary = ", ".join(f"{counts[state]} {state}" for state in states if counts[state])
+    return f"{total} {noun} — {summary}"
 
 
 def _consequence(registry: Registry, profile: Profile) -> Check:
@@ -231,16 +321,29 @@ def _consequence(registry: Registry, profile: Profile) -> Check:
 
 
 def _installed_packs(
-    registry: Registry, installed: Sequence[InstalledEntryPoint], profile: Profile
+    registry: Registry,
+    installed: Sequence[InstalledEntryPoint],
+    profile: Profile,
+    trust: PluginTrust,
 ) -> tuple[list[Check], list[CheckError]]:
     """Report what each installed third-party pack would execute, and what this run did.
 
     Listed from distribution metadata, which imports nothing; only discovery under
-    the resolved trust imported anything. "Guardana entry points" is the claim, not
-    "third-party code": dependencies and `.pth` hooks run before any trust decision.
+    the resolved trust imported anything, and discovery never imports an output.
+    "Guardana entry points" is the claim, not "third-party code": dependencies and
+    `.pth` hooks run before any trust decision.
     """
+    every_output = [entry_point for entry_point in installed if entry_point.group in OUTPUT_GROUPS]
     third_party = [entry_point for entry_point in installed if not _is_builtin(entry_point)]
-    seen, leftover = _classify(registry, third_party)
+    ran, leftover = _classify(
+        registry, [entry_point for entry_point in third_party if entry_point.group in GROUPS]
+    )
+    outputs = _classify_outputs(
+        [entry_point for entry_point in third_party if entry_point.group in OUTPUT_GROUPS],
+        every_output,
+        trust,
+    )
+    seen = [*ran, *outputs]
     if not seen:
         builtins = len(installed) - len(third_party)
         return [
@@ -252,7 +355,8 @@ def _installed_packs(
             )
         ], leftover
     checks = [_pack_check(items) for items in _by_distribution(seen).values()]
-    if any(item.state is _State.REFUSED for item in seen):
+    checks.extend(_collisions(every_output))
+    if any(item.state is _State.REFUSED for item in ran):
         checks.append(_consequence(registry, profile))
     return checks, leftover
 
@@ -388,8 +492,9 @@ def doctor(
     prof = resolve_profile(profile, preset)
     resolved = resolve_trust(plugins, allow_plugin, prof)
     registry = Registry.discover(resolved.trust)
-    installed = installed_entry_points()
-    packs, leftover = _installed_packs(registry, installed, prof)
+    everything = installed_entry_points(groups=(*GROUPS, *OUTPUT_GROUPS))
+    installed = [entry_point for entry_point in everything if entry_point.group in GROUPS]
+    packs, leftover = _installed_packs(registry, everything, prof, resolved.trust)
     checks = [
         *_versions(),
         _trust(registry, resolved, installed),
@@ -398,7 +503,7 @@ def doctor(
         *_policy(prof),
         *_profile_files(prof, registry),
         *_profile_trust(prof),
-        *_allowed_plugins(resolved, installed),
+        *_allowed_plugins(resolved, everything),
     ]
     for check in checks:
         typer.echo(f"{_MARK[check.level]} {check.name}: {check.detail}")
