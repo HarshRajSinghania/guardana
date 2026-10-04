@@ -79,6 +79,9 @@ GATED_BY: dict[str, str] = {
     "guardana.core.report.baseline.BASELINE_VERSION": _TESTS.format(
         package="guardana-core", module="report/test_baseline_round_trip.py"
     ),
+    "guardana.core.profile.loader.PROFILE_SCHEMA_VERSION": _TESTS.format(
+        package="guardana-core", module="profile/test_profile_schema_version.py"
+    ),
     "guardana.core.recipe.RECIPE_SCHEMA_VERSION": _TESTS.format(
         package="guardana-core", module="test_recipe_documents.py"
     ),

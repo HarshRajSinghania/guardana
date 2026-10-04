@@ -65,9 +65,9 @@ delivery: <status> — <name> to <destination>[ (HTTP <code>, <n> attempt|attemp
 | Status | Meaning | Exit code |
 |---|---|---|
 | `delivered` | the receiver acknowledged it: a 2xx answer to at least one attempt | the verdict's |
-| `rejected` | the receiver answered and did not accept it | the verdict's |
-| `unreachable` | the receiver did not answer | the verdict's |
-| `not_sent` | nothing left the machine: the run ended before its report existed, or the reporter declined to send | the verdict's, or the code the command ended with before delivery |
+| `rejected` | the receiver answered and did not accept it | the verdict's; `8` under `delivery.required` |
+| `unreachable` | the receiver did not answer | the verdict's; `8` under `delivery.required` |
+| `not_sent` | nothing left the machine: the run ended before its report existed, or the reporter declined to send | the verdict's, or the code the command ended with before delivery; `8` under `delivery.required` once the run produced its report |
 | `unknown` | the reporter failed, ran past 30 seconds, or said `delivered` with no attempt or with a status outside 2xx; whether anything left is unknown | `8` |
 
 The destination is shown without a path, query or credential: Guardana reduces a URL to
@@ -75,10 +75,17 @@ The destination is shown without a path, query or credential: Guardana reduces a
 reporter's secrets from any other destination. The line's prefix and status words are stable;
 a script may read them.
 
+A profile that sets [`delivery.required: true`](profiles.md#delivery) makes every status but
+`delivered` a failed delivery: the delivery line is followed by `error: the profile sets
+delivery.required, and the delivery was <status>`, the verdict is printed, and the command
+exits `8` unless the run stopped, which keeps `4`, `6` or `7`. `not_sent` counts, because a
+reporter can return it, and a job that delivered nothing must not pass.
+
 ## Exit code 8
 
 Exit `8` means an installed output failed: a format raised or returned no text, so nothing was
-written, or a reporter's delivery is `unknown`. A file already at `--output` holds an earlier
+written, or a reporter's delivery is `unknown` — or, under `delivery.required`, anything but
+`delivered`. A file already at `--output` holds an earlier
 run, so a failed format removes it and says so, here and on exit `5`. The verdict is printed whenever `8` replaces its
 code, as `the run's verdict: <gate> (exit <code>)`, and a failed format's error names the distribution to report it to. A
 run its target or budget stopped keeps exit `4`, `6` or `7`. When Guardana's own redaction fails

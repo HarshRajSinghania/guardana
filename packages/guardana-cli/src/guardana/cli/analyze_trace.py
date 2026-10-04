@@ -208,10 +208,22 @@ def analyze_trace(  # noqa: C901, PLR0913, PLR0917 — Typer surface plus two ta
         )
         verification = Verification(result=result, manifest=run, gate=outcome)
         outputs.write(verification, output)
+        acknowledged = None
         if reporter and installed_reporter is None:
-            submit_safely(reporter, result, source=selected.ref, deployment=deployment, run=run)
+            acknowledged = submit_safely(
+                reporter,
+                result,
+                source=selected.ref,
+                deployment=deployment,
+                run=run,
+                required=prof.delivery_required,
+            )
         outputs.deliver(verification)
-        outputs.end(verification)
+        outputs.end(
+            verification,
+            delivery_required=prof.delivery_required,
+            collector_acknowledged=acknowledged,
+        )
 
 
 def _write_native(read: TraceRead, destination: Path) -> None:

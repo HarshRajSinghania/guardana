@@ -112,9 +112,12 @@ that reason.
 ## Versions
 
 Version 1 baselines still load — their waivers have no expiry and are reported as
-such. A file from a *newer* version is refused rather than read optimistically:
-honouring waivers whose conditions this build cannot evaluate is the fail-open the
-strictness exists to prevent.
+such, and a file without `version` is read as version 1. A file from a *newer* version
+is refused rather than read optimistically: honouring waivers whose conditions this
+build cannot evaluate is the fail-open the strictness exists to prevent. A `version`
+that is not a whole number (`true`, `"2"`, `2.0`) is refused as `version must be an
+integer`, and one below 1 as `version 0 does not exist`, with exit `3` like any other
+unreadable baseline.
 
 ## See also
 

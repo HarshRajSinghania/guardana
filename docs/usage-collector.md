@@ -594,10 +594,19 @@ To look at nothing but the dashboard, skip all of it — `GUARDANA_STORAGE=memor
 with `GUARDANA_ALLOW_UNAUTHENTICATED=1` still starts a collector with a working
 page, no database, no organization and no key.
 
-A collector that is unreachable never changes a gate's exit code — the scan
-already ran and its verdict stands on its own. A collector that *rejects* a
-submission is different and says so, because a whole fleet silently failing to
-report while a dashboard shows stale data as current is the failure that matters.
+A submission counts as delivered only when the collector answers with its own
+acknowledgement — a JSON object whose `status` is `ok`, which every collector release
+sends. Any other `2xx`, from a proxy or another service at the collector's address, is
+`could not submit to reporter: the response was not a collector acknowledgement`.
+
+By default a collector that is unreachable or does not acknowledge never changes a gate's
+exit code — the scan already ran and its verdict stands on its own. A collector that
+*rejects* a submission says so, because a whole fleet silently failing to report while a
+dashboard shows stale data as current is the failure that matters. A pipeline whose run
+only counts once the collector holds it sets [`delivery.required`](profiles.md#delivery) in
+its profile: then each of those is an `error:` and the command exits `8`, with the verdict
+printed. The client honours the proxy variables (`HTTPS_PROXY`, `NO_PROXY`): the collector
+is a destination the operator names, reached through the operator's network.
 
 ## Contributing to the collector
 

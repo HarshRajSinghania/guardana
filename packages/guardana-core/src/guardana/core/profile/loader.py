@@ -13,6 +13,14 @@ from guardana.core.severity import Severity
 from guardana.core.trace.model import Dimension
 from guardana.core.trials import check_trials
 
+PROFILE_SCHEMA_VERSION = 1
+"""The profile schema this build reads; a profile without `schema_version` is version 1.
+
+No writer states it while it is 1, so a profile this build writes still loads in a build
+that predates the key. A key added later raises it, and an older build then refuses the
+file naming the upgrade instead of reading the new key as a typo.
+"""
+
 # Typos must fail loudly: a misspelled `fail_on:` would otherwise silently
 # fall back to defaults and weaken the gate the user thinks they configured.
 _ALLOWED_PROFILE_KEYS = frozenset(
@@ -29,11 +37,13 @@ _ALLOWED_PROFILE_KEYS = frozenset(
         "calibrations",
         "trials",
         "plugins",
+        "delivery",
     }
 )
 _ALLOWED_RULES_KEYS = frozenset({"include", "exclude", "paths", "paths_exclude"})
 _ALLOWED_TRACE_KEYS = frozenset({"require"})
 _ALLOWED_PLUGINS_KEYS = frozenset({"mode", "allow"})
+_ALLOWED_DELIVERY_KEYS = frozenset({"required"})
 _ALLOWED_FAIL_ON_KEYS = frozenset(
     {
         "severity",
@@ -390,6 +400,36 @@ def _plugins(raw: object, path: Path) -> PluginTrust | None:
     return PluginTrust(mode=mode, allowed=frozenset(allow))
 
 
+def _delivery_required(raw: object, path: Path) -> bool:
+    """Parse `delivery:`, whose one key says whether every delivery must be acknowledged."""
+    block = _as_mapping(raw, "delivery", path)
+    _reject_unknown_keys(block, _ALLOWED_DELIVERY_KEYS, "delivery", path)
+    required = block.get("required", False)
+    if not isinstance(required, bool):
+        raise ProfileError(f"invalid profile {path}: delivery.required must be true or false")
+    return required
+
+
+def _check_schema_version(raw: Mapping[str, Any], path: Path) -> None:
+    """Refuse a profile written for a schema this build does not read.
+
+    Checked before unknown keys, so a profile from a newer build names the upgrade rather
+    than the key that build added.
+    """
+    if "schema_version" not in raw:
+        return
+    version = raw["schema_version"]
+    if isinstance(version, bool) or not isinstance(version, int):
+        raise ProfileError(f"invalid profile {path}: schema_version must be an integer")
+    if version > PROFILE_SCHEMA_VERSION:
+        raise ProfileError(
+            f"invalid profile {path}: profile schema {version} was written by a newer "
+            f"Guardana; this build reads schema {PROFILE_SCHEMA_VERSION} — upgrade Guardana"
+        )
+    if version < 1:
+        raise ProfileError(f"invalid profile {path}: schema_version {version} does not exist")
+
+
 def load_profile(path: Path) -> Profile:
     """Parse a `guardana.yaml`, rejecting anything it can't honour.
 
@@ -404,7 +444,8 @@ def load_profile(path: Path) -> Profile:
         raise ProfileError(f"invalid profile {path}: {exc}") from exc
 
     raw = _as_mapping(raw_document, "profile", path)
-    _reject_unknown_keys(raw, _ALLOWED_PROFILE_KEYS, "profile", path)
+    _check_schema_version(raw, path)
+    _reject_unknown_keys(raw, _ALLOWED_PROFILE_KEYS | {"schema_version"}, "profile", path)
     rules = _as_mapping(raw.get("rules"), "rules", path)
     _reject_unknown_keys(rules, _ALLOWED_RULES_KEYS, "rules", path)
 
@@ -441,5 +482,6 @@ def load_profile(path: Path) -> Profile:
         ),
         trials=_trials(raw.get("trials", 1), path),
         plugins=_plugins(raw.get("plugins"), path),
+        delivery_required=_delivery_required(raw.get("delivery"), path),
         source=path,
     )

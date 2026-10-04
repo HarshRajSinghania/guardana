@@ -68,6 +68,7 @@ def _resolved(profile: Profile, files: ProfileFiles) -> dict[str, object]:
             "allow_destructive": profile.allow_destructive,
         },
         "plugins": _plugins(profile),
+        "delivery": {"required": profile.delivery_required},
         "contracts": {
             "paths": list(profile.contract_paths),
             "loaded": files.loaded_contracts(),

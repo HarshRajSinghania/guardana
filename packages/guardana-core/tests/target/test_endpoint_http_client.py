@@ -20,7 +20,7 @@ from urllib.error import HTTPError
 import pytest
 from guardana.core.budget import BudgetExhausted, Budgets
 from guardana.core.report.result import ScanResult
-from guardana.core.reporter import HttpReporter
+from guardana.core.reporter import HttpReporter, UnacknowledgedSubmissionError
 from guardana.core.target.adapter import AdapterConfig, HttpAdapterTransport
 from guardana.core.target.endpoint import (
     ChatMessage,
@@ -201,7 +201,9 @@ def test_a_collector_that_redirects_is_a_rejected_submission_and_the_other_host_
 
 
 def test_a_collector_that_answers_directly_still_receives_the_envelope(elsewhere: str) -> None:
-    HttpReporter(f"{elsewhere}/findings").submit(ScanResult((), (), ()), source="ci")
+    # The double answers as a model would, which is not a collector's acknowledgement.
+    with pytest.raises(UnacknowledgedSubmissionError):
+        HttpReporter(f"{elsewhere}/findings").submit(ScanResult((), (), ()), source="ci")
 
     assert _Elsewhere.received == [("POST", None)]
 

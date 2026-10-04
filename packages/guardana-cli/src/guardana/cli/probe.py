@@ -367,6 +367,7 @@ def probe(  # noqa: C901, PLR0913, PLR0915, PLR0917 — Typer surface, target mo
                 outputs=outputs,
                 output=output,
                 collector=collector,
+                delivery_required=prof.delivery_required,
                 keep=prof.privacy.keep_exchanges,
             )
             return
@@ -412,6 +413,7 @@ def probe(  # noqa: C901, PLR0913, PLR0915, PLR0917 — Typer surface, target mo
                 outputs=outputs,
                 output=output,
                 collector=collector,
+                delivery_required=prof.delivery_required,
             )
             return
 
@@ -459,6 +461,7 @@ def probe(  # noqa: C901, PLR0913, PLR0915, PLR0917 — Typer surface, target mo
                 outputs=outputs,
                 output=output,
                 collector=collector,
+                delivery_required=prof.delivery_required,
             )
             return
 
@@ -504,6 +507,7 @@ def probe(  # noqa: C901, PLR0913, PLR0915, PLR0917 — Typer surface, target mo
             outputs=outputs,
             output=output,
             collector=collector,
+            delivery_required=prof.delivery_required,
             keep=prof.privacy.keep_exchanges,
         )
 
@@ -628,6 +632,7 @@ def _finish_probe(  # noqa: PLR0913 — what the command does with a finished ru
     output: Path | None,
     collector: str | None,
     keep: bool = False,
+    delivery_required: bool = False,
 ) -> None:
     """Emit, forward and gate one probe the verifier finished.
 
@@ -642,20 +647,26 @@ def _finish_probe(  # noqa: PLR0913 — what the command does with a finished ru
     try:
         outputs.write(verification, output)
         _write_exchanges(verification, output, keep=keep)
+        acknowledged = None
         if collector:
-            submit_safely(
+            acknowledged = submit_safely(
                 collector,
                 verification.result,
                 source=source,
                 deployment=deployment,
                 run=verification.manifest,
+                required=delivery_required,
             )
         outputs.deliver(verification)
     except typer.Exit:
         report_target_stop(verification)
         raise
     report_target_stop(verification)
-    outputs.end(verification)
+    outputs.end(
+        verification,
+        delivery_required=delivery_required,
+        collector_acknowledged=acknowledged,
+    )
 
 
 def _write_exchanges(verification: Verification, output: Path | None, *, keep: bool) -> None:

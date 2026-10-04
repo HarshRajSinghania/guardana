@@ -63,10 +63,16 @@ def _collect_submissions(monkeypatch: pytest.MonkeyPatch) -> list[ScanResult]:
     submissions: list[ScanResult] = []
 
     def record(
-        _url: str, result: ScanResult, *, source: str, deployment: object | None = None
-    ) -> None:
+        _url: str,
+        result: ScanResult,
+        *,
+        source: str,
+        deployment: object | None = None,
+        required: bool = False,
+    ) -> bool:
         assert source
         submissions.append(result)
+        return True
 
     monkeypatch.setattr(monitor_module, "submit_safely", record)
     return submissions

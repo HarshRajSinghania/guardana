@@ -217,14 +217,45 @@ def _serialize(
     return json.dumps(payload).encode("utf-8")
 
 
+_MAX_ACKNOWLEDGEMENT_BYTES = 64 * 1024
+"""The most of a collector's answer read; a longer one is not an acknowledgement."""
+
+
+class UnacknowledgedSubmissionError(Exception):
+    """The collector's address answered with a 2xx that was not a collector's acknowledgement.
+
+    Whether anything was stored is unknown, so the submission is a failed delivery.
+    """
+
+    def __init__(self) -> None:
+        super().__init__("the response was not a collector acknowledgement")
+
+
+def _acknowledged(body: bytes) -> bool:
+    """Whether `body` is a collector's answer to an accepted envelope: an object, status `ok`."""
+    if len(body) > _MAX_ACKNOWLEDGEMENT_BYTES:
+        return False
+    try:
+        answer = json.loads(body)
+    except ValueError:
+        return False
+    return isinstance(answer, dict) and answer.get("status") == "ok"
+
+
 def _urllib_transport(url: str, payload: bytes, *, api_key: str | None) -> None:
+    """POST `payload` to `url`, raising unless the collector acknowledges it.
+
+    A 2xx alone is not enough: anything at the collector's address can answer one.
+    """
     headers = {"Content-Type": "application/json"}
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
     # S310 x2: the scheme is validated to be http/https in HttpReporter.__init__.
     request = Request(url, data=payload, headers=headers, method="POST")  # noqa: S310
-    with open_unredirected(request, timeout=_TIMEOUT_SECONDS):
-        pass
+    with open_unredirected(request, timeout=_TIMEOUT_SECONDS) as response:
+        body = response.read(_MAX_ACKNOWLEDGEMENT_BYTES + 1)
+    if not _acknowledged(body):
+        raise UnacknowledgedSubmissionError
 
 
 class HttpReporter:

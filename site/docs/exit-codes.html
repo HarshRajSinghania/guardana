@@ -339,7 +339,7 @@ behaviour.</p>
 </tr>
 <tr>
 <td>8</td>
-<td>an installed output failed: a format raised or returned no text, or a reporter failed; the verdict is printed</td>
+<td>an installed output failed: a format raised or returned no text, or a reporter failed, or a delivery <code>delivery.required</code> asks for was not acknowledged; the verdict is printed</td>
 </tr>
 </tbody>
 </table></div>
@@ -415,12 +415,23 @@ or a reporter whose delivery is <code>unknown</code> because it raised, returned
 ran past its deadline. The bug report belongs to that distribution, so the code is not
 <code>5</code>. The verdict is printed whenever <code>8</code> replaces its code; <code>8</code> replaces <code>0</code>, <code>1</code> and <code>2</code>,
 and a run that stopped keeps <code>4</code>, <code>6</code> or <code>7</code>. A receiver that refused or did not answer is not
-<code>8</code>: the delivery line says so and the verdict keeps its code, as for the collector. When
-Guardana's own redaction fails before an output is called, nothing is written or sent and the
+<code>8</code> by default: the delivery line says so and the verdict keeps its code, as for the collector.
+When Guardana's own redaction fails before an output is called, nothing is written or sent and the
 code is <code>5</code>, under the same precedence; <code>GUARDANA_DEBUG=1</code> prints the traceback.</p>
+<p><strong><code>8</code> is also a delivery a profile required.</strong> A profile that sets <code>delivery.required: true</code>
+(<a href="profiles.html#delivery">profiles</a>) asks that every delivery the run makes be acknowledged: the
+collector's, which answers with its own acknowledgement and not merely a <code>2xx</code>, and an installed
+reporter's, whose status must be <code>delivered</code> — <code>not_sent</code> included, since a job that delivered
+nothing must not pass. Anything else is <code>8</code> under the same precedence, with the verdict printed:
+it replaces <code>0</code>, <code>1</code> and <code>2</code>, a stopped run keeps <code>4</code>, <code>6</code> or <code>7</code>, and a redaction failure stays
+<code>5</code>. <code>import-observations</code>, which always exits <code>2</code>, exits <code>8</code> the same way. <code>monitor</code> never
+stops a watch for it: it counts the alert deliveries that were not acknowledged and ends a
+watch that would have exited <code>0</code>, <code>1</code> or <code>2</code> with <code>8</code>. Without the key nothing changes. The
+setting is not part of the verdict, so it moves no profile digest.</p>
 <h2 id="which-commands-produce-which">Which commands produce which</h2>
-<p><code>scan</code>, <code>probe</code> and <code>monitor</code> can produce any of them, except that <code>8</code> needs an installed
-format or reporter, which <code>monitor</code> refuses. A <code>monitor</code> bounded by
+<p><code>scan</code>, <code>probe</code> and <code>monitor</code> can produce any of them. <code>8</code> needs an installed format or
+reporter, which <code>monitor</code> refuses, or a delivery <code>delivery.required</code> asks for: <code>monitor</code> exits
+<code>8</code> when an alert's delivery to the collector was not acknowledged. A <code>monitor</code> bounded by
 <code>--max-cycles</code> exits with the worst outcome any cycle earned, judged as <code>probe</code> judges
 the cycle and as <code>diff</code> judges it against the first one; a policy failure outranks a
 stop, and a cycle the endpoint dropped or its target stopped is <code>4</code> when nothing worse was seen. <code>diff</code> has no target to be

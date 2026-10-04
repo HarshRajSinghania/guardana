@@ -85,17 +85,33 @@ def test_a_value_with_no_encoding_is_refused_rather_than_skipped() -> None:
         profile_digest(profile)
 
 
+_EXEMPT = {
+    "name": "a label",
+    "source": "where the file was read from",
+    "plugins": "a flag can replace it whole, and the manifest records the trust in force",
+    "policy": "covered field by field by the tests above",
+    "delivery_required": "not part of the verdict",
+}
+"""Profile fields this test does not vary, and why."""
+
+
 def test_every_profile_field_is_covered_or_left_out_on_purpose() -> None:
     """A field added to `Profile` changes the digest of a profile that sets it."""
     base = Profile(name="p", policy=Policy())
     changed = {
         member.name
         for member in fields(Profile)
-        if member.name not in {"name", "source", "plugins", "policy"}
+        if member.name not in _EXEMPT
         and profile_digest(_with_a_different(base, member.name)) == profile_digest(base)
     }
 
     assert changed == set()
+
+
+def test_requiring_delivery_is_left_out_of_the_digest() -> None:
+    base = Profile(name="p", policy=Policy())
+
+    assert profile_digest(replace(base, delivery_required=True)) == profile_digest(base)
 
 
 def _with_a_different(profile: Profile, name: str) -> Profile:

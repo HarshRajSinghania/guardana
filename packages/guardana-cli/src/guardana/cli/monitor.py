@@ -1,6 +1,6 @@
 import time
 from collections.abc import Callable, Iterable, Mapping
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Annotated
 
@@ -64,8 +64,20 @@ _DEFAULT_INTERVAL_SECONDS = 60.0
 # single-slot local server.
 _DEFAULT_CONCURRENCY = 4
 
+_REPLACED_BY_A_FAILED_DELIVERY = frozenset(
+    {ExitCode.OK, ExitCode.POLICY_FAILED, ExitCode.INDETERMINATE}
+)
+
 _ACCEPTED_FLAGS = (EndpointFlag.ADAPTER, EndpointFlag.API_KEY_ENV, EndpointFlag.CONCURRENCY)
 _REMEDIES = remedies_for(_ACCEPTED_FLAGS)
+
+
+@dataclass(slots=True)
+class AlertDeliveries:
+    """Whether the profile requires each alert's delivery, and how many went unacknowledged."""
+
+    required: bool = False
+    unacknowledged: int = 0
 
 
 def alert_handler(
@@ -73,6 +85,7 @@ def alert_handler(
     reporter_url: str | None,
     source: str,
     deployment: DeploymentRef | None = None,
+    deliveries: AlertDeliveries | None = None,
 ) -> Callable[[Alert], None]:
     """Print each alert under the run's privacy policy, and forward it under the same one.
 
@@ -82,16 +95,25 @@ def alert_handler(
     the machine continuously. `scan` and `probe` redact before they emit; this is
     the third emitter and it now does the same thing at the same point.
 
-    Forwarding degrades to a warning if the collector is unreachable — a dead
-    collector must not stop the monitor.
+    A collector that does not acknowledge never stops the monitor: it is said, and when
+    `deliveries` requires acknowledgement it is counted there for the watch's exit.
     """
+    counted = deliveries if deliveries is not None else AlertDeliveries()
 
     def handle(alert: Alert) -> None:
         result = redactor.redact_result(alert.result)
         typer.echo(f"--- ALERT (cycle {alert.cycle}): {alert.reason} ---")
         typer.echo(get_renderer("human", redactor=redactor, gate=alert.gate).render(result))
         if reporter_url:
-            submit_safely(reporter_url, result, source=source, deployment=deployment)
+            acknowledged = submit_safely(
+                reporter_url,
+                result,
+                source=source,
+                deployment=deployment,
+                required=counted.required,
+            )
+            if counted.required and not acknowledged:
+                counted.unacknowledged += 1
 
     return handle
 
@@ -338,6 +360,7 @@ def monitor(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; this i
     records = {key: value.as_record() for key, value in calibrations_or_exit(prof).items()}
 
     deployment = detect_deployment(ai_system, environment, deployment_id)
+    deliveries = AlertDeliveries(required=prof.delivery_required)
     if target is not None:
         used = [
             name
@@ -368,6 +391,7 @@ def monitor(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; this i
             reporter,
             source=selected.ref,
             deployment=deployment,
+            deliveries=deliveries,
         )
         summary = run_against_endpoint(
             selected.ref,
@@ -391,7 +415,7 @@ def monitor(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; this i
             privacy=prof.privacy,
             accepts=_ACCEPTED_FLAGS,
         )
-        _exit_with_worst(summary)
+        _exit_with_worst(summary, deliveries)
         return
 
     if target_option:
@@ -408,6 +432,7 @@ def monitor(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; this i
         reporter,
         source=f"{display_url(url)}#{model}",
         deployment=deployment,
+        deliveries=deliveries,
     )
     summary = run_against_endpoint(
         url,
@@ -425,14 +450,16 @@ def monitor(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; this i
         secrets=reached.secret_values,
         accepts=_ACCEPTED_FLAGS,
     )
-    _exit_with_worst(summary)
+    _exit_with_worst(summary, deliveries)
 
 
-def _exit_with_worst(summary: MonitorSummary) -> None:
+def _exit_with_worst(summary: MonitorSummary, deliveries: AlertDeliveries) -> None:
     """End a bounded watch with the worst code a cycle earned, as `probe` would have.
 
     A cycle that could not be sampled verified nothing, so it ends the watch as an
-    unavailable target unless a sampled cycle earned something worse.
+    unavailable target unless a sampled cycle earned something worse. An alert delivery
+    the profile required and the collector did not acknowledge turns a final `0`, `1` or
+    `2` into `8`; a stop's code stays.
     """
     typer.echo(
         f"monitor: {summary.cycles} cycle(s) sampled, {summary.alerts} alert(s), "
@@ -442,6 +469,12 @@ def _exit_with_worst(summary: MonitorSummary) -> None:
     code = ExitCode(summary.exit_code)
     if code is ExitCode.OK and summary.unsampled:
         code = ExitCode.TARGET_UNAVAILABLE
+    if deliveries.unacknowledged:
+        typer.echo(
+            f"monitor: {deliveries.unacknowledged} alert deliveries not acknowledged", err=True
+        )
+        if code in _REPLACED_BY_A_FAILED_DELIVERY:
+            code = ExitCode.OUTPUT_FAILED
     if code is not ExitCode.OK:
         raise typer.Exit(code=code)
 

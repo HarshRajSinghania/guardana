@@ -835,10 +835,18 @@ guardana scan . --reporter server://http://127.0.0.1:8000
 <p>To look at nothing but the dashboard, skip all of it — <code>GUARDANA_STORAGE=memory</code>
 with <code>GUARDANA_ALLOW_UNAUTHENTICATED=1</code> still starts a collector with a working
 page, no database, no organization and no key.</p>
-<p>A collector that is unreachable never changes a gate's exit code — the scan
-already ran and its verdict stands on its own. A collector that <em>rejects</em> a
-submission is different and says so, because a whole fleet silently failing to
-report while a dashboard shows stale data as current is the failure that matters.</p>
+<p>A submission counts as delivered only when the collector answers with its own
+acknowledgement — a JSON object whose <code>status</code> is <code>ok</code>, which every collector release
+sends. Any other <code>2xx</code>, from a proxy or another service at the collector's address, is
+<code>could not submit to reporter: the response was not a collector acknowledgement</code>.</p>
+<p>By default a collector that is unreachable or does not acknowledge never changes a gate's
+exit code — the scan already ran and its verdict stands on its own. A collector that
+<em>rejects</em> a submission says so, because a whole fleet silently failing to report while a
+dashboard shows stale data as current is the failure that matters. A pipeline whose run
+only counts once the collector holds it sets <a href="profiles.html#delivery"><code>delivery.required</code></a> in
+its profile: then each of those is an <code>error:</code> and the command exits <code>8</code>, with the verdict
+printed. The client honours the proxy variables (<code>HTTPS_PROXY</code>, <code>NO_PROXY</code>): the collector
+is a destination the operator names, reached through the operator's network.</p>
 <h2 id="contributing-to-the-collector">Contributing to the collector</h2>
 <p>Its tests need a real PostgreSQL. Without one they <strong>skip</strong>, so changing a rule
 does not require running a database. Setting <code>GUARDANA_REQUIRE_POSTGRES=1</code> turns

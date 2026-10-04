@@ -255,13 +255,23 @@ def scan(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; this is t
             raise typer.Exit(code=ExitCode.OK)
 
         outputs.write(verification, output)
+        acknowledged = None
         if reporter and installed_reporter is None:
             source = str(selected) if isinstance(selected, Path) else selected.ref
-            submit_safely(
-                reporter, result, source=source, deployment=deployment, run=verification.manifest
+            acknowledged = submit_safely(
+                reporter,
+                result,
+                source=source,
+                deployment=deployment,
+                run=verification.manifest,
+                required=prof.delivery_required,
             )
         outputs.deliver(verification)
-        outputs.end(verification)
+        outputs.end(
+            verification,
+            delivery_required=prof.delivery_required,
+            collector_acknowledged=acknowledged,
+        )
 
 
 def _read_baseline(path: Path | None) -> Baseline | None:

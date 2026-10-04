@@ -398,9 +398,11 @@ catch — while the parser beside it already refused an unreadable <em>date</em>
 that reason.</p>
 <h2 id="versions">Versions</h2>
 <p>Version 1 baselines still load — their waivers have no expiry and are reported as
-such. A file from a <em>newer</em> version is refused rather than read optimistically:
-honouring waivers whose conditions this build cannot evaluate is the fail-open the
-strictness exists to prevent.</p>
+such, and a file without <code>version</code> is read as version 1. A file from a <em>newer</em> version
+is refused rather than read optimistically: honouring waivers whose conditions this
+build cannot evaluate is the fail-open the strictness exists to prevent. A <code>version</code>
+that is not a whole number (<code>true</code>, <code>&quot;2&quot;</code>, <code>2.0</code>) is refused as <code>version must be an integer</code>, and one below 1 as <code>version 0 does not exist</code>, with exit <code>3</code> like any other
+unreadable baseline.</p>
 <h2 id="see-also">See also</h2>
 <ul>
 <li><a href="usage-scan.html"><code>usage-scan.md</code></a> — <code>--baseline</code> on a run</li>

@@ -6,7 +6,11 @@ import typer
 from guardana.core.manifest import DeploymentRef, RunManifest
 from guardana.core.output import RESERVED_REPORTER_NAMES, is_output_name
 from guardana.core.report import ScanResult
-from guardana.core.reporter import HttpReporter, check_collector_url
+from guardana.core.reporter import (
+    HttpReporter,
+    UnacknowledgedSubmissionError,
+    check_collector_url,
+)
 from guardana.core.target import EndpointError
 
 _SERVER_SCHEME = "server://"
@@ -19,10 +23,10 @@ which is why `probe` takes `--api-key-env` rather than `--api-key`, and this
 follows the same rule one step further by naming the variable itself.
 """
 
-# Only a collector being unreachable is a "degrade to a warning" event. A bad
-# URL (ValueError from HttpReporter) is a usage error, and a serialization bug
-# is our bug — neither should be silently swallowed as "collector outage".
-_COLLECTOR_UNREACHABLE = (OSError, URLError, EndpointError)
+# Only a collector being unreachable, or answering without acknowledging, is a
+# failed delivery. A bad URL (ValueError from HttpReporter) is a usage error, and a
+# serialization bug is our bug — neither should be swallowed as a collector outage.
+_NOT_DELIVERED = (OSError, URLError, EndpointError, UnacknowledgedSubmissionError)
 
 
 def reporter_from_url(
@@ -107,21 +111,26 @@ def _why(exc: HTTPError) -> str:
     return f"{exc.reason} — check that its schema version matches this agent's"
 
 
-def submit_safely(
+def submit_safely(  # noqa: PLR0913 — a destination, a run, and whether it must arrive
     url: str,
     result: ScanResult,
     *,
     source: str,
     deployment: DeploymentRef | None = None,
     run: RunManifest | None = None,
-) -> None:
-    """Forward findings to a collector, degrading to a warning if it is unreachable.
+    required: bool = False,
+) -> bool:
+    """Forward findings to a collector and return whether it acknowledged them.
 
-    A collector outage must never change the gate's exit code — the scan already
-    ran and its verdict stands on its own. But a bad `--reporter` URL or a bug in
-    serialization is not an outage; those propagate so the user actually learns
-    their findings are not being collected.
+    A collector that rejects, cannot be reached, or answers without acknowledging is said
+    as a warning, or as an error when the profile sets `delivery.required` (`required`);
+    the caller decides the exit, since the scan already ran and its verdict stands on its
+    own. A bad `--reporter` URL or a bug in serialization is not an outage; those
+    propagate so the user actually learns their findings are not being collected.
     """
+    level, suffix = (
+        ("error", " — the profile sets delivery.required") if required else ("warning", "")
+    )
     try:
         reporter_from_url(url, deployment, run).submit(result, source=source)
     except HTTPError as exc:
@@ -133,8 +142,12 @@ def submit_safely(
         # them after the wrong thing entirely — the same mistake as reading a
         # database outage as a rejected credential.
         typer.echo(
-            f"warning: the collector rejected this submission (HTTP {exc.code}): {_why(exc)}",
+            f"{level}: the collector rejected this submission (HTTP {exc.code}): "
+            f"{_why(exc)}{suffix}",
             err=True,
         )
-    except _COLLECTOR_UNREACHABLE as exc:
-        typer.echo(f"warning: could not submit to reporter: {exc}", err=True)
+        return False
+    except _NOT_DELIVERED as exc:
+        typer.echo(f"{level}: could not submit to reporter: {exc}{suffix}", err=True)
+        return False
+    return True

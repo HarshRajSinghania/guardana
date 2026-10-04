@@ -123,6 +123,13 @@ When the first cycle is such a cycle, the watch ends there with exit `4` and the
 after `error:`, after alerting any failure that cycle proved. `--max-cycles 0` samples
 nothing and exits `2`.
 
+A profile that sets [`delivery.required`](profiles.md#delivery) adds one more: each alert
+the collector did not acknowledge — it rejected it, could not be reached, or answered without
+its own acknowledgement — is printed as an `error:` line and counted, and the watch goes on.
+When the watch ends, `monitor: <n> alert deliveries not acknowledged` follows the cycle count,
+and a final `0`, `1` or `2` becomes `8`; `4`, `6` and `7` stay. Without the key a failed
+alert delivery is a warning and changes no code.
+
 An unbounded run never ends on its own. Ctrl-C exits `7` whatever the cycles before
 it found — the alerts already printed are the record of those cycles, and the code
 says the watch did not finish. See [`exit-codes.md`](exit-codes.md).

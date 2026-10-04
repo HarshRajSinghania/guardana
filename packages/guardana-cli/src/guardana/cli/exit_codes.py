@@ -64,7 +64,10 @@ class ExitCode(IntEnum):
     """The command was interrupted before it finished; nothing it had not yet written exists."""
 
     OUTPUT_FAILED = 8
-    """An installed output failed: a format raised or returned no text, or a reporter failed.
+    """An installed output failed, or a delivery the profile required was not acknowledged.
+
+    A format raised or returned no text, a reporter failed, or `delivery.required` is set
+    and the collector or an installed reporter did not acknowledge the run.
 
     Kept apart from `INTERNAL_ERROR` because the defect belongs to the distribution that
     shipped the output, not to Guardana. It replaces `0`, `1` and `2`; a run that stopped

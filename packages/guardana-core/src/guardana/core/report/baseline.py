@@ -136,7 +136,11 @@ def read_baseline(path: Path) -> Baseline:
     if not isinstance(entries, list):
         raise BaselineError(f"invalid baseline {path}: 'waivers' must be a list")
     version = raw.get("version", 1)
-    if not isinstance(version, int) or version > BASELINE_VERSION:
+    if isinstance(version, bool) or not isinstance(version, int):
+        raise BaselineError(f"invalid baseline {path}: version must be an integer")
+    if version < 1:
+        raise BaselineError(f"invalid baseline {path}: version {version} does not exist")
+    if version > BASELINE_VERSION:
         raise BaselineError(
             f"invalid baseline {path}: version {version!r} is newer than this build reads "
             f"({BASELINE_VERSION}) — upgrade Guardana rather than ignoring waivers it "

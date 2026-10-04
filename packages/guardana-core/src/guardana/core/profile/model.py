@@ -139,6 +139,13 @@ class Profile:
     honoured wherever this profile drives discovery.
     """
 
+    delivery_required: bool = False
+    """Whether every delivery the run makes must be acknowledged, from `delivery.required`.
+
+    Not part of the verdict: a command decides the exit after the gate, so the digest
+    leaves it out and no run record moves when it is set.
+    """
+
     source: Path | None = None
     """The `guardana.yaml` this profile was read from; None for a preset or one built in code.
 

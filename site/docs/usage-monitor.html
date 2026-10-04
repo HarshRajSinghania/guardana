@@ -484,6 +484,12 @@ exit code of its own; if no sampled cycle earned anything worse, the run exits <
 When the first cycle is such a cycle, the watch ends there with exit <code>4</code> and the cause
 after <code>error:</code>, after alerting any failure that cycle proved. <code>--max-cycles 0</code> samples
 nothing and exits <code>2</code>.</p>
+<p>A profile that sets <a href="profiles.html#delivery"><code>delivery.required</code></a> adds one more: each alert
+the collector did not acknowledge — it rejected it, could not be reached, or answered without
+its own acknowledgement — is printed as an <code>error:</code> line and counted, and the watch goes on.
+When the watch ends, <code>monitor: &lt;n&gt; alert deliveries not acknowledged</code> follows the cycle count,
+and a final <code>0</code>, <code>1</code> or <code>2</code> becomes <code>8</code>; <code>4</code>, <code>6</code> and <code>7</code> stay. Without the key a failed
+alert delivery is a warning and changes no code.</p>
 <p>An unbounded run never ends on its own. Ctrl-C exits <code>7</code> whatever the cycles before
 it found — the alerts already printed are the record of those cycles, and the code
 says the watch did not finish. See <a href="exit-codes.html"><code>exit-codes.md</code></a>.</p>

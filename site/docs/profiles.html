@@ -310,7 +310,12 @@ fail_on:
   min_confidence: 0.0
 </code></pre>
 <h2 id="full-schema">Full schema</h2>
-<pre><code class="language-yaml">name: pre-deploy               # free-form label, shown nowhere but reports/logs
+<p>The published schema is
+<a href="https://guardana.dev/schemas/profile/v1.schema.json"><code>profile/v1.schema.json</code></a>
+(<a href="https://github.com/guardana/guardana/blob/main/schemas/profile-v1.schema.json"><code>schemas/profile-v1.schema.json</code></a>); it describes every
+key below, and a test holds it to the keys the loader accepts. Every key is optional.</p>
+<pre><code class="language-yaml">schema_version: 1              # optional; absent means 1 — see &quot;Schema version&quot; below
+name: pre-deploy               # free-form label, shown nowhere but reports/logs
 
 rules:
   include: [&quot;guardana.*&quot;, &quot;acme.*&quot;]   # glob patterns; rule matches if it matches
@@ -361,6 +366,15 @@ evaluators:                     # config-wired evaluators — see the section be
   guard:                                 # optional safety-classifier evaluator
     endpoint: &quot;http://localhost:8000&quot;
     model: &quot;llama-guard-3&quot;
+
+budgets:                        # optional; see &quot;budgets:&quot; below
+  max_requests: 200
+
+privacy:                        # optional; what evidence a run keeps — see privacy.md
+  evidence_mode: redacted       # metadata_only | redacted | full
+
+delivery:                       # optional; see &quot;delivery:&quot; below
+  required: true                # every delivery must be acknowledged, or exit 8
 </code></pre>
 <div class="table-wrap"><table>
 <thead>
@@ -372,6 +386,12 @@ evaluators:                     # config-wired evaluators — see the section be
 </tr>
 </thead>
 <tbody>
+<tr>
+<td><code>schema_version</code></td>
+<td>integer</td>
+<td><code>1</code></td>
+<td>The profile schema the file was written for. See <a href="#schema-version">Schema version</a>.</td>
+</tr>
 <tr>
 <td><code>name</code></td>
 <td>string</td>
@@ -474,6 +494,24 @@ evaluators:                     # config-wired evaluators — see the section be
 <td><code>{}</code></td>
 <td>Config blocks for evaluators that need a model of their own, keyed by evaluator id — <code>llm_judge</code> and <code>guard</code>; any other block name is refused. <code>probe</code>, <code>grade</code>, <code>monitor</code>, <code>calibrate</code> and <code>rule test</code> build and register them from this block at startup, and <code>plan</code> builds them to price their calls without sending any; see the next section. With no block, a rule naming that evaluator is skipped <strong>visibly</strong>, never silently passed.</td>
 </tr>
+<tr>
+<td><code>budgets</code></td>
+<td>mapping</td>
+<td>no ceiling</td>
+<td>What a run may spend. See <a href="#budgets--a-ceiling-on-what-a-run-may-spend"><code>budgets:</code></a>.</td>
+</tr>
+<tr>
+<td><code>privacy</code></td>
+<td>mapping</td>
+<td><code>evidence_mode: redacted</code></td>
+<td>What evidence a run keeps and how it is redacted. See <a href="privacy.html"><code>privacy.md</code></a>.</td>
+</tr>
+<tr>
+<td><code>delivery.required</code></td>
+<td>bool</td>
+<td><code>false</code></td>
+<td>When <code>true</code>, a delivery to the collector or an installed reporter that was not acknowledged ends the command with exit <code>8</code>. See <a href="#delivery"><code>delivery:</code></a>.</td>
+</tr>
 </tbody>
 </table></div>
 <p><code>include</code>/<code>exclude</code> are matched with shell-style globbing (<code>fnmatch</code>) against
@@ -488,6 +526,43 @@ includes both.</p>
   allow: [acme-guardana-rules]
 </code></pre>
 <p>A flag takes precedence over the profile: <code>--plugins</code> and its <code>--allow-plugin</code> list replace the entire <code>plugins:</code> setting. A pipeline that checks untrusted contributions should pass <code>--plugins builtins</code> as a flag. Then a <code>guardana.yaml</code> changed in the same pull request cannot widen trust. A preset sets no trust, and Guardana does not read <code>guardana.yaml</code> unless <code>--profile</code> names it. Guardana compares names the way pip does: <code>Acme_Rules</code> admits <code>acme-rules</code>. From Python, <code>Registry.discover(trust)</code> and <code>Verifier(trust=...)</code> take the trust as an argument and have no default. See <a href="https://github.com/guardana/guardana/blob/main/SECURITY.md"><code>SECURITY.md</code></a> for the full model.</p>
+<h2 id="delivery">Delivery</h2>
+<p>A run forwards its result when <code>--reporter</code> names a collector or an installed reporter. By
+default a delivery that fails is said and the verdict decides the exit, so a scan whose
+collector is down still passes. A pipeline whose result only counts once it arrives asks
+for more:</p>
+<pre><code class="language-yaml">delivery:
+  required: true
+</code></pre>
+<p>Then every delivery the run makes must be acknowledged, or the command exits <code>8</code> with the
+verdict printed:</p>
+<ul>
+<li><strong>The collector</strong> acknowledges with its own answer — a JSON object whose <code>status</code> is
+<code>ok</code> — not with any <code>2xx</code>, so a proxy or another service at its address does not count.
+A rejection, an unreachable collector and an answer that is not an acknowledgement are
+printed as <code>error:</code> lines ending <code>— the profile sets delivery.required</code>.</li>
+<li><strong>An installed reporter</strong> acknowledges with the status <code>delivered</code>. Any other status,
+<code>not_sent</code> included, is followed by <code>error: the profile sets delivery.required, and the delivery was &lt;status&gt;</code>.</li>
+</ul>
+<p><code>8</code> replaces <code>0</code>, <code>1</code> and <code>2</code>; a run that stopped keeps <code>4</code>, <code>6</code> or <code>7</code>, and a redaction
+failure stays <code>5</code> (<a href="exit-codes.html">exit codes</a>). <code>import-observations</code> exits <code>8</code> instead of
+<code>2</code> the same way. <a href="usage-monitor.html"><code>monitor</code></a> never stops a watch for it: it counts the
+alert deliveries the collector did not acknowledge, prints <code>monitor: &lt;n&gt; alert deliveries not acknowledged</code>, and ends a watch that would have exited <code>0</code>, <code>1</code> or <code>2</code> with <code>8</code>. A run that
+forwards nothing is unaffected. The setting decides the exit after the verdict, so it is
+left out of the profile digest: setting it moves no run record and no recipe lock.
+<code>guardana config explain</code> shows it after <code>plugins</code>.</p>
+<h2 id="schema-version">Schema version</h2>
+<p>A profile may state <code>schema_version: 1</code>; without it, a profile is version 1. A version this
+build does not read is refused at load with exit <code>3</code>:</p>
+<ul>
+<li>above the current one: <code>invalid profile &lt;path&gt;: profile schema 2 was written by a newer Guardana; this build reads schema 1 — upgrade Guardana</code>, checked before unknown keys, so
+a key a newer release added is not reported as a typo;</li>
+<li>a boolean or anything but a whole number: <code>schema_version must be an integer</code>;</li>
+<li>below 1: <code>schema_version 0 does not exist</code>.</li>
+</ul>
+<p>Guardana writes no <code>schema_version</code> while the schema is 1, so a profile <code>guardana init</code>
+writes still loads in a release that predates the key. A key added later raises the
+version.</p>
 <h2 id="the-gate">The gate</h2>
 <p>A run's exit code is <code>1</code> (fails) if <strong>any</strong> finding satisfies both:</p>
 <ol>

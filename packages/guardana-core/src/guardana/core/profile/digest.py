@@ -19,9 +19,10 @@ from guardana.core.redaction import OMITTED_WHEN_DEFAULT
 _FORMAT = "profile-v1"
 """Part of every digest, so a change to what is covered changes every digest with it."""
 
-_LEFT_OUT = frozenset({"name", "source", "plugins"})
-"""Not what the profile asks of a run: its label, where it was read from, and the trust a
-flag can replace whole (the manifest records the trust in force on its own)."""
+_LEFT_OUT = frozenset({"name", "source", "plugins", "delivery_required"})
+"""Not what the profile asks of a run: its label, where it was read from, the trust a flag
+can replace whole (the manifest records the trust in force on its own), and whether its
+deliveries must be acknowledged, which is decided after the verdict."""
 
 _PATHS_BESIDE_THE_PROFILE = frozenset({"rule_paths", "calibration_paths", "contract_paths"})
 

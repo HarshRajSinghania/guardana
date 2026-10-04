@@ -210,6 +210,10 @@ class _Closeable:
     def __exit__(self, *_args: object) -> None:
         return None
 
+    def read(self, size: int = -1) -> bytes:
+        """Answer as a collector that accepted the envelope."""
+        return b'{"status": "ok"}'
+
 
 def _record(sent: list[dict[str, str]], request: object) -> _Closeable:
     sent.append({k.title(): v for k, v in request.headers.items()})  # type: ignore[attr-defined]

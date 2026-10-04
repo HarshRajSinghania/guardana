@@ -112,6 +112,32 @@ def test_a_baseline_from_a_newer_version_is_refused(tmp_path: Path) -> None:
         read_baseline(path)
 
 
+@pytest.mark.parametrize("version", [True, False, "2", 1.0, None, [2]])
+def test_a_version_that_is_not_an_integer_is_refused(tmp_path: Path, version: object) -> None:
+    path = _write(tmp_path, {"version": version, "waivers": [{"fingerprint": "abc"}]})
+
+    with pytest.raises(BaselineError) as refused:
+        read_baseline(path)
+
+    assert str(refused.value) == f"invalid baseline {path}: version must be an integer"
+
+
+@pytest.mark.parametrize("version", [0, -1])
+def test_a_version_below_one_does_not_exist(tmp_path: Path, version: int) -> None:
+    path = _write(tmp_path, {"version": version, "waivers": [{"fingerprint": "abc"}]})
+
+    with pytest.raises(BaselineError) as refused:
+        read_baseline(path)
+
+    assert str(refused.value) == f"invalid baseline {path}: version {version} does not exist"
+
+
+def test_a_baseline_without_a_version_reads_as_version_one(tmp_path: Path) -> None:
+    path = _write(tmp_path, {"waivers": [{"fingerprint": "abc"}]})
+
+    assert read_baseline(path).version == 1
+
+
 def test_an_unreadable_expiry_is_refused_not_treated_as_permanent(tmp_path: Path) -> None:
     # The one mistake this field exists to prevent: a typo'd date that silently
     # becomes a waiver with no end.

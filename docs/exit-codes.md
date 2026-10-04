@@ -23,7 +23,7 @@ behaviour.
 | 5 | internal Guardana error |
 | 6 | budget exhausted |
 | 7 | run interrupted before it finished |
-| 8 | an installed output failed: a format raised or returned no text, or a reporter failed; the verdict is printed |
+| 8 | an installed output failed: a format raised or returned no text, or a reporter failed, or a delivery `delivery.required` asks for was not acknowledged; the verdict is printed |
 
 ## The reasoning
 
@@ -109,14 +109,26 @@ or a reporter whose delivery is `unknown` because it raised, returned no valid s
 ran past its deadline. The bug report belongs to that distribution, so the code is not
 `5`. The verdict is printed whenever `8` replaces its code; `8` replaces `0`, `1` and `2`,
 and a run that stopped keeps `4`, `6` or `7`. A receiver that refused or did not answer is not
-`8`: the delivery line says so and the verdict keeps its code, as for the collector. When
-Guardana's own redaction fails before an output is called, nothing is written or sent and the
+`8` by default: the delivery line says so and the verdict keeps its code, as for the collector.
+When Guardana's own redaction fails before an output is called, nothing is written or sent and the
 code is `5`, under the same precedence; `GUARDANA_DEBUG=1` prints the traceback.
+
+**`8` is also a delivery a profile required.** A profile that sets `delivery.required: true`
+([profiles](profiles.md#delivery)) asks that every delivery the run makes be acknowledged: the
+collector's, which answers with its own acknowledgement and not merely a `2xx`, and an installed
+reporter's, whose status must be `delivered` — `not_sent` included, since a job that delivered
+nothing must not pass. Anything else is `8` under the same precedence, with the verdict printed:
+it replaces `0`, `1` and `2`, a stopped run keeps `4`, `6` or `7`, and a redaction failure stays
+`5`. `import-observations`, which always exits `2`, exits `8` the same way. `monitor` never
+stops a watch for it: it counts the alert deliveries that were not acknowledged and ends a
+watch that would have exited `0`, `1` or `2` with `8`. Without the key nothing changes. The
+setting is not part of the verdict, so it moves no profile digest.
 
 ## Which commands produce which
 
-`scan`, `probe` and `monitor` can produce any of them, except that `8` needs an installed
-format or reporter, which `monitor` refuses. A `monitor` bounded by
+`scan`, `probe` and `monitor` can produce any of them. `8` needs an installed format or
+reporter, which `monitor` refuses, or a delivery `delivery.required` asks for: `monitor` exits
+`8` when an alert's delivery to the collector was not acknowledged. A `monitor` bounded by
 `--max-cycles` exits with the worst outcome any cycle earned, judged as `probe` judges
 the cycle and as `diff` judges it against the first one; a policy failure outranks a
 stop, and a cycle the endpoint dropped or its target stopped is `4` when nothing worse was seen. `diff` has no target to be

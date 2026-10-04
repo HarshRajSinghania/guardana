@@ -14,7 +14,7 @@ from typing import Annotated
 import typer
 from guardana.cli._formats import OutputFormat
 from guardana.cli._output import emit
-from guardana.cli._outputs import IMPORT_REFUSAL, refuse_installed_reporter
+from guardana.cli._outputs import IMPORT_REFUSAL, print_verdict, refuse_installed_reporter
 from guardana.cli._profile import PRESET_HELP, resolve_profile
 from guardana.cli._reporting import check_reporter_url, submit_safely
 from guardana.cli._run_meta import build_manifest, detect_deployment
@@ -125,7 +125,17 @@ def import_observations(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI 
     )
     emit(get_renderer(format.value, run=run).render(result), output, format.value)
     if reporter:
-        submit_safely(reporter, result, source=str(results), deployment=deployment, run=run)
+        acknowledged = submit_safely(
+            reporter,
+            result,
+            source=str(results),
+            deployment=deployment,
+            run=run,
+            required=prof.delivery_required,
+        )
+        if prof.delivery_required and not acknowledged:
+            print_verdict(outcome, ExitCode.INDETERMINATE)
+            raise typer.Exit(code=ExitCode.OUTPUT_FAILED)
     # Always non-zero, and always this code. No rule ran, so "the policy passed" is a
     # sentence this run is not entitled to — see the module docstring.
     raise typer.Exit(code=ExitCode.INDETERMINATE)

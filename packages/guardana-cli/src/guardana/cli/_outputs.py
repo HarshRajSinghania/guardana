@@ -17,6 +17,7 @@ from guardana.cli._plugins import admission_forms
 from guardana.cli._reporting import split_reporter
 from guardana.cli.exit_codes import ExitCode, code_for
 from guardana.core.budget import BudgetExhausted
+from guardana.core.gate import GateOutcome
 from guardana.core.origin import Origin
 from guardana.core.output import (
     BoundaryError,
@@ -279,16 +280,32 @@ class RunOutputs:
         self._delivery = delivery
         return delivery
 
-    def end(self, verification: Verification) -> None:
-        """End with the run's code, or `8` when the reporter failed and no stop outranks it.
+    def end(
+        self,
+        verification: Verification,
+        *,
+        delivery_required: bool = False,
+        collector_acknowledged: bool | None = None,
+    ) -> None:
+        """End with the run's code, or `8` when a delivery failed and no stop outranks it.
 
-        The verdict is printed whenever `8` replaces its code.
+        A delivery fails when the reporter's status is `unknown`, and, with
+        `delivery_required`, when it is anything but `delivered` or the collector did not
+        acknowledge (`collector_acknowledged` False; None when nothing was forwarded). The
+        verdict is printed whenever `8` replaces its code.
         """
-        if self._delivery is not None and self._delivery.status is DeliveryStatus.UNKNOWN:
-            code = _unless_stopped(verification, ExitCode.OUTPUT_FAILED)
-            if code is ExitCode.OUTPUT_FAILED:
-                _print_verdict(verification)
-            raise typer.Exit(code=code)
+        failed = self._delivery is not None and self._delivery.status is DeliveryStatus.UNKNOWN
+        if delivery_required:
+            if self._delivery is not None and self._delivery.status is not DeliveryStatus.DELIVERED:
+                typer.echo(
+                    f"error: the profile sets delivery.required, and the delivery was "
+                    f"{self._delivery.status}",
+                    err=True,
+                )
+                failed = True
+            failed = failed or collector_acknowledged is False
+        if failed:
+            _end_unacknowledged(verification)
         exit_with(verification.gate, verification.result)
 
 
@@ -308,9 +325,21 @@ def _remove_earlier(output: Path | None) -> None:
     typer.echo(f"removed {output}: it held an earlier run, not this one", err=True)
 
 
+def _end_unacknowledged(verification: Verification) -> NoReturn:
+    """Exit `8` for a failed delivery with the verdict printed, or with the stop's code."""
+    code = _unless_stopped(verification, ExitCode.OUTPUT_FAILED)
+    if code is ExitCode.OUTPUT_FAILED:
+        _print_verdict(verification)
+    raise typer.Exit(code=code)
+
+
+def print_verdict(outcome: GateOutcome, code: ExitCode) -> None:
+    """Print the line that says which verdict, and which code, a replaced exit stands for."""
+    typer.echo(f"the run's verdict: {outcome} (exit {int(code)})", err=True)
+
+
 def _print_verdict(verification: Verification) -> None:
-    verdict = code_for(verification.gate, verification.result.stopped_by)
-    typer.echo(f"the run's verdict: {verification.gate} (exit {int(verdict)})", err=True)
+    print_verdict(verification.gate, code_for(verification.gate, verification.result.stopped_by))
 
 
 def _unless_stopped(verification: Verification, code: ExitCode) -> ExitCode:
@@ -325,6 +354,7 @@ __all__ = [
     "MONITOR_REFUSAL",
     "NOT_PRODUCED",
     "RunOutputs",
+    "print_verdict",
     "refuse_installed_output_beside",
     "refuse_installed_reporter",
     "refuse_selection",

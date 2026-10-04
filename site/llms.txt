@@ -108,6 +108,7 @@ This file is generated from the documentation map; do not edit it by hand.
 - [Guardana Pack Lock v3](https://guardana.dev/schemas/pack-lock/v3.schema.json): guardana-lock.yaml: every installed extension pinned by what it is, written by `guardana pack lock` and compared by `guardana pack lock --check`.
 - [Guardana Pack Manifest v3](https://guardana.dev/schemas/pack-manifest/v3.schema.json): guardana-pack.yaml: what an extension package provides and which contracts it was written against, shipped inside the package directory and checked by `guardana pack validate`.
 - [Guardana Run Plan v4](https://guardana.dev/schemas/plan/v4.schema.json): What a run would cost, worked out without sending a request.
+- [Guardana Profile v1](https://guardana.dev/schemas/profile/v1.schema.json): guardana.yaml: which rules a run uses, what fails it, what it may spend and keep, and whether its deliveries must be acknowledged.
 - [Guardana Recipe Lock v2](https://guardana.dev/schemas/recipe-lock/v2.schema.json): guardana-recipe.lock.yaml: what a recipe's run is pinned to, written by `guardana recipe lock`.
 - [Guardana Recipe v3](https://guardana.dev/schemas/recipe/v3.schema.json): guardana-recipe.yaml: the profile a team's checks come from, what answers them, and where the artifact goes.
 - [Guardana Recording v3](https://guardana.dev/schemas/recording/v3.schema.json): One record of a Guardana recording: what an application answered, graded later without calling it.
