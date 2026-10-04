@@ -7,7 +7,10 @@ Each test installs a fake distribution into a directory of its own on `sys.path`
 
 import importlib
 import json
+import os
 import sys
+import sysconfig
+import threading
 from collections.abc import Iterator, Mapping
 from pathlib import Path
 
@@ -440,12 +443,26 @@ def _with_installed_files(site: Path, files: Mapping[str, str]) -> None:
         record=_RECORD
         + _record(
             "acme_pack-1.0.dist-info/entry_points.txt,sha256=FFFF,40",
-            *(f"{path},sha256=ZZZZ,1" for path in _OUTSIDE),
+            *(f"{path},sha256=ZZZZ,1" for path in files),
         ),
     )
     (info / "entry_points.txt").write_text(
         "[console_scripts]\nacme = acme_pack:main\n", encoding="utf-8"
     )
+
+
+@pytest.fixture
+def scripts(site: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Make `bin/` beside `site` the scripts directory of the installation `site` belongs to."""
+    directory = site.parent / "bin"
+    paths = {"purelib": str(site), "platlib": str(site), "scripts": str(directory)}
+
+    def get_paths(scheme: str = "", *_args: object, **_kwargs: object) -> dict[str, str]:
+        return paths if scheme == "test" else {}
+
+    monkeypatch.setattr(sysconfig, "get_scheme_names", lambda: ("test",))
+    monkeypatch.setattr(sysconfig, "get_paths", get_paths)
+    return directory
 
 
 _ENV_ONE = "/venv-one/bin/python3"
@@ -505,6 +522,7 @@ _TRAMPOLINE = "#!/bin/sh\n'''exec' {exe} \"$0\" \"$@\"\n' '''\n"
         "generated",
     ],
 )
+@pytest.mark.usefixtures("scripts")
 def test_files_installed_outside_the_package_are_pinned_by_content_but_the_interpreter_path(  # noqa: PLR0913 — the fixtures and one case
     site: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -538,6 +556,80 @@ def test_a_file_installed_outside_the_package_that_cannot_be_read_leaves_it_unpi
     (site / "../share/acme/table.txt").unlink()
 
     assert pin_distribution_source("acme-pack") == "its ../share/acme/table.txt cannot be read"
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Windows has no FIFOs")
+def test_a_record_entry_naming_a_fifo_is_never_opened_and_leaves_it_unpinned(site: Path) -> None:
+    _with_installed_files(site, {**_OUTSIDE, "../share/acme/pipe": ""})
+    pipe = site / "../share/acme/pipe"
+    pipe.unlink()
+    os.mkfifo(pipe)
+    pinned: list[SourcePin | str] = []
+    worker = threading.Thread(
+        target=lambda: pinned.append(pin_distribution_source("acme-pack")), daemon=True
+    )
+
+    worker.start()
+    worker.join(timeout=10)
+    blocked = worker.is_alive()
+    if blocked:
+        os.close(os.open(pipe, os.O_WRONLY | os.O_NONBLOCK))
+        worker.join(timeout=10)
+
+    assert not blocked
+    assert pinned == ["its ../share/acme/pipe cannot be read"]
+
+
+@pytest.mark.parametrize(
+    "path",
+    ["../share/tools/acme", "../share/acme-script.py", "../bin/nested/acme", "../acme.exe"],
+    ids=["elsewhere", "launcher-suffix-elsewhere", "below-the-scripts-directory", "above-it"],
+)
+@pytest.mark.usefixtures("scripts")
+def test_a_file_named_like_a_declared_script_outside_the_scripts_directory_is_pinned(
+    site: Path, path: str
+) -> None:
+    _with_installed_files(site, {**_OUTSIDE, path: "print('acme')\n"})
+    first = pin_distribution_source("acme-pack")
+
+    (site / path).write_text("print('changed')\n", encoding="utf-8")
+    second = pin_distribution_source("acme-pack")
+
+    assert isinstance(first, SourcePin)
+    assert first.files == 8
+    assert second != first
+
+
+@pytest.mark.parametrize("path", ["../bin/acme", "../bin/acme-script.py", "../bin/acme.exe"])
+@pytest.mark.usefixtures("scripts")
+def test_the_wrapper_an_installer_writes_in_the_scripts_directory_is_left_out(
+    site: Path, path: str
+) -> None:
+    files = {name: text for name, text in _OUTSIDE.items() if name != "../bin/acme"}
+    _with_installed_files(site, {**files, path: "#!/venv-one/bin/python\nimport acme_pack\n"})
+    first = pin_distribution_source("acme-pack")
+
+    (site / path).write_text("#!/elsewhere/bin/python\nimport other\n", encoding="utf-8")
+    second = pin_distribution_source("acme-pack")
+
+    assert isinstance(first, SourcePin)
+    assert first.files == 7
+    assert second == first
+
+
+def test_a_wrapper_is_pinned_when_the_installation_names_no_scripts_directory(
+    site: Path,
+) -> None:
+    """An installation no scheme of this interpreter describes has no wrapper to leave out."""
+    _with_installed_files(site, _OUTSIDE)
+    first = pin_distribution_source("acme-pack")
+
+    (site / "../bin/acme").write_text("#!/elsewhere/bin/python\nimport other\n", encoding="utf-8")
+    second = pin_distribution_source("acme-pack")
+
+    assert isinstance(first, SourcePin)
+    assert first.files == 8
+    assert second != first
 
 
 def test_bytecode_a_record_lists_outside_a_cache_directory_is_pinned() -> None:

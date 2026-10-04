@@ -13,16 +13,20 @@ import ast
 import csv
 import hashlib
 import importlib.metadata
-import io
 import json
 import os
 import re
 import sys
+import sysconfig
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
+from typing import BinaryIO
 from urllib.parse import urlsplit
 from urllib.request import url2pathname
+
+from guardana.core.formats._stream import open_regular
+from guardana.core.formats.errors import FormatError
 
 MAX_SOURCE_FILES = 20_000
 """Above this many files a distribution stays unpinned rather than read."""
@@ -162,7 +166,7 @@ def pin_distribution_source(
     return record_pin(
         found.read_text("RECORD"),
         installed=lambda path: _installed_content(found, path),
-        generated=_generated_scripts(found),
+        generated=_generated_wrappers(found),
     )
 
 
@@ -408,7 +412,7 @@ def record_pin(
     record: str | None,
     *,
     installed: Callable[[str], str | None] = lambda _path: None,
-    generated: frozenset[str] = frozenset(),
+    generated: Callable[[str], bool] = lambda _path: False,
 ) -> SourcePin | str:
     """Pin a distribution by its installed `RECORD`: every entry's path and recorded hash.
 
@@ -420,8 +424,8 @@ def record_pin(
     A file installed outside the install root or under `*.data/scripts/` is pinned by
     what `installed` reads for it, all of it but the path to this environment's
     interpreter an installer writes after `#!`; None from it leaves the distribution
-    unpinned. A console script named in `generated` is left out: `entry_points.txt`
-    says what it calls.
+    unpinned. An entry `generated` calls the wrapper an installer wrote for a declared
+    script is left out: `entry_points.txt` says what it calls.
     """
     if record is None:
         return "it has no RECORD to read"
@@ -434,7 +438,7 @@ def record_pin(
         if _installer_own(path):
             continue
         outside = _installed_outside(path)
-        if outside and _generated_script(path, generated):
+        if outside and generated(path):
             continue
         if not outside and not recorded:
             return f"its RECORD lists {path} without a hash"
@@ -453,28 +457,32 @@ def record_pin(
 
 
 def _installed_content(found: importlib.metadata.Distribution, path: str) -> str | None:
-    """Digest the file a `RECORD` entry names, but its interpreter path; None if unreadable."""
+    """Digest the file a `RECORD` entry names, but its interpreter path; None if unreadable.
+
+    Anything but a regular file is unreadable: a FIFO or a device would block the read.
+    """
     digest = hashlib.sha256()
     try:
-        with Path(str(found.locate_file(path))).open("rb") as handle:
+        with open_regular(Path(str(found.locate_file(path)))) as handle:
             digest.update(_interpreter_line(handle))
             while chunk := handle.read(_READ_CHUNK):
                 digest.update(chunk)
-    except OSError:
+    except (OSError, FormatError):
         return None
     return f"{_CONTENT_TAG}{digest.hexdigest()}"
 
 
-def _interpreter_line(handle: io.BufferedReader) -> bytes:
-    """Read the `#!` opening of `handle`, with this environment's interpreter path made generic.
+def _interpreter_line(handle: BinaryIO) -> bytes:
+    """Read the opening of `handle`, with the interpreter path after `#!` made generic.
 
     An installer writes the interpreter's path after `#!`, or into a `/bin/sh` launcher
     when that path cannot follow `#!`; either becomes one placeholder, any arguments
     kept. Every other opening is returned as written.
     """
-    if handle.peek(2)[:2] != b"#!":
-        return b""
-    first = handle.readline(_READ_CHUNK)
+    opening = handle.read(2)
+    if opening != b"#!":
+        return opening
+    first = opening + handle.readline(_READ_CHUNK - len(opening))
     shebang = _SHEBANG.fullmatch(first)
     if shebang is None:
         return first
@@ -485,7 +493,7 @@ def _interpreter_line(handle: io.BufferedReader) -> bytes:
     return first[: shebang.start("exe")] + _INTERPRETER + shebang["rest"]
 
 
-def _trampoline(first: bytes, handle: io.BufferedReader) -> bytes:
+def _trampoline(first: bytes, handle: BinaryIO) -> bytes:
     """Read the rest of a `/bin/sh` launcher opened by `first`; a placeholder if it runs this one.
 
     Collapsed to what a plain `#!` line becomes, so an environment whose path needs the
@@ -528,8 +536,52 @@ def _installed_outside(path: str) -> bool:
     )
 
 
-def _generated_script(path: str, generated: frozenset[str]) -> bool:
-    """Whether an entry is the wrapper an installer writes for a declared script."""
+def _generated_wrappers(found: importlib.metadata.Distribution) -> Callable[[str], bool]:
+    """Return whether a `RECORD` entry of `found` is a wrapper written for a declared script.
+
+    Only a file directly in the scripts directory of the installation `found` belongs to
+    is one; the same name anywhere else is a file no `entry_points.txt` line vouches for.
+    """
+    names = _generated_scripts(found)
+    scripts = _scripts_directory(Path(str(found.locate_file(""))))
+
+    def generated(path: str) -> bool:
+        if scripts is None or not _named_as_script(path, names):
+            return False
+        try:
+            return Path(str(found.locate_file(path))).resolve().parent == scripts
+        except (OSError, RuntimeError):
+            return False
+
+    return generated
+
+
+def _scripts_directory(site: Path) -> Path | None:
+    """Return where an installer writes wrappers for the installation `site` holds; None if unknown.
+
+    The installation is the `sysconfig` scheme whose library directory is `site`; when no
+    scheme of this interpreter describes it, or two disagree, no wrapper is recognised.
+    """
+    try:
+        resolved = site.resolve()
+    except (OSError, RuntimeError):
+        return None
+    found: set[Path] = set()
+    for scheme in sysconfig.get_scheme_names():
+        try:
+            paths = sysconfig.get_paths(scheme)
+            libraries = {
+                Path(paths[key]).resolve() for key in ("purelib", "platlib") if key in paths
+            }
+            if resolved in libraries:
+                found.add(Path(paths["scripts"]).resolve())
+        except (KeyError, ValueError, OSError, RuntimeError):
+            continue
+    return found.pop() if len(found) == 1 else None
+
+
+def _named_as_script(path: str, generated: frozenset[str]) -> bool:
+    """Whether an entry bears the name an installer gives the wrapper of a declared script."""
     name = PurePosixPath(path).name
     for suffix in _LAUNCHER_SUFFIXES:
         if name.endswith(suffix):

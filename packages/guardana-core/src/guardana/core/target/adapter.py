@@ -48,7 +48,7 @@ _MAX_RESPONSE_BYTES = 8 * 1024 * 1024
 _ALLOWED_SCHEMES = frozenset({"http", "https"})
 _SUCCESS = range(200, 300)
 _CREDENTIAL_HEADERS = frozenset({"authorization", "proxy-authorization", "cookie"})
-_CREDENTIAL_SUFFIXES = ("-key", "-token", "-secret")
+_CREDENTIAL_SUFFIXES = ("-key", "-token", "-secret", "apikey")
 
 # Only the statuses that say the request was not acted on. An application may have
 # written, sent or charged something before answering 500, 502 or 504, and sending
@@ -316,9 +316,10 @@ class HttpAdapterTransport:
 
         Those its headers read from the environment (`secrets`), the value of each header
         named for a credential (`Authorization`, `Proxy-Authorization`, `Cookie`, `*-Key`,
-        `*-Token`, `*-Secret`), and in `Bearer <token>` the token alone, since an endpoint
-        may echo it without the scheme. Any other literal header, such as a content type,
-        is not one: withheld, it would blank ordinary text wherever it appears.
+        `*-Token`, `*-Secret`, `*ApiKey`, with `_` read as `-`), and in `Bearer <token>`
+        the token alone, since an endpoint may echo it without the scheme. Any other
+        literal header, such as a content type, is not one: withheld, it would blank
+        ordinary text wherever it appears.
         """
         named = (value for name, value in self._config.headers.items() if _names_credential(name))
         values = (*self._secrets, *named)
@@ -407,8 +408,11 @@ class HttpAdapterTransport:
 
 
 def _names_credential(header: str) -> bool:
-    """Whether a header's name says it carries a credential, compared as HTTP compares names."""
-    folded = header.casefold()
+    """Whether a header's name says it carries a credential, compared as HTTP compares names.
+
+    `_` is read as `-`, since `X-API_KEY` names the same credential as `X-Api-Key`.
+    """
+    folded = header.casefold().replace("_", "-")
     return folded in _CREDENTIAL_HEADERS or folded.endswith(_CREDENTIAL_SUFFIXES)
 
 

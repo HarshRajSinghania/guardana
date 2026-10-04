@@ -162,3 +162,34 @@ def test_system_slot_used_when_present() -> None:
         None,
     )
     assert b"SYS" in captured["data"]
+
+
+@pytest.mark.parametrize(
+    "header",
+    [
+        "apikey",
+        "x-apikey",
+        "X-ApiKey",
+        "api_key",
+        "X-API_KEY",
+        "access_token",
+        "Client_Secret",
+        "X-Api-Key",
+        "Authorization",
+    ],
+)
+def test_a_header_named_for_a_credential_is_withheld_however_it_is_spelled(header: str) -> None:
+    config = AdapterConfig(
+        url="https://x", body={"m": "{{prompt}}"}, response_path="r", headers={header: "k-1234"}
+    )
+
+    assert HttpAdapterTransport(config, fetch=_stub_fetch).sent_secrets() == ("k-1234",)
+
+
+@pytest.mark.parametrize("header", ["Content-Type", "Accept", "X-Request-Id"])
+def test_an_ordinary_header_is_not_withheld(header: str) -> None:
+    config = AdapterConfig(
+        url="https://x", body={"m": "{{prompt}}"}, response_path="r", headers={header: "text"}
+    )
+
+    assert HttpAdapterTransport(config, fetch=_stub_fetch).sent_secrets() == ()
