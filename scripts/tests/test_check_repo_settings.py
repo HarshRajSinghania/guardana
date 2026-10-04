@@ -166,7 +166,6 @@ def test_a_tag_ruleset_that_does_not_guard_release_tags_is_absent(
 @pytest.mark.parametrize(
     "bypass",
     [
-        [],
         [{"actor_id": 2, "actor_type": "RepositoryRole", "bypass_mode": "always"}],
         [{"actor_id": 1, "actor_type": "OrganizationAdmin", "bypass_mode": "always"}],
         [
@@ -174,7 +173,7 @@ def test_a_tag_ruleset_that_does_not_guard_release_tags_is_absent(
             {"actor_id": 2, "actor_type": "RepositoryRole"},
         ],
     ],
-    ids=["nobody", "maintain-role", "organization-admin", "admin-and-maintain"],
+    ids=["maintain-role", "organization-admin", "admin-and-maintain"],
 )
 def test_a_tag_ruleset_only_maintainers_can_bypass_is_present(bypass: list[object]) -> None:
     table = _healthy()
@@ -183,6 +182,19 @@ def test_a_tag_ruleset_only_maintainers_can_bypass_is_present(bypass: list[objec
     table[f"repos/{REPO}/rulesets/9"] = {**detail, "bypass_actors": bypass}
 
     assert _outcome(_run(table), "tag ruleset") is check.Outcome.PRESENT
+
+
+def test_a_tag_ruleset_nobody_can_bypass_is_absent_because_no_release_could_tag() -> None:
+    table = _healthy()
+    detail = table[f"repos/{REPO}/rulesets/9"]
+    assert isinstance(detail, dict)
+    table[f"repos/{REPO}/rulesets/9"] = {**detail, "bypass_actors": []}
+
+    results = _run(table)
+
+    assert _outcome(results, "tag ruleset") is check.Outcome.ABSENT
+    (ruleset,) = [r for name, r in results.items() if name.startswith("tag ruleset")]
+    assert "no one, the release itself included, could create or move a v* tag" in ruleset.detail
 
 
 def test_a_ruleset_answered_without_its_bypass_list_is_not_checked() -> None:

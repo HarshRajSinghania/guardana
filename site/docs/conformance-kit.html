@@ -389,7 +389,7 @@ is checked. A name must be lowercase letters, digits and <code>-</code>, at most
 not be reserved.</p>
 <p><strong><code>assert_renderer_conforms(spec)</code></strong> calls <code>render</code> through <code>guardana.core.output.render</code>, so
 the format sees what <code>--format</code> hands it, redacted a second time. It fails when <code>render</code>
-raises or returns something other than non-empty text for any sample.</p>
+raises or returns anything but text holding more than whitespace for any sample.</p>
 <p><strong><code>assert_reporter_conforms(spec, *, delivered, rejected, unreachable)</code></strong> takes three locators,
 written as they would follow <code>&lt;name&gt;://</code>. They point at a destination that accepts, one that
 answers and refuses, and one that does not answer. For every sample and every locator, it
@@ -411,7 +411,8 @@ not point at that receiver fails too, since nothing can be counted.</li>
 </ul>
 <p><strong><code>guardana.core.testing.receiver()</code></strong> serves the three destinations for an HTTP reporter on
 <code>127.0.0.1</code>, for the length of a <code>with</code> block. <code>accepting</code> answers <code>200</code> with
-<code>{&quot;status&quot;:&quot;ok&quot;}</code>, <code>refusing</code> answers <code>403</code>, and <code>closed</code> is a port nothing listens on.
+<code>{&quot;status&quot;:&quot;ok&quot;,&quot;duplicate&quot;:false,&quot;stored&quot;:0}</code>, the collector's acknowledgement, <code>refusing</code>
+answers <code>403</code>, and <code>closed</code> is a port nothing listens on.
 <code>received</code> lists every request the first two answered. A reporter may append its own path to
 either URL. A reporter that retries waits out its backoff on <code>closed</code> once per sample, so
 <code>examples/output_pack</code> hands the check a <code>prepare</code> whose sleep returns at once.</p>

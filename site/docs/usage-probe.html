@@ -514,8 +514,9 @@ still owns rule selection, policy, budgets, evidence, and exit codes. A custom
 endpoint implements <code>SystemPromptPlanter</code> to receive isolated canary passes; if
 it does not, canary rules are explicitly skipped rather than graded without a
 marker. A target that says it speaks chat (<code>Target.speaks()</code>) has every MCP and A2A rule
-skipped as <code>not_applicable</code>; one that does not say has any rule it cannot serve skipped for a missing
-capability. See <a href="extending.html#adding-a-target"><code>extending.md</code></a>.</p>
+skipped as <code>not_applicable</code>, unless it declares a capability of that protocol too (an endpoint
+that also lists MCP tools runs the MCP manifest rule); one that does not say has any rule it
+cannot serve skipped for a missing capability. See <a href="extending.html#adding-a-target"><code>extending.md</code></a>.</p>
 <h2 id="probing-an-mcp-server">Probing an MCP server</h2>
 <p><code>--mcp</code> points <code>probe</code> at a Model Context Protocol server rather than a chat
 endpoint. There is no model to talk to: the server speaks MCP, so every chat and A2A

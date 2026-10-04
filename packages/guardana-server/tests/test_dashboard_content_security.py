@@ -171,6 +171,48 @@ def test_every_value_spliced_into_a_template_by_the_page_script_is_escaped() -> 
     assert "esc(ev.summary)" in expressions
 
 
+def test_every_value_assigned_to_an_html_sink_is_a_template_or_a_helpers_markup() -> None:
+    """What reaches `innerHTML`, `outerHTML`, `insertAdjacentHTML` or `fillBars` is covered.
+
+    A raw value assigned to a sink holds no template, no tagged string and no `+`, so the
+    template check alone never sees it.
+    """
+    scan = _scan(_script_of(render_dashboard(30)))
+
+    assert _unsafe_sink_values(scan.skeleton) == []
+    assert [
+        expression
+        for template in scan.templates
+        for expression in template.expressions
+        if _SINK_NAME.search(expression)
+    ] == []
+    # Guards against a parser that silently finds nothing: the page fills nine boxes
+    # through `innerHTML` and two through `fillBars`.
+    assert len(_sink_values(scan.skeleton)) >= 11
+
+
+def test_the_sink_check_flags_a_raw_value_assigned_to_markup() -> None:
+    script = (
+        "function fillBars(id, html) { const box = el(id); box.innerHTML = html; }\n"
+        'function renderSources(rows) { el("sources").innerHTML = rows[0].source; }\n'
+        'el("a").innerHTML = `<td>${esc(r.x)}</td>` + rows.map(r => `<i>${esc(r)}</i>`).join("");\n'
+        'el("b").outerHTML = ok ? `<b></b>` : ev.detail;\n'
+        'box.insertAdjacentHTML("beforeend", f.title);\n'
+        'fillBars("rules", r.name);\n'
+        'fillBars("sev", any ? SEVS.map(s => barRow(s, 1, 2, "x")).join("") : `<p></p>`);\n'
+        'el("c").innerHTML += items.map(f => { const t = g.map(x => { return x; }); '
+        "return f.raw; })"
+        '.join("");\n'
+        'el("d").innerHTML = tile(n, "l") + sevPill(s) + "plain";\n'
+        'el("e").innerHTML = (`<b>${esc(r.y)}</b>`);\n'
+        'el("f").innerHTML = html;\n'
+    )
+
+    flagged = _unsafe_sink_values(_scan(script).skeleton)
+
+    assert flagged == ["rows[0].source", "ev.detail", "f.title", "r.name", "f.raw", "html"]
+
+
 def test_the_escaping_check_flags_a_raw_value_in_a_template() -> None:
     script = (
         "const a = `<td>${r.source}</td>`;\n"
@@ -385,6 +427,195 @@ def _raw_concatenations(skeleton: list[str]) -> list[str]:
         for match in pattern.finditer(code)
     }
     return [spans[span] for span in sorted(spans)]
+
+
+# Calls whose value is markup built only from templates the template check covers.
+_MARKUP_HELPERS = _ESCAPED_HELPERS | {"barRow", "tile"}
+_SINK_NAME = re.compile(r"innerHTML|outerHTML|insertAdjacentHTML|fillBars")
+_SINK_ASSIGNMENT = re.compile(r"\.(?:innerHTML|outerHTML)\s*\+?=(?!=)")
+_SINK_CALLS = {"insertAdjacentHTML": 1, "fillBars": 1}
+"""Each call that writes markup, with the index of the argument holding it."""
+_SINK_CALL = re.compile(r"(?<![\w$])(insertAdjacentHTML|fillBars)\s*\(")
+_ARROW = re.compile(r"\s*(?:[A-Za-z_$][\w$]*|\([^()]*\))\s*=>(.*)", re.DOTALL)
+_OPENING, _CLOSING = "([{", ")]}"
+
+
+def _sink_values(skeleton: list[str]) -> list[str]:
+    """The value written by every HTML sink in top-level code, in source order.
+
+    A sink inside a function that forwards one of its parameters to it, as `fillBars`
+    does, is left out when it writes that parameter: its callers are sinks themselves.
+    """
+    code = "".join(skeleton)
+    forwarded = _forwarded_parameters(code)
+    values = [
+        (match.start(), _until_statement_end(code, match.end()).strip())
+        for match in _SINK_ASSIGNMENT.finditer(code)
+    ]
+    for match in _SINK_CALL.finditer(code):
+        if code[: match.start()].rstrip().endswith("function"):
+            continue
+        opening = match.end() - 1
+        arguments = _split_top_level(code[opening + 1 : _matching(code, opening)], ",")
+        index = _SINK_CALLS[match.group(1)]
+        values.append((match.start(), arguments[index].strip() if index < len(arguments) else ""))
+    return [
+        value
+        for start, value in sorted(values)
+        if not any(low <= start < high and value == name for low, high, name in forwarded)
+    ]
+
+
+def _unsafe_sink_values(skeleton: list[str]) -> list[str]:
+    """The parts of every sink's value that are neither a template nor a helper's markup."""
+    return [part for value in _sink_values(skeleton) for part in _unsafe_markup(value)]
+
+
+def _forwarded_parameters(code: str) -> list[tuple[int, int, str]]:
+    """The body span of every sink function the script defines, with its markup parameter."""
+    spans: list[tuple[int, int, str]] = []
+    for name, index in _SINK_CALLS.items():
+        for match in re.finditer(rf"function\s+{name}\s*\(([^)]*)\)\s*\{{", code):
+            parameters = [parameter.strip() for parameter in match.group(1).split(",")]
+            if index < len(parameters):
+                spans.append((match.end(), _matching(code, match.end() - 1), parameters[index]))
+    return spans
+
+
+def _unsafe_markup(value: str) -> list[str]:
+    """Return what in `value` could carry raw text into markup, readable; empty when nothing."""
+    value = _unwrapped(value.strip())
+    choice = _ternary(value)
+    if choice is not None:
+        return _unsafe_markup(choice[0]) + _unsafe_markup(choice[1])
+    terms = _split_top_level(value, "+")
+    if len(terms) > 1:
+        return [part for term in terms for part in _unsafe_markup(term)]
+    if value in {_TEMPLATE, _STRING}:
+        return []
+    call = re.match(r"([A-Za-z_$][\w$]*)\s*\(", value)
+    if (
+        call is not None
+        and call.group(1) in _MARKUP_HELPERS
+        and _matching(value, call.end() - 1) == len(value) - 1
+    ):
+        return []
+    mapped = _mapped_markup(value)
+    if mapped is not None:
+        return mapped
+    return [value.replace(_TEMPLATE, "`…`").replace(_STRING, '"…"').replace(_REGEX, "/…/")]
+
+
+def _mapped_markup(value: str) -> list[str] | None:
+    """Check `items.map(callback).join("…")` by what the callback returns; None for other shapes."""
+    found = _top_level_find(value, ".map(")
+    if found < 0:
+        return None
+    opening = found + len(".map")
+    closing = _matching(value, opening)
+    if closing < 0 or not re.fullmatch(rf"\.join\(\s*{_STRING}\s*\)", value[closing + 1 :].strip()):
+        return None
+    arrow = _ARROW.fullmatch(value[opening + 1 : closing])
+    if arrow is None:
+        return None
+    body = arrow.group(1).strip()
+    if not (body.startswith("{") and _matching(body, 0) == len(body) - 1):
+        return _unsafe_markup(body)
+    returned = _returned(body[1:-1])
+    if not returned:
+        return [value]
+    return [part for expression in returned for part in _unsafe_markup(expression)]
+
+
+def _returned(block: str) -> list[str]:
+    """The expressions a function body returns, not counting functions nested in it."""
+    found: list[str] = []
+    depth = 0
+    for index, char in enumerate(block):
+        if depth == 0 and re.match(r"return\b", block[index:]):
+            before = block[index - 1] if index else " "
+            if not (before.isalnum() or before in "_$."):
+                found.append(_until_statement_end(block, index + len("return")).strip())
+        depth += (char in _OPENING) - (char in _CLOSING)
+    return found
+
+
+def _ternary(value: str) -> tuple[str, str] | None:
+    """Split `condition ? a : b` at the top level into its two branches; None for another shape."""
+    depth = 0
+    question = -1
+    nested = 0
+    for index, char in enumerate(value):
+        depth += (char in _OPENING) - (char in _CLOSING)
+        if depth != 0:
+            continue
+        if char == "?" and value[index + 1 : index + 2] not in {".", "?"}:
+            if question < 0:
+                question = index
+            else:
+                nested += 1
+        elif char == ":" and question >= 0:
+            if nested == 0:
+                return value[question + 1 : index], value[index + 1 :]
+            nested -= 1
+    return None
+
+
+def _unwrapped(value: str) -> str:
+    while value.startswith("(") and _matching(value, 0) == len(value) - 1:
+        value = value[1:-1].strip()
+    return value
+
+
+def _split_top_level(value: str, separator: str) -> list[str]:
+    """Split `value` at every `separator` outside brackets; `++` and `+=` are not a split."""
+    parts: list[str] = []
+    depth = 0
+    start = 0
+    for index, char in enumerate(value):
+        depth += (char in _OPENING) - (char in _CLOSING)
+        if depth != 0 or char != separator:
+            continue
+        if separator == "+" and "+" in (value[index - 1 : index], value[index + 1 : index + 2]):
+            continue
+        if value[index + 1 : index + 2] == "=":
+            continue
+        parts.append(value[start:index])
+        start = index + 1
+    parts.append(value[start:])
+    return parts
+
+
+def _top_level_find(value: str, needle: str) -> int:
+    depth = 0
+    for index, char in enumerate(value):
+        if depth == 0 and value.startswith(needle, index):
+            return index
+        depth += (char in _OPENING) - (char in _CLOSING)
+    return -1
+
+
+def _until_statement_end(code: str, start: int) -> str:
+    """The text from `start` to the `;` ending its statement, or the bracket closing its block."""
+    depth = 0
+    for index in range(start, len(code)):
+        char = code[index]
+        if char in _CLOSING and depth == 0:
+            return code[start:index]
+        if char == ";" and depth == 0:
+            return code[start:index]
+        depth += (char in _OPENING) - (char in _CLOSING)
+    return code[start:]
+
+
+def _matching(code: str, opening: int) -> int:
+    """The index of the bracket closing the one at `opening`, or -1 when it never closes."""
+    depth = 0
+    for index in range(opening, len(code)):
+        depth += (code[index] in _OPENING) - (code[index] in _CLOSING)
+        if depth == 0:
+            return index
+    return -1
 
 
 def _closing_paren(expression: str, opening: int) -> int:

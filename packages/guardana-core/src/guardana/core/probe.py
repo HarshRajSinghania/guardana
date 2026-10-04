@@ -211,10 +211,11 @@ def _unplantable_skips(
 ) -> tuple[SkippedRule, ...]:
     """Record why canary rules did not run when a target cannot build planted views."""
     skipped: list[SkippedRule] = []
+    capabilities = target.capabilities()
     for rule in rules:
         if rule.meta.target_kind is not target.kind or not profile.policy.matches(rule.meta.id):
             continue
-        refusal = protocol_refusal(rule, target) or safety_refusal(profile, rule)
+        refusal = protocol_refusal(rule, target, capabilities) or safety_refusal(profile, rule)
         if refusal is not None:
             skipped.append(refusal)
             continue

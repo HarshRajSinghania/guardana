@@ -844,8 +844,9 @@ guardana scan . --reporter server://http://127.0.0.1:8000
 with <code>GUARDANA_ALLOW_UNAUTHENTICATED=1</code> still starts a collector with a working
 page, no database, no organization and no key.</p>
 <p>A submission counts as delivered only when the collector answers with its own
-acknowledgement — a JSON object whose <code>status</code> is <code>ok</code>, which every collector release
-sends. Any other <code>2xx</code>, from a proxy or another service at the collector's address, is
+acknowledgement — a JSON object whose <code>status</code> is <code>ok</code>, with an integer <code>stored</code> and a
+boolean <code>duplicate</code>, which every collector that accepts envelope 8 sends. Any other <code>2xx</code>,
+from a proxy, a health check or another service at the collector's address, is
 <code>could not submit to reporter: the response was not a collector acknowledgement</code>.</p>
 <p>By default a collector that is unreachable or does not acknowledge never changes a gate's
 exit code — the scan already ran and its verdict stands on its own. A collector that

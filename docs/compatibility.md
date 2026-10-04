@@ -46,7 +46,9 @@ From 1.0:
 - Every 1.x release reads the persisted documents earlier releases wrote, and writes the current
   version. Runs, collector envelopes, profiles, pack manifests and locks, and datasets are tested
   against documents the releases themselves wrote. Baselines, recipe locks, recordings, contracts
-  and plans are read across their versions by tests that build each older version in code. One
+  and plans are read across their versions by tests that build each older version in code;
+  so are recipes, versions 1 to 3 (`test_recipe.py`, `test_recipe_documents.py`), and native
+  traces, migrated from versions 1 and 2 to 3 as they are read (`trace/test_trace_load.py`). One
   exception: `load_verification` refuses a schema-1 run, which recorded no gate; `load_report`
   and `guardana run migrate` read it.
 - Every 1.x release supports extension API 2 and output API 1. A new API version is opt-in

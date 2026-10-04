@@ -394,20 +394,26 @@ equal the keys of <code>Target.protocols()</code> and <code>CoverageRecord.proto
 <code>plant_system_prompt</code> → chat; <code>list_tools</code>, <code>inspect_authorization</code>, <code>registry_entry</code> → mcp;
 <code>inspect_a2a</code> → a2a. <code>wire_protocols_of(capabilities) -&gt; frozenset[WireProtocol]</code>.</li>
 <li><code>Target.speaks(self) -&gt; frozenset[WireProtocol] | None</code>, a concrete method returning <code>None</code>
-(unknown). Overridden: <code>EndpointTarget</code>, <code>RecordedTarget</code>, <code>_RecordedView</code>, <code>SeededTarget</code> →
-<code>{CHAT}</code>; <code>McpServerTarget</code> → <code>{MCP}</code>; <code>A2aAgentTarget</code> → <code>{A2A}</code>. Every other <code>Target</code>
-subclass in <code>packages/*/src</code> (planter views, wrappers) delegates to the target it wraps or
-keeps <code>None</code>. An addition with a default, so <code>EXTENSION_API_VERSION</code> stays 2.</li>
+(unknown). Overridden: <code>EndpointTarget</code>, <code>RecordedTarget</code>, <code>_RecordedView</code> → <code>{CHAT}</code>;
+<code>SeededTarget</code> → what its endpoint speaks; <code>McpServerTarget</code> → <code>{MCP}</code>; <code>A2aAgentTarget</code> →
+<code>{A2A}</code>. Every other <code>Target</code> subclass in <code>packages/*/src</code> (planter views, wrappers)
+delegates to the target it wraps or keeps <code>None</code>. An addition with a default, so <code>EXTENSION_API_VERSION</code> stays 2.</li>
 <li>Exported from <code>guardana.core.target</code>, not from <code>guardana.core.__all__</code>.</li>
 </ul>
-<p><code>core/runner.py: protocol_refusal(rule, target) -&gt; SkippedRule | None</code> (in <code>runner.__all__</code>):
-with <code>needed = wire_protocols_of(rule.meta.required_capabilities)</code> and <code>spoken = target.speaks()</code>, a skip only when <code>needed</code> is non-empty, <code>spoken</code> is not <code>None</code> and the two are
-disjoint: <code>reason=NOT_APPLICABLE</code>, <code>missing=()</code>, detail <code>&quot;{target.ref} speaks {spoken}, and {rule id} examines {needed}&quot;</code> (each sorted, comma-joined). It is asked <strong>first</strong>, before
+<p><code>core/runner.py: protocol_refusal(rule, target, capabilities=None) -&gt; SkippedRule | None</code> (in
+<code>runner.__all__</code>): with <code>needed = wire_protocols_of(rule.meta.required_capabilities)</code> and, when
+<code>target.speaks()</code> is not <code>None</code>, <code>spoken = target.speaks() | wire_protocols_of(capabilities)</code>
+(the target's declared capabilities, which the callers already hold), a skip only when <code>needed</code>
+is non-empty, <code>speaks()</code> is not <code>None</code> and <code>needed</code> and <code>spoken</code> are disjoint:
+<code>reason=NOT_APPLICABLE</code>, <code>missing=()</code>, detail <code>&quot;{target.ref} speaks {spoken}, and {rule id} examines {needed}&quot;</code> (each sorted, comma-joined). It is asked <strong>first</strong>, before
 <code>safety_refusal</code>, in <code>select_rules</code> and in <code>core/probe.py: _unplantable_skips</code> (which builds its
 <code>missing_capability</code> skips by hand).</p>
 <p>Consequences, each stated in the docs:</p>
 <ul>
 <li><code>speaks()</code> returning <code>None</code> keeps today's <code>missing_capability</code>.</li>
+<li>A protocol whose capability the target declares is spoken: a subclass of <code>EndpointTarget</code>
+that adds <code>list_tools</code> runs <code>agent.mcp_server_manifest</code> rather than skipping it as
+<code>not_applicable</code>.</li>
 <li>A capability missing within the protocol stays a gap: a chat endpoint without tools still
 skips <code>agent.excessive_tool_use</code>, and an stdio MCP server the authorization rules, as
 <code>missing_capability</code>. <code>probe --preset release</code> is no longer <code>indeterminate</code> because of MCP or
@@ -669,8 +675,9 @@ any <code>guardana.*</code> name outside <code>docs/generated/api-surface.json</
 with <code>--plugins allowlist --allow-plugin guardana-reference-pack --format reference-summary --reporter reference-file://…</code>. <code>clean_install_check.py</code> installs it beside the five and runs
 <code>pack validate</code> and <code>rule test</code> on it.</p>
 <p><code>release.yml</code> builds it into <code>dist-reference/</code>, attests it and uploads it to the GitHub Release
-in its own job <code>reference-pack</code> (<code>needs: publish</code>), so a pack that fails to build blocks neither
-the five packages, the Release nor the images. A separate job <code>publish-reference-pack</code> (<code>needs: reference-pack</code>, environment <code>pypi</code>,
+in its own job <code>reference-pack</code> (<code>needs: publish</code>): the pack's own build, attestation and PyPI
+upload run in jobs after the main publish, while CI and the release's clean-install check build
+and check the pack before anything is published. A separate job <code>publish-reference-pack</code> (<code>needs: reference-pack</code>, environment <code>pypi</code>,
 <code>skip-existing: true</code>) runs only when the repository variable <code>REFERENCE_PACK_PYPI</code> is <code>true</code>,
 which the owner sets after registering the pending trusted publisher for
 <code>guardana-reference-pack</code>; the GitHub Release and the images never wait on it. Criterion 3 is

@@ -56,23 +56,28 @@ and the rule's protocol comes from the capabilities it requires.
   `plant_system_prompt` → chat; `list_tools`, `inspect_authorization`, `registry_entry` → mcp;
   `inspect_a2a` → a2a. `wire_protocols_of(capabilities) -> frozenset[WireProtocol]`.
 - `Target.speaks(self) -> frozenset[WireProtocol] | None`, a concrete method returning `None`
-  (unknown). Overridden: `EndpointTarget`, `RecordedTarget`, `_RecordedView`, `SeededTarget` →
-  `{CHAT}`; `McpServerTarget` → `{MCP}`; `A2aAgentTarget` → `{A2A}`. Every other `Target`
-  subclass in `packages/*/src` (planter views, wrappers) delegates to the target it wraps or
-  keeps `None`. An addition with a default, so `EXTENSION_API_VERSION` stays 2.
+  (unknown). Overridden: `EndpointTarget`, `RecordedTarget`, `_RecordedView` → `{CHAT}`;
+  `SeededTarget` → what its endpoint speaks; `McpServerTarget` → `{MCP}`; `A2aAgentTarget` →
+  `{A2A}`. Every other `Target` subclass in `packages/*/src` (planter views, wrappers)
+  delegates to the target it wraps or keeps `None`. An addition with a default, so `EXTENSION_API_VERSION` stays 2.
 - Exported from `guardana.core.target`, not from `guardana.core.__all__`.
 
-`core/runner.py: protocol_refusal(rule, target) -> SkippedRule | None` (in `runner.__all__`):
-with `needed = wire_protocols_of(rule.meta.required_capabilities)` and `spoken =
-target.speaks()`, a skip only when `needed` is non-empty, `spoken` is not `None` and the two are
-disjoint: `reason=NOT_APPLICABLE`, `missing=()`, detail `"{target.ref} speaks {spoken}, and
-{rule id} examines {needed}"` (each sorted, comma-joined). It is asked **first**, before
+`core/runner.py: protocol_refusal(rule, target, capabilities=None) -> SkippedRule | None` (in
+`runner.__all__`): with `needed = wire_protocols_of(rule.meta.required_capabilities)` and, when
+`target.speaks()` is not `None`, `spoken = target.speaks() | wire_protocols_of(capabilities)`
+(the target's declared capabilities, which the callers already hold), a skip only when `needed`
+is non-empty, `speaks()` is not `None` and `needed` and `spoken` are disjoint:
+`reason=NOT_APPLICABLE`, `missing=()`, detail `"{target.ref} speaks {spoken}, and {rule id}
+examines {needed}"` (each sorted, comma-joined). It is asked **first**, before
 `safety_refusal`, in `select_rules` and in `core/probe.py: _unplantable_skips` (which builds its
 `missing_capability` skips by hand).
 
 Consequences, each stated in the docs:
 
 - `speaks()` returning `None` keeps today's `missing_capability`.
+- A protocol whose capability the target declares is spoken: a subclass of `EndpointTarget`
+  that adds `list_tools` runs `agent.mcp_server_manifest` rather than skipping it as
+  `not_applicable`.
 - A capability missing within the protocol stays a gap: a chat endpoint without tools still
   skips `agent.excessive_tool_use`, and an stdio MCP server the authorization rules, as
   `missing_capability`. `probe --preset release` is no longer `indeterminate` because of MCP or
@@ -332,8 +337,9 @@ with `--plugins allowlist --allow-plugin guardana-reference-pack --format refere
 `pack validate` and `rule test` on it.
 
 `release.yml` builds it into `dist-reference/`, attests it and uploads it to the GitHub Release
-in its own job `reference-pack` (`needs: publish`), so a pack that fails to build blocks neither
-the five packages, the Release nor the images. A separate job `publish-reference-pack` (`needs:
+in its own job `reference-pack` (`needs: publish`): the pack's own build, attestation and PyPI
+upload run in jobs after the main publish, while CI and the release's clean-install check build
+and check the pack before anything is published. A separate job `publish-reference-pack` (`needs:
 reference-pack`, environment `pypi`,
 `skip-existing: true`) runs only when the repository variable `REFERENCE_PACK_PYPI` is `true`,
 which the owner sets after registering the pending trusted publisher for

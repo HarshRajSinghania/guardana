@@ -74,8 +74,9 @@ only a maintainer may create, move or delete either. **New ruleset → New tag r
   release tag and moves `vX.Y` as a maintainer, through that bypass.
 
 `scripts/check_repo_settings.py` reads it back: `PRESENT` only for an active ruleset with all
-three rules and a bypass list of maintainers or admins, `ABSENT` when a rule is missing or anyone
-else can bypass it, and `NOT CHECKED` when the token is not an admin's, since GitHub then leaves
+three rules and a bypass list of maintainers or admins, `ABSENT` when a rule is missing, anyone
+else can bypass it or the bypass list is empty (then no one, the release itself included, could
+create or move a `v*` tag), and `NOT CHECKED` when the token is not an admin's, since GitHub then leaves
 the bypass list out of its answer.
 
 ## 4. Labels — Issues → Labels

@@ -193,7 +193,9 @@ Beyond the five wheels and sdists, `release.yml` produces:
 - **the reference pack** (`examples/reference_pack`, distribution
   `guardana-reference-pack`): its wheel and sdist, built into `dist-reference/` by the
   job `reference-pack` once `publish` has succeeded, and attached to the GitHub Release.
-  A pack that fails to build holds back neither the five, the Release nor the images;
+  CI and the clean-install check in `publish` build and check the pack before anything is
+  published, so a broken pack stops the release there; its own build, attestation and PyPI
+  upload run in jobs after the main publish;
 - **both container images**, `amd64` and `arm64`, each with its own SBOM and
   provenance attestation pushed into the registry.
 

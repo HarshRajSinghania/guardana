@@ -20,10 +20,11 @@ Runbook: `RELEASING.md`; the order that has gone wrong: the `release` skill.
 - **`release.yml` runs on `v*.*.*` tags only**: clean install → build the five distributions →
   SBOM per distribution → provenance → PyPI for the five through the `pypi` environment's
   approval click → the GitHub Release from the changelog section → both images (amd64, arm64).
-  The reference pack is built, attested and attached to the Release by its own job
-  `reference-pack` after `publish`, so a broken pack blocks nothing else;
+  CI and the clean-install check in `publish` build and check the reference pack before
+  anything is published, so a broken pack stops the release there. Its own build, attestation
+  and upload to the Release run afterwards in `reference-pack` (after `publish`);
   `publish-reference-pack` (after it) puts the pack on PyPI only while
-  `vars.REFERENCE_PACK_PYPI` is `true`, and nothing waits on either. The moving `vX.Y` tag is for the Marketplace Action and never
+  `vars.REFERENCE_PACK_PYPI` is `true`, and the images wait on neither. The moving `vX.Y` tag is for the Marketplace Action and never
   re-triggers a publish.
 - **A push to `main` deploys `site/`** through Cloudflare's `npx wrangler deploy`, from the
   tree, before CI has run: `wrangler.jsonc` is a static-assets Worker with no build step,

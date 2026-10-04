@@ -97,8 +97,8 @@ class SeededTarget(Target):
         return {*self._endpoint.capabilities(), Capability.SEEDED_DATA}
 
     def speaks(self) -> frozenset[WireProtocol]:
-        """Speak chat, as the run's endpoint and every tenant's endpoint do."""
-        return frozenset({WireProtocol.CHAT})
+        """Speak what the run's endpoint speaks."""
+        return self._endpoint.speaks()
 
     def chat(self, messages: Sequence[ChatMessage]) -> str:
         """Send `messages` through the run's own endpoint."""

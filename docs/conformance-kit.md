@@ -73,7 +73,7 @@ not be reserved.
 
 **`assert_renderer_conforms(spec)`** calls `render` through `guardana.core.output.render`, so
 the format sees what `--format` hands it, redacted a second time. It fails when `render`
-raises or returns something other than non-empty text for any sample.
+raises or returns anything but text holding more than whitespace for any sample.
 
 **`assert_reporter_conforms(spec, *, delivered, rejected, unreachable)`** takes three locators,
 written as they would follow `<name>://`. They point at a destination that accepts, one that
@@ -96,7 +96,8 @@ checks:
 
 **`guardana.core.testing.receiver()`** serves the three destinations for an HTTP reporter on
 `127.0.0.1`, for the length of a `with` block. `accepting` answers `200` with
-`{"status":"ok"}`, `refusing` answers `403`, and `closed` is a port nothing listens on.
+`{"status":"ok","duplicate":false,"stored":0}`, the collector's acknowledgement, `refusing`
+answers `403`, and `closed` is a port nothing listens on.
 `received` lists every request the first two answered. A reporter may append its own path to
 either URL. A reporter that retries waits out its backoff on `closed` once per sample, so
 `examples/output_pack` hands the check a `prepare` whose sleep returns at once.

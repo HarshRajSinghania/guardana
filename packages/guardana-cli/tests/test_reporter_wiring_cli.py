@@ -212,7 +212,7 @@ class _Closeable:
 
     def read(self, size: int = -1) -> bytes:
         """Answer as a collector that accepted the envelope."""
-        return b'{"status": "ok"}'
+        return b'{"status": "ok", "duplicate": false, "stored": 0}'
 
 
 def _record(sent: list[dict[str, str]], request: object) -> _Closeable:

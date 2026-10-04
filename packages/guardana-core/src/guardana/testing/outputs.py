@@ -57,16 +57,20 @@ def assert_renderer_conforms(spec: RendererSpec, *, name: str | None = None) -> 
 
     `name` is the entry point's name, `spec.name` when left out; it must be a valid output
     name no built-in format reserves, and `spec.name` must equal it. `render` must return
-    non-empty text for every sample, called through `guardana.core.output.render`, so the
-    format sees exactly what `--format` would hand it. Raises `OutputContractError`.
+    text holding more than whitespace for every sample, called through
+    `guardana.core.output.render`, so the format sees exactly what `--format` would hand it.
+    Raises `OutputContractError`.
     """
     problems = _name_problems(spec.name, name, is_reserved_renderer_name, "format")
     selected = SelectedRenderer(name=spec.name, spec=spec, origin=_UNATTRIBUTED)
     for sample in sample_verifications():
         try:
-            render(selected, sample)
+            text = render(selected, sample)
         except OutputError as exc:
             problems.append(f"render failed on {_described(sample)}: {exc.reason}")
+            continue
+        if not text.strip():
+            problems.append(f"render failed on {_described(sample)}: it returned only whitespace")
     _raise_for(f"the format {spec.name!r}", problems)
 
 

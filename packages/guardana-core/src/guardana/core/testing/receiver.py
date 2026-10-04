@@ -15,7 +15,7 @@ _ACCEPTING_PATH = "/accept"
 _REFUSING_PATH = "/refuse"
 _ACCEPTED = 200
 _REFUSED = 403
-_ACKNOWLEDGEMENT = b'{"status":"ok"}'
+_ACKNOWLEDGEMENT = b'{"status":"ok","duplicate":false,"stored":0}'
 
 
 @dataclass(frozen=True, slots=True)
@@ -33,7 +33,7 @@ class Receiver:
     """The three destinations `receiver()` serves, and every request they answered."""
 
     accepting: str
-    """Answers every request `200` with `{"status":"ok"}`."""
+    """Answers every request `200` with a collector's acknowledgement of one envelope."""
 
     refusing: str
     """Answers every request `403`."""

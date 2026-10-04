@@ -232,14 +232,27 @@ class UnacknowledgedSubmissionError(Exception):
 
 
 def _acknowledged(body: bytes) -> bool:
-    """Whether `body` is a collector's answer to an accepted envelope: an object, status `ok`."""
+    """Whether `body` is a collector's answer to an accepted envelope.
+
+    An object whose `status` is `ok`, with an integer `stored` and a boolean `duplicate`:
+    a bare `{"status": "ok"}` is what most health checks answer, the collector's own
+    included, so it says nothing was stored.
+    """
     if len(body) > _MAX_ACKNOWLEDGEMENT_BYTES:
         return False
     try:
         answer = json.loads(body)
     except (ValueError, RecursionError):
         return False
-    return isinstance(answer, dict) and answer.get("status") == "ok"
+    if not isinstance(answer, dict):
+        return False
+    stored = answer.get("stored")
+    return (
+        answer.get("status") == "ok"
+        and isinstance(stored, int)
+        and not isinstance(stored, bool)
+        and isinstance(answer.get("duplicate"), bool)
+    )
 
 
 def _urllib_transport(url: str, payload: bytes, *, api_key: str | None) -> None:

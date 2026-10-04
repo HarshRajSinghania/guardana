@@ -595,8 +595,9 @@ with `GUARDANA_ALLOW_UNAUTHENTICATED=1` still starts a collector with a working
 page, no database, no organization and no key.
 
 A submission counts as delivered only when the collector answers with its own
-acknowledgement — a JSON object whose `status` is `ok`, which every collector release
-sends. Any other `2xx`, from a proxy or another service at the collector's address, is
+acknowledgement — a JSON object whose `status` is `ok`, with an integer `stored` and a
+boolean `duplicate`, which every collector that accepts envelope 8 sends. Any other `2xx`,
+from a proxy, a health check or another service at the collector's address, is
 `could not submit to reporter: the response was not a collector acknowledgement`.
 
 By default a collector that is unreachable or does not acknowledge never changes a gate's

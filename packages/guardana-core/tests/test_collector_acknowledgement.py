@@ -20,8 +20,24 @@ def _submit(url: str) -> None:
     HttpReporter(url).submit(_EMPTY, source="ci")
 
 
-def test_the_collectors_acknowledgement_is_a_delivery() -> None:
-    with answering(200, COLLECTOR_ACKNOWLEDGEMENT) as collector:
+@pytest.mark.parametrize(
+    "body",
+    [
+        COLLECTOR_ACKNOWLEDGEMENT,
+        json.dumps(
+            {
+                "status": "ok",
+                "duplicate": True,
+                "stored": 0,
+                "accepted_by": "ci",
+                "project": "acme/web",
+            }
+        ).encode(),
+    ],
+    ids=["minimal", "full"],
+)
+def test_the_collectors_acknowledgement_is_a_delivery(body: bytes) -> None:
+    with answering(200, body) as collector:
         _submit(collector.url)
 
     assert collector.heard == ["/findings"]
@@ -38,8 +54,22 @@ def test_the_collectors_acknowledgement_is_a_delivery() -> None:
         (200, b""),
         (204, b""),
         (202, b'{"accepted": true}'),
-        (200, b'{"status": "ok", "padding": "' + b" " * (64 * 1024) + b'"}'),
+        (
+            200,
+            b'{"status": "ok", "duplicate": false, "stored": 0, "padding": "'
+            + b" " * (64 * 1024)
+            + b'"}',
+        ),
         (200, b"[" * 60_000),
+        (200, b'{"status": "ok"}'),
+        (200, b'{"status": "ok", "storage": "memory", "pending_migrations": 0}'),
+        (200, b'{"status": "ok", "duplicate": false}'),
+        (200, b'{"status": "ok", "stored": 0}'),
+        (200, b'{"status": "ok", "duplicate": false, "stored": "0"}'),
+        (200, b'{"status": "ok", "duplicate": false, "stored": true}'),
+        (200, b'{"status": "ok", "duplicate": false, "stored": 1.0}'),
+        (200, b'{"status": "ok", "duplicate": 0, "stored": 0}'),
+        (200, b'{"status": "error", "duplicate": false, "stored": 0}'),
     ],
     ids=[
         "chat-reply",
@@ -52,6 +82,15 @@ def test_the_collectors_acknowledgement_is_a_delivery() -> None:
         "other-json",
         "oversized",
         "deeply-nested",
+        "health-check",
+        "readiness-check",
+        "no-stored",
+        "no-duplicate",
+        "stored-text",
+        "stored-boolean",
+        "stored-float",
+        "duplicate-number",
+        "error-with-counts",
     ],
 )
 def test_a_2xx_without_the_collectors_acknowledgement_is_not_a_delivery(

@@ -362,8 +362,9 @@ role) — no write role, team, GitHub App or deploy key. <code>scripts/release.p
 release tag and moves <code>vX.Y</code> as a maintainer, through that bypass.</li>
 </ul>
 <p><code>scripts/check_repo_settings.py</code> reads it back: <code>PRESENT</code> only for an active ruleset with all
-three rules and a bypass list of maintainers or admins, <code>ABSENT</code> when a rule is missing or anyone
-else can bypass it, and <code>NOT CHECKED</code> when the token is not an admin's, since GitHub then leaves
+three rules and a bypass list of maintainers or admins, <code>ABSENT</code> when a rule is missing, anyone
+else can bypass it or the bypass list is empty (then no one, the release itself included, could
+create or move a <code>v*</code> tag), and <code>NOT CHECKED</code> when the token is not an admin's, since GitHub then leaves
 the bypass list out of its answer.</p>
 <h2 id="4-labels--issues--labels">4. Labels — Issues → Labels</h2>
 <p>The <a href="https://github.com/guardana/guardana/blob/main/.github/release.yml"><code>.github/release.yml</code></a> release-note categories

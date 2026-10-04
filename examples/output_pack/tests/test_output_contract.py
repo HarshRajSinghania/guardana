@@ -42,6 +42,7 @@ def test_the_webhook_keeps_the_output_contract(
         rejected=served.refusing,
         unreachable=served.closed,
         name="acme-webhook",
+        receiver=served,
     )
 
     assert {r.path for r in served.received} == {"/accept", "/refuse"}

@@ -155,6 +155,37 @@ def test_a_constant_the_script_cannot_read_stops_the_snapshot(tmp_path: Path) ->
         api_surface.value_of(api_surface.SourceTree([tmp_path]), "loose", "WHEN")
 
 
+def test_every_version_constant_in_the_packages_is_recorded_or_excluded_with_a_reason() -> None:
+    assert api_surface.unrecorded_versions() == []
+
+
+def test_a_new_version_constant_is_named_until_it_is_recorded(tmp_path: Path) -> None:
+    package = tmp_path / "guardana" / "acme"
+    package.mkdir(parents=True)
+    (package / "__init__.py").write_text("WIDGET_SCHEMA_VERSION = 1\n", encoding="utf-8")
+    (package / "store.py").write_text(
+        "from guardana.acme import WIDGET_SCHEMA_VERSION\n"
+        "READ_FORMATS: tuple[int, ...] = (1, 2)\n"
+        "_PRIVATE_SCHEMA_VERSION = 1\n"
+        "def helper() -> None:\n"
+        "    LOCAL_SCHEMA_VERSION = 2\n",
+        encoding="utf-8",
+    )
+
+    assert api_surface.unrecorded_versions([tmp_path]) == [
+        "guardana.acme.WIDGET_SCHEMA_VERSION",
+        "guardana.acme.store.READ_FORMATS",
+    ]
+
+
+def test_every_exclusion_names_a_constant_that_exists_and_is_not_recorded() -> None:
+    tree = api_surface.SourceTree()
+    for (module, name), reason in api_surface._UNRECORDED_VERSIONS.items():
+        assert reason
+        assert (module, name) not in api_surface._CONSTANTS
+        assert name in tree.module(module).bindings, f"{module}.{name}"
+
+
 @pytest.fixture(scope="module")
 def snapshot() -> dict[str, Any]:
     document: dict[str, Any] = json.loads(api_surface.OUTPUT.read_text(encoding="utf-8"))

@@ -113,6 +113,12 @@ def test_a_format_that_returns_no_text_is_refused_for_every_sample() -> None:
     assert "stopped by budget_exhausted" in said
 
 
+def test_a_format_that_returns_only_whitespace_is_refused_for_every_sample() -> None:
+    said = _refusal(lambda: assert_renderer_conforms(_renderer(lambda v: " \n\t")))
+
+    assert said.count("it returned only whitespace") == 5
+
+
 def test_a_format_that_raises_is_refused_with_what_it_raised() -> None:
     def raises(verification: Verification) -> str:
         raise ValueError("cannot write the table")

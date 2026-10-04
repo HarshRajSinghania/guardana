@@ -74,8 +74,9 @@ still owns rule selection, policy, budgets, evidence, and exit codes. A custom
 endpoint implements `SystemPromptPlanter` to receive isolated canary passes; if
 it does not, canary rules are explicitly skipped rather than graded without a
 marker. A target that says it speaks chat (`Target.speaks()`) has every MCP and A2A rule
-skipped as `not_applicable`; one that does not say has any rule it cannot serve skipped for a missing
-capability. See [`extending.md`](extending.md#adding-a-target).
+skipped as `not_applicable`, unless it declares a capability of that protocol too (an endpoint
+that also lists MCP tools runs the MCP manifest rule); one that does not say has any rule it
+cannot serve skipped for a missing capability. See [`extending.md`](extending.md#adding-a-target).
 
 ## Probing an MCP server
 

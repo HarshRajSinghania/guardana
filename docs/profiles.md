@@ -160,7 +160,8 @@ Then every delivery the run makes must be acknowledged, or the command exits `8`
 verdict printed:
 
 - **The collector** acknowledges with its own answer — a JSON object whose `status` is
-  `ok` — not with any `2xx`, so a proxy or another service at its address does not count.
+  `ok`, with an integer `stored` and a boolean `duplicate` — not with any `2xx`, so a proxy,
+  a health check or another service at its address does not count.
   A rejection, an unreachable collector and an answer that is not an acknowledgement are
   printed as `error:` lines ending `— the profile sets delivery.required`.
 - **An installed reporter** acknowledges with the status `delivered`. Any other status,

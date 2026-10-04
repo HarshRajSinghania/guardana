@@ -371,7 +371,9 @@ the next major. Deprecation means a <code>DeprecationWarning</code> where Python
 <li>Every 1.x release reads the persisted documents earlier releases wrote, and writes the current
 version. Runs, collector envelopes, profiles, pack manifests and locks, and datasets are tested
 against documents the releases themselves wrote. Baselines, recipe locks, recordings, contracts
-and plans are read across their versions by tests that build each older version in code. One
+and plans are read across their versions by tests that build each older version in code;
+so are recipes, versions 1 to 3 (<code>test_recipe.py</code>, <code>test_recipe_documents.py</code>), and native
+traces, migrated from versions 1 and 2 to 3 as they are read (<code>trace/test_trace_load.py</code>). One
 exception: <code>load_verification</code> refuses a schema-1 run, which recorded no gate; <code>load_report</code>
 and <code>guardana run migrate</code> read it.</li>
 <li>Every 1.x release supports extension API 2 and output API 1. A new API version is opt-in

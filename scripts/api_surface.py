@@ -86,6 +86,31 @@ _CONSTANTS = (
     ("guardana.rules.agent.mcp_server_manifest", "PIN_SCHEMA_VERSION"),
 )
 
+_VERSION_NAME = re.compile(
+    r"(?:[A-Z][A-Z0-9_]*_)?(?:SCHEMA_VERSIONS?|API_VERSIONS?|MIGRATABLE_VERSIONS"
+    r"|BASELINE_VERSION|FORMATS?)"
+)
+"""The names a version constant the snapshot records goes by."""
+
+_UNRECORDED_VERSIONS = {
+    ("guardana.core.trace.model", "TRACE_SCHEMA_VERSION"): (
+        "the trace format integrators write is versioned by its JSON schema under schemas/"
+    ),
+    ("guardana.rules.supply_chain._advisories", "SCHEMA_VERSION"): (
+        "the advisory dataset is data packaged with the rules, not a document a user persists"
+    ),
+    ("guardana.core.report.run", "REPORT_SCHEMA_VERSION"): (
+        "an alias of MANIFEST_SCHEMA_VERSION, recorded under that name"
+    ),
+    ("guardana.server.envelope", "SCHEMA_VERSION"): (
+        "the collector's copy of ENVELOPE_SCHEMA_VERSION, recorded under that name"
+    ),
+    ("guardana.cli._output", "COMPARABLE_FORMAT"): (
+        "the name of the output format `diff` reads, not a document version"
+    ),
+}
+"""Version constants the snapshot leaves out on purpose, each with the reason."""
+
 _LOCATOR_SCHEMES = (
     ("guardana.core.registry", "RESERVED_TARGET_SCHEMES"),
     ("guardana.core.registry", "_TARGET_SCHEME"),
@@ -523,6 +548,29 @@ def build(roots: Sequence[Path] = SOURCE_ROOTS) -> dict[str, Any]:
         "action_inputs": _action_inputs(_ACTION),
         "environment_variables": _environment(roots),
     }
+
+
+def unrecorded_versions(roots: Sequence[Path] = SOURCE_ROOTS) -> list[str]:
+    """Name every module-level version constant the snapshot neither records nor excludes.
+
+    Only a value assigned in the module counts; an import of one is recorded where it is
+    defined. `_UNRECORDED_VERSIONS` holds the deliberate exclusions with their reasons.
+    """
+    covered = set(_CONSTANTS) | set(_UNRECORDED_VERSIONS)
+    found: list[str] = []
+    for root in roots:
+        for path in sorted(root.rglob("*.py")):
+            module = ".".join(path.relative_to(root).with_suffix("").parts)
+            module = module.removesuffix(".__init__")
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            found.extend(
+                f"{module}.{name}"
+                for statement in tree.body
+                if isinstance(statement, ast.Assign | ast.AnnAssign)
+                for name in _bound_names(statement)
+                if _VERSION_NAME.fullmatch(name) and (module, name) not in covered
+            )
+    return found
 
 
 def render(roots: Sequence[Path] = SOURCE_ROOTS) -> str:

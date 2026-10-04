@@ -407,9 +407,12 @@ capabilities it requires (`wire_protocols_of`: `chat`, `call_tools` and
 `plant_system_prompt` are chat; `list_tools`, `inspect_authorization` and `registry_entry`
 are MCP; `inspect_a2a` is A2A). A rule whose protocols your target does not speak is
 skipped as `not_applicable`, which `fail_on_skipped` and `--preset release` do not count;
-a capability missing within a protocol it speaks stays a `missing_capability` gap. The
-default, `None`, says nothing, and every rule the target cannot serve is a
-`missing_capability` gap. A wrapper or a view returns what the target it wraps speaks.
+a capability missing within a protocol it speaks stays a `missing_capability` gap. A
+protocol one of your target's declared capabilities belongs to is spoken whatever
+`speaks()` returns: a subclass of `EndpointTarget` that adds `list_tools` speaks MCP too,
+and the MCP rules run against it. The default, `None`, says nothing, and every rule the
+target cannot serve is a `missing_capability` gap. A wrapper or a view returns what the
+target it wraps speaks.
 
 ```python
 from guardana.core.target import WireProtocol

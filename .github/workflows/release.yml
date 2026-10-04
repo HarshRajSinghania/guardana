@@ -144,8 +144,8 @@ jobs:
           gh release upload "$TAG" sbom/*.cdx.json --clobber
 
   # The reference pack in a job of its own, after the five packages are on PyPI and the
-  # GitHub Release exists: a pack that fails to build can hold back neither of them, nor
-  # the images. It needs no `pypi` approval, because it publishes nowhere but the Release.
+  # GitHub Release exists; the clean-install check in `publish` has already built and
+  # checked it. It needs no `pypi` approval, because it publishes nowhere but the Release.
   reference-pack:
     needs: publish
     runs-on: ubuntu-24.04

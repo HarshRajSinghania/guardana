@@ -198,6 +198,11 @@ def _ruleset_gap(detail: dict[str, object]) -> str | None:
             f"token that may administer the ruleset"
         )
     actors = [_mapping(a, "bypass actor") for a in _sequence(detail["bypass_actors"], "bypass")]
+    if not actors:
+        return (
+            f"ruleset {name} lets nobody bypass it, so no one, the release itself included, "
+            f"could create or move a v* tag"
+        )
     below = [_actor(actor) for actor in actors if not _maintainer_or_above(actor)]
     if below:
         return f"ruleset {name} lets {', '.join(below)} bypass it"
@@ -216,7 +221,7 @@ def _actor(actor: dict[str, object]) -> str:
 
 
 def tag_ruleset(api: Api, repo: str) -> Finding:
-    """Check for an active tag ruleset only maintainers can bypass, guarding `v*` tags.
+    """Check for an active tag ruleset that maintainers, and only they, can bypass, on `v*` tags.
 
     It has to restrict creating, updating and deleting them: a tag moved or recreated after
     a publish no longer names the bytes people installed.

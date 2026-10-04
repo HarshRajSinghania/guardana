@@ -705,7 +705,7 @@ def select_rules(
         if meta.target_kind != target.kind or not profile.policy.matches(meta.id):
             continue
         refusal = (
-            protocol_refusal(rule, target)
+            protocol_refusal(rule, target, capabilities)
             or safety_refusal(profile, rule)
             or capability_refusal(rule, target.ref, capabilities)
             or applicability_refusal(rule, target)
@@ -734,17 +734,26 @@ def _unrecorded(rule: Rule, target: RecordedTarget) -> SkippedRule | None:
     )
 
 
-def protocol_refusal(rule: Rule, target: Target) -> SkippedRule | None:
+def protocol_refusal(
+    rule: Rule, target: Target, capabilities: Collection[Capability] | None = None
+) -> SkippedRule | None:
     """Skip a rule that examines only protocols `target` does not speak, as not applicable.
 
     Asked before every other refusal: a rule about another protocol has nothing to check
     here, so neither a safety ceiling nor a missing capability is what kept it from
     running. A rule whose capabilities name no protocol, or a target that does not say
-    what it speaks, is left to the refusals after this one.
+    what it speaks, is left to the refusals after this one. A protocol one of the
+    target's `capabilities` belongs to is spoken whatever `speaks()` names, so a subclass
+    that adds a capability is never refused the rules that examine it; `capabilities`
+    defaults to the target's own declaration.
     """
     needed = wire_protocols_of(rule.meta.required_capabilities)
-    spoken = target.speaks()
-    if not needed or spoken is None or needed & spoken:
+    said = target.speaks()
+    if not needed or said is None:
+        return None
+    declared = target.capabilities() if capabilities is None else capabilities
+    spoken = said | wire_protocols_of(declared)
+    if needed & spoken:
         return None
     return SkippedRule(
         rule_id=rule.meta.id,
