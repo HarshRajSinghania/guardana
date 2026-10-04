@@ -64,6 +64,14 @@ wrong before.
 | `bump_version.py` | set all five versions, every inter-package pin, the Action and image pins, then `uv lock` | `repo` | `--dry-run` | `uv lock` | — |
 | `release.py` | ⚠ gate → bump → changelog roll → commit only the paths it wrote → push `main` without tags → wait for green CI → create and push the tag (PyPI publish) → move the marketplace tag | `git` + `repo` | `--dry-run`, `--help` | `git`, `gh`, PyPI via CI | `gh` authenticated, push rights |
 
+### Security
+
+`docs/maintainers/security-runbook.md` is the runbook; `docs/maintainers/drills.md` records drills.
+
+| script | purpose | Writes | Safe mode | Net | Needs |
+|---|---|---|---|---|---|
+| `check_repo_settings.py` | read the repository settings the security runbook relies on and print each PRESENT, ABSENT or NOT CHECKED; exit `0`, `1` or `2`. Reading a setting is not a drill | `-` | `-` | GitHub API (read-only) | `gh` authenticated |
+
 ### Agent tooling
 
 Wired in `.claude/settings.json`; never invoked by hand except the checks.

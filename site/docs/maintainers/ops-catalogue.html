@@ -107,6 +107,8 @@
 <li><a href="../maintainers/ops-catalogue.html" aria-current="page">Operations catalogue</a></li>
 <li><a href="../maintainers/lessons.html">Lessons</a></li>
 <li><a href="../maintainers/first-run-study.html">First-run study</a></li>
+<li><a href="../maintainers/security-runbook.html">Security runbook</a></li>
+<li><a href="../maintainers/drills.html">Drills</a></li>
 </ul>
 <h2>Also here</h2><ul>
 <li><a href="../design/trace-domain-model.html">The Trace domain model<span class="tag">implemented</span></a></li>
@@ -240,6 +242,8 @@
 <li><a href="../maintainers/ops-catalogue.html" aria-current="page">Operations catalogue</a></li>
 <li><a href="../maintainers/lessons.html">Lessons</a></li>
 <li><a href="../maintainers/first-run-study.html">First-run study</a></li>
+<li><a href="../maintainers/security-runbook.html">Security runbook</a></li>
+<li><a href="../maintainers/drills.html">Drills</a></li>
 </ul>
 <h2>Also here</h2><ul>
 <li><a href="../design/trace-domain-model.html">The Trace domain model<span class="tag">implemented</span></a></li>
@@ -482,6 +486,30 @@ wrong before.</p>
 <td><code>--dry-run</code>, <code>--help</code></td>
 <td><code>git</code>, <code>gh</code>, PyPI via CI</td>
 <td><code>gh</code> authenticated, push rights</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="security">Security</h3>
+<p><code>docs/maintainers/security-runbook.md</code> is the runbook; <code>docs/maintainers/drills.md</code> records drills.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>script</th>
+<th>purpose</th>
+<th>Writes</th>
+<th>Safe mode</th>
+<th>Net</th>
+<th>Needs</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>check_repo_settings.py</code></td>
+<td>read the repository settings the security runbook relies on and print each PRESENT, ABSENT or NOT CHECKED; exit <code>0</code>, <code>1</code> or <code>2</code>. Reading a setting is not a drill</td>
+<td><code>-</code></td>
+<td><code>-</code></td>
+<td>GitHub API (read-only)</td>
+<td><code>gh</code> authenticated</td>
 </tr>
 </tbody>
 </table></div>
