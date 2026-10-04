@@ -2,12 +2,12 @@
 title: "1.0 readiness"
 nav_order: 93
 summary: "what v0.41 builds so the release candidates carry fixes only: a pinned supported surface with a compatibility policy, a conformance kit and a reference pack, three-outcome fixtures for every built-in, older documents written by the releases that wrote them, exercised runbooks, a protocol the target does not speak read as not applicable, and a delivery a profile can require"
-status: accepted
+status: implemented
 ---
 
 # 1.0 readiness
 
-**Status:** accepted, not yet implemented · **Written:** 2026-10-04 · **Serves:** ROADMAP v0.41,
+**Status:** implemented in 0.41.0 · **Written:** 2026-10-04 · **Serves:** ROADMAP v0.41,
 BACKLOG B21, B11 (in part)
 
 ## The question

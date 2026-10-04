@@ -387,6 +387,9 @@ Left open when the site shipped on 2026-09-25 with Control in coming-soon mode
   update it with each Control release, or have `scripts/sync_site.py` read the latest release.
 - `scripts/generate_llms_txt.py` quotes Control's README tagline and "Status: alpha" by hand;
   re-read Control's README when its status changes.
+- For the `control` repository, not this one: `control.guardana.dev` states the boundary
+  guardana.dev now states — Guardana measures before and between releases, Control decides tool
+  calls at run time, the kind of control the OWASP Agent Control Standard describes.
 - For the `control` repository, not this one: a site generator for `control.guardana.dev`
   that vendors `site/assets/brand/v1/` and checks it against its `SHA256SUMS`; and its
   `docs/foundation/12_INTEGRATION_WITH_GUARDANA.md` and product spec still describe a

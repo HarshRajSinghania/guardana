@@ -188,6 +188,34 @@ The missing coverage includes a check whose payload was never delivered. Zero fi
 
 ### What Guardana observes in three systems
 
+```mermaid
+flowchart LR
+  accTitle: How Guardana checks an AI system
+  accDescr: Model and code artifacts go to guardana scan, a live endpoint, agent or MCP server to guardana probe or monitor, and a recorded agent run or the answers your application already gave to guardana analyze-trace or guardana grade. All of them run one rule engine, which writes a saved run with findings, unverified checks, errors and coverage shortfalls. The run gates the build, feeds guardana diff, and renders as SARIF, JSON, JUnit or text.
+  classDef accent fill:#F0ECFF,stroke:#5B3DF5,color:#4A2FE0
+  classDef cmd font-family:monospace
+  subgraph IN [What you point it at]
+    A[Model and<br>code artifacts]
+    B[Endpoint, agent<br>or MCP server]
+    C[Recorded run<br>or answers]
+  end
+  A --> S([guardana scan]):::cmd
+  B --> P([guardana probe<br>or monitor]):::cmd
+  C --> T([guardana<br>analyze-trace<br>or grade]):::cmd
+  S ==> E[One rule engine<br>rules · evaluators · profile]:::accent
+  P ==> E
+  T ==> E
+  E ==> R[(Saved run<br>findings · unverified<br>errors · shortfalls)]
+  subgraph OUT [What you get]
+    G[Gate verdict<br>and exit code]
+    D([guardana diff]):::cmd
+    F[SARIF · JSON<br>JUnit · text]
+  end
+  R --> G
+  R --> D
+  R --> F
+```
+
 | System | Point Guardana at | What it observes | What it cannot see |
 |---|---|---|---|
 | A dedicated model | Model files with `guardana scan PATH`; a staging endpoint with `guardana probe`. | File risks and replies to selected active checks. | What an application does after receiving a model reply. |
