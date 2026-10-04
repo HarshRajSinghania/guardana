@@ -893,6 +893,10 @@ fixture for any artifact rule (no code-execution surface) and the
 positive one for anything reading <code>__metadata__</code>.</li>
 <li><code>build_onnx</code> — a walkable ONNX <code>ModelProto</code>, for operator-domain,
 metadata, and external-data checks.</li>
+<li><code>files_target</code> — an <code>ArtifactTarget</code> over a fresh directory holding the
+files it is given by relative path, removed once the target is collected;
+a rule's fixtures build their trees with it. A file the target could not
+read makes a sample <code>inconclusive</code>, as a run reports it as an error.</li>
 </ul>
 <p><strong>Fake credentials</strong> are assembled at run time rather than written down, so
 a redaction test does not put a secret-shaped literal in the repository:</p>

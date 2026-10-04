@@ -50,8 +50,8 @@ the wrong layer.
 
 **Guardana sends nothing anywhere else.** No telemetry, no account, no phone-home.
 Traffic goes only to destinations the run names: the target you configured, a judge
-or guard your profile configures, and the authorization metadata the target itself
-advertises — plus your collector, if you configured one.
+or guard your profile configures, the authorization metadata the target itself
+advertises, and a collector or reporter you name with `--reporter`.
 
 ## The gap that remains, stated plainly
 

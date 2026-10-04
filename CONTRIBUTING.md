@@ -168,7 +168,8 @@ wording and the incidents behind each live in
    nobody waits for gets excluded from CI, which is a fail-open one level up.
 3. **Offline, no account, no phone-home.** Traffic goes only to destinations
    the run names: the target under test, a judge or guard the profile
-   configures, and the authorization metadata the target itself advertises.
+   configures, the authorization metadata the target itself advertises, and
+   a collector or reporter `--reporter` names.
 4. **The engine and every built-in rule stay open source, permanently.** Only
    hosting and curated content may ever be paid.
 5. **Built-in security rules map to a public framework, in edition form**

@@ -323,8 +323,8 @@ your users' traffic. If something needs to be stopped in production, Guardana is
 the wrong layer.</p>
 <p><strong>Guardana sends nothing anywhere else.</strong> No telemetry, no account, no phone-home.
 Traffic goes only to destinations the run names: the target you configured, a judge
-or guard your profile configures, and the authorization metadata the target itself
-advertises — plus your collector, if you configured one.</p>
+or guard your profile configures, the authorization metadata the target itself
+advertises, and a collector or reporter you name with <code>--reporter</code>.</p>
 <h2 id="the-gap-that-remains-stated-plainly">The gap that remains, stated plainly</h2>
 <p>Guardana simulates the tool. <strong>Your deployment might not.</strong> If the model under test
 is wired to real tools by its own application — and it is a production agent, so it

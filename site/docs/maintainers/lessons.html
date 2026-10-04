@@ -322,8 +322,8 @@ counts tree walks and parses, <code>test_probe_cost.py</code> counts transport c
 coverage is — counts, not wall-clock, because a count means the same thing on a laptop and a
 loaded runner.</li>
 <li><strong>Offline, and no account, always.</strong> Traffic goes only to destinations the run names — the
-target under test, a judge or guard the profile configures, and the authorization metadata
-the target itself advertises. No telemetry, no phone-home, no license check; the collector is
+target under test, a judge or guard the profile configures, the authorization metadata the
+target itself advertises, and a collector or reporter <code>--reporter</code> names. No telemetry, no phone-home, no license check; the collector is
 optional in every direction and never required for a feature to work.</li>
 <li><strong>The commercial boundary is fixed.</strong> The engine and every built-in rule stay open source,
 permanently. Only <em>hosting</em> (managed collector, hosted runners) and <em>curated content</em>

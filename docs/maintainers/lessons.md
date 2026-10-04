@@ -49,8 +49,8 @@ expressed as a plan.
    coverage is — counts, not wall-clock, because a count means the same thing on a laptop and a
    loaded runner.
 3. **Offline, and no account, always.** Traffic goes only to destinations the run names — the
-   target under test, a judge or guard the profile configures, and the authorization metadata
-   the target itself advertises. No telemetry, no phone-home, no license check; the collector is
+   target under test, a judge or guard the profile configures, the authorization metadata the
+   target itself advertises, and a collector or reporter `--reporter` names. No telemetry, no phone-home, no license check; the collector is
    optional in every direction and never required for a feature to work.
 4. **The commercial boundary is fixed.** The engine and every built-in rule stay open source,
    permanently. Only *hosting* (managed collector, hosted runners) and *curated content*
