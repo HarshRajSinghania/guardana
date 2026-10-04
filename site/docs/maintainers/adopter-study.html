@@ -308,10 +308,10 @@ their runs. The published answer is <a href="../generated/application-measures.h
 and says &quot;not measured&quot; until two teams have rows.</p>
 <h2 id="one-run">One run</h2>
 <ul>
-<li>The team runs its own application, through a reviewed recipe whose <code>kind</code> is <code>application</code>,
+<li>The team runs its own application through a recipe whose <code>kind</code> is <code>application</code>,
 with a lock: <code>guardana recipe lock</code>, then <code>guardana recipe run</code>. A model harness, a plain
 <code>probe</code> or a <code>scan</code> does not count, and <code>scripts/adopter_measure.py</code> refuses it.</li>
-<li>The run must finish: a run its budget, an interrupt or the target stopped part-way is refused,
+<li>The run must finish: a run stopped by its budget, an interrupt or the target is refused,
 because the rules it never started are not recorded.</li>
 <li>The team keeps the saved run. The maintainer never needs its content: <code>row</code> reads only counts.</li>
 </ul>
@@ -328,7 +328,7 @@ the team's or company's name, and that the team can withdraw before publication.
 storage place and the retention period before using it.</p>
 <h3 id="english">English</h3>
 <p>We record one line of counts per run: how many checks were selected, how many did not apply to
-your application, how many ran, and how many reached a verdict, with the Guardana version. We
+your application, how many ran, and how many reached a verdict, with the Guardana version and the run's schema version. We
 record nothing from your application: no prompt, reply, finding, rule name or address.</p>
 <p>Lines are kept in [STORAGE] for [RETENTION]. Only the counts are published, under an identifier
 such as T1, never your team's or your company's name. You can withdraw at any time before
@@ -336,7 +336,7 @@ publication; your lines will then be deleted.</p>
 <p>Do you agree to publication of these counts? Yes/No.</p>
 <h3 id="polski">Polski</h3>
 <p>Z każdego przebiegu zapisujemy jeden wiersz liczb: ile kontroli wybrano, ile nie dotyczyło Waszej
-aplikacji, ile się wykonało i ile doszło do werdyktu, oraz wersję Guardany. Nie zapisujemy niczego
+aplikacji, ile się wykonało i ile doszło do werdyktu, oraz wersję Guardany i wersję schematu przebiegu. Nie zapisujemy niczego
 z Waszej aplikacji: żadnego promptu, odpowiedzi, wyniku, nazwy reguły ani adresu.</p>
 <p>Wiersze przechowujemy w [STORAGE] przez [RETENTION]. Publikujemy tylko liczby pod identyfikatorem
 takim jak T1, nigdy nazwę zespołu ani firmy. Możecie wycofać zgodę w dowolnym momencie przed

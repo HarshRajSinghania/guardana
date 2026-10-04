@@ -464,7 +464,7 @@ delivery:                       # optional; see &quot;delivery:&quot; below
 <td><code>fail_on.fail_on_skipped</code></td>
 <td>bool</td>
 <td><code>false</code></td>
-<td>When <code>true</code>, a selected rule that did not run because the target lacks a capability it needs, or because the safety mode refuses it, leaves the run <code>indeterminate</code>. A rule the policy excludes is not skipped, it is not selected; a security contract about another system, and a rule about a protocol the target does not speak (an MCP or A2A rule against a chat endpoint, a chat rule against an MCP server), are recorded as <code>not_applicable</code> and do not count.</td>
+<td>When <code>true</code>, a selected rule that did not run because the target lacks a capability it needs, or because the safety mode refuses it, leaves the run <code>indeterminate</code>. A rule the policy excludes is not skipped; it is not selected. A security contract about another system, and a rule about a protocol the target does not speak (an MCP or A2A rule against a chat endpoint, a chat rule against an MCP server), are recorded as <code>not_applicable</code> and do not count.</td>
 </tr>
 <tr>
 <td><code>fail_on.min_graded_share</code></td>
@@ -738,8 +738,8 @@ target speaks still counts. A preset cannot narrow which rules run, so an endpoi
 does not call tools skips every tool rule, an endpoint probed without a
 <a href="usage-fixtures.html">fixtures file</a> skips the two seeded-data rules, an stdio MCP server
 skips the authorization rules, and a trace skips every rule needing a dimension its
-producer does not record. <code>probe --preset release</code> is <code>indeterminate</code> against such a
-target, and <code>plan probe</code> says so before sending anything. A target written as a plugin
+producer does not record. <code>probe --preset release</code> is <code>indeterminate</code> against a target
+that skips a selected rule this way, and <code>plan probe</code> says so before sending anything. A target written as a plugin
 that does not say which protocol it speaks has every rule it cannot serve skipped for a
 missing capability. To gate a release on the rules your target can serve, write the same
 bar into a <code>guardana.yaml</code> and select those rules:</p>

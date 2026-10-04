@@ -466,8 +466,7 @@ database reports the same applied migrations as the original.</p>
 credentials for the system it came from is one theft, not two.</p>
 <h2 id="rotating-an-api-key">Rotating an API key</h2>
 <p>Rotate on a schedule, when someone who held a key leaves, and at once when a key
-may have leaked. Both keys work until the old one is revoked, so no run is lost
-in between.</p>
+may have leaked. Both keys work until the old one is revoked, allowing pipelines to switch without a gap in key validity.</p>
 <ol>
 <li>
 <p><strong>Issue</strong> the new key for the same project, with the same <code>--scope</code> and

@@ -7,7 +7,7 @@ depends on `guardana-core>=0.40` with no upper bound, and lets its manifest's
 attaches its wheel and sdist to the GitHub Release; it is published to PyPI once the
 project's trusted publisher is registered.
 
-`custom_rule` and `output_pack` teach one idea each. This pack is the proof a third party
+`custom_rule` and `output_pack` teach one idea each. This pack is an example a third party
 can copy: everything in it is checked by the commands and the conformance kit Guardana
 ships, from an isolated install.
 

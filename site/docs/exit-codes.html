@@ -432,7 +432,7 @@ collector's, which answers with its own acknowledgement and not merely a <code>2
 reporter's, whose status must be <code>delivered</code> — <code>not_sent</code> included, since a job that delivered
 nothing must not pass. Anything else is <code>8</code> under the same precedence, with the verdict printed:
 it replaces <code>0</code>, <code>1</code> and <code>2</code>, a stopped run keeps <code>4</code>, <code>6</code> or <code>7</code>, and a redaction failure stays
-<code>5</code>. <code>import-observations</code>, which always exits <code>2</code>, exits <code>8</code> the same way. <code>monitor</code> never
+<code>5</code>. <code>import-observations</code>, which otherwise exits <code>2</code>, exits <code>8</code> the same way. <code>monitor</code> never
 stops a watch for it: it counts the alert deliveries that were not acknowledged and ends a
 watch that would have exited <code>0</code>, <code>1</code> or <code>2</code> with <code>8</code>. Without the key nothing changes. The
 setting is not part of the verdict, so it moves no profile digest.</p>

@@ -200,8 +200,7 @@ credentials for the system it came from is one theft, not two.
 ## Rotating an API key
 
 Rotate on a schedule, when someone who held a key leaves, and at once when a key
-may have leaked. Both keys work until the old one is revoked, so no run is lost
-in between.
+may have leaked. Both keys work until the old one is revoked, allowing pipelines to switch without a gap in key validity.
 
 1. **Issue** the new key for the same project, with the same `--scope` and
    `--environment` as the one it replaces:

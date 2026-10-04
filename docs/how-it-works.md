@@ -77,7 +77,7 @@ A Target gives rules a common interface to files or models.
 - `ArtifactTarget` walks a directory and gives rules model files, manifests, and source. It skips `.git`, `.venv`, `node_modules`, and similar directories.
 - `EndpointTarget` connects to a live chat endpoint. It provides `chat(messages)` and, when supported, `offer_tools(messages, tools)`. It hides the wire protocol selected by `--provider openai|ollama|tgi`.
 
-Targets advertise capabilities such as `READ_FILES`, `CHAT`, `PLANT_SYSTEM_PROMPT`, and `CALL_TOOLS`, and say which wire protocol they speak: chat, MCP or A2A (`Target.speaks()`). Rules declare the capabilities they need, and those capabilities name the protocol the rule examines. A rule about a protocol the target does not speak is skipped as `not_applicable`, which is not a coverage gap. Otherwise the runner records a `missing_capability` skip when a target lacks a required capability, and that is a gap.
+Targets advertise capabilities such as `READ_FILES`, `CHAT`, `PLANT_SYSTEM_PROMPT`, and `CALL_TOOLS`, and can say which wire protocols they speak: chat, MCP or A2A (`Target.speaks()`). Rules declare the capabilities they need, and those capabilities name the protocol the rule examines. A rule about a protocol the target does not speak is skipped as `not_applicable`, which is not a coverage gap. Otherwise the runner records a `missing_capability` skip when a target lacks a required capability, and that is a gap.
 
 ### Rule — what to look for
 

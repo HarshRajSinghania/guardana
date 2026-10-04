@@ -7,7 +7,7 @@ status: stable
 
 # Security runbook
 
-Three situations, in the order they are most likely. Each step names the command where one
+Three situations. Each step names the command where one
 exists. The repository settings these steps rely on are listed at the end, with a script that
 reads them. Reading a setting is not a drill: a runbook counts as exercised only once a drill
 of it is recorded in [drills](drills.md).
@@ -31,7 +31,7 @@ emailed report goes into a draft advisory first, so the whole case lives in one 
    `scripts/ci_local.sh --quiet`. Nothing about the fix goes to a public branch, issue or
    pull request yet.
 4. **Release the fix.** Merge the private fork's pull request from the advisory page, then cut
-   the patch straight away, so the fix is public for minutes before it is installable:
+   the patch straight away:
 
    ```bash
    uv run python scripts/release.py patch --dry-run

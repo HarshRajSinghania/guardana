@@ -16,10 +16,10 @@ and says "not measured" until two teams have rows.
 
 ## One run
 
-- The team runs its own application, through a reviewed recipe whose `kind` is `application`,
+- The team runs its own application through a recipe whose `kind` is `application`,
   with a lock: `guardana recipe lock`, then `guardana recipe run`. A model harness, a plain
   `probe` or a `scan` does not count, and `scripts/adopter_measure.py` refuses it.
-- The run must finish: a run its budget, an interrupt or the target stopped part-way is refused,
+- The run must finish: a run stopped by its budget, an interrupt or the target is refused,
   because the rules it never started are not recorded.
 - The team keeps the saved run. The maintainer never needs its content: `row` reads only counts.
 
@@ -42,7 +42,7 @@ storage place and the retention period before using it.
 ### English
 
 We record one line of counts per run: how many checks were selected, how many did not apply to
-your application, how many ran, and how many reached a verdict, with the Guardana version. We
+your application, how many ran, and how many reached a verdict, with the Guardana version and the run's schema version. We
 record nothing from your application: no prompt, reply, finding, rule name or address.
 
 Lines are kept in [STORAGE] for [RETENTION]. Only the counts are published, under an identifier
@@ -54,7 +54,7 @@ Do you agree to publication of these counts? Yes/No.
 ### Polski
 
 Z każdego przebiegu zapisujemy jeden wiersz liczb: ile kontroli wybrano, ile nie dotyczyło Waszej
-aplikacji, ile się wykonało i ile doszło do werdyktu, oraz wersję Guardany. Nie zapisujemy niczego
+aplikacji, ile się wykonało i ile doszło do werdyktu, oraz wersję Guardany i wersję schematu przebiegu. Nie zapisujemy niczego
 z Waszej aplikacji: żadnego promptu, odpowiedzi, wyniku, nazwy reguły ani adresu.
 
 Wiersze przechowujemy w [STORAGE] przez [RETENTION]. Publikujemy tylko liczby pod identyfikatorem

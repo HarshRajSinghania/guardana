@@ -119,7 +119,7 @@ collector's, which answers with its own acknowledgement and not merely a `2xx`, 
 reporter's, whose status must be `delivered` — `not_sent` included, since a job that delivered
 nothing must not pass. Anything else is `8` under the same precedence, with the verdict printed:
 it replaces `0`, `1` and `2`, a stopped run keeps `4`, `6` or `7`, and a redaction failure stays
-`5`. `import-observations`, which always exits `2`, exits `8` the same way. `monitor` never
+`5`. `import-observations`, which otherwise exits `2`, exits `8` the same way. `monitor` never
 stops a watch for it: it counts the alert deliveries that were not acknowledged and ends a
 watch that would have exited `0`, `1` or `2` with `8`. Without the key nothing changes. The
 setting is not part of the verdict, so it moves no profile digest.

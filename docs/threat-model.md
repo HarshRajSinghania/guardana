@@ -249,8 +249,8 @@ styles, `connect-src 'self'`, `img-src 'self' data:`, `base-uri 'none'`,
 nosniff` and `Referrer-Policy: no-referrer`. The page uses no `style` attributes,
 so styles need no inline allowance either. Tests check the header, that the hash
 matches the served script, and, without a browser, that every value the script
-splices into markup is escaped; a crafted finding reaches the API as data and
-never the page.
+splices into markup is escaped; a crafted finding reaches the API as data, and
+the served page holds none of it until the script fetches and escapes it.
 
 **Residual risk:** the escaping test reads the script's structure rather than
 rendering it in a browser, so a value passed through a call that returns raw text

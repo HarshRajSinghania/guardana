@@ -300,7 +300,7 @@
 </nav>
 </details>
 <main>
-<h1>Security runbook</h1><p class="lede">What the maintainer does on a vulnerability report, a compromised or broken release, and a leaked collector key or database credential, and the repository settings each step relies on.</p><p>Three situations, in the order they are most likely. Each step names the command where one
+<h1>Security runbook</h1><p class="lede">What the maintainer does on a vulnerability report, a compromised or broken release, and a leaked collector key or database credential, and the repository settings each step relies on.</p><p>Three situations. Each step names the command where one
 exists. The repository settings these steps rely on are listed at the end, with a script that
 reads them. Reading a setting is not a drill: a runbook counts as exercised only once a drill
 of it is recorded in <a href="drills.html">drills</a>.</p>
@@ -328,7 +328,7 @@ pull request yet.</p>
 </li>
 <li>
 <p><strong>Release the fix.</strong> Merge the private fork's pull request from the advisory page, then cut
-the patch straight away, so the fix is public for minutes before it is installable:</p>
+the patch straight away:</p>
 <pre><code class="language-bash">uv run python scripts/release.py patch --dry-run
 uv run python scripts/release.py patch
 </code></pre>
