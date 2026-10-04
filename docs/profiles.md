@@ -172,7 +172,11 @@ failure stays `5` ([exit codes](exit-codes.md)). `import-observations` exits `8`
 `2` the same way. [`monitor`](usage-monitor.md) never stops a watch for it: it counts the
 alert deliveries the collector did not acknowledge, prints `monitor: <n> alert deliveries not
 acknowledged`, and ends a watch that would have exited `0`, `1` or `2` with `8`. A run that
-forwards nothing is unaffected. The setting decides the exit after the verdict, so it is
+forwards nothing is unaffected; one that names no `--reporter` says so once, as
+`warning: the profile sets delivery.required, and this run names no --reporter`, and keeps its
+exit. `scan --write-baseline` and `probe --write-mcp-pin` produce no report to forward, so they
+refuse a collector or installed `--reporter` with exit `3` before anything is sent, whatever
+the profile says. The setting decides the exit after the verdict, so it is
 left out of the profile digest: setting it moves no run record and no recipe lock.
 `guardana config explain` shows it after `plugins`.
 

@@ -30,7 +30,13 @@ from guardana.cli.monitor import AlertDeliveries, _exit_with_worst
 from guardana.core.entrypoints import REPORTER_GROUP
 from guardana.core.gate import GateOutcome, StopReason
 from guardana.core.monitor import MonitorSummary
-from guardana.core.testing import EchoingTransport, FailingTransport, RefusingTransport
+from guardana.core.target import McpServerTarget
+from guardana.core.testing import (
+    EchoingTransport,
+    FailingTransport,
+    RefusingTransport,
+    ScriptedMcpServer,
+)
 from guardana.core.verify import Verification
 from typer.testing import CliRunner, Result
 
@@ -503,3 +509,111 @@ def test_config_explain_shows_the_delivery_setting_after_the_plugins(requiring: 
     keys = list(explained)
     assert keys[keys.index("plugins") + 1] == "delivery"
     assert explained["delivery"] == {"required": True}
+
+
+_PIN_SERVER = "https://93.184.215.14/mcp"
+
+
+@pytest.fixture
+def scripted_mcp(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Answer `--mcp` with a scripted server, so writing a pin succeeds without a network."""
+    server = ScriptedMcpServer(_PIN_SERVER, tools=[{"name": "read", "description": "Read."}])
+    monkeypatch.setattr(
+        "guardana.cli._mcp_run.build_mcp_target",
+        lambda connection: McpServerTarget(server.url, sender=server, discovery_sender=server),
+    )
+
+
+@pytest.mark.usefixtures("clean_tree", "scripted_mcp")
+@pytest.mark.parametrize("scheme", ["", "server://"])
+@pytest.mark.parametrize(
+    ("command", "flag"), [("scan", "--write-baseline"), ("probe", "--write-mcp-pin")]
+)
+def test_a_flag_that_writes_no_report_refuses_a_collector_whatever_the_profile_says(  # noqa: PLR0913 — the matrix
+    tmp_path: Path, requiring: Path, plain: Path, *, command: str, flag: str, scheme: str
+) -> None:
+    written = tmp_path / "written"
+    subjects = {
+        "scan": ["scan", str(tmp_path / "tree")],
+        "probe": ["probe", "--mcp", _PIN_SERVER],
+    }
+
+    with answering(200, COLLECTOR_ACKNOWLEDGEMENT) as collector:
+        results = [
+            runner.invoke(
+                app,
+                [
+                    *subjects[command],
+                    "--profile",
+                    str(profile),
+                    flag,
+                    str(written),
+                    "--reporter",
+                    f"{scheme}{collector.url}",
+                ],
+            )
+            for profile in (requiring, plain)
+        ]
+
+    assert collector.heard == []
+    assert not written.exists()
+    for result in results:
+        assert result.exit_code == ExitCode.INVALID_USAGE, result.output
+        assert (
+            f"error: the collector needs the run's report, which {flag} does not produce"
+        ) in _lines(result.output)
+
+
+_NO_REPORTER = "warning: the profile sets delivery.required, and this run names no --reporter"
+
+
+@pytest.mark.usefixtures("clean_tree", "endpoint")
+@pytest.mark.parametrize("command", _COMMANDS)
+def test_a_required_delivery_with_no_reporter_is_said_once_and_keeps_the_exit(
+    tmp_path: Path, requiring: Path, plain: Path, command: str
+) -> None:
+    required = _run(command, tmp_path, requiring)
+    unrequired = _run(command, tmp_path, plain)
+
+    assert _lines(required.output).count(_NO_REPORTER) == 1, required.output
+    assert _NO_REPORTER not in _lines(unrequired.output)
+    assert required.exit_code == unrequired.exit_code != ExitCode.OUTPUT_FAILED
+
+
+def test_monitor_says_a_required_delivery_with_no_reporter_once(
+    requiring: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(endpoint_module, "transport_factory", EchoingTransport)
+
+    result = runner.invoke(
+        app,
+        [
+            "monitor",
+            "--url",
+            "http://fake",
+            "--model",
+            "m",
+            "--profile",
+            str(requiring),
+            "--max-cycles",
+            "1",
+            "--interval",
+            "0",
+        ],
+    )
+
+    assert _lines(result.output).count(_NO_REPORTER) == 1, result.output
+    assert result.exit_code != ExitCode.OUTPUT_FAILED, result.output
+
+
+@pytest.mark.usefixtures("clean_tree")
+@pytest.mark.parametrize("status", [200, 403])
+def test_a_deeply_nested_answer_is_a_failed_delivery_not_a_crash(
+    tmp_path: Path, requiring: Path, status: int
+) -> None:
+    with answering(status, b"[" * 60_000) as collector:
+        result = _run("scan", tmp_path, requiring, "--reporter", collector.url)
+
+    assert result.exit_code == ExitCode.OUTPUT_FAILED, result.output
+    assert collector.heard == ["/findings"]
+    assert any(line.endswith(_REQUIRED) for line in _lines(result.output))

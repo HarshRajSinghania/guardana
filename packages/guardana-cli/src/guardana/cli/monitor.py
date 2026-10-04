@@ -18,7 +18,11 @@ from guardana.cli._connection import (
 from guardana.cli._errors import EndpointFlag, remedies_for, run_against_endpoint
 from guardana.cli._evaluators import JudgeMeters, wire_config_evaluators
 from guardana.cli._exit import refuse_invalid_profile, refuse_unenforceable_budget
-from guardana.cli._outputs import MONITOR_REFUSAL, refuse_installed_reporter
+from guardana.cli._outputs import (
+    MONITOR_REFUSAL,
+    refuse_installed_reporter,
+    warn_without_a_reporter,
+)
 from guardana.cli._plugins import (
     AllowPluginOption,
     PluginsOption,
@@ -338,6 +342,7 @@ def monitor(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; this i
     refuse_installed_reporter(reporter, MONITOR_REFUSAL)
     check_reporter_url(reporter)
     prof = resolve_profile(profile, preset)
+    warn_without_a_reporter(prof.delivery_required, reporter)
     if trials is not None:
         prof = replace(prof, trials=trials)
     if prof.privacy.keep_exchanges:

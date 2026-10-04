@@ -122,7 +122,9 @@ it replaces `0`, `1` and `2`, a stopped run keeps `4`, `6` or `7`, and a redacti
 `5`. `import-observations`, which otherwise exits `2`, exits `8` the same way. `monitor` never
 stops a watch for it: it counts the alert deliveries that were not acknowledged and ends a
 watch that would have exited `0`, `1` or `2` with `8`. Without the key nothing changes. The
-setting is not part of the verdict, so it moves no profile digest.
+setting is not part of the verdict, so it moves no profile digest. `scan --write-baseline` and
+`probe --write-mcp-pin` forward nothing, so they refuse any `--reporter` with `3` before
+anything is sent, whatever the profile says.
 
 ## Which commands produce which
 

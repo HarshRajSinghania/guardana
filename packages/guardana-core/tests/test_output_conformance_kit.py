@@ -284,3 +284,61 @@ def test_a_reporter_named_outside_the_rules_is_refused(served: Receiver) -> None
     said = _refusal(lambda: _check(spec, served))
 
     assert "reserved" in said
+
+
+def _check_counted(spec: ReporterSpec, served: Receiver, *, delivered: str | None = None) -> None:
+    assert_reporter_conforms(
+        spec,
+        delivered=served.accepting if delivered is None else delivered,
+        rejected=served.refusing,
+        unreachable=served.closed,
+        receiver=served,
+    )
+
+
+def test_a_conforming_reporter_passes_with_its_requests_counted(served: Receiver) -> None:
+    _check_counted(_reporter(_prepare), served)
+
+
+@dataclass
+class _Silent(_Post):
+    """Says `delivered` to the accepting URL without sending anything there."""
+
+    accepting: str = ""
+
+    def deliver(self, verification: Verification) -> Delivery:
+        if self.url == self.accepting:
+            return Delivery(DeliveryStatus.DELIVERED, attempts=1, http_status=200)
+        return super().deliver(verification)
+
+
+def test_a_reporter_that_says_delivered_and_sends_nothing_is_refused(served: Receiver) -> None:
+    spec = _reporter(lambda r: _Silent(url=r.locator, accepting=served.accepting))
+
+    _check(spec, served)
+    said = _refusal(lambda: _check_counted(spec, served))
+
+    assert said.count("the receiver got 0 requests at the delivered locator, not 1") == 5
+    assert "stopped by budget_exhausted" in said
+
+
+@dataclass
+class _Twice(_Post):
+    def deliver(self, verification: Verification) -> Delivery:
+        super().deliver(verification)
+        return super().deliver(verification)
+
+
+def test_a_reporter_that_sends_one_run_twice_is_refused(served: Receiver) -> None:
+    said = _refusal(lambda: _check_counted(_reporter(lambda r: _Twice(url=r.locator)), served))
+
+    assert said.count("the receiver got 2 requests at the delivered locator, not 1") == 5
+
+
+def test_a_delivered_locator_away_from_the_receiver_cannot_be_counted(served: Receiver) -> None:
+    with receiver() as elsewhere:
+        said = _refusal(
+            lambda: _check_counted(_reporter(_prepare), served, delivered=elsewhere.accepting)
+        )
+
+    assert "the delivered locator does not point at the receiver passed" in said

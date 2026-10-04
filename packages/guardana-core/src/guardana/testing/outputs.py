@@ -10,6 +10,7 @@ import threading
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from typing import Final, cast
+from urllib.parse import urlsplit
 
 from guardana.core.origin import Origin
 from guardana.core.output import (
@@ -27,7 +28,7 @@ from guardana.core.output import (
     is_reserved_reporter_name,
     render,
 )
-from guardana.core.testing import sample_verifications
+from guardana.core.testing import Receiver, sample_verifications
 from guardana.core.verify import Verification
 
 _UNATTRIBUTED: Final = Origin()
@@ -69,13 +70,14 @@ def assert_renderer_conforms(spec: RendererSpec, *, name: str | None = None) -> 
     _raise_for(f"the format {spec.name!r}", problems)
 
 
-def assert_reporter_conforms(
+def assert_reporter_conforms(  # noqa: PLR0913 — three destinations, a name and their receiver
     spec: ReporterSpec,
     *,
     delivered: str,
     rejected: str,
     unreachable: str,
     name: str | None = None,
+    receiver: Receiver | None = None,
 ) -> None:
     """Refuse a reporter that sends while preparing or misreports any delivery.
 
@@ -88,9 +90,19 @@ def assert_reporter_conforms(
     `destination` is a `str` and whose `sent_secrets()` is a tuple of `str`; delivered
     through `guardana.core.output.deliver`, the run must come back with exactly that
     locator's status. `unknown` is always a failure, reported with its detail. `name` is
-    checked as for a format. Raises `OutputContractError`.
+    checked as for a format. With `receiver`, the `receiver()` that `delivered` points at,
+    every sample the delivered locator yields `delivered` for must have reached it as exactly
+    one request; a `delivered` locator elsewhere is a failure, since nothing can be counted.
+    Raises `OutputContractError`.
     """
     problems = _name_problems(spec.name, name, is_reserved_reporter_name, "reporter")
+    counted = receiver
+    if receiver is not None and _address(receiver.accepting) not in delivered:
+        problems.append(
+            f"the delivered locator does not point at the receiver passed "
+            f"({receiver.accepting}), so the requests it got cannot be counted"
+        )
+        counted = None
     expected = (
         ("delivered", delivered, DeliveryStatus.DELIVERED),
         ("rejected", rejected, DeliveryStatus.REJECTED),
@@ -98,14 +110,24 @@ def assert_reporter_conforms(
     )
     for sample in sample_verifications():
         for label, locator, status in expected:
-            problems.extend(_delivery_problems(spec, sample, label, locator, status))
+            at = counted if status is DeliveryStatus.DELIVERED else None
+            problems.extend(_delivery_problems(spec, sample, label, locator, status, at))
     _raise_for(f"the reporter {spec.name!r}", list(dict.fromkeys(problems)))
 
 
-def _delivery_problems(
-    spec: ReporterSpec, sample: Verification, label: str, locator: str, status: DeliveryStatus
+def _delivery_problems(  # noqa: PLR0913, PLR0917 — one delivery and where it is counted
+    spec: ReporterSpec,
+    sample: Verification,
+    label: str,
+    locator: str,
+    status: DeliveryStatus,
+    counted: Receiver | None,
 ) -> list[str]:
-    """Prepare for `locator`, deliver `sample`, and name everything that went wrong."""
+    """Prepare for `locator`, deliver `sample`, and name everything that went wrong.
+
+    With `counted`, the requests its accepting URL got during a `delivered` delivery must
+    number exactly one.
+    """
     with _network_refused() as tried:
         try:
             deliverer: object = spec.prepare(ReporterRequest(locator=locator))
@@ -125,7 +147,15 @@ def _delivery_problems(
     if shape:
         return problems + shape
     prepared = _prepared(spec, cast("Deliverer", deliverer), secrets)
+    before = 0 if counted is None else len(counted.received)
     outcome = deliver(prepared, sample)
+    if counted is not None and outcome.status is DeliveryStatus.DELIVERED:
+        sent = _requests_at(counted, before)
+        if sent != 1:
+            problems.append(
+                f"the {label} locator yielded delivered for {_described(sample)}, and the "
+                f"receiver got {sent} requests at the delivered locator, not 1"
+            )
     if outcome.status is DeliveryStatus.UNKNOWN:
         problems.append(
             f"the {label} locator yielded unknown for {_described(sample)}: {outcome.detail}"
@@ -137,6 +167,18 @@ def _delivery_problems(
             f"not {status}{detail}"
         )
     return problems
+
+
+def _address(url: str) -> str:
+    """Return `url` without its scheme: the host, port and path a locator must contain."""
+    parts = urlsplit(url)
+    return f"{parts.netloc}{parts.path}"
+
+
+def _requests_at(counted: Receiver, since: int) -> int:
+    """Count the requests the accepting URL of `counted` got after the first `since` received."""
+    path = urlsplit(counted.accepting).path
+    return sum(1 for request in counted.received[since:] if request.path.startswith(path))
 
 
 def _shape_problems(deliverer: object) -> tuple[list[str], tuple[str, ...]]:

@@ -339,8 +339,8 @@ what its row says. It proves nothing else.</p>
 </tr>
 <tr>
 <td><code>guardana.testing.assert_reporter_conforms</code></td>
-<td><code>prepare</code> sends nothing, the deliverer has the right shape, and each destination yields its own status for every sample run, through the boundary <code>--reporter</code> uses</td>
-<td>what the reporter sends, whether it ignores proxy variables, or a connection made by a subprocess or a C extension during <code>prepare</code></td>
+<td><code>prepare</code> sends nothing, the deliverer has the right shape, and each destination yields its own status for every sample run, through the boundary <code>--reporter</code> uses; given the <code>receiver()</code> it delivers to, each <code>delivered</code> arrived there as exactly one request</td>
+<td>what the request carries, whether it ignores proxy variables, or a connection made by a subprocess or a C extension during <code>prepare</code>; without <code>receiver=</code>, that anything was sent at all</td>
 </tr>
 </tbody>
 </table></div>
@@ -381,6 +381,7 @@ def test_the_webhook_keeps_the_output_contract(monkeypatch):
             rejected=served.refusing,
             unreachable=served.closed,
             name=&quot;acme-webhook&quot;,
+            receiver=served,
         )
 </code></pre>
 <p><code>name</code> is the entry point's name, and <code>spec.name</code> must equal it. Left out, the spec's own name
@@ -403,6 +404,10 @@ extension that opens its own connection is not covered.</li>
 status: <code>delivered</code>, <code>rejected</code> or <code>unreachable</code>. <code>unknown</code> always fails, with its detail:
 the reporter raised, overran 30 seconds, or said <code>delivered</code> with no attempt or with a
 status outside 2xx.</li>
+<li>with <code>receiver=</code>, the <code>receiver()</code> the <code>delivered</code> locator points at, each run the reporter
+called <code>delivered</code> reached its accepting URL as exactly one request. A reporter that says
+<code>delivered</code> and sends nothing, or sends a run twice, fails. A <code>delivered</code> locator that does
+not point at that receiver fails too, since nothing can be counted.</li>
 </ul>
 <p><strong><code>guardana.core.testing.receiver()</code></strong> serves the three destinations for an HTTP reporter on
 <code>127.0.0.1</code>, for the length of a <code>with</code> block. <code>accepting</code> answers <code>200</code> with

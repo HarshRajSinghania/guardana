@@ -33,7 +33,7 @@ guardana probe --url https://api.example.com --model m \
 
 `monitor` and `import-observations` take only the built-in forms, and refuse an installed one
 with exit `3`. So do `scan --write-baseline` and `probe --write-mcp-pin`, which produce no
-report for an output to receive.
+report for an output to receive; they refuse a collector `--reporter` the same way.
 
 Every command starts with Guardana's own distributions only, so an installed output is
 refused until you admit its distribution: `--plugins allowlist --allow-plugin <distribution>`

@@ -371,7 +371,7 @@
 <tr>
 <td><code>--write-baseline PATH</code></td>
 <td>none</td>
-<td>Write a baseline waiving every current finding to <code>PATH</code>, then exit 0. Add a reason to each entry before committing it. Over an incomplete run it writes nothing and exits <code>2</code> — see <a href="#baselining-existing-findings">Baselining</a>.</td>
+<td>Write a baseline waiving every current finding to <code>PATH</code>, then exit 0. Add a reason to each entry before committing it. Over an incomplete run it writes nothing and exits <code>2</code> — see <a href="#baselining-existing-findings">Baselining</a>. It produces no report to forward, so any <code>--reporter</code> beside it is refused with exit <code>3</code> before anything is sent.</td>
 </tr>
 <tr>
 <td><code>--reporter TEXT</code></td>

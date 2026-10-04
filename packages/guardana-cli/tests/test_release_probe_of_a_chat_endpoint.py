@@ -11,7 +11,10 @@ import guardana.cli._endpoint as endpoint_module
 import pytest
 from guardana.cli.exit_codes import ExitCode
 from guardana.cli.main import app
+from guardana.core.plugins import PluginMode, PluginTrust
+from guardana.core.registry import Registry
 from guardana.core.report import SkipReason, load_report
+from guardana.core.target import WireProtocol, wire_protocols_of
 from guardana.core.testing import ToolCallingScriptedTransport
 from typer.testing import CliRunner
 
@@ -46,16 +49,32 @@ def _probe(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[int, Path]:
     return result.exit_code, saved
 
 
-def test_a_release_probe_saves_mcp_and_a2a_rules_as_not_applicable(
+def _examining_another_protocol() -> set[str]:
+    """Every built-in rule whose capabilities examine only protocols other than chat."""
+    registry = Registry.discover(PluginTrust(mode=PluginMode.BUILTINS))
+    return {
+        rule.meta.id
+        for rule in registry.rules()
+        if (needed := wire_protocols_of(rule.meta.required_capabilities))
+        and WireProtocol.CHAT not in needed
+    }
+
+
+def test_a_release_probe_saves_the_rules_of_other_protocols_as_not_applicable(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _code, saved = _probe(tmp_path, monkeypatch)
 
-    skipped = load_report(saved).result.rules_skipped
-    other = [s for s in skipped if s.rule_id.startswith(("guardana.mcp.", "guardana.a2a."))]
+    result = load_report(saved).result
+    skipped = {s.rule_id: s for s in result.rules_skipped}
+    selected = {*skipped, *result.rules_run}
+    other = _examining_another_protocol() & selected
     assert len(other) >= 13
-    assert {s.reason for s in other} == {SkipReason.NOT_APPLICABLE}
-    assert all("speaks chat" in s.detail for s in other)
+    reasons = {
+        rule_id: skipped[rule_id].reason if rule_id in skipped else "run" for rule_id in other
+    }
+    assert reasons == dict.fromkeys(other, SkipReason.NOT_APPLICABLE)
+    assert all("speaks chat" in skipped[rule_id].detail for rule_id in other)
 
 
 def test_a_release_probe_is_held_open_only_by_what_the_chat_endpoint_lacks(

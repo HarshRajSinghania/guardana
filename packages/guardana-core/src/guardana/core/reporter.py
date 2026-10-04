@@ -237,7 +237,7 @@ def _acknowledged(body: bytes) -> bool:
         return False
     try:
         answer = json.loads(body)
-    except ValueError:
+    except (ValueError, RecursionError):
         return False
     return isinstance(answer, dict) and answer.get("status") == "ok"
 

@@ -18,7 +18,7 @@ what its row says. It proves nothing else.
 | `ScriptedMcpServer`, `ScriptedA2aAgent` | a rule runs against a server or agent that enforces authorization and one that does not, through the same interfaces a live one uses | that a real server implementation behaves like the double |
 | `files_target`, a `Trace` in a `TraceTarget`, the scripted transports | a rule's fixtures built in code: a file tree, a recorded execution, a model's replies | anything about the model or the files your team actually ships |
 | `guardana.testing.assert_renderer_conforms` | a format's name can be selected, and `render` returns text for every sample run, through the boundary `--format` uses | that the text is correct or complete, or that it states the verdict |
-| `guardana.testing.assert_reporter_conforms` | `prepare` sends nothing, the deliverer has the right shape, and each destination yields its own status for every sample run, through the boundary `--reporter` uses | what the reporter sends, whether it ignores proxy variables, or a connection made by a subprocess or a C extension during `prepare` |
+| `guardana.testing.assert_reporter_conforms` | `prepare` sends nothing, the deliverer has the right shape, and each destination yields its own status for every sample run, through the boundary `--reporter` uses; given the `receiver()` it delivers to, each `delivered` arrived there as exactly one request | what the request carries, whether it ignores proxy variables, or a connection made by a subprocess or a C extension during `prepare`; without `receiver=`, that anything was sent at all |
 
 The kit has no evaluator check: an evaluator is exercised through the fixtures of the rules
 that use it.
@@ -63,6 +63,7 @@ def test_the_webhook_keeps_the_output_contract(monkeypatch):
             rejected=served.refusing,
             unreachable=served.closed,
             name="acme-webhook",
+            receiver=served,
         )
 ```
 
@@ -88,6 +89,10 @@ checks:
   status: `delivered`, `rejected` or `unreachable`. `unknown` always fails, with its detail:
   the reporter raised, overran 30 seconds, or said `delivered` with no attempt or with a
   status outside 2xx.
+- with `receiver=`, the `receiver()` the `delivered` locator points at, each run the reporter
+  called `delivered` reached its accepting URL as exactly one request. A reporter that says
+  `delivered` and sends nothing, or sends a run twice, fails. A `delivered` locator that does
+  not point at that receiver fails too, since nothing can be counted.
 
 **`guardana.core.testing.receiver()`** serves the three destinations for an HTTP reporter on
 `127.0.0.1`, for the length of a `with` block. `accepting` answers `200` with

@@ -14,7 +14,7 @@ import typer
 from guardana.cli._contracts import contract_paths, describe_contracts, wire_contracts
 from guardana.cli._exit import refuse_unenforceable_budget
 from guardana.cli._formats import FORMAT_HELP
-from guardana.cli._outputs import select_outputs
+from guardana.cli._outputs import select_outputs, warn_without_a_reporter
 from guardana.cli._plugins import (
     AllowPluginOption,
     PluginsOption,
@@ -114,6 +114,7 @@ def analyze_trace(  # noqa: C901, PLR0913, PLR0917 — Typer surface plus two ta
     """Grade a recorded agent execution (JSONL, OpenTelemetry GenAI or Guardana native)."""
     installed_reporter = installed_reporter_or_check(reporter)
     prof = resolve_profile(profile, preset)
+    warn_without_a_reporter(prof.delivery_required, reporter)
     resolved = resolve_trust(plugins, allow_plugin, prof)
     outputs = select_outputs(
         format,

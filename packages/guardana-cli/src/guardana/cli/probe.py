@@ -39,7 +39,13 @@ from guardana.cli._mcp_run import (
     run_mcp_probe,
 )
 from guardana.cli._output import refuse_incomparable_output
-from guardana.cli._outputs import RunOutputs, refuse_installed_output_beside, select_outputs
+from guardana.cli._outputs import (
+    RunOutputs,
+    refuse_collector_beside,
+    refuse_installed_output_beside,
+    select_outputs,
+    warn_without_a_reporter,
+)
 from guardana.cli._plugins import (
     AllowPluginOption,
     PluginsOption,
@@ -252,6 +258,7 @@ def probe(  # noqa: C901, PLR0913, PLR0915, PLR0917 — Typer surface, target mo
     installed_reporter = installed_reporter_or_check(reporter)
     refuse_installed_output_beside("--write-mcp-pin", write_mcp_pin, format, installed_reporter)
     collector = reporter if installed_reporter is None else None
+    refuse_collector_beside("--write-mcp-pin", write_mcp_pin, collector=bool(collector))
     refuse_incomparable_output(output, format)
     _refuse_lone_a2a_flags(a2a, a2a_token_env, a2a_other_token_env)
     if mcp_registry_entry is not None and mcp is None:
@@ -261,6 +268,7 @@ def probe(  # noqa: C901, PLR0913, PLR0915, PLR0917 — Typer surface, target mo
     seeded = _fixtures(fixtures, elsewhere=target is not None or mcp is not None or a2a is not None)
     deployment = detect_deployment(ai_system, environment, deployment_id)
     prof = resolve_profile(profile, preset)
+    warn_without_a_reporter(prof.delivery_required, reporter)
     prof = replace(
         prof,
         max_impact=parse_impact(safety),

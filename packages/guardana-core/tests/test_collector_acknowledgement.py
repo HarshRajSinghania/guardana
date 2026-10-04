@@ -39,6 +39,7 @@ def test_the_collectors_acknowledgement_is_a_delivery() -> None:
         (204, b""),
         (202, b'{"accepted": true}'),
         (200, b'{"status": "ok", "padding": "' + b" " * (64 * 1024) + b'"}'),
+        (200, b"[" * 60_000),
     ],
     ids=[
         "chat-reply",
@@ -50,6 +51,7 @@ def test_the_collectors_acknowledgement_is_a_delivery() -> None:
         "no-content",
         "other-json",
         "oversized",
+        "deeply-nested",
     ],
 )
 def test_a_2xx_without_the_collectors_acknowledgement_is_not_a_delivery(

@@ -100,6 +100,27 @@ def refuse_installed_output_beside(
     )
 
 
+def refuse_collector_beside(flag: str, given: object, *, collector: bool) -> None:
+    """Exit `3` when `flag` was `given` beside a collector `--reporter`, whatever the profile says.
+
+    The flag ends the command before a report exists, so nothing would be forwarded and a
+    required delivery would pass with nothing delivered.
+    """
+    if given is not None and collector:
+        raise _unsupported(
+            "server", f"the collector needs the run's report, which {flag} does not produce"
+        )
+
+
+def warn_without_a_reporter(delivery_required: bool, reporter: str | None) -> None:
+    """Say once on stderr that the profile requires a delivery this run cannot make."""
+    if delivery_required and not reporter:
+        typer.echo(
+            "warning: the profile sets delivery.required, and this run names no --reporter",
+            err=True,
+        )
+
+
 def select_outputs(
     output_format: str,
     reporter: tuple[str, str] | None,
@@ -355,8 +376,10 @@ __all__ = [
     "NOT_PRODUCED",
     "RunOutputs",
     "print_verdict",
+    "refuse_collector_beside",
     "refuse_installed_output_beside",
     "refuse_installed_reporter",
     "refuse_selection",
     "select_outputs",
+    "warn_without_a_reporter",
 ]

@@ -104,7 +104,7 @@ def _why(exc: HTTPError) -> str:
         body = exc.read(_MAX_DETAIL_BYTES + 1)
         parsed = json.loads(body) if len(body) <= _MAX_DETAIL_BYTES else None
         detail = parsed.get("detail") if isinstance(parsed, dict) else None
-    except (ValueError, OSError):
+    except (ValueError, OSError, RecursionError):
         detail = None
     if isinstance(detail, str) and detail:
         return detail

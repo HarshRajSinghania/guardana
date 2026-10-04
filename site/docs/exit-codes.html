@@ -435,7 +435,9 @@ it replaces <code>0</code>, <code>1</code> and <code>2</code>, a stopped run kee
 <code>5</code>. <code>import-observations</code>, which otherwise exits <code>2</code>, exits <code>8</code> the same way. <code>monitor</code> never
 stops a watch for it: it counts the alert deliveries that were not acknowledged and ends a
 watch that would have exited <code>0</code>, <code>1</code> or <code>2</code> with <code>8</code>. Without the key nothing changes. The
-setting is not part of the verdict, so it moves no profile digest.</p>
+setting is not part of the verdict, so it moves no profile digest. <code>scan --write-baseline</code> and
+<code>probe --write-mcp-pin</code> forward nothing, so they refuse any <code>--reporter</code> with <code>3</code> before
+anything is sent, whatever the profile says.</p>
 <h2 id="which-commands-produce-which">Which commands produce which</h2>
 <p><code>scan</code>, <code>probe</code> and <code>monitor</code> can produce any of them. <code>8</code> needs an installed format or
 reporter, which <code>monitor</code> refuses, or a delivery <code>delivery.required</code> asks for: <code>monitor</code> exits

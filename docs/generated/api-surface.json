@@ -9279,6 +9279,12 @@
           "has_default": true,
           "kind": "keyword_only",
           "name": "name"
+        },
+        {
+          "annotation": "Receiver | None",
+          "has_default": true,
+          "kind": "keyword_only",
+          "name": "receiver"
         }
       ],
       "returns": "None"

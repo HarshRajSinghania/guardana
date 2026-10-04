@@ -52,7 +52,7 @@ guardana probe (--url <base-url> --model <name> | --target <scheme://locator> | 
 | `--mcp TEXT` | none | Examine an **MCP server** instead of a chat model — see [Probing an MCP server](#probing-an-mcp-server). Refused with `--url`, `--model`, `--provider`, `--api-key-env`, `--adapter`, `--system-prompt-file` or `--a2a`, which configure another target (exit `3`) |
 | `--mcp-token-env TEXT` | none | Name of an environment variable holding a bearer token for the MCP server |
 | `--mcp-pin PATH` | none | Approved MCP manifest to compare the live one against |
-| `--write-mcp-pin PATH` | none | Write the server's current manifest as approved, and exit without reporting |
+| `--write-mcp-pin PATH` | none | Write the server's current manifest as approved, and exit without reporting. It produces no report to forward, so any `--reporter` beside it is refused with exit `3` before anything is sent |
 | `--mcp-registry-entry PATH` | none | The server's registry `server.json`, compared with the URL the server answered at and the version it reports — see [The registry entry](#the-registry-entry). A file that cannot be read or is not an entry is refused (exit `3`); needs `--mcp` |
 | `--allow-exec` | off | Permit `--mcp` to **start** an stdio server, which executes the code under examination. Without it an stdio command is refused (exit `3`) and nothing is started |
 | `--a2a TEXT` | none | Examine an **A2A agent** instead of a chat model: the http(s) URL of its card (ending in `.json`) or its origin; any other path is refused (exit `3`) — see [Probing an A2A agent](#probing-an-a2a-agent). Refused with the endpoint and MCP flags (exit `3`) |

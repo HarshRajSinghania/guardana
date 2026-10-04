@@ -556,7 +556,11 @@ printed as <code>error:</code> lines ending <code>— the profile sets delivery.
 failure stays <code>5</code> (<a href="exit-codes.html">exit codes</a>). <code>import-observations</code> exits <code>8</code> instead of
 <code>2</code> the same way. <a href="usage-monitor.html"><code>monitor</code></a> never stops a watch for it: it counts the
 alert deliveries the collector did not acknowledge, prints <code>monitor: &lt;n&gt; alert deliveries not acknowledged</code>, and ends a watch that would have exited <code>0</code>, <code>1</code> or <code>2</code> with <code>8</code>. A run that
-forwards nothing is unaffected. The setting decides the exit after the verdict, so it is
+forwards nothing is unaffected; one that names no <code>--reporter</code> says so once, as
+<code>warning: the profile sets delivery.required, and this run names no --reporter</code>, and keeps its
+exit. <code>scan --write-baseline</code> and <code>probe --write-mcp-pin</code> produce no report to forward, so they
+refuse a collector or installed <code>--reporter</code> with exit <code>3</code> before anything is sent, whatever
+the profile says. The setting decides the exit after the verdict, so it is
 left out of the profile digest: setting it moves no run record and no recipe lock.
 <code>guardana config explain</code> shows it after <code>plugins</code>.</p>
 <h2 id="schema-version">Schema version</h2>

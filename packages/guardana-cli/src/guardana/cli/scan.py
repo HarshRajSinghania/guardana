@@ -4,7 +4,12 @@ from typing import Annotated
 import typer
 from guardana.cli._exit import refuse_unenforceable_budget
 from guardana.cli._formats import FORMAT_HELP
-from guardana.cli._outputs import refuse_installed_output_beside, select_outputs
+from guardana.cli._outputs import (
+    refuse_collector_beside,
+    refuse_installed_output_beside,
+    select_outputs,
+    warn_without_a_reporter,
+)
 from guardana.cli._plugins import (
     AllowPluginOption,
     NoPluginsOption,
@@ -184,19 +189,17 @@ def scan(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; this is t
         raise typer.BadParameter("pass either a path or --target, not both")
     installed_reporter = installed_reporter_or_check(reporter)
     refuse_installed_output_beside("--write-baseline", write_baseline, format, installed_reporter)
+    collector = installed_reporter is None and bool(reporter)
+    refuse_collector_beside("--write-baseline", write_baseline, collector=collector)
     prof = resolve_profile(profile, preset)
+    warn_without_a_reporter(prof.delivery_required, reporter)
     # --no-plugins resolves to `--plugins disabled`: discovery below still runs,
     # refuses every entry point, and records each refusal in `errors` (see
     # SECURITY.md). Custom YAML rules still load, but one whose evaluator lives
     # behind an entry point resolves to nothing at run time and is skipped —
     # safe degradation, never a crash.
     resolved = resolve_trust(plugins, allow_plugin, prof, no_plugins=no_plugins)
-    outputs = select_outputs(
-        format,
-        installed_reporter,
-        resolved.trust,
-        collector=installed_reporter is None and bool(reporter),
-    )
+    outputs = select_outputs(format, installed_reporter, resolved.trust, collector=collector)
     with outputs:
         registry = Registry.discover(resolved.trust)
         hint_refused_plugins(registry, resolved)
@@ -256,7 +259,7 @@ def scan(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; this is t
 
         outputs.write(verification, output)
         acknowledged = None
-        if reporter and installed_reporter is None:
+        if reporter and collector:
             source = str(selected) if isinstance(selected, Path) else selected.ref
             acknowledged = submit_safely(
                 reporter,
