@@ -56,6 +56,8 @@ def supported_surface() -> Mapping[str, frozenset[str]]:
         for name in _EXPORTING
     }
     surface["guardana.core.target"] = frozenset({"WireProtocol"})
+    surface["guardana.core.source"] = frozenset({"PythonSource", "UnreadSource"})
+    surface["guardana.core.report.shortfall"] = frozenset({"CoverageShortfall", "ShortfallKind"})
     surface["guardana.core.rule.fixture"] = _defined_in(
         importlib.import_module("guardana.core.rule.fixture")
     )

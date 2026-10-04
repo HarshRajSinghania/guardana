@@ -1,7 +1,7 @@
 # `guardana-reference-pack`
 
 A Guardana extension pack that uses all six extension points and imports nothing outside
-the [supported surface](../../docs/python-api.md). It is versioned on its own (`0.1.0`),
+the [supported surface](../../docs/compatibility.md). It is versioned on its own (`0.1.0`),
 depends on `guardana-core>=0.40` with no upper bound, and lets its manifest's
 `extension_api` and `output_api` ranges decide which Guardana it runs on. Every release
 attaches its wheel and sdist to the GitHub Release; it is published to PyPI once the

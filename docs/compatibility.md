@@ -16,7 +16,7 @@ API versions each release writes is in the [compatibility matrix](generated/comp
 | Surface | What is covered |
 |---|---|
 | Python facade | `guardana.core.verify.__all__` and `guardana.core.doubles.__all__` ([Python API](python-api.md)) |
-| Extension contract | `guardana.core.__all__` except `Runner`, `guardana.core.target.protocols.__all__`, and from `guardana.core.rule.fixture`: `RuleFixture`, `DeclaredFixture`, `FixtureOutcome`, `DEMANDED_OUTCOMES`, `materialise` ([extending](extending.md)) |
+| Extension contract | `guardana.core.__all__` except `Runner`, `guardana.core.target.protocols.__all__`, `guardana.core.target.WireProtocol`, `PythonSource` and `UnreadSource` from `guardana.core.source` (the types a `FileReader` returns), `CoverageShortfall` and `ShortfallKind` from `guardana.core.report.shortfall` (how a rule records what it could not cover), and from `guardana.core.rule.fixture`: `RuleFixture`, `DeclaredFixture`, `FixtureOutcome`, `DEMANDED_OUTCOMES`, `materialise` ([extending](extending.md)) |
 | Output contract | `guardana.core.output.__all__` ([installed outputs](outputs.md)) |
 | Conformance kit | `guardana.testing.__all__` and `guardana.core.testing.__all__` ([conformance kit](conformance-kit.md)) |
 | Versions | the six entry-point groups, `EXTENSION_API_VERSION`, `SUPPORTED_EXTENSION_API_VERSIONS`, `OUTPUT_API_VERSION`, `SUPPORTED_OUTPUT_API_VERSIONS`, and the version of every persisted document |

@@ -572,7 +572,7 @@ identical on Python 3.11, 3.12 and 3.13.</p>
 <td>per name: kind; function and method parameters (name, kind, default present or not, annotation text) and return annotation; class public methods; dataclass fields; enum members</td>
 </tr>
 <tr>
-<td>extension: <code>guardana.core.__all__</code> except <code>Runner</code> (internal, as <code>docs/python-api.md</code> says), <code>guardana.core.target.protocols.__all__</code>, <code>guardana.core.target.WireProtocol</code>, <code>guardana.core.rule.fixture</code> (<code>RuleFixture</code>, <code>DeclaredFixture</code>, <code>FixtureOutcome</code>, <code>DEMANDED_OUTCOMES</code>, <code>materialise</code>)</td>
+<td>extension: <code>guardana.core.__all__</code> except <code>Runner</code> (internal, as <code>docs/python-api.md</code> says), <code>guardana.core.target.protocols.__all__</code>, <code>guardana.core.target.WireProtocol</code>, <code>guardana.core.source</code> (<code>PythonSource</code>, <code>UnreadSource</code>, which <code>FileReader</code> returns), <code>guardana.core.report.shortfall</code> (<code>CoverageShortfall</code>, <code>ShortfallKind</code>), <code>guardana.core.rule.fixture</code> (<code>RuleFixture</code>, <code>DeclaredFixture</code>, <code>FixtureOutcome</code>, <code>DEMANDED_OUTCOMES</code>, <code>materialise</code>)</td>
 <td>as above</td>
 </tr>
 <tr>

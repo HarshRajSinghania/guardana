@@ -6271,6 +6271,76 @@
       "defined_in": "guardana.core",
       "kind": "constant"
     },
+    "guardana.core.report.shortfall.CoverageShortfall": {
+      "bases": [],
+      "decorators": [
+        "dataclass(frozen=True, slots=True)"
+      ],
+      "defined_in": "guardana.core.report.shortfall",
+      "fields": [
+        {
+          "annotation": "ShortfallKind",
+          "has_default": false,
+          "name": "kind"
+        },
+        {
+          "annotation": "str",
+          "has_default": false,
+          "name": "name"
+        },
+        {
+          "annotation": "str",
+          "has_default": false,
+          "name": "detail"
+        }
+      ],
+      "kind": "dataclass",
+      "methods": {}
+    },
+    "guardana.core.report.shortfall.ShortfallKind": {
+      "bases": [
+        "StrEnum"
+      ],
+      "decorators": [],
+      "defined_in": "guardana.core.report.shortfall",
+      "fields": [],
+      "kind": "enum",
+      "members": [
+        {
+          "name": "MISSING_DIMENSION",
+          "value": "'missing_dimension'"
+        },
+        {
+          "name": "CONTRACT_NOT_APPLICABLE",
+          "value": "'contract_not_applicable'"
+        },
+        {
+          "name": "UNEXAMINED_COMPONENT",
+          "value": "'unexamined_component'"
+        },
+        {
+          "name": "INCOMPLETE_RECORDING",
+          "value": "'incomplete_recording'"
+        },
+        {
+          "name": "DEMANDED_CHECK",
+          "value": "'demanded_check'"
+        },
+        {
+          "name": "SEED_NOT_REACHED",
+          "value": "'seed_not_reached'"
+        },
+        {
+          "name": "EMPTY_TARGET",
+          "value": "'empty_target'"
+        },
+        {
+          "name": "UNGRADED_CASES",
+          "value": "'ungraded_cases'"
+        }
+      ],
+      "methods": {}
+    },
     "guardana.core.rule.fixture.DEMANDED_OUTCOMES": {
       "annotation": null,
       "defined_in": "guardana.core.rule.fixture",
@@ -6406,6 +6476,136 @@
         }
       ],
       "returns": "tuple[RuleFixture, ...]"
+    },
+    "guardana.core.source.PythonSource": {
+      "bases": [],
+      "decorators": [],
+      "defined_in": "guardana.core.source",
+      "fields": [],
+      "kind": "class",
+      "methods": {
+        "__init__": {
+          "async": false,
+          "decorators": [],
+          "kind": "function",
+          "parameters": [
+            {
+              "annotation": null,
+              "has_default": false,
+              "kind": "positional_or_keyword",
+              "name": "self"
+            },
+            {
+              "annotation": "Path",
+              "has_default": false,
+              "kind": "positional_or_keyword",
+              "name": "path"
+            },
+            {
+              "annotation": "str",
+              "has_default": false,
+              "kind": "positional_or_keyword",
+              "name": "text"
+            },
+            {
+              "annotation": "ast.Module",
+              "has_default": false,
+              "kind": "positional_or_keyword",
+              "name": "tree"
+            }
+          ],
+          "returns": "None"
+        },
+        "nodes": {
+          "async": false,
+          "decorators": [],
+          "kind": "function",
+          "parameters": [
+            {
+              "annotation": null,
+              "has_default": false,
+              "kind": "positional_or_keyword",
+              "name": "self"
+            },
+            {
+              "annotation": "type[NodeT]",
+              "has_default": false,
+              "kind": "positional_or_keyword",
+              "name": "node_type"
+            }
+          ],
+          "returns": "tuple[NodeT, ...]"
+        },
+        "path": {
+          "async": false,
+          "decorators": [
+            "property"
+          ],
+          "kind": "function",
+          "parameters": [
+            {
+              "annotation": null,
+              "has_default": false,
+              "kind": "positional_or_keyword",
+              "name": "self"
+            }
+          ],
+          "returns": "Path"
+        },
+        "text": {
+          "async": false,
+          "decorators": [
+            "property"
+          ],
+          "kind": "function",
+          "parameters": [
+            {
+              "annotation": null,
+              "has_default": false,
+              "kind": "positional_or_keyword",
+              "name": "self"
+            }
+          ],
+          "returns": "str"
+        },
+        "tree": {
+          "async": false,
+          "decorators": [
+            "property"
+          ],
+          "kind": "function",
+          "parameters": [
+            {
+              "annotation": null,
+              "has_default": false,
+              "kind": "positional_or_keyword",
+              "name": "self"
+            }
+          ],
+          "returns": "ast.Module"
+        }
+      }
+    },
+    "guardana.core.source.UnreadSource": {
+      "bases": [],
+      "decorators": [
+        "dataclass(frozen=True, slots=True)"
+      ],
+      "defined_in": "guardana.core.source",
+      "fields": [
+        {
+          "annotation": "Path",
+          "has_default": false,
+          "name": "path"
+        },
+        {
+          "annotation": "str",
+          "has_default": false,
+          "name": "reason"
+        }
+      ],
+      "kind": "dataclass",
+      "methods": {}
     },
     "guardana.core.target.WireProtocol": {
       "bases": [

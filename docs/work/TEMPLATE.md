@@ -27,7 +27,7 @@ Tick what the change touches; each ticked line is a done-criterion.
 - [ ] a persisted document (run manifest, envelope, baseline, lock, profile, pack manifest, `schemas/`) → `schema_version` moved, migration, round-trip test
 - [ ] an exit code → `docs/exit-codes.md` and the design table agree
 - [ ] a CLI command or flag → `docs/usage-*.md`, `docs/index.md`, `FEATURES.md`
-- [ ] the extension contract (`Rule` / `Evaluator` / `Target`, entry-point groups, pack manifest, trace format) → the three isolated example suites green
+- [ ] the extension contract (`Rule` / `Evaluator` / `Target`, entry-point groups, pack manifest, trace format) → the isolated example suites green
 - [ ] the collector → tenancy and authorization stated per route; PostgreSQL tests present
 - [ ] a rule, evaluator or target → `add-a-rule` checklist; `docs/generated/` regenerated
 - [ ] a count or capability claim in prose → generated or cited

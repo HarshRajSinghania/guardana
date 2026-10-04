@@ -243,7 +243,7 @@ identical on Python 3.11, 3.12 and 3.13.
 | Surface | Recorded |
 |---|---|
 | facade: `guardana.core.verify.__all__`, `guardana.core.doubles.__all__` | per name: kind; function and method parameters (name, kind, default present or not, annotation text) and return annotation; class public methods; dataclass fields; enum members |
-| extension: `guardana.core.__all__` except `Runner` (internal, as `docs/python-api.md` says), `guardana.core.target.protocols.__all__`, `guardana.core.target.WireProtocol`, `guardana.core.rule.fixture` (`RuleFixture`, `DeclaredFixture`, `FixtureOutcome`, `DEMANDED_OUTCOMES`, `materialise`) | as above |
+| extension: `guardana.core.__all__` except `Runner` (internal, as `docs/python-api.md` says), `guardana.core.target.protocols.__all__`, `guardana.core.target.WireProtocol`, `guardana.core.source` (`PythonSource`, `UnreadSource`, which `FileReader` returns), `guardana.core.report.shortfall` (`CoverageShortfall`, `ShortfallKind`), `guardana.core.rule.fixture` (`RuleFixture`, `DeclaredFixture`, `FixtureOutcome`, `DEMANDED_OUTCOMES`, `materialise`) | as above |
 | outputs: `guardana.core.output.__all__` | as above |
 | kit: `guardana.testing.__all__`, `guardana.core.testing.__all__` | as above |
 | constants: entry-point groups, `EXTENSION_API_VERSION`, `SUPPORTED_EXTENSION_API_VERSIONS`, `OUTPUT_API_VERSION`, `SUPPORTED_OUTPUT_API_VERSIONS`, every persisted version constant | ints and strings by value, sets as sorted lists |
