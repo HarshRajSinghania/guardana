@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.41.0] - 2026-10-04 — 1.0 readiness
+
 ### Added
 
 - **Rules for protocols a target does not speak are `not_applicable`.** `Target.speaks()` declares `chat`, `mcp` or `a2a`; its default `None` leaves the protocol unknown. A missing capability within a spoken protocol remains a coverage gap, and a rule demanded by id remains a `demanded_check` shortfall. A plain chat endpoint can therefore still be `indeterminate` under `probe --preset release`.
