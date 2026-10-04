@@ -53,12 +53,12 @@ CHALLENGE = (
 
 
 def open_server(**behaviour: object) -> ScriptedMcpServer:
-    """Build a `2025-11-25` server that answers anybody, behaving as `behaviour` says."""
+    """Build a server that answers anybody, `2025-11-25` unless `behaviour` names revisions."""
     return _server(SERVER, behaviour)
 
 
 def gated_server(**behaviour: object) -> ScriptedMcpServer:
-    """Build a `2025-11-25` server that refuses every caller not presenting `CREDENTIAL`."""
+    """Build an `open_server` that refuses every caller not presenting `CREDENTIAL`."""
     return open_server(credential=CREDENTIAL, **behaviour)
 
 

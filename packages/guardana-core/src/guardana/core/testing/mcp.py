@@ -70,6 +70,9 @@ class ScriptedMcpServer:
     handshake capabilities), `"unlisted"` (`tasks` without `list`) or `"extension"` (the
     modern tasks extension in `server/discover`). `server_info` is the identity reported
     in both eras.
+
+    `resource_metadata_body` is served as given in place of `resource_metadata`, for a
+    document that came back but is not JSON, or not a JSON object.
     """
 
     def __init__(  # noqa: PLR0913 — one keyword per behaviour a real server varies in
@@ -83,6 +86,7 @@ class ScriptedMcpServer:
         session_ids: Sequence[str] = (),
         challenge: str | None = None,
         resource_metadata: Mapping[str, Any] | None = None,
+        resource_metadata_body: bytes | None = None,
         authorization_metadata: Mapping[str, Any] | None = None,
         protocol_versions: Sequence[str] | None = None,
         cache_scope: str | None = None,
@@ -102,6 +106,7 @@ class ScriptedMcpServer:
         self.session_ids = list(session_ids)
         self.challenge = challenge
         self.resource_metadata = resource_metadata
+        self.resource_metadata_body = resource_metadata_body
         self.authorization_metadata = authorization_metadata
         self.protocol_versions = list(protocol_versions) if protocol_versions is not None else None
         self.cache_scope = cache_scope
@@ -258,6 +263,12 @@ class ScriptedMcpServer:
 
     def _metadata(self, url: str) -> RawReply:
         path = urlsplit(url).path
+        if path.startswith(_RESOURCE_METADATA_PATH) and self.resource_metadata_body is not None:
+            return RawReply(
+                status=200,
+                headers={"Content-Type": "application/json"},
+                body=self.resource_metadata_body,
+            )
         if path.startswith(_RESOURCE_METADATA_PATH) and self.resource_metadata is not None:
             return _document(self.resource_metadata)
         if (

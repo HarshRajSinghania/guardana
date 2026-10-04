@@ -10,6 +10,7 @@ from mcp_fixtures import (
     LOOPBACK,
     findings,
     guarded,
+    outcomes,
     summaries,
 )
 
@@ -81,3 +82,30 @@ def test_a_local_server_may_point_at_a_local_authorization_server() -> None:
     )
 
     assert findings(RULE, server, credential=CREDENTIAL) == []
+
+
+@pytest.mark.parametrize("body", [b"<html>sign in</html>", b"[]"], ids=["not-json", "not-object"])
+def test_a_resource_document_that_cannot_be_read_is_inconclusive_rather_than_clean(
+    body: bytes,
+) -> None:
+    # The document names the authorization server, so an unread one hides an address.
+    reported = findings(RULE, guarded(resource_metadata_body=body), credential=CREDENTIAL)
+
+    assert outcomes(reported) == ["inconclusive"]
+    assert "could not be read" in summaries(reported)[0]
+
+
+def test_an_unreadable_document_does_not_bury_a_refused_pointer() -> None:
+    server = guarded(
+        challenge=f'Bearer resource_metadata="http://{_METADATA_ENDPOINT}"',
+        resource_metadata_body=b"<html>sign in</html>",
+    )
+
+    reported = findings(RULE, server, credential=CREDENTIAL)
+
+    assert outcomes(reported) == [None, "inconclusive"]
+    assert _METADATA_ENDPOINT in summaries(reported)[0]
+
+
+def test_a_server_publishing_no_resource_document_directs_a_client_nowhere() -> None:
+    assert findings(RULE, guarded(resource_metadata=None), credential=CREDENTIAL) == []

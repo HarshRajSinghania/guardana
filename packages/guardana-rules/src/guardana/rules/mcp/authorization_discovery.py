@@ -248,6 +248,13 @@ class McpAuthorizationDiscoveryRule(McpAuthorizationRule):
             )
             return
         address = display_url(document.url)
+        if document.status is not None and document.error is not None:
+            yield self.finding(
+                view,
+                f"the {what} at {address} answered HTTP {document.status} but "
+                f"{document.error}, so a client cannot read how to authenticate here",
+            )
+            return
         if document.status is not None:
             yield self.finding(
                 view,

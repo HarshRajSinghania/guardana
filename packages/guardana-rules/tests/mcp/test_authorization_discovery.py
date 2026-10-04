@@ -130,3 +130,14 @@ def test_issuers_are_compared_as_strings_so_a_trailing_slash_is_a_mismatch() -> 
     reported = findings(RULE, guarded(authorization_metadata=document), credential=CREDENTIAL)
 
     assert ["must not use" in line for line in summaries(reported)] == [True]
+
+
+def test_a_document_served_but_unreadable_is_reported_as_what_came_back() -> None:
+    # A client cannot use it either way, but "not published" would be false.
+    server = guarded(resource_metadata_body=b"<html>sign in</html>")
+
+    reported = findings(RULE, server, credential=CREDENTIAL)
+
+    assert outcomes(reported) == [None]
+    assert "not published" not in summaries(reported)[0]
+    assert "answered HTTP 200 but the reply is not a JSON object" in summaries(reported)[0]

@@ -35,6 +35,10 @@ class McpDiscoveryTargetRule(McpAuthorizationRule):
     server on `127.0.0.1` pointing at an authorization server on `127.0.0.1` is a
     normal setup, and reporting it would make this rule noise on the first machine
     anybody tries it on.
+
+    A protected resource document that came back but could not be read hides the
+    authorization server it names, so the rule declines there. One that was never
+    published names nothing, and leaves nothing unseen.
     """
 
     meta = RuleMeta(
@@ -56,7 +60,7 @@ class McpDiscoveryTargetRule(McpAuthorizationRule):
         return 10
 
     def fixtures(self) -> Iterable[RuleFixture]:
-        """Sample a challenge naming cloud metadata, a conforming chain, and an unread server."""
+        """Sample a challenge naming cloud metadata, a conforming chain, and two left unread."""
         return materialise(
             (
                 _samples.sample(
@@ -84,6 +88,14 @@ class McpDiscoveryTargetRule(McpAuthorizationRule):
                     FixtureOutcome.INCONCLUSIVE,
                     lambda: _samples.target(_samples.unspoken_server()),
                 ),
+                _samples.sample(
+                    "protected resource metadata served as a page that is not JSON",
+                    FixtureOutcome.INCONCLUSIVE,
+                    lambda: _samples.target(
+                        _samples.protected_server(resource_metadata_body=b"<html>sign in</html>"),
+                        credential=_samples.CREDENTIAL,
+                    ),
+                ),
             )
         )
 
@@ -99,4 +111,14 @@ class McpDiscoveryTargetRule(McpAuthorizationRule):
                 view,
                 f"the server directed this client to {address} during authorization "
                 f"discovery, which was not fetched because {document.refused}",
+            )
+        resource = view.protected_resource
+        if resource is not None and resource.error is not None:
+            # The resource document names the authorization server, so one that came
+            # back unread hides the next address; one that was never published hides none.
+            yield self.unverified(
+                view,
+                f"the protected resource metadata at {display_url(resource.url)} could not "
+                f"be read ({resource.error}), so the authorization server it directs a client "
+                f"to was never seen",
             )
