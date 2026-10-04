@@ -66,6 +66,7 @@ from guardana.core.redaction import EvidenceRedactor, MessageQuoting
 from guardana.core.registry import Registry
 from guardana.core.report import ScanResult
 from guardana.core.report.baseline import Baseline, apply_baseline
+from guardana.core.report.load import ReportLoadError, load_report
 from guardana.core.report.location import relativize, relativize_findings
 from guardana.core.report.serialize import run_to_dict
 from guardana.core.report.shortfall import CoverageShortfall, ShortfallKind
@@ -208,6 +209,19 @@ class Verification:
             sidecar.write_text(render_recording(self.exchanges), encoding="utf-8")
         elif sidecar.exists():
             sidecar.unlink()
+
+
+def load_verification(path: Path) -> Verification:
+    """Read a saved run of any schema back as a `Verification`, its verdict as recorded.
+
+    The gate is the one the run recorded, never re-derived; exchanges are not read. A run
+    that records no gate, as a migrated schema-1 run does, raises `ReportLoadError`.
+    """
+    report = load_report(path)
+    gate = report.manifest.result_summary.gate
+    if gate is None:
+        raise ReportLoadError(f"{path} records no gate, so its verdict cannot be read")
+    return Verification(result=report.result, manifest=report.manifest, gate=gate)
 
 
 def exchanges_path(run: Path) -> Path:
@@ -939,4 +953,5 @@ __all__ = [
     "VerificationError",
     "Verifier",
     "exchanges_path",
+    "load_verification",
 ]

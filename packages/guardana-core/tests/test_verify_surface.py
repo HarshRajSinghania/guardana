@@ -22,6 +22,7 @@ _SURFACE = {
     "VerificationError",
     "Verifier",
     "exchanges_path",
+    "load_verification",
 }
 
 
@@ -80,3 +81,7 @@ def test_a_verification_holds_the_documented_fields() -> None:
     ]
     for member in ("exit_code", "passed", "open_questions", "document", "save"):
         assert hasattr(verify.Verification, member), member
+
+
+def test_a_saved_run_is_loaded_from_its_path_alone() -> None:
+    assert list(inspect.signature(verify.load_verification).parameters) == ["path"]

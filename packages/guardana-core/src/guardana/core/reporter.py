@@ -1,6 +1,5 @@
 import json
 from collections.abc import Callable
-from dataclasses import replace
 from datetime import datetime
 from typing import Protocol
 from urllib.parse import SplitResult, urlsplit, urlunsplit
@@ -10,7 +9,7 @@ from guardana.core.diff.compare import finding_identity
 from guardana.core.fingerprint import digest_of
 from guardana.core.manifest.identity import DeploymentRef
 from guardana.core.manifest.model import RunManifest
-from guardana.core.redaction import EvidenceMode, EvidenceRedactor
+from guardana.core.redaction import EvidenceMode, EvidenceRedactor, at_redacted_mode
 from guardana.core.report import Finding
 from guardana.core.report.result import ScanResult
 from guardana.core.report.serialize import finding_to_dict
@@ -264,7 +263,7 @@ class HttpReporter:
         # blank it; it is redacted as strictly as anything that is kept.
         policy = self._redactor.policy
         self._source_redactor = (
-            EvidenceRedactor(replace(policy, mode=EvidenceMode.REDACTED))
+            at_redacted_mode(policy)
             if policy.mode is EvidenceMode.METADATA_ONLY
             else self._redactor
         )

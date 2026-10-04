@@ -400,17 +400,21 @@ compatibility matrix lists; it grows by adding to version 1 or by a version 2 a 
 <code>kind</code>, <code>name</code>, <code>message</code> and <code>distributions: tuple[str, ...]</code>.</p>
 <pre><code class="language-python">select_renderer(name: str, trust: PluginTrust) -&gt; SelectedRenderer      # (name, spec, origin)
 select_reporter(name: str, locator: str, trust: PluginTrust) -&gt; PreparedReporter
-                                                    # (name, spec, deliverer, origin)
+                            # (name, spec, deliverer, origin, destination, secrets)
 </code></pre>
+<p><code>PreparedReporter.destination</code> is the deliverer's <code>destination</code> after the sanitiser of
+decision 5, and <code>secrets</code> its <code>sent_secrets()</code>, both taken once at selection; a raise there, or
+a value that is not a tuple of strings, is <code>broken</code>. Every line prints <code>prepared.destination</code>.</p>
 <p><code>origin</code> is <code>guardana.core.origin.Origin(distribution, version)</code>. Steps, in order:</p>
 <ol>
 <li><code>name</code> reserved → <code>reserved</code>. <code>name</code> not matching the pattern → <code>unknown</code>.</li>
 <li>The group's entry points named <code>name</code>, through <code>installed_entry_points(groups=(group,))</code>. None
 → <code>unknown</code>.</li>
 <li>Entry points named <code>name</code> that differ in distribution (PEP 503 form; an unnamed one is
-distinct), in <code>value</code>, or in version → <code>collision</code>, naming each; none is imported. So an
-editable and a wheel install of one distribution side by side collide too, and the output
-that runs never depends on install order or <code>sys.path</code>.</li>
+distinct), in <code>value</code>, or in version → <code>collision</code>, naming each; none is imported, and the
+output that runs never depends on install order. <code>importlib.metadata</code> yields one copy of a
+distribution per name, the first on <code>sys.path</code>, for every group alike; two installs of one
+distribution are therefore resolved by Python before Guardana sees them.</li>
 <li><code>trust.allows(distribution)</code> false → <code>refused</code>, with <code>distributions</code> set.</li>
 <li>Import the entry point and call its provider. Any exception except <code>KeyboardInterrupt</code>
 (<code>SystemExit</code> included), a value that is not the expected spec, or <code>spec.name != name</code> →
@@ -488,7 +492,7 @@ verifier returned; <code>analyze-trace</code> builds <code>Verification(result=r
 </tr>
 <tr>
 <td><code>exchanges</code></td>
-<td>as kept: written beside the saved run already</td>
+<td>redacted again span by span, as the keeper does: written beside the saved run already</td>
 <td><code>None</code>: the collector never receives them either</td>
 </tr>
 <tr>
@@ -501,9 +505,10 @@ verifier returned; <code>analyze-trace</code> builds <code>Verification(result=r
 <p>So no output sees more than the saved run holds, and nothing that leaves the machine holds more
 than the collector would receive. No argument asks for an unredacted result. If <code>outbound</code>
 raises, the output is not called (decisions 4 and 5).</p>
-<p>A test plants one fake credential in every channel of <code>result</code>, in <code>manifest.target.ref</code>, in a
-stop message and in a kept exchange, then runs every built-in renderer, the collector reporter, a
-recording discovered renderer and a recording discovered reporter, and asserts none sees it.</p>
+<p>A test plants one fake credential in every channel of <code>result</code>, in a stop message and in a kept
+exchange, and asserts that no built-in renderer, collector reporter, recording discovered
+renderer or recording discovered reporter sees it; a credential planted in <code>manifest.target.ref</code>
+reaches a format as saved, as the JSON report writes it, and reaches no reporter.</p>
 <p><code>guardana.core.verify.load_verification(path) -&gt; Verification</code> reads a saved run of any schema
 through <code>load_report</code>, sets <code>gate</code> from <code>manifest.result_summary.gate</code>, and leaves <code>exchanges</code>
 <code>None</code>. A run that records no gate raises <code>ReportLoadError(&quot;&lt;path&gt; records no gate, so its verdict cannot be read&quot;)</code>; a migrated schema-1 run is one. This is how a run is exported after the

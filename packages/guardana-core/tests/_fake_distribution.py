@@ -68,13 +68,15 @@ class FakeSite:
         importlib.invalidate_caches()
         return FakeModule(name, self.root / name if package else self.root)
 
-    def distribution(self, name: str, *entry_points: tuple[str, str, str]) -> None:
-        """Install `name` 1.0 advertising `(group, entry point name, module)` entry points."""
+    def distribution(
+        self, name: str, *entry_points: tuple[str, str, str], version: str = "1.0"
+    ) -> None:
+        """Install `name` at `version`, advertising `(group, entry point name, module)` triples."""
         # Escaped as a wheel names it: importlib parses the name up to the first `-`.
-        info = self.root / f"{re.sub(r'[-_.]+', '_', name)}-1.0.dist-info"
+        info = self.root / f"{re.sub(r'[-_.]+', '_', name)}-{version}.dist-info"
         info.mkdir()
         (info / "METADATA").write_text(
-            f"Metadata-Version: 2.1\nName: {name}\nVersion: 1.0\n", encoding="utf-8"
+            f"Metadata-Version: 2.1\nName: {name}\nVersion: {version}\n", encoding="utf-8"
         )
         groups: dict[str, list[str]] = {}
         for group, entry_point, module in entry_points:

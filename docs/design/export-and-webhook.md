@@ -138,8 +138,12 @@ New module `guardana.core.output`. `OutputSelectionKind(StrEnum)`: `unknown`, `r
 ```python
 select_renderer(name: str, trust: PluginTrust) -> SelectedRenderer      # (name, spec, origin)
 select_reporter(name: str, locator: str, trust: PluginTrust) -> PreparedReporter
-                                                    # (name, spec, deliverer, origin)
+                            # (name, spec, deliverer, origin, destination, secrets)
 ```
+
+`PreparedReporter.destination` is the deliverer's `destination` after the sanitiser of
+decision 5, and `secrets` its `sent_secrets()`, both taken once at selection; a raise there, or
+a value that is not a tuple of strings, is `broken`. Every line prints `prepared.destination`.
 
 `origin` is `guardana.core.origin.Origin(distribution, version)`. Steps, in order:
 
@@ -147,9 +151,10 @@ select_reporter(name: str, locator: str, trust: PluginTrust) -> PreparedReporter
 2. The group's entry points named `name`, through `installed_entry_points(groups=(group,))`. None
    → `unknown`.
 3. Entry points named `name` that differ in distribution (PEP 503 form; an unnamed one is
-   distinct), in `value`, or in version → `collision`, naming each; none is imported. So an
-   editable and a wheel install of one distribution side by side collide too, and the output
-   that runs never depends on install order or `sys.path`.
+   distinct), in `value`, or in version → `collision`, naming each; none is imported, and the
+   output that runs never depends on install order. `importlib.metadata` yields one copy of a
+   distribution per name, the first on `sys.path`, for every group alike; two installs of one
+   distribution are therefore resolved by Python before Guardana sees them.
 4. `trust.allows(distribution)` false → `refused`, with `distributions` set.
 5. Import the entry point and call its provider. Any exception except `KeyboardInterrupt`
    (`SystemExit` included), a value that is not the expected spec, or `spec.name != name` →
@@ -218,16 +223,17 @@ gate=outcome)`.
 | `result` | `EvidenceRedactor().redact_result(result)`: the second pass `_Redacting` and `HttpReporter` give the built-ins | the same |
 | `manifest` | as saved | as saved, `target.ref` redacted by the `redacted`-mode redactor `HttpReporter` uses for its source |
 | `stop_messages`, `judge_stops` | `()`: never saved; the CLI prints them itself | `()` |
-| `exchanges` | as kept: written beside the saved run already | `None`: the collector never receives them either |
+| `exchanges` | redacted again span by span, as the keeper does: written beside the saved run already | `None`: the collector never receives them either |
 | `judge_usage` | as recorded | as recorded |
 
 So no output sees more than the saved run holds, and nothing that leaves the machine holds more
 than the collector would receive. No argument asks for an unredacted result. If `outbound`
 raises, the output is not called (decisions 4 and 5).
 
-A test plants one fake credential in every channel of `result`, in `manifest.target.ref`, in a
-stop message and in a kept exchange, then runs every built-in renderer, the collector reporter, a
-recording discovered renderer and a recording discovered reporter, and asserts none sees it.
+A test plants one fake credential in every channel of `result`, in a stop message and in a kept
+exchange, and asserts that no built-in renderer, collector reporter, recording discovered
+renderer or recording discovered reporter sees it; a credential planted in `manifest.target.ref`
+reaches a format as saved, as the JSON report writes it, and reaches no reporter.
 
 `guardana.core.verify.load_verification(path) -> Verification` reads a saved run of any schema
 through `load_report`, sets `gate` from `manifest.result_summary.gate`, and leaves `exchanges`

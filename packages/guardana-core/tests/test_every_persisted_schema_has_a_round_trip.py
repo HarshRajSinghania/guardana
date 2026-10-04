@@ -115,6 +115,10 @@ NOT_A_DOCUMENT: dict[str, str] = {
         "the version of the Rule/Evaluator/Target contract this build implements — a "
         "property of the code, not of a file anybody keeps"
     ),
+    "guardana.core.output.OUTPUT_API_VERSION": (
+        "the version of the renderer and reporter contract this build implements — a "
+        "property of the code, not of a file anybody keeps"
+    ),
     "guardana.core.target._mcp_wire.LATEST_VERSION": "an MCP protocol revision the other end names",
     "guardana.core.target._mcp_wire.LEGACY_VERSION": "an MCP protocol revision the other end names",
     "guardana.core.target._mcp_wire.META_PROTOCOL_VERSION": "the name of an MCP metadata key",

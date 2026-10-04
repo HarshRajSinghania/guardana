@@ -474,6 +474,15 @@ every comparison.
 """
 
 
+def at_redacted_mode(policy: RedactionPolicy) -> EvidenceRedactor:
+    """Return a redactor applying `policy` at `redacted` mode, for text that must never blank.
+
+    A run's source or target ref identifies what was verified, so `metadata_only` must not
+    empty it where it leaves the machine; it is redacted as strictly as anything kept.
+    """
+    return EvidenceRedactor(replace(policy, mode=EvidenceMode.REDACTED))
+
+
 @dataclass(frozen=True, slots=True)
 class MessageQuoting:
     """How a message quotes what an endpoint said: under the run's policy, without its secrets."""
