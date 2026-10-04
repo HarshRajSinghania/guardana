@@ -12,8 +12,8 @@ import base64
 import hashlib
 import re
 
-_INLINE_SCRIPT = re.compile(r"<script>(.*?)</script>", re.DOTALL)
-_INLINE_STYLE = re.compile(r"<style>(.*?)</style>", re.DOTALL)
+_INLINE_SCRIPT = re.compile(r"<script\b[^>]*>(.*?)</script\b[^>]*>", re.DOTALL | re.IGNORECASE)
+_INLINE_STYLE = re.compile(r"<style\b[^>]*>(.*?)</style\b[^>]*>", re.DOTALL | re.IGNORECASE)
 
 
 def render_dashboard(refresh_seconds: int) -> str:

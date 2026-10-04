@@ -18,8 +18,8 @@ from guardana.server.store import InMemoryStore
 
 _OK = 200
 
-_SCRIPT = re.compile(r"<script>(.*?)</script>", re.DOTALL)
-_STYLE = re.compile(r"<style>(.*?)</style>", re.DOTALL)
+_SCRIPT = re.compile(r"<script\b[^>]*>(.*?)</script\b[^>]*>", re.DOTALL | re.IGNORECASE)
+_STYLE = re.compile(r"<style\b[^>]*>(.*?)</style\b[^>]*>", re.DOTALL | re.IGNORECASE)
 
 _PAYLOADS = (
     "<script>alert(1)</script>",

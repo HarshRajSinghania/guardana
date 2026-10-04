@@ -378,7 +378,7 @@ def test_the_protocol_is_asked_before_the_safety_ceiling() -> None:
     registry.register_rule(_Needs("acme.mcp", Capability.LIST_TOOLS))
     target = EndpointTarget("http://x", "m", transport=ScriptedTransport("ok"))
 
-    _selected, (skip,) = select_rules(registry, passive, target)
+    (skip,) = select_rules(registry, passive, target)[1]
 
     assert skip.reason is SkipReason.NOT_APPLICABLE
 
