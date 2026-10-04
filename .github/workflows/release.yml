@@ -173,11 +173,22 @@ jobs:
             dist-reference/*.whl
             dist-reference/*.tar.gz
 
+      # A re-run keeps the first upload, as PyPI's skip-existing does, so the asset and
+      # the index never hold different bytes under one version.
       - name: Attach the reference pack to the GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
-        run: gh release upload "$TAG" dist-reference/*.whl dist-reference/*.tar.gz --clobber
+        run: |
+          attached=$(gh release view "$TAG" --json assets --jq '.assets[].name')
+          for file in dist-reference/*.whl dist-reference/*.tar.gz; do
+            name=$(basename "$file")
+            if printf '%s\n' "$attached" | grep -qxF "$name"; then
+              echo "::notice::$name is already attached to $TAG; the first upload is kept"
+            else
+              gh release upload "$TAG" "$file"
+            fi
+          done
 
   # The reference pack on PyPI, from the files attached to the GitHub Release, so what
   # PyPI receives is what was attested. Off until the owner registers the pending

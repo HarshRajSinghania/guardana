@@ -266,6 +266,8 @@ def test_the_reference_pack_is_built_attested_and_attached_after_the_publish() -
     assert build < attest < upload
     assert "dist-reference/*.whl" in command
     assert "dist-reference/*.tar.gz" in command
+    assert "--clobber" not in command, "a re-run would replace what PyPI kept from the first"
+    assert "gh release view" in command
 
 
 def test_the_reference_pack_reaches_pypi_only_when_the_owner_turns_it_on() -> None:

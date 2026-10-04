@@ -53,6 +53,15 @@ def test_the_build_stage_is_not_the_shipped_stage(dockerfile: Path) -> None:
     assert len(stages) >= 2, f"{dockerfile.name} is a single-stage build"
 
 
+@pytest.mark.parametrize("dockerfile", [_CLI, _COLLECTOR], ids=["cli", "collector"])
+def test_every_base_is_pinned_by_digest(dockerfile: Path) -> None:
+    """A tag can be moved to other bytes; a digest cannot, and Dependabot moves it."""
+    bases = _FROM_RE.findall(_instructions(dockerfile))
+
+    unpinned = [base for base in bases if "@sha256:" not in base]
+    assert not unpinned, f"{dockerfile.name} names a base by tag only: {unpinned}"
+
+
 def test_both_images_share_one_base() -> None:
     """One base to review, one base to patch, one base Dependabot has to notice."""
     bases = {
