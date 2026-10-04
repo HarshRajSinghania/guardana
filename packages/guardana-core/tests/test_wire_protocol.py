@@ -229,7 +229,9 @@ def test_a_seeded_target_speaks_what_its_endpoint_speaks() -> None:
     )
     application = SeededApplication(fixtures)
     meter = UsageMeter(Budgets())
-    endpoint = _ChatAndMcpEndpoint("http://application.test", "app", transport=application, meter=meter)
+    endpoint = _ChatAndMcpEndpoint(
+        "http://application.test", "app", transport=application, meter=meter
+    )
     tenants = {
         name: EndpointTarget(
             "http://application.test",
