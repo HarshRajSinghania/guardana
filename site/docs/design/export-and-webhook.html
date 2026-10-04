@@ -454,9 +454,13 @@ target or meter is built and before any request is sent.</p>
 runs with scan, probe or analyze-trace&quot;.</li>
 <li><code>import-observations --reporter &lt;name&gt;://</code>: &quot;import-observations loads no plugins; it forwards
 to the collector only&quot;.</li>
+</ul>
+<p>For these two commands any <code>&lt;name&gt;://</code> value whose name matches the pattern gets this refusal,
+so a mistyped scheme such as <code>htps://</code> is answered by it rather than by the collector message.</p>
+<ul>
 <li><code>scan --write-baseline</code> or <code>probe --write-mcp-pin</code> with an installed format or reporter: &quot;an
-installed output needs the run's report, which --write-baseline (or --write-mcp-pin) does not
-produce&quot;.</li>
+installed output needs the run's report, which --write-baseline does not produce&quot; (each command
+names its own flag).</li>
 </ul>
 <p>Every <code>OutputSelectionError</code> prints <code>error: &lt;message&gt;</code> and exits <code>3</code>.</p>
 <h3 id="3-the-input-is-a-verification-holding-what-the-saved-run-holds">3. The input is a <code>Verification</code> holding what the saved run holds</h3>
@@ -602,8 +606,9 @@ delivery: unknown — acme-webhook to https://hooks.example.com: did not finish 
 where <code>submit_safely</code> sits, before <code>report_target_stop</code>. From the moment <code>prepare</code> succeeds, a
 command that ends before delivery prints <code>not_sent</code> with the reason: the format failed, the
 report could not be written, the target or judge was unavailable, the run was interrupted, or
-the budget was refused before sending. A <code>try</code>/<code>finally</code> around the command body after selection
-does it.</p>
+the budget was refused before sending. A context manager entered right after selection
+(<code>RunOutputs</code>, <code>cli/_outputs.py</code>) does it. An interrupt that arrives during a delivery prints
+<code>unknown</code>, detail <code>the run was interrupted</code>, because something may already have left.</p>
 <p><strong>Exit code.</strong> <code>delivered</code>, <code>rejected</code>, <code>unreachable</code> and <code>not_sent</code> keep the verdict's exit
 code: the receiver's state is not the run's, and that is the collector's rule for an outage or a
 rejection. <code>unknown</code> is a defect in the reporter, as a bad URL or a serialization error is a

@@ -9,9 +9,10 @@ import typer
 from guardana.cli._budget_flags import override
 from guardana.cli._errors import run_judged
 from guardana.cli._evaluators import judge_endpoint, wire_config_evaluators
-from guardana.cli._exit import exit_with, refuse_invalid_profile, refuse_unenforceable_budget
-from guardana.cli._formats import OutputFormat
-from guardana.cli._output import emit, refuse_incomparable_output
+from guardana.cli._exit import refuse_invalid_profile, refuse_unenforceable_budget
+from guardana.cli._formats import FORMAT_HELP
+from guardana.cli._output import refuse_incomparable_output
+from guardana.cli._outputs import select_outputs
 from guardana.cli._plugins import (
     AllowPluginOption,
     PluginsOption,
@@ -36,7 +37,6 @@ from guardana.core.verify import (
     Verification,
     Verifier,
 )
-from guardana.report import get_renderer
 
 _DEFAULT_CONCURRENCY = 4
 
@@ -50,9 +50,7 @@ def grade(  # noqa: PLR0913, PLR0917 — Typer surface
     ],
     profile: Annotated[Path | None, typer.Option(help="guardana.yaml path")] = None,
     preset: Annotated[str | None, typer.Option(help=PRESET_HELP)] = None,
-    format: Annotated[
-        OutputFormat, typer.Option(help="human|json|sarif|junit")
-    ] = OutputFormat.human,
+    format: Annotated[str, typer.Option(help=FORMAT_HELP)] = "human",
     rules: Annotated[
         list[Path],
         typer.Option("--rules", help="Directory or file of custom YAML rules; repeatable."),
@@ -101,7 +99,7 @@ def grade(  # noqa: PLR0913, PLR0917 — Typer surface
     allow_plugin: AllowPluginOption = None,
 ) -> None:
     """Grade the answers a recording holds with your rules, sending nothing to the target."""
-    refuse_incomparable_output(output, format.value)
+    refuse_incomparable_output(output, format)
     prof = resolve_profile(profile, preset)
     prof = replace(
         prof,
@@ -116,6 +114,7 @@ def grade(  # noqa: PLR0913, PLR0917 — Typer surface
         trials=prof.trials if trials is None else trials,
     )
     resolved = resolve_trust(plugins, allow_plugin, prof)
+    outputs = select_outputs(format, None, resolved.trust)
     registry = Registry.discover(resolved.trust)
     hint_refused_plugins(registry, resolved)
     try:
@@ -143,9 +142,8 @@ def grade(  # noqa: PLR0913, PLR0917 — Typer surface
     for stop in verification.judge_stops:
         typer.echo(f"warning: {stop}", err=True)
     _note_unanswered(verification)
-    run = verification.manifest
-    emit(get_renderer(format.value, run=run).render(verification.result), output, format.value)
-    exit_with(verification.gate, verification.result)
+    outputs.write(verification, output)
+    outputs.end(verification)
 
 
 def _declare(target: RecordedTarget, registry: Registry, profile: Profile) -> None:

@@ -2,9 +2,9 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
-from guardana.cli._exit import exit_with, refuse_unenforceable_budget
-from guardana.cli._formats import OutputFormat
-from guardana.cli._output import emit
+from guardana.cli._exit import refuse_unenforceable_budget
+from guardana.cli._formats import FORMAT_HELP
+from guardana.cli._outputs import refuse_installed_output_beside, select_outputs
 from guardana.cli._plugins import (
     AllowPluginOption,
     NoPluginsOption,
@@ -13,7 +13,7 @@ from guardana.cli._plugins import (
     resolve_trust,
 )
 from guardana.cli._profile import PRESET_HELP, resolve_profile
-from guardana.cli._reporting import check_reporter_url, submit_safely
+from guardana.cli._reporting import installed_reporter_or_check, submit_safely
 from guardana.cli._rules_loading import load_custom_rules
 from guardana.cli._run_meta import calibrations_or_exit, detect_deployment, detect_source
 from guardana.cli._target_locator import resolve_target
@@ -28,7 +28,6 @@ from guardana.core.report import (
 )
 from guardana.core.target import Target, TargetKind
 from guardana.core.verify import UnenforceableBudgetError, Verifier
-from guardana.report import get_renderer
 
 _BASELINE_ERROR_EXIT_CODE = ExitCode.INVALID_USAGE
 """A baseline file that cannot be read is bad input, not an indeterminate result."""
@@ -115,9 +114,7 @@ def scan(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; this is t
     path: Annotated[Path | None, typer.Argument(help="Directory to scan")] = None,
     profile: Annotated[Path | None, typer.Option(help="guardana.yaml path")] = None,
     preset: Annotated[str | None, typer.Option(help=PRESET_HELP)] = None,
-    format: Annotated[
-        OutputFormat, typer.Option(help="human|json|sarif|junit")
-    ] = OutputFormat.human,
+    format: Annotated[str, typer.Option(help=FORMAT_HELP)] = "human",
     no_plugins: NoPluginsOption = False,
     plugins: PluginsOption = None,
     allow_plugin: AllowPluginOption = None,
@@ -140,7 +137,11 @@ def scan(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; this is t
         ),
     ] = None,
     reporter: Annotated[
-        str | None, typer.Option(help="Collector URL to forward findings to, e.g. server://URL")
+        str | None,
+        typer.Option(
+            help="Collector URL to forward findings to, e.g. server://URL, or an installed "
+            "reporter as name://locator"
+        ),
     ] = None,
     ai_system: Annotated[
         str | None,
@@ -181,7 +182,8 @@ def scan(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; this is t
         raise typer.BadParameter("pass either --baseline or --write-baseline, not both")
     if target is not None and path is not None:
         raise typer.BadParameter("pass either a path or --target, not both")
-    check_reporter_url(reporter)
+    installed_reporter = installed_reporter_or_check(reporter)
+    refuse_installed_output_beside("--write-baseline", write_baseline, format, installed_reporter)
     prof = resolve_profile(profile, preset)
     # --no-plugins resolves to `--plugins disabled`: discovery below still runs,
     # refuses every entry point, and records each refusal in `errors` (see
@@ -189,68 +191,72 @@ def scan(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; this is t
     # behind an entry point resolves to nothing at run time and is skipped —
     # safe degradation, never a crash.
     resolved = resolve_trust(plugins, allow_plugin, prof, no_plugins=no_plugins)
-    registry = Registry.discover(resolved.trust)
-    hint_refused_plugins(registry, resolved)
-    _say_which_local_rules_scan_does_not_run(registry, load_custom_rules(registry, prof, rules))
-    # A path is built into its target by the verifier alone, so its ignore file is read once.
-    selected: Target | Path = resolve_target(
-        registry,
-        locator=target,
-        options=target_option,
-        kind=TargetKind.ARTIFACT,
-        fallback=lambda: _path_to_scan(path),
-    )
-    accepted = _read_baseline(baseline)
-    deployment = detect_deployment(ai_system, environment, deployment_id)
-    verifier = Verifier(
-        trust=resolved.trust,
-        profile=prof,
-        registry=registry,
-        calibrations=calibrations_or_exit(prof),
-    )
-    # File paths become repo-relative (relative to the checkout root) before anything
-    # is rendered, baselined or emitted as SARIF, so alerts attach to real repo paths
-    # and a baseline fingerprint is portable between a dev machine and CI. A plugin
-    # owns its locator's identity, so only a path-built target's own ref is rewritten.
-    try:
-        if isinstance(selected, Path):
-            verification = verifier.scan(
-                selected,
-                relative_to=Path.cwd(),
-                baseline=None if write_baseline is not None else accepted,
-                source=detect_source(),
-                deployment=deployment,
-            )
-        else:
-            verification = verifier.run(
-                selected,
-                relative_to=Path.cwd(),
-                baseline=None if write_baseline is not None else accepted,
-                source=detect_source(),
-                deployment=deployment,
-            )
-    except UnenforceableBudgetError as exc:
-        raise refuse_unenforceable_budget(exc) from exc
-    result = verification.result
-
-    if write_baseline is not None:
-        refuse_an_incomplete_baseline(result, prof.policy, write_baseline)
-        write_baseline.write_text(serialize_baseline(result), encoding="utf-8")
-        typer.echo(
-            f"wrote baseline waiving {len(result.findings)} finding(s) to {write_baseline} "
-            f"— add a reason to each before committing it.",
-            err=True,
+    outputs = select_outputs(format, installed_reporter, resolved.trust)
+    with outputs:
+        registry = Registry.discover(resolved.trust)
+        hint_refused_plugins(registry, resolved)
+        _say_which_local_rules_scan_does_not_run(registry, load_custom_rules(registry, prof, rules))
+        # A path is built into its target by the verifier alone, so its ignore file is read once.
+        selected: Target | Path = resolve_target(
+            registry,
+            locator=target,
+            options=target_option,
+            kind=TargetKind.ARTIFACT,
+            fallback=lambda: _path_to_scan(path),
         )
-        # Only the run's completeness gates here, never its findings: snapshotting
-        # today's findings is the whole point of this flag.
-        raise typer.Exit(code=ExitCode.OK)
+        accepted = _read_baseline(baseline)
+        deployment = detect_deployment(ai_system, environment, deployment_id)
+        verifier = Verifier(
+            trust=resolved.trust,
+            profile=prof,
+            registry=registry,
+            calibrations=calibrations_or_exit(prof),
+        )
+        # File paths become repo-relative (relative to the checkout root) before anything
+        # is rendered, baselined or emitted as SARIF, so alerts attach to real repo paths
+        # and a baseline fingerprint is portable between a dev machine and CI. A plugin
+        # owns its locator's identity, so only a path-built target's own ref is rewritten.
+        try:
+            if isinstance(selected, Path):
+                verification = verifier.scan(
+                    selected,
+                    relative_to=Path.cwd(),
+                    baseline=None if write_baseline is not None else accepted,
+                    source=detect_source(),
+                    deployment=deployment,
+                )
+            else:
+                verification = verifier.run(
+                    selected,
+                    relative_to=Path.cwd(),
+                    baseline=None if write_baseline is not None else accepted,
+                    source=detect_source(),
+                    deployment=deployment,
+                )
+        except UnenforceableBudgetError as exc:
+            raise refuse_unenforceable_budget(exc) from exc
+        result = verification.result
 
-    run = verification.manifest
-    emit(get_renderer(format.value, run=run).render(result), output, format.value)
-    if reporter:
-        source = str(selected) if isinstance(selected, Path) else selected.ref
-        submit_safely(reporter, result, source=source, deployment=deployment, run=run)
-    exit_with(verification.gate, result)
+        if write_baseline is not None:
+            refuse_an_incomplete_baseline(result, prof.policy, write_baseline)
+            write_baseline.write_text(serialize_baseline(result), encoding="utf-8")
+            typer.echo(
+                f"wrote baseline waiving {len(result.findings)} finding(s) to {write_baseline} "
+                f"— add a reason to each before committing it.",
+                err=True,
+            )
+            # Only the run's completeness gates here, never its findings: snapshotting
+            # today's findings is the whole point of this flag.
+            raise typer.Exit(code=ExitCode.OK)
+
+        outputs.write(verification, output)
+        if reporter and installed_reporter is None:
+            source = str(selected) if isinstance(selected, Path) else selected.ref
+            submit_safely(
+                reporter, result, source=source, deployment=deployment, run=verification.manifest
+            )
+        outputs.deliver(verification)
+        outputs.end(verification)
 
 
 def _read_baseline(path: Path | None) -> Baseline | None:

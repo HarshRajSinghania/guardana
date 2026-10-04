@@ -4,6 +4,7 @@ from urllib.error import HTTPError, URLError
 
 import typer
 from guardana.core.manifest import DeploymentRef, RunManifest
+from guardana.core.output import RESERVED_REPORTER_NAMES, is_output_name
 from guardana.core.report import ScanResult
 from guardana.core.reporter import HttpReporter, check_collector_url
 from guardana.core.target import EndpointError
@@ -43,6 +44,33 @@ def reporter_from_url(
         deployment=deployment,
         run=run,
     )
+
+
+def split_reporter(value: str | None) -> tuple[str, str] | None:
+    """Return `(name, rest)` when `value` names an installed reporter as `<name>://<rest>`.
+
+    None for every collector value, so `check_reporter_url` keeps its path and its
+    message for a bare URL, a `server://` one and a `host:port`. A misspelt scheme such
+    as `htps://` is split, and its selection names the collector forms.
+    """
+    if value is None:
+        return None
+    name, separator, rest = value.partition("://")
+    if not separator or not is_output_name(name) or name in RESERVED_REPORTER_NAMES:
+        return None
+    return name, rest
+
+
+def installed_reporter_or_check(value: str | None) -> tuple[str, str] | None:
+    """Split an installed reporter off `value`, or check `value` as a collector URL.
+
+    Returns what `split_reporter` returns; a collector value that cannot name a
+    collector is refused as `check_reporter_url` refuses it.
+    """
+    split = split_reporter(value)
+    if split is None:
+        check_reporter_url(value)
+    return split
 
 
 def check_reporter_url(url: str | None) -> None:

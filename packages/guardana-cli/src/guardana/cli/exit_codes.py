@@ -63,6 +63,14 @@ class ExitCode(IntEnum):
     INTERRUPTED = 7
     """The command was interrupted before it finished; nothing it had not yet written exists."""
 
+    OUTPUT_FAILED = 8
+    """An installed output failed: a format raised or returned no text, or a reporter failed.
+
+    Kept apart from `INTERNAL_ERROR` because the defect belongs to the distribution that
+    shipped the output, not to Guardana. It replaces `0`, `1` and `2`; a run that stopped
+    keeps its stop's code. The verdict is printed beside it.
+    """
+
 
 def code_for(outcome: GateOutcome, stopped_by: StopReason | None = None) -> ExitCode:
     """Map a run's verdict to its exit code.

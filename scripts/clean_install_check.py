@@ -131,6 +131,13 @@ def _checks(venv: Path, clean_directory: Path, trace_file: Path) -> list[Check]:
             1,
         ),
         Check("unknown flag", [guardana, "scan", "--no-such-flag", "."], 3),
+        Check(
+            "format nothing installs",
+            [guardana, "scan", "--format", "no-such-format", str(clean_directory)],
+            3,
+            expect=("the format no-such-format is not installed",),
+            reject=("rule(s) run",),
+        ),
         Check("path that does not exist", [guardana, "scan", "/no/such/path"], 3),
         Check("doctor", [guardana, "doctor"], 0),
         # A command that WRITES is the one an undeclared import or a missing data

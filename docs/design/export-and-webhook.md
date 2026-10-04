@@ -201,9 +201,12 @@ Refused with exit `3` before anything is sent, without reading metadata, kind `u
   runs with scan, probe or analyze-trace".
 - `import-observations --reporter <name>://`: "import-observations loads no plugins; it forwards
   to the collector only".
+
+For these two commands any `<name>://` value whose name matches the pattern gets this refusal,
+so a mistyped scheme such as `htps://` is answered by it rather than by the collector message.
 - `scan --write-baseline` or `probe --write-mcp-pin` with an installed format or reporter: "an
-  installed output needs the run's report, which --write-baseline (or --write-mcp-pin) does not
-  produce".
+  installed output needs the run's report, which --write-baseline does not produce" (each command
+  names its own flag).
 
 Every `OutputSelectionError` prints `error: <message>` and exits `3`.
 
@@ -351,8 +354,9 @@ delivery: unknown — acme-webhook to https://hooks.example.com: did not finish 
 where `submit_safely` sits, before `report_target_stop`. From the moment `prepare` succeeds, a
 command that ends before delivery prints `not_sent` with the reason: the format failed, the
 report could not be written, the target or judge was unavailable, the run was interrupted, or
-the budget was refused before sending. A `try`/`finally` around the command body after selection
-does it.
+the budget was refused before sending. A context manager entered right after selection
+(`RunOutputs`, `cli/_outputs.py`) does it. An interrupt that arrives during a delivery prints
+`unknown`, detail `the run was interrupted`, because something may already have left.
 
 **Exit code.** `delivered`, `rejected`, `unreachable` and `not_sent` keep the verdict's exit
 code: the receiver's state is not the run's, and that is the collector's rule for an outage or a

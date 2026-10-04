@@ -23,6 +23,7 @@ behaviour.
 | 5 | internal Guardana error |
 | 6 | budget exhausted |
 | 7 | run interrupted before it finished |
+| 8 | an installed output failed: a format raised or returned no text, or a reporter failed; the verdict is printed |
 
 ## The reasoning
 
