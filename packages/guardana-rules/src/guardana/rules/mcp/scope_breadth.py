@@ -10,6 +10,7 @@ from guardana.core.target import (
     McpAuthorizationView,
     TargetKind,
     challenge_parameters,
+    display_url,
     scopes_in,
 )
 from guardana.core.taxonomy import OWASP_ASI03_2026, OWASP_LLM03_2026, OWASP_MCP02_2025
@@ -36,6 +37,10 @@ class McpScopeBreadthRule(McpAuthorizationRule):
     purpose client has nothing to ask for but everything — which is how a consent
     screen ends up listing permissions nobody wanted and users learn to approve
     without reading. Reported at `low`, because a `SHOULD` is not a `MUST`.
+
+    Scopes are graded across both metadata documents. When the resource document
+    names an authorization server whose metadata went unread, the half that was
+    read is graded and the rule declines on the other, naming it.
     """
 
     meta = RuleMeta(
@@ -125,6 +130,14 @@ class McpScopeBreadthRule(McpAuthorizationRule):
                 "were never seen; guardana.mcp.authorization_discovery reports why the "
                 "surface could not be fetched",
             )
+        else:
+            unseen = _unseen_authorization_server(view)
+            if unseen is not None:
+                yield self.unverified(
+                    view,
+                    f"{unseen}, so only the protected resource metadata's scopes were graded "
+                    f"and the scopes the authorization server advertises were never seen",
+                )
         yield from self._challenge(view)
 
     def _challenge(self, view: McpAuthorizationView) -> Iterator[Finding]:
@@ -137,6 +150,34 @@ class McpScopeBreadthRule(McpAuthorizationRule):
             "for the permissions this request needs and will ask for all of them",
             severity=Severity.LOW,
         )
+
+
+def _unseen_authorization_server(view: McpAuthorizationView) -> str | None:
+    """Say why the authorization server's metadata went unread, or None when nothing is unseen.
+
+    An authorization server that publishes no metadata advertises no scopes, so a
+    `404` leaves nothing unseen. No document beside a named issuer means every
+    address for it was refused as unsafe to fetch.
+    """
+    document = view.authorization_server
+    if document is not None:
+        if document.error is None:
+            return None
+        return (
+            f"the authorization server metadata at {display_url(document.url)} could not be "
+            f"read ({document.error})"
+        )
+    resource = view.protected_resource
+    named = resource.content.get("authorization_servers") if resource and resource.content else None
+    if not isinstance(named, list):
+        return None
+    issuer = next((entry for entry in named if isinstance(entry, str) and entry), None)
+    if issuer is None:
+        return None
+    return (
+        f"every address for the authorization server metadata of {display_url(issuer)} "
+        f"was refused as unsafe to fetch"
+    )
 
 
 def _is_omnibus(scope: str) -> bool:

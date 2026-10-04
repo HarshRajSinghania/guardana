@@ -8,7 +8,9 @@ from mcp_fixtures import (
     CONFORMING_RESOURCE,
     CREDENTIAL,
     LOOPBACK,
+    ServingAt,
     findings,
+    findings_through,
     guarded,
     outcomes,
     summaries,
@@ -109,3 +111,15 @@ def test_an_unreadable_document_does_not_bury_a_refused_pointer() -> None:
 
 def test_a_server_publishing_no_resource_document_directs_a_client_nowhere() -> None:
     assert findings(RULE, guarded(resource_metadata=None), credential=CREDENTIAL) == []
+
+
+def test_an_unreadable_advertised_document_is_not_buried_by_404s_at_the_well_known_paths() -> None:
+    advertised = "https://93.184.215.14/metadata/resource"
+    server = guarded(challenge=f'Bearer resource_metadata="{advertised}"', resource_metadata=None)
+
+    reported = findings_through(
+        RULE, ServingAt(server, advertised, b"<html>sign in</html>"), credential=CREDENTIAL
+    )
+
+    assert outcomes(reported) == ["inconclusive"]
+    assert "metadata/resource could not be read" in summaries(reported)[0]

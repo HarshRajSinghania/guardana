@@ -7,7 +7,9 @@ from guardana.rules.mcp import McpScopeBreadthRule
 from mcp_fixtures import (
     CONFORMING_RESOURCE,
     CREDENTIAL,
+    ServingAt,
     findings,
+    findings_through,
     guarded,
     outcomes,
     summaries,
@@ -69,3 +71,44 @@ def test_a_server_publishing_no_metadata_at_all_is_declined_rather_than_passed()
 
     assert outcomes(reported) == ["inconclusive"]
     assert "no metadata document" in reported[0].evidence.summary
+
+
+_AUTHORIZATION_DOCUMENT = "https://93.184.215.14/.well-known/oauth-authorization-server"
+
+
+def _unreadable_authorization_server(**overrides: object) -> ServingAt:
+    # The second well-known path answers 404, which must not hide the page at the first.
+    server = guarded(authorization_metadata=None, **overrides)
+    return ServingAt(server, _AUTHORIZATION_DOCUMENT, b"<html>sign in</html>")
+
+
+def test_narrow_resource_scopes_beside_an_unread_authorization_server_are_not_clean() -> None:
+    reported = findings_through(RULE, _unreadable_authorization_server(), credential=CREDENTIAL)
+
+    assert outcomes(reported) == ["inconclusive"]
+    assert "oauth-authorization-server could not be read" in summaries(reported)[0]
+    assert "only the protected resource metadata" in summaries(reported)[0]
+
+
+def test_a_wildcard_in_the_half_that_was_read_is_still_a_finding() -> None:
+    wildcard = {**CONFORMING_RESOURCE, "scopes_supported": ["*"]}
+
+    reported = findings_through(
+        RULE, _unreadable_authorization_server(resource_metadata=wildcard), credential=CREDENTIAL
+    )
+
+    assert outcomes(reported)[0] is None
+    assert "['*']" in summaries(reported)[0]
+
+
+def test_an_authorization_server_every_address_of_which_was_refused_is_unseen() -> None:
+    resource = {**CONFORMING_RESOURCE, "authorization_servers": ["https://169.254.169.254"]}
+
+    reported = findings(RULE, guarded(resource_metadata=resource), credential=CREDENTIAL)
+
+    assert outcomes(reported) == ["inconclusive"]
+    assert "169.254.169.254" in summaries(reported)[0]
+
+
+def test_an_authorization_server_publishing_no_metadata_advertises_no_scopes() -> None:
+    assert findings(RULE, guarded(authorization_metadata=None), credential=CREDENTIAL) == []

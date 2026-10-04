@@ -984,6 +984,10 @@ class _Probe:
         worked would lose the pointer, which is the more interesting of the two: a
         server aiming its client at the cloud metadata endpoint has done that on
         purpose, whatever else it also serves.
+
+        With no readable answer, the first document that came back unreadable outranks
+        any status: a document that exists and could not be read is a gap in the
+        evidence, and a later `404` must not turn it into "not published".
         """
         attempts: list[Document] = []
         refused: list[Document] = []
@@ -995,6 +999,9 @@ class _Probe:
             if document.readable:
                 return document, refused
             attempts.append(document)
+        unread = next((d for d in attempts if d.error is not None), None)
+        if unread is not None:
+            return unread, refused
         return (attempts[-1] if attempts else None), refused
 
     def _spend(self, call: Callable[[], RawReply]) -> RawReply:
