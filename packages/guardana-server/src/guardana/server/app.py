@@ -37,6 +37,7 @@ _NO_CONTENT = 204
 _UNAUTHORIZED = 401
 _FORBIDDEN = 403
 _UNAVAILABLE = 503
+_SERVER_ERROR = 500
 _TRUTHY = {"1", "true", "yes", "on"}
 
 
@@ -107,6 +108,7 @@ def create_app(
     _mount_limits(app)
     # After the limits, so it wraps them and their refusals carry the header too.
     _mount_nosniff(app)
+    _mount_server_error(app)
     _mount_health(app, database_url)
     # `Annotated`, not a `Depends` default: the parameter really is an identity at
     # run time and really is a dependency marker at definition time, and only this
@@ -227,6 +229,8 @@ def _mount_health(app: FastAPI, database_url: str | None) -> None:
     def healthz() -> dict[str, str]:
         return {"status": "ok"}
 
+    _also_on_head(app, "/healthz", healthz)
+
     @app.get("/readyz")
     def readyz() -> dict[str, object]:
         if database_url is None:
@@ -257,6 +261,24 @@ def _mount_health(app: FastAPI, database_url: str | None) -> None:
             )
         return {"status": "ok", "storage": "postgres", "pending_migrations": 0}
 
+    _also_on_head(app, "/readyz", readyz)
+
+
+def _also_on_head(
+    app: FastAPI,
+    path: str,
+    endpoint: Callable[[], object],
+    response_class: type[Response] = JSONResponse,
+) -> None:
+    """Answer `HEAD` on an unauthenticated page with the very response `GET` gives.
+
+    FastAPI adds no `HEAD` for a `GET` route, and monitors probe with it. The server
+    sends the status and headers and drops the body, so nothing can differ from `GET`.
+    """
+    app.add_api_route(
+        path, endpoint, methods=["HEAD"], response_class=response_class, include_in_schema=False
+    )
+
 
 def _migration_state(database_url: str) -> MigrationState:
     with connect(database_url) as connection:
@@ -278,6 +300,8 @@ def _mount_dashboard(app: FastAPI, store: Store, refresh_seconds: int, reading: 
     @app.get("/", response_class=HTMLResponse)
     def dashboard_page() -> HTMLResponse:
         return HTMLResponse(page, headers=headers)
+
+    _also_on_head(app, "/", dashboard_page, HTMLResponse)
 
     @app.get("/stats")
     def get_stats(identity: reading) -> dict[str, object]:  # type: ignore[valid-type]
@@ -343,6 +367,24 @@ def _mount_nosniff(app: FastAPI) -> None:
         response = await call_next(request)
         response.headers["X-Content-Type-Options"] = "nosniff"
         return response
+
+
+def _mount_server_error(app: FastAPI) -> None:
+    """Answer an unhandled exception with a generic 500 that still carries `nosniff`.
+
+    Starlette answers it outside every `http` middleware, and its default answer is
+    the bare exception text. The exception is re-raised after this handler answers,
+    so the server still logs it with its traceback.
+    """
+
+    async def _server_error(request: Request, exc: Exception) -> Response:
+        return JSONResponse(
+            status_code=_SERVER_ERROR,
+            content={"detail": "internal server error; see the collector log"},
+            headers={"X-Content-Type-Options": "nosniff"},
+        )
+
+    app.add_exception_handler(Exception, _server_error)
 
 
 async def _reject_oversized(request: Request, ceiling: int) -> JSONResponse | None:

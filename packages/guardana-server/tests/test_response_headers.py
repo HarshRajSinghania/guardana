@@ -10,11 +10,14 @@ import pytest
 from fastapi.testclient import TestClient
 from guardana.server import create_app
 from guardana.server.store import InMemoryStore
+from guardana.server.tenancy import TenantScope
 
 _OK = 200
 _NOT_FOUND = 404
 _UNPROCESSABLE = 422
 _TOO_LARGE = 413
+_SERVER_ERROR = 500
+_LEAKED = "connection to db.internal:5432 refused for user collector"
 
 
 def _client() -> TestClient:
@@ -60,3 +63,50 @@ def test_a_refusal_from_the_limits_sends_nosniff(monkeypatch: pytest.MonkeyPatch
 
     assert refused.status_code == _TOO_LARGE
     _assert_nosniff(refused.headers)
+
+
+class _FailingStore(InMemoryStore):
+    """A store whose trend query fails with text that must never reach the caller."""
+
+    def trend(self, scope: TenantScope) -> dict[str, int]:
+        raise RuntimeError(_LEAKED)
+
+
+def test_an_unhandled_exception_answers_500_with_nosniff_and_no_exception_text() -> None:
+    app = create_app(store=_FailingStore(), allow_unauthenticated=True)
+    client = TestClient(app, raise_server_exceptions=False)
+
+    failed = client.get("/trend")
+
+    assert failed.status_code == _SERVER_ERROR
+    _assert_nosniff(failed.headers)
+    assert failed.headers["content-type"].startswith("application/json")
+    assert _LEAKED not in failed.text
+    assert "RuntimeError" not in failed.text
+
+
+def test_an_unhandled_exception_is_still_raised_for_the_server_to_log() -> None:
+    client = TestClient(create_app(store=_FailingStore(), allow_unauthenticated=True))
+
+    with pytest.raises(RuntimeError, match=_LEAKED):
+        client.get("/trend")
+
+
+@pytest.mark.parametrize("path", ["/", "/healthz", "/readyz"])
+def test_head_on_a_public_page_answers_like_get_without_a_body(path: str) -> None:
+    client = _client()
+
+    get = client.get(path)
+    head = client.head(path)
+
+    assert head.status_code == get.status_code == _OK
+    assert head.content == b""
+    assert dict(head.headers) == dict(get.headers)
+
+
+def test_head_on_the_dashboard_carries_its_security_headers() -> None:
+    head = _client().head("/")
+
+    assert "content-security-policy" in head.headers
+    assert head.headers["referrer-policy"] == "no-referrer"
+    _assert_nosniff(head.headers)
