@@ -122,6 +122,8 @@ it with any Standard Webhooks library and the secret in `ACME_WEBHOOK_SECRET` (`
 - **Delivery.** At most three attempts within 25 seconds, retrying on no answer, `408`, `429`
   and `5xx`; redirects are not followed. `webhook-id` is the same on every attempt, so a
   receiver can drop a repeat.
+- **Network.** It connects straight to the destination. `HTTP_PROXY`, `HTTPS_PROXY` and their
+  lowercase forms are ignored, so no proxy sees the signed summary or answers for the receiver.
 
 ## Write your own
 
@@ -156,6 +158,10 @@ def provide_webhook() -> ReporterSpec:
   nothing; raise `ValueError` with the reason to refuse. It returns an object with
   `destination` (shown in the delivery line), `sent_secrets()` (withheld from every line) and
   `deliver(verification) -> Delivery`.
+- `deliver` should connect straight to the destination the operator named and ignore
+  `HTTP_PROXY`, `HTTPS_PROXY` and their lowercase forms, as the reference webhook does with
+  `ProxyHandler({})`. A proxy the environment names sees everything sent and can answer in the
+  receiver's place. Guardana cannot enforce this: the reporter's code makes the connection.
 
 Declare both in `guardana-pack.yaml` (schema 3) with the output API you were written against:
 
@@ -172,3 +178,12 @@ provides:
 `guardana pack validate` checks that each declared output is delivered by your distribution and
 by no other, and `guardana pack lock` pins it ([`usage-pack.md`](usage-pack.md)). A lock that
 pins an output is schema 3, which Guardana 0.39 refuses.
+
+## Check it in your tests
+
+`guardana.testing.assert_renderer_conforms` and `assert_reporter_conforms` run your format or
+reporter over five real runs, a stopped and an empty one among them, through the same boundary
+a run uses. The reporter check also proves `prepare` sends nothing and that each destination
+yields its own delivery status; `guardana.core.testing.receiver()` serves an accepting, a
+refusing and a closed URL for an HTTP reporter. What each check proves, and what it does not:
+[conformance kit](conformance-kit.md#outputs).

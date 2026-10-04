@@ -65,6 +65,7 @@
 <li><a href="writing-an-integrator.html">Writing an integrator<span class="tag">beta</span></a></li>
 </ul>
 <h2>Rules and extensions</h2><ul>
+<li><a href="conformance-kit.html">Conformance kit<span class="tag">beta</span></a></li>
 <li><a href="usage-rules.html">guardana rules</a></li>
 <li><a href="usage-taxonomy.html">guardana taxonomy</a></li>
 <li><a href="writing-rules.html">Writing rules</a></li>
@@ -200,6 +201,7 @@
 <li><a href="writing-an-integrator.html">Writing an integrator<span class="tag">beta</span></a></li>
 </ul>
 <h2>Rules and extensions</h2><ul>
+<li><a href="conformance-kit.html">Conformance kit<span class="tag">beta</span></a></li>
 <li><a href="usage-rules.html">guardana rules</a></li>
 <li><a href="usage-taxonomy.html">guardana taxonomy</a></li>
 <li><a href="writing-rules.html">Writing rules</a></li>
@@ -447,6 +449,8 @@ send it only to a receiver you would show the report to.</li>
 <li><strong>Delivery.</strong> At most three attempts within 25 seconds, retrying on no answer, <code>408</code>, <code>429</code>
 and <code>5xx</code>; redirects are not followed. <code>webhook-id</code> is the same on every attempt, so a
 receiver can drop a repeat.</li>
+<li><strong>Network.</strong> It connects straight to the destination. <code>HTTP_PROXY</code>, <code>HTTPS_PROXY</code> and their
+lowercase forms are ignored, so no proxy sees the signed summary or answers for the receiver.</li>
 </ul>
 <h2 id="write-your-own">Write your own</h2>
 <p>An output is one entry point; its name is the output's name.</p>
@@ -475,6 +479,10 @@ def provide_webhook() -&gt; ReporterSpec:
 nothing; raise <code>ValueError</code> with the reason to refuse. It returns an object with
 <code>destination</code> (shown in the delivery line), <code>sent_secrets()</code> (withheld from every line) and
 <code>deliver(verification) -&gt; Delivery</code>.</li>
+<li><code>deliver</code> should connect straight to the destination the operator named and ignore
+<code>HTTP_PROXY</code>, <code>HTTPS_PROXY</code> and their lowercase forms, as the reference webhook does with
+<code>ProxyHandler({})</code>. A proxy the environment names sees everything sent and can answer in the
+receiver's place. Guardana cannot enforce this: the reporter's code makes the connection.</li>
 </ul>
 <p>Declare both in <code>guardana-pack.yaml</code> (schema 3) with the output API you were written against:</p>
 <pre><code class="language-yaml">schema_version: 3
@@ -488,6 +496,13 @@ provides:
 <p><code>guardana pack validate</code> checks that each declared output is delivered by your distribution and
 by no other, and <code>guardana pack lock</code> pins it (<a href="usage-pack.html"><code>usage-pack.md</code></a>). A lock that
 pins an output is schema 3, which Guardana 0.39 refuses.</p>
+<h2 id="check-it-in-your-tests">Check it in your tests</h2>
+<p><code>guardana.testing.assert_renderer_conforms</code> and <code>assert_reporter_conforms</code> run your format or
+reporter over five real runs, a stopped and an empty one among them, through the same boundary
+a run uses. The reporter check also proves <code>prepare</code> sends nothing and that each destination
+yields its own delivery status; <code>guardana.core.testing.receiver()</code> serves an accepting, a
+refusing and a closed URL for an HTTP reporter. What each check proves, and what it does not:
+<a href="conformance-kit.html#outputs">conformance kit</a>.</p>
 
 </main>
 </div>

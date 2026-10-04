@@ -65,6 +65,7 @@
 <li><a href="writing-an-integrator.html">Writing an integrator<span class="tag">beta</span></a></li>
 </ul>
 <h2>Rules and extensions</h2><ul>
+<li><a href="conformance-kit.html">Conformance kit<span class="tag">beta</span></a></li>
 <li><a href="usage-rules.html">guardana rules</a></li>
 <li><a href="usage-taxonomy.html">guardana taxonomy</a></li>
 <li><a href="writing-rules.html">Writing rules</a></li>
@@ -200,6 +201,7 @@
 <li><a href="writing-an-integrator.html">Writing an integrator<span class="tag">beta</span></a></li>
 </ul>
 <h2>Rules and extensions</h2><ul>
+<li><a href="conformance-kit.html">Conformance kit<span class="tag">beta</span></a></li>
 <li><a href="usage-rules.html">guardana rules</a></li>
 <li><a href="usage-taxonomy.html">guardana taxonomy</a></li>
 <li><a href="writing-rules.html">Writing rules</a></li>
@@ -859,8 +861,7 @@ same shape — manifest, all four entry points, a rule per declarative shape wit
 its three samples, a locator target and these tests — into an empty directory, and
 the result passes <code>pack validate</code> and <code>rule test</code> before you change anything.</p>
 <p><code>guardana.core.testing</code> ships every double behind that, so a fixture is a
-few lines of Python instead of a network call or a hand-crafted binary, in
-five families:</p>
+few lines of Python instead of a network call or a hand-crafted binary:</p>
 <p><strong>Transports</strong> plug into <code>EndpointTarget</code>'s <code>ChatTransport</code> seam, so a
 dynamic rule is graded end-to-end against a scripted model with no network:</p>
 <ul>
@@ -938,6 +939,16 @@ network.</p>
 <code>ScanResult</code> with test-stable circumstances, and <code>FIXED_RUN_TIME</code> is the
 fixed instant it stamps everywhere — so two renderings of the same result
 are byte-identical and a renderer test is not also a test about clocks.</p>
+<p><strong>Sample runs and a receiver</strong>, for an installed output: <code>sample_verifications</code>
+returns five runs the engine produced over kit targets — a passed and a failed
+scan, a scan of an empty tree, a probe stopped by its request budget and a scan in
+which no rule ran — so a format is tried on the runs it most needs to describe.
+<code>receiver</code> serves, on <code>127.0.0.1</code> for a <code>with</code> block, an accepting, a refusing
+(<code>403</code>) and a closed URL, yielded as a <code>Receiver</code> whose <code>received</code> lists each
+<code>ReceivedRequest</code> it answered. <code>guardana.testing.assert_renderer_conforms</code> and
+<code>assert_reporter_conforms</code> run a format or a reporter over them and raise
+<code>OutputContractError</code>; what they prove and what they do not is in the
+<a href="conformance-kit.html">conformance kit</a>.</p>
 
 </main>
 </div>

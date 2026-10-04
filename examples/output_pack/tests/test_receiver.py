@@ -179,6 +179,22 @@ def test_a_delivery_signed_with_another_secret_is_refused_by_the_verifier(
     assert [r.verified for r in receiver.received] == [False]
 
 
+def test_a_delivery_ignores_every_proxy_variable(
+    receiver: Receiver, closed_port: int, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A proxy would see the signed summary and could answer for the receiver."""
+    for variable in ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"):
+        monkeypatch.setenv(variable, f"http://127.0.0.1:{closed_port}")
+    for variable in ("NO_PROXY", "no_proxy"):
+        monkeypatch.delenv(variable, raising=False)
+    waits: list[float] = []
+
+    delivery = _deliver(receiver.url, waits)
+
+    assert delivery == Delivery(DeliveryStatus.DELIVERED, attempts=1, http_status=204)
+    assert [r.verified for r in receiver.received] == [True]
+
+
 def test_a_scan_delivers_and_keeps_the_verdicts_exit_code(
     receiver: Receiver, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

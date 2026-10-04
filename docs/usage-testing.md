@@ -271,6 +271,14 @@ A trace target is the exception: the Python API refuses traces, because
 `assert_secure` runs a trace's rules directly, as it always has. A trace a framework
 translator builds in code has neither.
 
+## Checking an extension you wrote
+
+`guardana.testing` also holds the checks a pack runs on its own code, which test the
+extension rather than your system: `assert_target_conforms` for a target,
+`assert_renderer_conforms` for a format and `assert_reporter_conforms` for a reporter. Each
+raises an `AssertionError` subclass that names every problem it found. What each one proves,
+and what it does not: [conformance kit](conformance-kit.md).
+
 ## What this is not
 
 It is not a second engine, and it does not have its own idea of "secure". If a
@@ -289,3 +297,5 @@ a **rule you are writing**. See [`writing-rules.md`](writing-rules.md).
 - [`privacy.md`](privacy.md) — evidence modes and what is kept
 - [`exit-codes.md`](exit-codes.md) — the command-line equivalent of the three-state
   gate
+- [`conformance-kit.md`](conformance-kit.md) — the checks a pack runs on its own rules,
+  targets, formats and reporters

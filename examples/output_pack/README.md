@@ -39,7 +39,9 @@ delivery: rejected — acme-webhook to https://hooks.example.com (HTTP 410, 1 at
 delivery: unreachable — acme-webhook to https://hooks.example.com (3 attempts): connection refused
 ```
 
-Only `scheme://host[:port]` is shown, never the path or the query. A receiver that
+Only `scheme://host[:port]` is shown, never the path or the query. The webhook connects
+straight to the destination and ignores `HTTP_PROXY`, `HTTPS_PROXY` and their lowercase
+forms, so no proxy sees the signed summary. A receiver that
 refuses or cannot be reached keeps the run's exit code; the webhook makes at most three
 attempts within 25 seconds and retries only on no answer, `408`, `429` and `5xx`.
 
@@ -80,7 +82,9 @@ table = render(select_renderer("acme-table", trust), load_verification(Path("run
 CLI against it: `scan` and `grade` with the network refused, `probe` against a scripted
 endpoint, `pack validate` and `pack lock`, and the webhook against a receiver that checks
 every delivery with the reference `standardwebhooks` verifier, which the tests alone
-install:
+install. Both outputs also pass Guardana's own output checks
+([conformance kit](../../docs/conformance-kit.md)), and the webhook is delivered with every
+proxy variable pointing at a refusing address:
 
 ```bash
 uv run --isolated --no-cache --with ./packages/guardana-core --with ./packages/guardana-rules \

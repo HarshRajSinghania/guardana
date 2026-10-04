@@ -549,8 +549,7 @@ its three samples, a locator target and these tests — into an empty directory,
 the result passes `pack validate` and `rule test` before you change anything.
 
 `guardana.core.testing` ships every double behind that, so a fixture is a
-few lines of Python instead of a network call or a hand-crafted binary, in
-five families:
+few lines of Python instead of a network call or a hand-crafted binary:
 
 **Transports** plug into `EndpointTarget`'s `ChatTransport` seam, so a
 dynamic rule is graded end-to-end against a scripted model with no network:
@@ -634,3 +633,14 @@ network.
 `ScanResult` with test-stable circumstances, and `FIXED_RUN_TIME` is the
 fixed instant it stamps everywhere — so two renderings of the same result
 are byte-identical and a renderer test is not also a test about clocks.
+
+**Sample runs and a receiver**, for an installed output: `sample_verifications`
+returns five runs the engine produced over kit targets — a passed and a failed
+scan, a scan of an empty tree, a probe stopped by its request budget and a scan in
+which no rule ran — so a format is tried on the runs it most needs to describe.
+`receiver` serves, on `127.0.0.1` for a `with` block, an accepting, a refusing
+(`403`) and a closed URL, yielded as a `Receiver` whose `received` lists each
+`ReceivedRequest` it answered. `guardana.testing.assert_renderer_conforms` and
+`assert_reporter_conforms` run a format or a reporter over them and raise
+`OutputContractError`; what they prove and what they do not is in the
+[conformance kit](conformance-kit.md).

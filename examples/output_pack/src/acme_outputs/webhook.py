@@ -4,7 +4,8 @@
 `--reporter acme-webhook://env:ACME_WEBHOOK_URL` reads it from the variable, so a URL that
 carries a token stays out of shell history. `ACME_WEBHOOK_SECRET` (`whsec_<base64>`) keys
 the signature. The body carries counts, rule ids, severities and titles: never evidence,
-a prompt or a reply. `prepare` sends nothing; `deliver` makes at most three attempts
+a prompt or a reply. `prepare` sends nothing; `deliver` connects straight to the
+destination, whatever `HTTP_PROXY` or `HTTPS_PROXY` say, makes at most three attempts
 within 25 seconds and says what became of them.
 """
 
@@ -23,7 +24,13 @@ from http.client import HTTPException
 from typing import IO
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
-from urllib.request import HTTPRedirectHandler, OpenerDirector, Request, build_opener
+from urllib.request import (
+    HTTPRedirectHandler,
+    OpenerDirector,
+    ProxyHandler,
+    Request,
+    build_opener,
+)
 
 from guardana.core.assessment import AssessmentStatus
 from guardana.core.output import Delivery, DeliveryStatus, ReporterRequest, ReporterSpec
@@ -161,6 +168,15 @@ class _RefuseRedirects(HTTPRedirectHandler):
         return None
 
 
+def _direct_opener() -> OpenerDirector:
+    """Connect straight to the destination: no proxy variable applies, and no redirect is followed.
+
+    A proxy the environment names would see the signed summary and could answer for the
+    receiver; the operator named the receiver, not the proxy.
+    """
+    return build_opener(ProxyHandler({}), _RefuseRedirects)
+
+
 @dataclass(frozen=True, slots=True)
 class _Answer:
     """What one attempt got back: a status, or no answer at all, and when to try again."""
@@ -181,7 +197,7 @@ class Webhook:
     sleep: Callable[[float], None] = time.sleep
     monotonic: Callable[[], float] = time.monotonic
     now: Callable[[], float] = time.time
-    opener: OpenerDirector = field(default_factory=lambda: build_opener(_RefuseRedirects))
+    opener: OpenerDirector = field(default_factory=_direct_opener)
 
     def sent_secrets(self) -> tuple[str, ...]:
         """Return the signing secret and, when it says more than the destination, the URL."""

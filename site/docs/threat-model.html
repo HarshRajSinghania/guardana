@@ -65,6 +65,7 @@
 <li><a href="writing-an-integrator.html">Writing an integrator<span class="tag">beta</span></a></li>
 </ul>
 <h2>Rules and extensions</h2><ul>
+<li><a href="conformance-kit.html">Conformance kit<span class="tag">beta</span></a></li>
 <li><a href="usage-rules.html">guardana rules</a></li>
 <li><a href="usage-taxonomy.html">guardana taxonomy</a></li>
 <li><a href="writing-rules.html">Writing rules</a></li>
@@ -200,6 +201,7 @@
 <li><a href="writing-an-integrator.html">Writing an integrator<span class="tag">beta</span></a></li>
 </ul>
 <h2>Rules and extensions</h2><ul>
+<li><a href="conformance-kit.html">Conformance kit<span class="tag">beta</span></a></li>
 <li><a href="usage-rules.html">guardana rules</a></li>
 <li><a href="usage-taxonomy.html">guardana taxonomy</a></li>
 <li><a href="writing-rules.html">Writing rules</a></li>
@@ -447,6 +449,13 @@ with one difference: no run imports it until <code>--format</code> or <code>--re
 that does not select one is not exposed to it at all. A selected reporter sends data off the
 machine to a destination the operator names, as a probe target is named; Guardana applies no
 address policy to it.</p>
+<p>Proxy variables are read two ways. The collector client honours <code>HTTP_PROXY</code>, <code>HTTPS_PROXY</code>
+and their lowercase forms, as the first hop to a probe target does: the collector is a
+destination the operator names, reached through the operator's network. An installed reporter
+is asked to ignore them, and the reference webhook does, because a proxy the environment names
+would see the delivery and could answer in the receiver's place. Guardana cannot enforce that
+for an installed reporter, since the reporter's own code makes the connection; the
+<a href="conformance-kit.html">conformance kit</a> does not check it either.</p>
 <h3 id="t4--evidence-containing-secrets">T4 — Evidence containing secrets</h3>
 <p><strong>Scenario:</strong> a rule finds a leaked API key, records it as evidence, and the
 report is committed to a repository or uploaded to a collector.</p>

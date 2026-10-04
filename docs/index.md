@@ -64,6 +64,7 @@ Start with the root [README](../README.md). Before production use, read [Product
 - [`usage-new-pack.md`](usage-new-pack.md) — scaffold an installable pack that already passes
 - [`usage-pack.md`](usage-pack.md) — validate and lock extension packs
 - [`outputs.md`](outputs.md) — add an export or a webhook from an installed package
+- [`conformance-kit.md`](conformance-kit.md) — prove a rule, target, format or reporter keeps its contract
 - [`usage-taxonomy.md`](usage-taxonomy.md) — resolve framework editions and crosswalks
 - [`model-formats.md`](model-formats.md) — use the bounded artifact readers
 

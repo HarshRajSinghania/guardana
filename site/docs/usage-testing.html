@@ -65,6 +65,7 @@
 <li><a href="writing-an-integrator.html">Writing an integrator<span class="tag">beta</span></a></li>
 </ul>
 <h2>Rules and extensions</h2><ul>
+<li><a href="conformance-kit.html">Conformance kit<span class="tag">beta</span></a></li>
 <li><a href="usage-rules.html">guardana rules</a></li>
 <li><a href="usage-taxonomy.html">guardana taxonomy</a></li>
 <li><a href="writing-rules.html">Writing rules</a></li>
@@ -200,6 +201,7 @@
 <li><a href="writing-an-integrator.html">Writing an integrator<span class="tag">beta</span></a></li>
 </ul>
 <h2>Rules and extensions</h2><ul>
+<li><a href="conformance-kit.html">Conformance kit<span class="tag">beta</span></a></li>
 <li><a href="usage-rules.html">guardana rules</a></li>
 <li><a href="usage-taxonomy.html">guardana taxonomy</a></li>
 <li><a href="writing-rules.html">Writing rules</a></li>
@@ -521,6 +523,12 @@ raises <code>TargetUnavailableError</code>.</p>
 <code>guardana analyze-trace</code> reads a trace file's contracts and unreadable records, so
 <code>assert_secure</code> runs a trace's rules directly, as it always has. A trace a framework
 translator builds in code has neither.</p>
+<h2 id="checking-an-extension-you-wrote">Checking an extension you wrote</h2>
+<p><code>guardana.testing</code> also holds the checks a pack runs on its own code, which test the
+extension rather than your system: <code>assert_target_conforms</code> for a target,
+<code>assert_renderer_conforms</code> for a format and <code>assert_reporter_conforms</code> for a reporter. Each
+raises an <code>AssertionError</code> subclass that names every problem it found. What each one proves,
+and what it does not: <a href="conformance-kit.html">conformance kit</a>.</p>
 <h2 id="what-this-is-not">What this is not</h2>
 <p>It is not a second engine, and it does not have its own idea of &quot;secure&quot;. If a
 check passes here and fails in CI, that is a fact about the target, not a
@@ -536,6 +544,8 @@ verification as commands, with reports, baselines and a collector</li>
 <li><a href="privacy.html"><code>privacy.md</code></a> — evidence modes and what is kept</li>
 <li><a href="exit-codes.html"><code>exit-codes.md</code></a> — the command-line equivalent of the three-state
 gate</li>
+<li><a href="conformance-kit.html"><code>conformance-kit.md</code></a> — the checks a pack runs on its own rules,
+targets, formats and reporters</li>
 </ul>
 
 </main>

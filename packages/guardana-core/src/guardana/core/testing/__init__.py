@@ -76,6 +76,16 @@ a renderer emits does not have to invent a clock, a run id and a tool version:
     from guardana.core.testing import manifest_for
 
     document = JsonRenderer(manifest_for(result)).render(result)
+
+**Sample runs and a receiver** stand in for the runs and the destinations an installed
+output meets, so a format or a reporter is checked against a stopped and an empty run,
+and against a receiver that accepts, one that refuses and one that does not answer:
+
+    from guardana.core.testing import receiver, sample_verifications
+
+    with receiver() as served:
+        for run in sample_verifications():
+            deliver_to(served.accepting, run)
 """
 
 from guardana.core.testing.a2a import ScriptedA2aAgent
@@ -87,6 +97,8 @@ from guardana.core.testing.artifacts import (
 )
 from guardana.core.testing.manifests import FIXED_RUN_TIME, manifest_for
 from guardana.core.testing.mcp import ScriptedMcpServer
+from guardana.core.testing.receiver import ReceivedRequest, Receiver, receiver
+from guardana.core.testing.samples import sample_verifications
 from guardana.core.testing.secrets import (
     fake_aws_key,
     fake_github_pat,
@@ -111,6 +123,8 @@ __all__ = [
     "EchoingTransport",
     "FailingTransport",
     "GullibleAgentTransport",
+    "ReceivedRequest",
+    "Receiver",
     "RefusingTransport",
     "ScriptExhaustedError",
     "ScriptedA2aAgent",
@@ -129,5 +143,7 @@ __all__ = [
     "fake_secrets",
     "files_target",
     "manifest_for",
+    "receiver",
+    "sample_verifications",
     "seeded_target",
 ]

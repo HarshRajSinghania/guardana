@@ -190,6 +190,14 @@ that does not select one is not exposed to it at all. A selected reporter sends 
 machine to a destination the operator names, as a probe target is named; Guardana applies no
 address policy to it.
 
+Proxy variables are read two ways. The collector client honours `HTTP_PROXY`, `HTTPS_PROXY`
+and their lowercase forms, as the first hop to a probe target does: the collector is a
+destination the operator names, reached through the operator's network. An installed reporter
+is asked to ignore them, and the reference webhook does, because a proxy the environment names
+would see the delivery and could answer in the receiver's place. Guardana cannot enforce that
+for an installed reporter, since the reporter's own code makes the connection; the
+[conformance kit](conformance-kit.md) does not check it either.
+
 ### T4 — Evidence containing secrets
 
 **Scenario:** a rule finds a leaked API key, records it as evidence, and the
