@@ -469,10 +469,13 @@ def test_a_format_whose_redaction_fails_exits_5_with_the_verdict_and_writes_noth
     )
 
     assert result.exit_code == ExitCode.INTERNAL_ERROR, result.output
+    refused = (
+        "error: the run could not be redacted for the format acme-table: RuntimeError — "
+        "nothing was written; this is a defect in Guardana"
+    )
     assert _lines(result.output)[-3:] == [
         "the run's verdict: fail (exit 1)",
-        "error: the run could not be redacted for the format acme-table: RuntimeError — "
-        "nothing was written; this is a defect in Guardana",
+        refused,
         f"delivery: not_sent — {_TO}: the run's report was not produced",
     ]
     assert not saved.exists()
@@ -489,10 +492,13 @@ def test_a_reporter_whose_redaction_fails_sends_nothing_and_exits_5(
     result = runner.invoke(app, ["scan", str(clean_tree), "--reporter", _HOOK, *_ADMIT])
 
     assert result.exit_code == ExitCode.INTERNAL_ERROR, result.output
+    refused = (
+        "error: the run could not be redacted for the reporter acme-webhook: RuntimeError — "
+        "nothing was sent; this is a defect in Guardana"
+    )
     assert _lines(result.output)[-3:] == [
         "the run's verdict: pass (exit 0)",
-        "error: the run could not be redacted for the reporter acme-webhook: RuntimeError — "
-        "nothing was sent; this is a defect in Guardana",
+        refused,
         f"delivery: not_sent — {_TO}: redaction failed: RuntimeError",
     ]
     assert len(_delivery_lines(result.output)) == 1
@@ -718,12 +724,13 @@ def _prepared() -> PreparedReporter:
 
 def _guarded(raised: BaseException) -> str:
     said = io.StringIO()
-    with (
-        redirect_stderr(said),
-        pytest.raises(type(raised)),
-        RunOutputs(OutputFormat.human, _prepared()),
-    ):
-        raise raised
+
+    def ended() -> None:
+        with redirect_stderr(said), RunOutputs(OutputFormat.human, _prepared()):
+            raise raised
+
+    with pytest.raises(type(raised)):
+        ended()
     return said.getvalue()
 
 
@@ -761,13 +768,13 @@ def test_the_guard_prints_one_line_however_often_it_is_told() -> None:
 
 def test_the_guard_is_silent_without_a_reporter() -> None:
     said = io.StringIO()
-    with (
-        redirect_stderr(said),
-        pytest.raises(KeyboardInterrupt),
-        RunOutputs(OutputFormat.human, None),
-    ):
-        raise KeyboardInterrupt
 
+    def interrupted() -> None:
+        with redirect_stderr(said), RunOutputs(OutputFormat.human, None):
+            raise KeyboardInterrupt
+
+    with pytest.raises(KeyboardInterrupt):
+        interrupted()
     assert said.getvalue() == ""
 
 

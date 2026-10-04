@@ -52,6 +52,24 @@ provides:
   reporters: [acme-webhook]
 """
 
+_V2_OUTPUT_API_ONLY = """\
+schema_version: 2
+name: a
+extension_api: ">=2,<3"
+output_api: ">=1,<2"
+provides:
+  rules: [acme.rule]
+"""
+
+_V1_OUTPUT_API_ONLY = """\
+schema_version: 1
+name: a
+extension_api: ">=1,<2"
+output_api: ">=1,<2"
+provides:
+  rules: [acme.rule]
+"""
+
 
 def _validator(name: str) -> Draft202012Validator:
     return Draft202012Validator(json.loads((_SCHEMAS / name).read_text(encoding="utf-8")))
@@ -123,11 +141,9 @@ def test_the_published_schema_refuses_what_the_loader_refuses(
         _OUTPUTS.replace("schema_version: 3", "schema_version: 2")
         .replace('output_api: ">=1,<2"\n', "")
         .replace("  renderers: [acme-table]\n", ""),
-        'schema_version: 2\nname: a\nextension_api: ">=2,<3"\noutput_api: ">=1,<2"\n'
-        "provides:\n  rules: [acme.rule]\n",
+        _V2_OUTPUT_API_ONLY,
         _OUTPUTS.replace("schema_version: 3", "schema_version: 1"),
-        'schema_version: 1\nname: a\nextension_api: ">=1,<2"\noutput_api: ">=1,<2"\n'
-        "provides:\n  rules: [acme.rule]\n",
+        _V1_OUTPUT_API_ONLY,
     ],
     ids=["v2-renderers", "v2-reporters", "v2-output-api", "v1-outputs", "v1-output-api"],
 )
