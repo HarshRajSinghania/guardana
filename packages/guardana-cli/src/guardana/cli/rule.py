@@ -38,7 +38,7 @@ from guardana.core.report import CheckError
 from guardana.core.rule import FixtureOutcome, Rule, RuleContext, RuleFixture
 from guardana.core.rule.suite_rule import SuiteRule
 from guardana.core.rule.verify import FixtureVerdict, RuleVerification, verify_rule
-from guardana.core.target import ChatMessage, EndpointTarget
+from guardana.core.target import ChatMessage, EndpointTarget, TargetKind
 
 rule_app = typer.Typer(help="Work on one rule: run its fixtures.")
 
@@ -208,6 +208,7 @@ _LEFT_OUT = (
     "from a suite (its outcome is a pass rate, not one reply's label)",
     "inconclusive (no measurable label)",
     "not offered (the sample lacks what the rule examines)",
+    "artifact or trace sample(s) (the corpus holds model replies only)",
     "from a rule that declares no expectation or more than one",
     "not a single scripted reply (a conversation or an agent run)",
     "not classified as declared",
@@ -217,11 +218,13 @@ _LEFT_OUT = (
     _SUITE,
     _INCONCLUSIVE,
     _NOT_OFFERED,
+    _NO_REPLY_KIND,
     _NOT_ONE_EXPECTATION,
     _NOT_ONE_REPLY,
     _NOT_VERIFIED,
     _NOTHING_SENT,
 ) = _LEFT_OUT
+_NO_REPLY_KINDS = frozenset({TargetKind.ARTIFACT, TargetKind.TRACE})
 
 
 def _write_corpus(
@@ -250,14 +253,8 @@ def _write_corpus(
         expectations = tuple(e for _id, e in rule.declared_expectations())
         for index, fixture in enumerate(rule.fixtures()):
             reply = _scripted_reply(fixture.target)
-            if isinstance(rule, SuiteRule):
-                left_out[_SUITE] += 1
-            elif fixture.outcome is FixtureOutcome.INCONCLUSIVE:
-                left_out[_INCONCLUSIVE] += 1
-            elif fixture.outcome is FixtureOutcome.NOT_OFFERED:
-                left_out[_NOT_OFFERED] += 1
-            elif len(expectations) != 1:
-                left_out[_NOT_ONE_EXPECTATION] += 1
+            if (unlabelled := _unlabelled(rule, fixture, expectations)) is not None:
+                left_out[unlabelled] += 1
             elif reply is None:
                 left_out[_NOT_ONE_REPLY] += 1
             elif not _classified_as_declared(verification, index, fixture):
@@ -278,6 +275,21 @@ def _write_corpus(
         f"wrote {len(samples)} labelled sample(s) to {destination}"
         + (f"; left out: {reasons}" if reasons else "")
     )
+
+
+def _unlabelled(rule: Rule, fixture: RuleFixture, expectations: tuple[object, ...]) -> str | None:
+    """Why this fixture cannot become a corpus row, or None when it still might."""
+    if isinstance(rule, SuiteRule):
+        return _SUITE
+    if fixture.outcome is FixtureOutcome.INCONCLUSIVE:
+        return _INCONCLUSIVE
+    if fixture.outcome is FixtureOutcome.NOT_OFFERED:
+        return _NOT_OFFERED
+    if fixture.target.kind in _NO_REPLY_KINDS:
+        return _NO_REPLY_KIND
+    if len(expectations) != 1:
+        return _NOT_ONE_EXPECTATION
+    return None
 
 
 def _classified_as_declared(

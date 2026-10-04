@@ -440,6 +440,28 @@ def test_a_one_step_scenario_with_two_grades_is_left_out(tmp_path: Path) -> None
     assert "1 from a rule that declares no expectation or more than one" in result.output
 
 
+_NO_CORPUS_ROW = "2 artifact or trace sample(s) (the corpus holds model replies only)"
+
+
+@pytest.mark.parametrize(
+    "rule_id", ["guardana.training.dataset_integrity", "guardana.trace.cross_tenant_retrieval"]
+)
+def test_an_artifact_or_trace_sample_is_left_out_under_its_own_reason(
+    tmp_path: Path, rule_id: str
+) -> None:
+    """Such a sample has no reply to label, which is not a rule declaring the wrong expectations."""
+    corpus = tmp_path / "mine.jsonl"
+
+    result = _run(rule_id, "--write-corpus", str(corpus))
+
+    assert result.exit_code == 0, result.output
+    summary = _plain(result.output)
+    assert corpus.read_text(encoding="utf-8") == ""
+    assert _NO_CORPUS_ROW in summary
+    assert "declares no expectation or more than one" not in summary
+    assert "1 inconclusive (no measurable label)" in summary
+
+
 def _plain(text: str) -> str:
     return " ".join(_ANSI.sub("", text).split())
 

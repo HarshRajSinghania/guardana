@@ -35,7 +35,7 @@ from guardana.core.output import (
 )
 from guardana.core.target import EndpointError
 from guardana.core.testing import FailingTransport, RefusingTransport
-from guardana.core.verify import Verification
+from guardana.core.verify import Verification, exchanges_path
 from typer.testing import CliRunner, Result
 
 runner = CliRunner()
@@ -277,6 +277,91 @@ def test_a_failed_format_removes_an_earlier_run_at_its_output(  # noqa: PLR0913 
     assert result.exit_code == code, result.output
     assert not saved.exists()
     assert _lines(result.output)[-1] == f"removed {saved}: it held an earlier run, not this one"
+
+
+def _probe_that_kept_exchanges(saved: Path) -> Path:
+    """Probe once with `--keep-exchanges` into `saved` and return the sidecar it wrote."""
+    earlier = _probe("--keep-exchanges", "--format", "json", "--output", str(saved))
+    assert earlier.exit_code == ExitCode.OK, earlier.output
+    sidecar = exchanges_path(saved)
+    assert sidecar.is_file(), earlier.output
+    return sidecar
+
+
+@pytest.mark.parametrize(
+    ("rendered", "code"),
+    [("''", ExitCode.OUTPUT_FAILED), ("'a,b'", ExitCode.INTERNAL_ERROR)],
+    ids=["format-failed", "redaction-failed"],
+)
+def test_a_failed_format_removes_the_exchanges_an_earlier_probe_kept_at_its_output(  # noqa: PLR0913 — the matrix
+    site: FakeSite,
+    endpoint: RefusingTransport,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    rendered: str,
+    code: ExitCode,
+) -> None:
+    """Left in place, the earlier probe's exchanges would read as kept beside this run."""
+    saved = tmp_path / "run.json"
+    sidecar = _probe_that_kept_exchanges(saved)
+    _table(site, rendered=rendered)
+    if code is ExitCode.INTERNAL_ERROR:
+        _failing_boundary(monkeypatch)
+
+    result = _probe("--format", "acme-table", "--output", str(saved), *_ADMIT)
+
+    assert result.exit_code == code, result.output
+    assert not saved.exists()
+    assert not sidecar.exists()
+    assert _lines(result.output)[-2:] == [
+        f"removed {saved}: it held an earlier run, not this one",
+        f"removed {sidecar}, which an earlier run at this path kept",
+    ]
+
+
+def test_a_sidecar_that_cannot_be_removed_is_a_warning(
+    site: FakeSite,
+    endpoint: RefusingTransport,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    saved = tmp_path / "run.json"
+    sidecar = _probe_that_kept_exchanges(saved)
+    _table(site, rendered="''")
+    unlink = Path.unlink
+
+    def refuse_the_sidecar(path: Path, missing_ok: bool = False) -> None:
+        if path == sidecar:
+            raise PermissionError("read-only")
+        unlink(path, missing_ok=missing_ok)
+
+    monkeypatch.setattr(Path, "unlink", refuse_the_sidecar)
+
+    result = _probe("--format", "acme-table", "--output", str(saved), *_ADMIT)
+
+    assert result.exit_code == ExitCode.OUTPUT_FAILED, result.output
+    assert sidecar.is_file()
+    assert _lines(result.output)[-1] == (
+        f"warning: {sidecar} still holds exchanges an earlier run kept, not this run's: "
+        f"could not remove it: read-only"
+    )
+
+
+def test_a_probe_whose_format_succeeds_removes_an_earlier_sidecar_once(
+    site: FakeSite, endpoint: RefusingTransport, tmp_path: Path
+) -> None:
+    saved = tmp_path / "run.json"
+    sidecar = _probe_that_kept_exchanges(saved)
+    _table(site)
+
+    result = _probe("--format", "acme-table", "--output", str(saved), *_ADMIT)
+
+    assert result.exit_code == ExitCode.OK, result.output
+    assert saved.read_bytes() == b"a,b\r\n1,2\r\n"
+    assert not sidecar.exists()
+    removed = [line for line in _lines(result.output) if line.startswith("removed ")]
+    assert removed == [f"removed {sidecar}, which an earlier run at this path kept"]
 
 
 def test_a_failed_format_says_its_report_was_not_produced_to_the_reporter(

@@ -35,7 +35,7 @@ from guardana.core.output import (
     select_reporter,
 )
 from guardana.core.plugins import PluginTrust
-from guardana.core.verify import UnenforceableBudgetError, Verification
+from guardana.core.verify import UnenforceableBudgetError, Verification, exchanges_path
 from guardana.report import get_renderer
 
 MONITOR_REFUSAL = (
@@ -224,7 +224,8 @@ class RunOutputs:
         An installed format that fails ends the command: the verdict is printed, nothing is
         written, and the exit is `8` unless the run stopped. When Guardana's own redaction
         fails for it, the exit is `5` unless the run stopped. Either way an earlier run at
-        `output` is removed, so the path never holds a report this run did not produce.
+        `output`, and the exchanges kept beside it, are removed, so the path never holds a
+        report this run did not produce.
         """
         name = self.format_name
         if isinstance(self.format, OutputFormat):
@@ -331,19 +332,32 @@ class RunOutputs:
 
 
 def _remove_earlier(output: Path | None) -> None:
-    """Remove the file at `output`, which holds an earlier run, and say so."""
-    if output is None or not (output.is_file() or output.is_symlink()):
+    """Remove the earlier run at `output` and the exchanges kept beside it, and say so."""
+    if output is None:
+        return
+    _remove(
+        output,
+        removed=f"removed {output}: it held an earlier run, not this one",
+        kept=f"{output} still holds an earlier run, not this one",
+    )
+    sidecar = exchanges_path(output)
+    _remove(
+        sidecar,
+        removed=f"removed {sidecar}, which an earlier run at this path kept",
+        kept=f"{sidecar} still holds exchanges an earlier run kept, not this run's",
+    )
+
+
+def _remove(path: Path, *, removed: str, kept: str) -> None:
+    """Remove `path` if a file or link is there and print `removed`, or warn that it is `kept`."""
+    if not (path.is_file() or path.is_symlink()):
         return
     try:
-        output.unlink()
+        path.unlink()
     except OSError as exc:
-        typer.echo(
-            f"warning: {output} still holds an earlier run, not this one: could not remove it: "
-            f"{exc}",
-            err=True,
-        )
+        typer.echo(f"warning: {kept}: could not remove it: {exc}", err=True)
         return
-    typer.echo(f"removed {output}: it held an earlier run, not this one", err=True)
+    typer.echo(removed, err=True)
 
 
 def _end_unacknowledged(verification: Verification) -> NoReturn:
