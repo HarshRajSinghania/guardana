@@ -439,7 +439,10 @@ the distribution version as the coarse pin. One spelling everywhere ids are pool
 `reporter:<name>`. `_undelivered` covers outputs (declared and not provided raises `PackError`),
 `_pack_drift` reports `added` and `removed` outputs, `_READABLE_LOCK_SCHEMAS` becomes `{1, 2, 3}`,
 and a schema 1 or 2 lock carrying `renderers` or `reporters` is refused. A schema 2 lock with an
-output now installed reports it as `added`.
+output now installed reports it as `added`, and `pack lock --check` says the lock pins no output
+and asks for `guardana pack lock`. Schema 2, of a manifest or a lock, is current rather than
+migrated: it is what this build still writes when nothing declares an output, so `pack validate`
+reports no migration for it. The built-in `guardana-pack.yaml` stays at schema 2.
 
 "Pack locks" means drift that `pack lock --check` reports; selection does not read
 `guardana-lock.yaml`, as rule discovery does not. A directory or editable install changes its

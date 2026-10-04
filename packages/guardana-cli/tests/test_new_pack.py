@@ -15,7 +15,7 @@ import yaml
 from guardana.cli.exit_codes import ExitCode
 from guardana.cli.main import app
 from guardana.core import taxonomy
-from guardana.core.pack import EXTENSION_API_VERSION, PACK_SCHEMA_VERSION, load_manifest
+from guardana.core.pack import EXTENSION_API_VERSION, load_manifest
 from typer.testing import CliRunner
 
 runner = CliRunner()
@@ -72,7 +72,7 @@ def test_the_manifest_claims_exactly_the_ids_the_catalogue_files_on_disk_declare
     assert _declared_ids(tmp_path) == catalogue
 
 
-def test_the_manifest_declares_the_generated_target_and_the_schema_this_build_writes(
+def test_the_manifest_declares_the_generated_target_and_a_schema_older_builds_read(
     tmp_path: Path,
 ) -> None:
     runner.invoke(app, ["new-pack", "acme-rules", "--dir", str(tmp_path)])
@@ -80,7 +80,9 @@ def test_the_manifest_declares_the_generated_target_and_the_schema_this_build_wr
     manifest = yaml.safe_load((tmp_path / MANIFEST).read_text())
 
     assert manifest["provides"]["targets"] == ["AcmeRulesTarget"]
-    assert manifest["schema_version"] == PACK_SCHEMA_VERSION
+    # Schema 2, not this build's newest: a scaffold declares no output, and a
+    # schema 2 manifest also loads on builds that predate outputs.
+    assert manifest["schema_version"] == 2
     assert "class AcmeRulesTarget(Target)" in (tmp_path / PACKAGE / "target.py").read_text()
 
 

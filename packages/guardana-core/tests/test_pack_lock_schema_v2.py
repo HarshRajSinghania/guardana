@@ -84,7 +84,7 @@ def test_the_flat_layout_is_what_the_line_check_catches() -> None:
 def test_a_written_lock_nests_rules_and_catalogues_under_digest() -> None:
     document = lock_to_dict(_lock())
 
-    assert document["schema_version"] == LOCK_SCHEMA_VERSION == 2
+    assert document["schema_version"] == 2
     (pack,) = document["packs"]
     assert pack["rules"] == {_RULE: {"digest": "5f81dbb2a6b93970"}}
     assert pack["taxonomies"] == {_CATALOGUE: {"digest": catalogue_digest([_REF])}}
@@ -101,7 +101,7 @@ def test_a_schema_1_lock_reads_as_the_same_lock_and_records_the_migration() -> N
     restored = lock_from_dict(_as_schema_1(lock_to_dict(_lock())), "guardana-lock.yaml")
 
     assert restored.migrated_from == 1
-    assert restored.schema_version == LOCK_SCHEMA_VERSION
+    assert restored.schema_version == 2
     assert restored.packs == _lock().packs
     assert restored.unlocked == _lock().unlocked
     assert restored.extension_api == _lock().extension_api

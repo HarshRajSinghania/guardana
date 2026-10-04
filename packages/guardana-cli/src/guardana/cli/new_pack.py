@@ -10,8 +10,12 @@ from typing import Annotated
 import typer
 import yaml
 from guardana.cli.exit_codes import ExitCode
-from guardana.core.pack import EXTENSION_API_VERSION, MANIFEST_NAME, PACK_SCHEMA_VERSION
+from guardana.core.pack import EXTENSION_API_VERSION, MANIFEST_NAME
 from guardana.core.registry import RESERVED_NAMESPACE, RESERVED_TARGET_SCHEMES
+
+_SCAFFOLD_SCHEMA = 2
+"""The manifest schema a scaffold writes: it declares no output, which is all schema 3
+adds, and a schema 2 manifest also loads on builds that predate outputs."""
 
 _SHAPES = {
     "prompt": ("prompt_secret_disclosure.yaml", "prompt_rule.yaml.tmpl"),
@@ -60,7 +64,7 @@ class _Names:
             ("__CLASS__", self.klass),
             ("__DIST__", self.distribution),
             ("__API_RANGE__", api_range),
-            ("__SCHEMA__", str(PACK_SCHEMA_VERSION)),
+            ("__SCHEMA__", str(_SCAFFOLD_SCHEMA)),
         ):
             template = template.replace(token, value)
         return template

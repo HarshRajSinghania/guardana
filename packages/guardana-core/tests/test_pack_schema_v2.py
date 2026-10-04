@@ -51,7 +51,7 @@ def test_a_pack_that_ships_only_a_catalogue_can_describe_itself(tmp_path: Path) 
 
     assert manifest.taxonomies == ("ACME-CONTROLS",)
     assert manifest.provides == ("ACME-CONTROLS",)
-    assert manifest.schema_version == PACK_SCHEMA_VERSION
+    assert manifest.schema_version == 2
     assert manifest.migrated_from is None
 
 

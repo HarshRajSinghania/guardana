@@ -23,6 +23,7 @@ from pathlib import Path
 
 _REPO = Path(__file__).resolve().parent.parent
 _OUT = _REPO / "docs" / "generated"
+_BUILT_IN_MANIFEST_SCHEMA = 2  # declares no output, so older builds keep reading it
 
 sys.path.insert(0, str(_REPO / "packages" / "guardana-core" / "src"))
 sys.path.insert(0, str(_REPO / "packages" / "guardana-rules" / "src"))
@@ -30,7 +31,6 @@ sys.path.insert(0, str(_REPO / "packages" / "guardana-rules" / "src"))
 from guardana.core import __version__  # noqa: E402
 from guardana.core.evaluator import CONFIG_WIRED  # noqa: E402
 from guardana.core.evaluator.base import Evaluator  # noqa: E402
-from guardana.core.pack import PACK_SCHEMA_VERSION  # noqa: E402
 from guardana.core.rule.base import Rule, RuleContext  # noqa: E402
 from guardana.core.rule.fixture import FixtureOutcome  # noqa: E402
 from guardana.core.rule.verify import FixtureVerdict, verify_rule  # noqa: E402
@@ -425,7 +425,7 @@ def _pack_manifest(rules: list[Rule]) -> str:
         "# Documentation: docs/usage-pack.md\n"
         "# Reasoning:     docs/design/extension-author-tooling.md\n"
         "\n"
-        f"schema_version: {PACK_SCHEMA_VERSION}\n"
+        f"schema_version: {_BUILT_IN_MANIFEST_SCHEMA}\n"
         "name: guardana-rules\n"
         "\n"
         "# Versioned separately from the product: in 0.x the product's minor breaks API\n"

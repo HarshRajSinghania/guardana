@@ -20,12 +20,16 @@ from guardana.cli._plugins import (
     AllowPluginOption,
     PluginsOption,
     ResolvedTrust,
+    admission_forms,
     hint_refused_plugins,
+    refused_distributions,
     resolve_trust,
     warn_about_load_errors,
 )
 from guardana.cli._profile import resolve_profile
 from guardana.cli.exit_codes import ExitCode
+from guardana.core.entrypoints import RENDERER_GROUP, REPORTER_GROUP
+from guardana.core.output import OutputDiscovery, discover_outputs
 from guardana.core.pack import (
     EXTENSION_API_VERSION,
     SUPPORTED_EXTENSION_API_VERSIONS,
@@ -77,12 +81,13 @@ def validate(
 
     Exit `0` every pack is loadable and accurate · `1` one is not · `2` nothing
     declared a manifest, some installed package registers extensions and declares
-    none, or plugin trust refused an extension so this build's own registrations
-    are unproven and no manifest can be checked against them · `3` the manifest
-    could not be read at all.
+    none, or plugin trust refused an extension or an output (or one failed to load,
+    or several distributions install one output name) so this build's own
+    registrations are unproven and no manifest can be checked against them · `3` the
+    manifest could not be read at all.
     """
     resolved = resolve_trust(plugins, allow_plugin, resolve_profile(profile, None))
-    registry = _discover_completely(
+    registry, outputs = _discover_completely(
         resolved,
         consequence="a manifest cannot be checked against a registry this build did not fully load",
     )
@@ -96,7 +101,7 @@ def validate(
     # and the unit `provides.taxonomies` declares. `known_refs()` rather than a
     # registry method: taxonomies are registered into the taxonomy module during
     # discovery, before rules, so a YAML rule can resolve the ids it names.
-    registered = _registered(registry)
+    registered = _registered(registry, outputs)
 
     try:
         if manifest is not None:
@@ -126,14 +131,15 @@ def validate(
     if any(not c.ok for c in checks):
         raise typer.Exit(code=ExitCode.POLICY_FAILED)
     if silent:
-        # Those packages register rules, evaluators, targets or catalogues that are
-        # live in this build, and no manifest says which API they were written
-        # against. Counting only the manifests found would report a clean bill of
-        # health over a subset whose size the reader cannot see.
+        # Those packages register rules, evaluators, targets, catalogues, renderers or
+        # reporters that are live in this build, and no manifest says which API they
+        # were written against. Counting only the manifests found would report a
+        # clean bill of health over a subset whose size the reader cannot see.
         shown = ", ".join(silent[:_NAMED_IN_A_WARNING])
         typer.echo(
-            f"{len(silent)} installed package(s) register extensions and declare no "
-            f"manifest, so nothing here says whether this build can load them: "
+            f"{len(silent)} installed package(s) register extensions (rules, evaluators, "
+            f"targets, catalogues, renderers or reporters) and declare no manifest, so "
+            f"nothing here says whether this build can load them: "
             f"{shown}" + (" …" if len(silent) > _NAMED_IN_A_WARNING else ""),
             err=True,
         )
@@ -164,15 +170,16 @@ def lock(
 
     Exit `0` the build matches the lock · `1` it has drifted · `2` nothing was
     installed to pin, a pack declares something nothing registers, or plugin trust
-    refused an extension so what this build registers is unproven · `3` the lock
-    could not be read.
+    refused an extension or an output (or one failed to load, or several
+    distributions install one output name) so what this build registers is unproven
+    · `3` the lock could not be read.
     """
     resolved = resolve_trust(plugins, allow_plugin, resolve_profile(profile, None))
     # `_installed(registry)` reads this registry. Writing a lock from one that trust
     # emptied would persist a false "rules: {}" for a pack that registers plenty;
     # checking against it would call a refused extension "gone" when it was never
     # absent. A lock is a document a team keeps and reads on every CI run.
-    registry = _discover_completely(
+    registry, outputs = _discover_completely(
         resolved,
         consequence="a lock written or checked against it could call something 'gone' "
         "that was only refused",
@@ -186,7 +193,7 @@ def lock(
         )
         raise typer.Exit(code=ExitCode.INDETERMINATE)
     try:
-        present = lock_of(packs, _installed(registry))
+        present = lock_of(packs, _installed(registry, outputs))
     except PackError as exc:
         typer.echo(f"error: {exc}", err=True)
         raise typer.Exit(code=ExitCode.INDETERMINATE) from exc
@@ -214,6 +221,12 @@ def lock(
             f"check is clean",
             err=True,
         )
+    elif locked.schema_version < present.schema_version:
+        typer.echo(
+            f"note: {path} is lock schema {locked.schema_version}, which pins no outputs, "
+            f"and this build has outputs to pin — rewrite it with `guardana pack lock`",
+            err=True,
+        )
 
     drift = compare(locked, present)
     for entry in drift:
@@ -225,32 +238,85 @@ def lock(
     _warn_about_unpinnable(present)
 
 
-def _discover_completely(resolved: ResolvedTrust, *, consequence: str) -> Registry:
+def _discover_completely(
+    resolved: ResolvedTrust, *, consequence: str
+) -> tuple[Registry, OutputDiscovery]:
     """Discover under `resolved`, and stop with exit 2 unless everything installed loaded.
 
     Runs before any manifest is read, because reading one imports its module: a pack
-    trust refused must not execute through the command that reports the refusal.
+    trust refused must not execute through the command that reports the refusal. An
+    output is refused from its metadata before anything imports it, and an output
+    name several distributions install counts as unaccounted, because no run can
+    select it.
     """
     registry = Registry.discover(resolved.trust)
     warn_about_load_errors(registry, resolved, what="an extension")
     hint_refused_plugins(registry, resolved)
-    if registry.load_errors:
+    outputs = discover_outputs(resolved.trust)
+    unaccounted = _warn_about_outputs(outputs, resolved)
+    if registry.load_errors or unaccounted:
         typer.echo(
-            f"error: {len(registry.load_errors)} extension(s) were refused by plugin "
-            f"trust or failed to load, so what this build actually registers is "
-            f"unproven — {consequence}; see the warning(s) above",
+            f"error: {len(registry.load_errors) + unaccounted} extension(s) were refused "
+            f"by plugin trust, failed to load or are installed by more than one "
+            f"distribution, so what this build actually registers is unproven — "
+            f"{consequence}; see the warning(s) above",
             err=True,
         )
         raise typer.Exit(code=ExitCode.INDETERMINATE)
-    return registry
+    return registry, outputs
 
 
-def _registered(registry: Registry) -> Registered:
+_OUTPUT_NOUNS = {"renderer": "format", "reporter": "reporter"}
+_GROUP_NOUNS = {RENDERER_GROUP: "format", REPORTER_GROUP: "reporter"}
+
+
+def _warn_about_outputs(outputs: OutputDiscovery, resolved: ResolvedTrust) -> int:
+    """Warn about every output trust refused, that failed or that collides; return how many."""
+    for entry_point in outputs.refused:
+        noun = _GROUP_NOUNS[entry_point.group]
+        typer.echo(
+            f"warning: the {noun} {entry_point.name} comes from "
+            f"{_described(entry_point.distribution, entry_point.version)}, which plugin "
+            f"trust {resolved.trust.describe()} does not admit",
+            err=True,
+        )
+    if outputs.refused and not resolved.stated:
+        first, *rest = admission_forms(list(refused_distributions(outputs.refused)))
+        lines = [f"  to load them, state the trust, narrowest first: {first}"]
+        lines.extend(f"    or {form}" for form in rest)
+        typer.echo("\n".join(lines), err=True)
+    for entry_point, reason in outputs.failed:
+        noun = _GROUP_NOUNS[entry_point.group]
+        typer.echo(
+            f"warning: the {noun} {entry_point.name} from "
+            f"{_described(entry_point.distribution, entry_point.version)} could not be "
+            f"loaded: {reason}",
+            err=True,
+        )
+    for key, distributions in sorted(outputs.collisions.items()):
+        kind, _, name = key.partition(":")
+        typer.echo(
+            f"warning: the {_OUTPUT_NOUNS[kind]} {name} is installed by "
+            f"{len(distributions)} distributions ({', '.join(distributions)}); selecting it "
+            f"is refused",
+            err=True,
+        )
+    return len(outputs.refused) + len(outputs.failed) + len(outputs.collisions)
+
+
+def _described(distribution: str | None, version: str | None) -> str:
+    if distribution is None:
+        return "an unnamed distribution"
+    return f"{distribution} {version}" if version else distribution
+
+
+def _registered(registry: Registry, outputs: OutputDiscovery) -> Registered:
     """Collect what this build registers, by kind, naming the distribution where it can.
 
     Rules, evaluators and targets carry the distribution discovery loaded them from;
     a framework carries every distribution that registered a reference into it, the
-    one shipping the built-in catalogues included.
+    one shipping the built-in catalogues included; an output carries the distribution
+    whose entry point names it.
     """
     return Registered(
         rules={
@@ -266,10 +332,13 @@ def _registered(registry: Registry) -> Registered:
         },
         taxonomies=dict.fromkeys(ref.framework for ref in known_refs()),
         taxonomy_owners=registry.taxonomy_owners(),
+        renderers={name: origin.distribution for name, origin in outputs.renderers.items()},
+        reporters={name: origin.distribution for name, origin in outputs.reporters.items()},
+        output_collisions=outputs.collisions,
     )
 
 
-def _installed(registry: Registry) -> Installed:
+def _installed(registry: Registry, outputs: OutputDiscovery) -> Installed:
     """Collect what this build registers, in the vocabulary a lock pins.
 
     The engine's own references are left out. They ship inside `guardana-core` as
@@ -283,6 +352,8 @@ def _installed(registry: Registry) -> Installed:
         evaluators=tuple(sorted(registry.evaluators())),
         targets=tuple(sorted(target.__name__ for target in registry.targets())),
         catalogues={name: catalogue_digest(refs) for name, refs in extensions().items()},
+        renderers=tuple(sorted(outputs.renderers)),
+        reporters=tuple(sorted(outputs.reporters)),
     )
 
 
@@ -328,9 +399,12 @@ def _render(checks: list[PackCheck]) -> list[str]:
     ]
     for check in checks:
         mark = "✓" if check.ok else "✖"
+        output_api = (
+            f", output_api {check.manifest.output_api}" if check.manifest.output_api else ""
+        )
         lines.append(
-            f"{mark} {check.manifest.name} (extension_api {check.manifest.extension_api}) — "
-            f"{len(check.manifest.provides)} declared{_read_as(check.manifest)}"
+            f"{mark} {check.manifest.name} (extension_api {check.manifest.extension_api}"
+            f"{output_api}) — {len(check.manifest.provides)} declared{_read_as(check.manifest)}"
         )
         lines.extend(f"    {problem}" for problem in check.problems)
     lines.append("")

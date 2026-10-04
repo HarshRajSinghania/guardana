@@ -673,7 +673,10 @@ the distribution version as the coarse pin. One spelling everywhere ids are pool
 <code>reporter:&lt;name&gt;</code>. <code>_undelivered</code> covers outputs (declared and not provided raises <code>PackError</code>),
 <code>_pack_drift</code> reports <code>added</code> and <code>removed</code> outputs, <code>_READABLE_LOCK_SCHEMAS</code> becomes <code>{1, 2, 3}</code>,
 and a schema 1 or 2 lock carrying <code>renderers</code> or <code>reporters</code> is refused. A schema 2 lock with an
-output now installed reports it as <code>added</code>.</p>
+output now installed reports it as <code>added</code>, and <code>pack lock --check</code> says the lock pins no output
+and asks for <code>guardana pack lock</code>. Schema 2, of a manifest or a lock, is current rather than
+migrated: it is what this build still writes when nothing declares an output, so <code>pack validate</code>
+reports no migration for it. The built-in <code>guardana-pack.yaml</code> stays at schema 2.</p>
 <p>&quot;Pack locks&quot; means drift that <code>pack lock --check</code> reports; selection does not read
 <code>guardana-lock.yaml</code>, as rule discovery does not. A directory or editable install changes its
 code under one version; that limit is the one evaluators and targets already have, and the

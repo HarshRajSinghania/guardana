@@ -54,7 +54,8 @@ def test_a_lock_pins_the_built_in_rules_by_digest(tmp_path: Path) -> None:
 
     (builtin,) = [pack for pack in document["packs"] if pack["name"] == "guardana-rules"]
     assert builtin["rules"]["guardana.prompt.system_prompt_leak.canary"]["digest"]
-    assert document["schema_version"] == LOCK_SCHEMA_VERSION
+    # Nothing installed pins an output, so the lock stays at the schema older builds read.
+    assert document["schema_version"] == 2
 
 
 _ID_BESIDE_A_DIGEST = re.compile(

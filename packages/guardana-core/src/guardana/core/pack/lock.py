@@ -11,9 +11,9 @@ So this pins three different things with three different strengths, and says whi
 is which rather than presenting one confidence:
 
 - **rules** by digest — their declaration, hashed. A changed corpus is visible;
-- **evaluators and targets** by id only. An `Evaluator` is Python and has no
-  declaration to hash, and inventing a digest from a class name would claim to
-  detect a change it cannot see. `_run_meta` made that call for the run manifest
+- **evaluators, targets, renderers and reporters** by id only. They are Python and
+  have no declaration to hash, and inventing a digest from a class name would claim
+  to detect a change it cannot see. `_run_meta` made that call for the run manifest
   and it is the same call here;
 - **catalogues** by a digest over the references a pack registers. A third-party
   catalogue has no *file* to pin — a pack registers refs through an entry point —
@@ -31,18 +31,26 @@ from enum import StrEnum
 from typing import Any
 
 from guardana.core.fingerprint import digest_of
-from guardana.core.pack.model import EXTENSION_API_VERSION, PackError, PackManifest
+from guardana.core.pack.model import EXTENSION_API_VERSION, PackError, PackManifest, output_id
 
-LOCK_SCHEMA_VERSION = 2
-"""Version of `guardana-lock.yaml`, moved independently of everything it pins.
+LOCK_SCHEMA_VERSION = 3
+"""The newest version of `guardana-lock.yaml`, moved independently of everything it pins.
 
 A lock is a document a team keeps in their repository and reads on every CI run, so
 principle 11 applies to it exactly as it does to a saved run. Schema 2 nests every
 digest as `<id>: {digest: <hex>}`: an id may contain `secret`, `key` or `token`, and
-schema 1's `<id>: <hex>` line reads to a secret scanner as a credential.
+schema 1's `<id>: <hex>` line reads to a secret scanner as a credential. Schema 3
+adds `renderers` and `reporters` to every pack entry and is written only when a pack
+pins an output or an output is unlocked, so a lock without outputs stays schema 2
+and readable by builds that predate outputs.
 """
 
-_READABLE_LOCK_SCHEMAS = frozenset({1, LOCK_SCHEMA_VERSION})
+_SCHEMA_WITHOUT_OUTPUTS = 2
+"""The schema written when nothing pins an output."""
+
+_READABLE_LOCK_SCHEMAS = frozenset({1, _SCHEMA_WITHOUT_OUTPUTS, LOCK_SCHEMA_VERSION})
+
+_OUTPUT_KINDS = ("renderer", "reporter")
 
 LOCK_NAME = "guardana-lock.yaml"
 """The conventional filename, at the root of the repository being gated."""
@@ -90,6 +98,13 @@ class LockedPack:
     evaluators: tuple[str, ...] = ()
     targets: tuple[str, ...] = ()
     taxonomies: Mapping[str, str] = field(default_factory=dict)
+    renderers: tuple[str, ...] = ()
+    reporters: tuple[str, ...] = ()
+
+    @property
+    def pins_outputs(self) -> bool:
+        """Whether this pack pins a renderer or a reporter."""
+        return bool(self.renderers or self.reporters)
 
 
 @dataclass(frozen=True, slots=True)
@@ -105,7 +120,9 @@ class Lock:
     a repository with an unpinnable pack look fully pinned.
     """
 
-    schema_version: int = LOCK_SCHEMA_VERSION
+    schema_version: int = _SCHEMA_WITHOUT_OUTPUTS
+    """The layout this lock was read as, or the one `lock_of` will have it written as."""
+
     extension_api: int = EXTENSION_API_VERSION
     migrated_from: int | None = None
     """The schema the file declared, when it was older than the one this build writes.
@@ -141,10 +158,22 @@ class Installed:
     evaluators: tuple[str, ...] = ()
     targets: tuple[str, ...] = ()
     catalogues: Mapping[str, str] = field(default_factory=dict)
+    renderers: tuple[str, ...] = ()
+    """Every installed format that can be selected, by name."""
+
+    reporters: tuple[str, ...] = ()
+    """Every installed reporter that can be selected, by name."""
 
     def ids(self) -> set[str]:
-        """Every id this build registers, in one set."""
-        return {*self.rules, *self.evaluators, *self.targets, *self.catalogues}
+        """Every id this build registers, in one set; an output as `<kind>:<name>`."""
+        return {
+            *self.rules,
+            *self.evaluators,
+            *self.targets,
+            *self.catalogues,
+            *(output_id("renderer", name) for name in self.renderers),
+            *(output_id("reporter", name) for name in self.reporters),
+        }
 
 
 def lock_of(packs: Sequence[tuple[str, str, Any]], installed: Installed) -> Lock:
@@ -180,11 +209,29 @@ def lock_of(packs: Sequence[tuple[str, str, Any]], installed: Installed) -> Lock
             evaluators=tuple(manifest.evaluators),
             targets=tuple(manifest.targets),
             taxonomies={i: installed.catalogues[i] for i in manifest.taxonomies},
+            renderers=tuple(manifest.renderers),
+            reporters=tuple(manifest.reporters),
         )
         for distribution, version, manifest in packs
     ]
     declared = {name for _, _, manifest in packs for name in manifest.provides}
-    return Lock(packs=tuple(locked), unlocked=tuple(sorted(installed.ids() - declared)))
+    unlocked = tuple(sorted(installed.ids() - declared))
+    return Lock(
+        packs=tuple(locked),
+        unlocked=unlocked,
+        schema_version=_written_schema(locked, unlocked),
+    )
+
+
+def _written_schema(packs: Iterable[LockedPack], unlocked: Iterable[str]) -> int:
+    """Choose schema 3 when an output is pinned or unlocked, otherwise schema 2."""
+    if any(pack.pins_outputs for pack in packs) or any(_is_output_id(i) for i in unlocked):
+        return LOCK_SCHEMA_VERSION
+    return _SCHEMA_WITHOUT_OUTPUTS
+
+
+def _is_output_id(identifier: str) -> bool:
+    return identifier.startswith(tuple(f"{kind}:" for kind in _OUTPUT_KINDS))
 
 
 def _undelivered(manifest: PackManifest, installed: Installed) -> list[tuple[str, list[str]]]:
@@ -194,6 +241,8 @@ def _undelivered(manifest: PackManifest, installed: Installed) -> list[tuple[str
         ("evaluator", manifest.evaluators, installed.evaluators),
         ("target", manifest.targets, installed.targets),
         ("catalogue", manifest.taxonomies, installed.catalogues),
+        ("renderer", manifest.renderers, installed.renderers),
+        ("reporter", manifest.reporters, installed.reporters),
     )
     return [
         (kind, missing)
@@ -203,24 +252,35 @@ def _undelivered(manifest: PackManifest, installed: Installed) -> list[tuple[str
 
 
 def lock_to_dict(lock: Lock) -> dict[str, Any]:
-    """Render a lock as the document written to disk."""
+    """Render a lock as the document written to disk.
+
+    The schema follows the content, so a lock that pins no output is written as
+    schema 2 whatever `lock.schema_version` says, and one that does is never
+    written in a layout that cannot hold it.
+    """
+    schema = _written_schema(lock.packs, lock.unlocked)
     return {
-        "schema_version": lock.schema_version,
+        "schema_version": schema,
         "extension_api": lock.extension_api,
-        "packs": [
-            {
-                "name": pack.name,
-                "distribution": pack.distribution,
-                "version": pack.version,
-                "rules": _nested(pack.rules),
-                "evaluators": list(pack.evaluators),
-                "targets": list(pack.targets),
-                "taxonomies": _nested(pack.taxonomies),
-            }
-            for pack in sorted(lock.packs, key=lambda p: p.name)
-        ],
+        "packs": [_pack_to_dict(pack, schema) for pack in sorted(lock.packs, key=lambda p: p.name)],
         "unlocked": list(lock.unlocked),
     }
+
+
+def _pack_to_dict(pack: LockedPack, schema: int) -> dict[str, Any]:
+    entry: dict[str, Any] = {
+        "name": pack.name,
+        "distribution": pack.distribution,
+        "version": pack.version,
+        "rules": _nested(pack.rules),
+        "evaluators": list(pack.evaluators),
+        "targets": list(pack.targets),
+    }
+    if schema >= LOCK_SCHEMA_VERSION:
+        entry["renderers"] = list(pack.renderers)
+        entry["reporters"] = list(pack.reporters)
+    entry["taxonomies"] = _nested(pack.taxonomies)
+    return entry
 
 
 def lock_from_dict(raw: object, source: str) -> Lock:
@@ -251,12 +311,20 @@ def lock_from_dict(raw: object, source: str) -> Lock:
     packs = raw.get("packs")
     if not isinstance(packs, list):
         raise PackError(f"invalid lock {source}: 'packs' must be a list")
+    unlocked = _strings(raw.get("unlocked"), "unlocked", source)
+    if version < LOCK_SCHEMA_VERSION and any(_is_output_id(i) for i in unlocked):
+        raise PackError(
+            f"invalid lock {source}: schema {version} cannot list an output in 'unlocked' — "
+            f"a lock naming an output is schema {LOCK_SCHEMA_VERSION}"
+        )
     return Lock(
         packs=tuple(_pack(entry, source, version) for entry in packs),
-        unlocked=_strings(raw.get("unlocked"), "unlocked", source),
-        schema_version=LOCK_SCHEMA_VERSION,
+        unlocked=unlocked,
+        # Schema 1 differs from 2 only in layout, and 2 is still written when no
+        # output is pinned, so only schema 1 is a migration.
+        schema_version=max(version, _SCHEMA_WITHOUT_OUTPUTS),
         extension_api=_api(raw.get("extension_api"), source),
-        migrated_from=version if version != LOCK_SCHEMA_VERSION else None,
+        migrated_from=version if version < _SCHEMA_WITHOUT_OUTPUTS else None,
     )
 
 
@@ -345,6 +413,8 @@ def _pack_drift(locked: LockedPack, installed: LockedPack) -> list[Drift]:
     drift.extend(_digests(locked.name, locked.taxonomies, installed.taxonomies, "catalogue"))
     drift.extend(_membership(locked.evaluators, installed.evaluators, "evaluator"))
     drift.extend(_membership(locked.targets, installed.targets, "target"))
+    drift.extend(_membership(locked.renderers, installed.renderers, "renderer"))
+    drift.extend(_membership(locked.reporters, installed.reporters, "reporter"))
     return drift
 
 
@@ -389,6 +459,19 @@ def _nested(digests: Mapping[str, str]) -> dict[str, dict[str, str]]:
 def _pack(raw: object, source: str, schema: int) -> LockedPack:
     if not isinstance(raw, dict):
         raise PackError(f"invalid lock {source}: every entry in 'packs' must be a mapping")
+    if schema < LOCK_SCHEMA_VERSION:
+        if "renderers" in raw or "reporters" in raw:
+            # Refused rather than read: a build that predates outputs reads the same
+            # file and ignores the keys, so the version no longer describes it.
+            raise PackError(
+                f"invalid lock {source}: schema {schema} has no 'renderers' or "
+                f"'reporters' — a lock pinning an output is schema {LOCK_SCHEMA_VERSION}"
+            )
+        renderers: tuple[str, ...] = ()
+        reporters: tuple[str, ...] = ()
+    else:
+        renderers = _required_strings(raw, "renderers", source)
+        reporters = _required_strings(raw, "reporters", source)
     return LockedPack(
         name=_text(raw, "name", source),
         distribution=_text(raw, "distribution", source),
@@ -397,6 +480,8 @@ def _pack(raw: object, source: str, schema: int) -> LockedPack:
         evaluators=_strings(raw.get("evaluators"), "evaluators", source),
         targets=_strings(raw.get("targets"), "targets", source),
         taxonomies=_digest_map(raw.get("taxonomies"), "taxonomies", source, schema),
+        renderers=renderers,
+        reporters=reporters,
     )
 
 
@@ -427,6 +512,15 @@ def _strings(raw: object, key: str, source: str) -> tuple[str, ...]:
     if not isinstance(raw, list) or not all(isinstance(item, str) for item in raw):
         raise PackError(f"invalid lock {source}: '{key}' must be a list of strings")
     return tuple(raw)
+
+
+def _required_strings(raw: dict[str, Any], key: str, source: str) -> tuple[str, ...]:
+    if key not in raw:
+        raise PackError(
+            f"invalid lock {source}: every schema {LOCK_SCHEMA_VERSION} pack lists '{key}', "
+            f"even when empty"
+        )
+    return _strings(raw[key], key, source)
 
 
 def _text(raw: dict[str, Any], key: str, source: str) -> str:

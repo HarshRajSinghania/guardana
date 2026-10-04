@@ -13,12 +13,18 @@ from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass, field
 from importlib import metadata, resources
 
-from guardana.core.entrypoints import InstalledEntryPoint, installed_entry_points
+from guardana.core.entrypoints import (
+    GROUPS,
+    OUTPUT_GROUPS,
+    InstalledEntryPoint,
+    installed_entry_points,
+)
 from guardana.core.pack.load import MANIFEST_NAME, load_manifest
 from guardana.core.pack.model import (
     SUPPORTED_EXTENSION_API_VERSIONS,
     PackError,
     PackManifest,
+    output_id,
 )
 from guardana.core.plugins import PluginTrust
 
@@ -57,6 +63,19 @@ class Registered:
     have several owners, and a pack's claim to it holds when the pack is among them.
     """
 
+    renderers: Mapping[str, str | None] = field(default_factory=dict)
+    """Every installed format that can be selected, by name."""
+
+    reporters: Mapping[str, str | None] = field(default_factory=dict)
+    """Every installed reporter that can be selected, by name."""
+
+    output_collisions: Mapping[str, tuple[str, ...]] = field(default_factory=dict)
+    """`renderer:<name>` or `reporter:<name>`, to each distribution installing it.
+
+    A name installed by several distributions can never be selected, so a pack
+    declaring it promises an output no run will use.
+    """
+
 
 @dataclass(frozen=True, slots=True)
 class PackDiscovery:
@@ -84,9 +103,10 @@ class PackDiscovery:
 def discover_packs(trust: PluginTrust) -> PackDiscovery:
     """Read the manifest of every installed package whose entry points `trust` admits.
 
-    Trust is decided per entry point, over the same enumeration `Registry.discover`
-    walks: a module is read only when an admitted entry point names it, because
-    reading a manifest through `importlib.resources` imports the module.
+    Trust is decided per entry point, over the enumeration `Registry.discover` walks
+    plus the two output groups: a module is read only when an admitted entry point
+    names it, because reading a manifest through `importlib.resources` imports the
+    module.
 
     **Located from the entry point, not from the distribution's file list.** An
     editable install lists no files, so walking them finds nothing for a package
@@ -105,7 +125,7 @@ def discover_packs(trust: PluginTrust) -> PackDiscovery:
     owners: dict[str, tuple[str, str | None]] = {}
     modules: set[str] = set()
     refused: list[InstalledEntryPoint] = []
-    for entry_point in installed_entry_points():
+    for entry_point in installed_entry_points(groups=(*GROUPS, *OUTPUT_GROUPS)):
         if not trust.allows(entry_point.distribution):
             refused.append(entry_point)
             continue
@@ -225,11 +245,25 @@ def check_pack(
     problems: list[str] = []
     if not manifest.loadable_by():
         problems.append(manifest.extension_api.why_not_any(SUPPORTED_EXTENSION_API_VERSIONS))
+    problems.extend(_output_api_problems(manifest))
+    problems.extend(_collision_problems(manifest, registered.output_collisions))
     groups: tuple[tuple[str, Sequence[str], Mapping[str, str | None], _Owners], ...] = (
         ("rule", manifest.rules, registered.rules, {}),
         ("evaluator", manifest.evaluators, registered.evaluators, {}),
         ("target", manifest.targets, registered.targets, {}),
         ("taxonomy", manifest.taxonomies, registered.taxonomies, registered.taxonomy_owners),
+        (
+            "renderer",
+            _selectable("renderer", manifest.renderers, registered),
+            registered.renderers,
+            {},
+        ),
+        (
+            "reporter",
+            _selectable("reporter", manifest.reporters, registered),
+            registered.reporters,
+            {},
+        ),
     )
     for kind, declared, present, shared in groups:
         missing = [i for i in declared if i not in present]
@@ -256,6 +290,41 @@ def check_pack(
 
 
 _Owners = Mapping[str, frozenset[str]]
+
+
+def _output_api_problems(manifest: PackManifest) -> list[str]:
+    """Say why this build cannot run the pack's outputs, in the words `why_not_any` uses."""
+    # Imported here: `guardana.core.output` reaches `verify`, which imports this
+    # package, so a module-level import is a cycle.
+    from guardana.core.output import SUPPORTED_OUTPUT_API_VERSIONS  # noqa: PLC0415
+
+    if manifest.outputs_loadable_by(SUPPORTED_OUTPUT_API_VERSIONS):
+        return []
+    if manifest.output_api is None:
+        return [
+            "declares a renderer or reporter and no output_api, so nothing says which "
+            "output contract it was written against"
+        ]
+    return [manifest.output_api.why_not_any(SUPPORTED_OUTPUT_API_VERSIONS, what="output API")]
+
+
+def _collision_problems(
+    manifest: PackManifest, collisions: Mapping[str, tuple[str, ...]]
+) -> list[str]:
+    """Every declared output that several distributions install, which no run can select."""
+    return [
+        f"declares {kind} {name}, which {len(found)} distributions provide "
+        f"({', '.join(found)}) — selecting it is refused"
+        for kind, names in (("renderer", manifest.renderers), ("reporter", manifest.reporters))
+        for name in names
+        if (found := collisions.get(output_id(kind, name)))
+    ]
+
+
+def _selectable(kind: str, names: Sequence[str], registered: Registered) -> tuple[str, ...]:
+    """Keep the declared outputs not in a collision, which `_collision_problems` reports."""
+    collided = registered.output_collisions
+    return tuple(name for name in names if output_id(kind, name) not in collided)
 
 
 def _owners(identifier: str, present: Mapping[str, str | None], shared: _Owners) -> frozenset[str]:
@@ -285,7 +354,19 @@ def _by_kind(registered: Registered | Collection[str]) -> Registered:
         stacklevel=3,
     )
     flat = dict.fromkeys(registered)
-    return Registered(rules=flat, evaluators=flat, targets=flat, taxonomies=flat)
+    return Registered(
+        rules=flat,
+        evaluators=flat,
+        targets=flat,
+        taxonomies=flat,
+        renderers={_unprefixed(i, "renderer"): None for i in registered},
+        reporters={_unprefixed(i, "reporter"): None for i in registered},
+    )
+
+
+def _unprefixed(identifier: str, kind: str) -> str:
+    """Accept an output id in a flat set spelled either way, `<name>` or `<kind>:<name>`."""
+    return identifier.removeprefix(f"{kind}:")
 
 
 def _it(ids: Sequence[str]) -> str:

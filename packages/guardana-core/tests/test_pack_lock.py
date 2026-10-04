@@ -44,6 +44,9 @@ def _manifest() -> PackManifest:
         evaluators=("acme.strict_refusal",),
         targets=("AcmePromptLibraryTarget",),
         taxonomies=("ACME-CONTROLS",),
+        renderers=("acme-table",),
+        reporters=("acme-webhook",),
+        output_api=Range(minimum=1, below=2),
     )
 
 
@@ -62,6 +65,8 @@ def _installed() -> Installed:
         evaluators=("acme.strict_refusal",),
         targets=("AcmePromptLibraryTarget",),
         catalogues={"ACME-CONTROLS": catalogue_digest([_ACME])},
+        renderers=("acme-table",),
+        reporters=("acme-webhook",),
     )
 
 
