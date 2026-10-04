@@ -2,12 +2,12 @@
 title: "One redacted export and one webhook"
 nav_order: 92
 summary: "an installed package adds a format to --format and a reporter to --reporter, each imported only when selected, both handed what the saved run holds; a webhook says whether it was delivered, a failed output has its own exit code, and offline use sends nothing"
-status: proposed
+status: implemented
 ---
 
 # One redacted export and one webhook
 
-**Status:** proposed · **Written:** 2026-10-04 · **Serves:** ROADMAP v0.40 (F4), BACKLOG B06 ·
+**Status:** implemented in 0.40.0 · **Written:** 2026-10-04 · **Serves:** ROADMAP v0.40 (F4), BACKLOG B06 ·
 **Narrows:** [`output-plugins.md`](output-plugins.md), which this supersedes
 
 ## The question
@@ -76,11 +76,6 @@ one run) waits for a team that needs it.
   on every retry of one event.
   ([spec](https://github.com/standard-webhooks/standard-webhooks/blob/main/spec/standard-webhooks.md),
   read 2026-10-04)
-- OpenAI ("following the Standard Webhooks specification"; 3xx "treated as failures") and the
-  Gemini API ("strictly follows the Standard Webhooks specification for security headers")
-  deliver with it, so receivers already verify it.
-  ([OpenAI](https://developers.openai.com/api/docs/guides/webhooks),
-  [Gemini](https://ai.google.dev/gemini-api/docs/webhooks), read 2026-10-04)
 - `standardwebhooks` 1.1.0 (MIT) is the specification's reference verifier for Python; its PyPI
   metadata declares no dependency. ([PyPI](https://pypi.org/project/standardwebhooks/), read
   2026-10-04)

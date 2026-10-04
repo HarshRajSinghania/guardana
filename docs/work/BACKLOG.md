@@ -15,7 +15,6 @@ No remote issues were created; the GitHub open-issue query returned zero.
 | ID | Concrete work | Roadmap | Acceptance evidence |
 |---|---|---|---|
 | B04 | Starter and three short task-oriented recipes | F2 | Clean-install offline run, edited custom check and saved artifact; recorded-answer and actual-application paths clearly distinguish their coverage. |
-| B06 | One redacted export and one webhook | F4 | An independently installed package provides both through the common redaction boundary, collision checks, trust modes and locks; delivery status observable; offline use sends nothing. The general plugin contract is deferred. |
 | B10 | Calibration identity supports several rubric versions and verdict IDs | M1 | Match the actual grader identity. Kept for M1 in 0.30.0: re-keying the store is calibration schema 3 and F5 defines grading identity; the decline already no longer promises an impossible rerun. |
 | B11 | Collector measurement envelope and storage | M3 | Independent envelope migration carries measurements, denominator, trials, uncertainty and missingness, with tenant isolation. |
 | B12 | Non-executing declarative packs | parallel lane, decided before F2 | Keep local ID validation. Decide whether a pack can ship checks that execute no Python. The public extension-ID service is dropped (direction audit). |
@@ -24,7 +23,7 @@ No remote issues were created; the GitHub open-issue query returned zero.
 | B21 | Three-outcome fixtures for every built-in | 1.0 | The ratchet in `test_builtin_fixture_coverage.py` (12 of 51 at 0.31.0) reaches every rule that can decline. |
 | B22 | A time bound for `regex` | Later | A crafted reply can make an author's backtracking pattern run for a very long time; the 65,536-character bound limits input, not time. Any fix that adds a dependency needs principle 6's justification. |
 
-B19 shipped in 0.39.0 (ROADMAP F7). B08 shipped in 0.36.0 (ROADMAP F6, first half); the F6 second half shipped in 0.37.0. B07 shipped in 0.35.0 (ROADMAP F5). B15, B16, B17 and B18 shipped in 0.32.0 (ROADMAP Q1). B01, B02, B03, B09 and B14 shipped in 0.30.0 (ROADMAP F1). The lockfile/gitleaks and
+B06 shipped in 0.40.0 (ROADMAP F4). B19 shipped in 0.39.0 (ROADMAP F7). B08 shipped in 0.36.0 (ROADMAP F6, first half); the F6 second half shipped in 0.37.0. B07 shipped in 0.35.0 (ROADMAP F5). B15, B16, B17 and B18 shipped in 0.32.0 (ROADMAP Q1). B01, B02, B03, B09 and B14 shipped in 0.30.0 (ROADMAP F1). The lockfile/gitleaks and
 script-parser items shipped in 0.31.0; ONNX metadata grading, ATLAS provenance and the other
 items remain open below. Before closing any item, rerun its reproduction.
 
@@ -81,6 +80,23 @@ left for the owner, or are design gaps already documented elsewhere.
 - Documented gaps it re-found: third-party reporters cannot be selected (F4), the `Capability`
   set is closed (`target/base.py`), and `Verifier` does not run trace analysis
   (`docs/python-api.md`).
+
+## Left by the export and webhook release (0.40.0)
+
+- **Evaluators and targets in a pack lock are pinned by id whoever registers them.** Installed
+  outputs are pinned only when the pack's own distribution registers them; an evaluator or a
+  target that another distribution now provides still matches `pack lock --check`, and only
+  `pack validate` names it.
+- **The reference webhook honours `HTTP(S)_PROXY`** through `urllib`, so a delivery may pass a
+  proxy the run did not name. Decide whether installed reporters should ignore proxies as MCP
+  discovery does.
+- **Principle 3 names the collector and no other reporter.** A reporter named in `--reporter` is
+  read as a destination the run names; the wording is the owner's to change.
+- **A probe whose installed format fails leaves an earlier `<output>.exchanges.jsonl`** in
+  place; the format path removes only the earlier report.
+- **`load_verification` is not exercised against saved runs of schemas 2 to 6**, for which no
+  fixture helper exists.
+- **An installed format's text written with `newline=""` is not tested on Windows.**
 
 ## Left by protocol conformance (0.39.0)
 

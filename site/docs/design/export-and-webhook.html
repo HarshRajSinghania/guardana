@@ -138,7 +138,7 @@
 <li><a href="../design/guarded-applications.html">A guarded application, and the outcomes a run states honestly<span class="tag">implemented</span></a></li>
 <li><a href="../design/run-manifest-v2.html">Run manifest v2<span class="tag">implemented</span></a></li>
 <li><a href="../design/protocol-conformance.html">Protocol conformance against servers Guardana did not write<span class="tag">implemented</span></a></li>
-<li><a href="../design/export-and-webhook.html" aria-current="page">One redacted export and one webhook<span class="tag">proposed</span></a></li>
+<li><a href="../design/export-and-webhook.html" aria-current="page">One redacted export and one webhook<span class="tag">implemented</span></a></li>
 <li><a href="../design/privacy-and-redaction.html">Privacy and redaction<span class="tag">implemented</span></a></li>
 <li><a href="../design/exit-codes.html">Exit codes and gate semantics<span class="tag">implemented</span></a></li>
 <li><a href="../design/collector-persistence.html">Collector persistence<span class="tag">implemented</span></a></li>
@@ -270,7 +270,7 @@
 <li><a href="../design/guarded-applications.html">A guarded application, and the outcomes a run states honestly<span class="tag">implemented</span></a></li>
 <li><a href="../design/run-manifest-v2.html">Run manifest v2<span class="tag">implemented</span></a></li>
 <li><a href="../design/protocol-conformance.html">Protocol conformance against servers Guardana did not write<span class="tag">implemented</span></a></li>
-<li><a href="../design/export-and-webhook.html" aria-current="page">One redacted export and one webhook<span class="tag">proposed</span></a></li>
+<li><a href="../design/export-and-webhook.html" aria-current="page">One redacted export and one webhook<span class="tag">implemented</span></a></li>
 <li><a href="../design/privacy-and-redaction.html">Privacy and redaction<span class="tag">implemented</span></a></li>
 <li><a href="../design/exit-codes.html">Exit codes and gate semantics<span class="tag">implemented</span></a></li>
 <li><a href="../design/collector-persistence.html">Collector persistence<span class="tag">implemented</span></a></li>
@@ -284,7 +284,7 @@
 </nav>
 </details>
 <main>
-<h1>One redacted export and one webhook<span class="status proposed">proposed</span></h1><p class="lede">an installed package adds a format to --format and a reporter to --reporter, each imported only when selected, both handed what the saved run holds; a webhook says whether it was delivered, a failed output has its own exit code, and offline use sends nothing</p><p><strong>Status:</strong> proposed · <strong>Written:</strong> 2026-10-04 · <strong>Serves:</strong> ROADMAP v0.40 (F4), BACKLOG B06 ·
+<h1>One redacted export and one webhook<span class="status implemented">implemented</span></h1><p class="lede">an installed package adds a format to --format and a reporter to --reporter, each imported only when selected, both handed what the saved run holds; a webhook says whether it was delivered, a failed output has its own exit code, and offline use sends nothing</p><p><strong>Status:</strong> implemented in 0.40.0 · <strong>Written:</strong> 2026-10-04 · <strong>Serves:</strong> ROADMAP v0.40 (F4), BACKLOG B06 ·
 <strong>Narrows:</strong> <a href="output-plugins.html"><code>output-plugins.md</code></a>, which this supersedes</p>
 <h2 id="the-question">The question</h2>
 <p><code>--format</code> is a closed enum of four renderers and <code>--reporter</code> knows one destination, the
@@ -350,11 +350,6 @@ successful delivery; &quot;410 Gone&quot; means the receiver wants no more. It r
 on every retry of one event.
 (<a href="https://github.com/standard-webhooks/standard-webhooks/blob/main/spec/standard-webhooks.md">spec</a>,
 read 2026-10-04)</li>
-<li>OpenAI (&quot;following the Standard Webhooks specification&quot;; 3xx &quot;treated as failures&quot;) and the
-Gemini API (&quot;strictly follows the Standard Webhooks specification for security headers&quot;)
-deliver with it, so receivers already verify it.
-(<a href="https://developers.openai.com/api/docs/guides/webhooks">OpenAI</a>,
-<a href="https://ai.google.dev/gemini-api/docs/webhooks">Gemini</a>, read 2026-10-04)</li>
 <li><code>standardwebhooks</code> 1.1.0 (MIT) is the specification's reference verifier for Python; its PyPI
 metadata declares no dependency. (<a href="https://pypi.org/project/standardwebhooks/">PyPI</a>, read
 2026-10-04)</li>
@@ -1010,7 +1005,7 @@ verdict's exit code, as for the collector. A setting for it waits for a team tha
 </main>
 </div>
 <footer class="foot"><div class="bar">
-<span class="who">Guardana 0.39.0 · Apache-2.0 ·
+<span class="who">Guardana 0.40.0 · Apache-2.0 ·
 maintained by Konrad Karauda</span>
 <a href="https://github.com/guardana/guardana/blob/main/docs/design/export-and-webhook.md">Edit this page on GitHub</a>
 <a href="https://github.com/guardana/guardana">github.com/guardana</a>
