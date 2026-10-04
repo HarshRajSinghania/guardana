@@ -258,7 +258,7 @@ classified wrongly carries a label one of the two disagrees with.
 
 ## Built-in coverage, stated plainly
 
-58 rules ship and **50 are fully sampled** today. `guardana rule test 'guardana.*'`
+58 rules ship and **58 are fully sampled** today. `guardana rule test 'guardana.*'`
 reports the rest as `indeterminate`, truthfully — that is the command working, not
 the command being unready. A gate pins the number so it can only rise.
 

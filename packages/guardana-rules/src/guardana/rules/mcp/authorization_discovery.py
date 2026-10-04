@@ -1,8 +1,9 @@
-from collections.abc import Iterator, Mapping
+from collections.abc import Iterable, Iterator, Mapping
 from urllib.parse import urlsplit
 
 from guardana.core.report import Finding
 from guardana.core.rule import RuleMeta
+from guardana.core.rule.fixture import FixtureOutcome, RuleFixture, materialise
 from guardana.core.safety import Detection, Impact
 from guardana.core.severity import Severity
 from guardana.core.target import (
@@ -14,6 +15,7 @@ from guardana.core.target import (
     same_origin,
 )
 from guardana.core.taxonomy import OWASP_ASI03_2026, OWASP_MCP01_2025, OWASP_MCP07_2025
+from guardana.rules.mcp import _samples
 from guardana.rules.mcp._base import McpAuthorizationRule
 
 _PKCE_METHOD = "S256"
@@ -61,6 +63,40 @@ class McpAuthorizationDiscoveryRule(McpAuthorizationRule):
     def estimated_requests(self) -> int:
         """The discovery probe, the anonymous three, then six documented metadata attempts."""
         return 10
+
+    def fixtures(self) -> Iterable[RuleFixture]:
+        """Sample an unpublished surface, a conforming one, and an issuer too unsafe to fetch."""
+        unsafe_issuer = {
+            **_samples.RESOURCE_METADATA,
+            "authorization_servers": [_samples.UNSAFE_ADDRESS],
+        }
+        return materialise(
+            (
+                _samples.sample(
+                    "a gated server publishing no protected resource metadata",
+                    FixtureOutcome.FINDING,
+                    lambda: _samples.target(
+                        _samples.protected_server(resource_metadata=None),
+                        credential=_samples.CREDENTIAL,
+                    ),
+                ),
+                _samples.sample(
+                    "a gated server publishing a conforming discovery chain",
+                    FixtureOutcome.CLEAN,
+                    lambda: _samples.target(
+                        _samples.protected_server(), credential=_samples.CREDENTIAL
+                    ),
+                ),
+                _samples.sample(
+                    "an authorization server named at an address a client must not fetch",
+                    FixtureOutcome.INCONCLUSIVE,
+                    lambda: _samples.target(
+                        _samples.protected_server(resource_metadata=unsafe_issuer),
+                        credential=_samples.CREDENTIAL,
+                    ),
+                ),
+            )
+        )
 
     def examine(self, view: McpAuthorizationView) -> Iterator[Finding]:
         """Walk the discovery chain and report the first requirement that is not met."""

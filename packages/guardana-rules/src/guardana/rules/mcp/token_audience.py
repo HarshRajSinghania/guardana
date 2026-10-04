@@ -1,11 +1,13 @@
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 
 from guardana.core.report import Finding
 from guardana.core.rule import RuleMeta
+from guardana.core.rule.fixture import FixtureOutcome, RuleFixture, materialise
 from guardana.core.safety import Detection, Impact
 from guardana.core.severity import Severity
 from guardana.core.target import Capability, McpAuthorizationView, TargetKind
 from guardana.core.taxonomy import OWASP_ASI03_2026, OWASP_MCP01_2025, OWASP_MCP07_2025
+from guardana.rules.mcp import _samples
 from guardana.rules.mcp._base import McpAuthorizationRule
 
 _OK = 200
@@ -50,6 +52,33 @@ class McpTokenAudienceRule(McpAuthorizationRule):
     def estimated_requests(self) -> int:
         """The discovery probe, the anonymous three, then a handshake, notification and listing."""
         return 7
+
+    def fixtures(self) -> Iterable[RuleFixture]:
+        """Sample a server taking any token, one refusing the forged one, and one asking none."""
+        return materialise(
+            (
+                _samples.sample(
+                    "a gated server listing its tools to any bearer token",
+                    FixtureOutcome.FINDING,
+                    lambda: _samples.target(
+                        _samples.gated_server(accepts_any_token=True),
+                        credential=_samples.CREDENTIAL,
+                    ),
+                ),
+                _samples.sample(
+                    "a gated server refusing a token it could not have issued",
+                    FixtureOutcome.CLEAN,
+                    lambda: _samples.target(
+                        _samples.gated_server(), credential=_samples.CREDENTIAL
+                    ),
+                ),
+                _samples.sample(
+                    "a server answering a caller presenting nothing, which no token can test",
+                    FixtureOutcome.INCONCLUSIVE,
+                    lambda: _samples.target(_samples.open_server()),
+                ),
+            )
+        )
 
     def examine(self, view: McpAuthorizationView) -> Iterator[Finding]:
         """Report a server that answered the foreign token, or why the probe was declined."""

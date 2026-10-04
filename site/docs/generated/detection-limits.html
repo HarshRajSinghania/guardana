@@ -358,15 +358,12 @@
 <h2 id="mcp">mcp</h2>
 <h3 id="tested-invariant-2">Tested invariant</h3>
 <ul>
-<li><code>guardana.mcp.registry_entry</code>: MCP server is not the one its registry entry publishes</li>
-<li><code>guardana.mcp.task_identity</code>: MCP server shows tasks to a caller who presented no credential</li>
-</ul>
-<h3 id="invariant-not-sampled">Invariant, not sampled</h3>
-<ul>
 <li><code>guardana.mcp.authorization_discovery</code>: Protected MCP server publishes no usable authorization surface</li>
 <li><code>guardana.mcp.cache_scope</code>: MCP server declares a credential-gated tool listing publicly cacheable</li>
 <li><code>guardana.mcp.discovery_target</code>: MCP server directs its client to an address a client must not follow</li>
 <li><code>guardana.mcp.issuer_identification</code>: Authorization server gives an MCP client no way to detect an issuer mix-up</li>
+<li><code>guardana.mcp.registry_entry</code>: MCP server is not the one its registry entry publishes</li>
+<li><code>guardana.mcp.task_identity</code>: MCP server shows tasks to a caller who presented no credential</li>
 <li><code>guardana.mcp.token_audience</code>: MCP server accepts a bearer token it could not have issued</li>
 <li><code>guardana.mcp.unauthenticated_access</code>: MCP server answers a tool listing with no credential</li>
 </ul>

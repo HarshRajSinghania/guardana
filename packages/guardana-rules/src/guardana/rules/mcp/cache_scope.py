@@ -2,6 +2,7 @@ from collections.abc import Iterable, Iterator
 
 from guardana.core.report import Finding
 from guardana.core.rule import RuleContext, RuleMeta
+from guardana.core.rule.fixture import FixtureOutcome, RuleFixture, materialise
 from guardana.core.safety import Detection, Impact
 from guardana.core.severity import Severity
 from guardana.core.target import (
@@ -14,6 +15,7 @@ from guardana.core.target import (
 )
 from guardana.core.target.protocols import AuthorizationInspector
 from guardana.core.taxonomy import OWASP_ASI03_2026, OWASP_MCP07_2025, OWASP_MCP10_2025
+from guardana.rules.mcp import _samples
 from guardana.rules.mcp._base import McpReporting
 
 _PUBLIC = "public"
@@ -72,6 +74,39 @@ class McpCacheScopeRule(McpReporting):
     def estimated_requests(self) -> int:
         """The discovery probe, the anonymous three, and the handshake, notification and listing."""
         return 7
+
+    def fixtures(self) -> Iterable[RuleFixture]:
+        """Sample a gated listing declared public, one declared private, and an unread server."""
+
+        def gated(scope: str) -> Target:
+            return _samples.target(
+                _samples.gated_server(
+                    protocol_versions=(_samples.MODERN_REVISION,),
+                    cache_scope=scope,
+                    ttl_ms=300_000,
+                ),
+                credential=_samples.CREDENTIAL,
+            )
+
+        return materialise(
+            (
+                _samples.sample(
+                    "a gated tool listing declared shareable by any cache",
+                    FixtureOutcome.FINDING,
+                    lambda: gated(_PUBLIC),
+                ),
+                _samples.sample(
+                    "a gated tool listing declared private",
+                    FixtureOutcome.CLEAN,
+                    lambda: gated("private"),
+                ),
+                _samples.sample(
+                    "a server speaking only a revision guardana does not",
+                    FixtureOutcome.INCONCLUSIVE,
+                    lambda: _samples.target(_samples.unspoken_server()),
+                ),
+            )
+        )
 
     def run(self, target: Target, ctx: RuleContext) -> Iterable[Finding]:
         """Read both halves — the declaration and who the server refuses — and grade the pair.

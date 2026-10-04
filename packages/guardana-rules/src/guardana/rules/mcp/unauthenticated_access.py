@@ -1,7 +1,8 @@
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 
 from guardana.core.report import Finding
 from guardana.core.rule import RuleMeta
+from guardana.core.rule.fixture import FixtureOutcome, RuleFixture, materialise
 from guardana.core.safety import Detection, Impact
 from guardana.core.severity import Severity
 from guardana.core.target import Capability, McpAuthorizationView, TargetKind
@@ -10,6 +11,7 @@ from guardana.core.taxonomy import (
     OWASP_ASI03_2026,
     OWASP_MCP07_2025,
 )
+from guardana.rules.mcp import _samples
 from guardana.rules.mcp._base import McpAuthorizationRule
 
 
@@ -47,6 +49,30 @@ class McpUnauthenticatedAccessRule(McpAuthorizationRule):
     def estimated_requests(self) -> int:
         """The discovery probe, then a handshake, its notification and a listing, all anonymous."""
         return 4
+
+    def fixtures(self) -> Iterable[RuleFixture]:
+        """Sample a server answering anybody, one refusing them, and one nothing can be read of."""
+        return materialise(
+            (
+                _samples.sample(
+                    "a server listing its tools to a caller presenting nothing",
+                    FixtureOutcome.FINDING,
+                    lambda: _samples.target(_samples.open_server()),
+                ),
+                _samples.sample(
+                    "a server refusing its tools to a caller presenting nothing",
+                    FixtureOutcome.CLEAN,
+                    lambda: _samples.target(
+                        _samples.gated_server(), credential=_samples.CREDENTIAL
+                    ),
+                ),
+                _samples.sample(
+                    "a server speaking only a revision guardana does not",
+                    FixtureOutcome.INCONCLUSIVE,
+                    lambda: _samples.target(_samples.unspoken_server()),
+                ),
+            )
+        )
 
     def examine(self, view: McpAuthorizationView) -> Iterator[Finding]:
         """Report an anonymous caller receiving the manifest, or why nobody could tell."""

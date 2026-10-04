@@ -1,7 +1,8 @@
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 
 from guardana.core.report import Finding
 from guardana.core.rule import RuleMeta
+from guardana.core.rule.fixture import FixtureOutcome, RuleFixture, materialise
 from guardana.core.safety import Detection, Impact
 from guardana.core.severity import Severity
 from guardana.core.target import (
@@ -12,6 +13,7 @@ from guardana.core.target import (
     scopes_in,
 )
 from guardana.core.taxonomy import OWASP_ASI03_2026, OWASP_LLM03_2026, OWASP_MCP02_2025
+from guardana.rules.mcp import _samples
 from guardana.rules.mcp._base import McpAuthorizationRule
 
 # Straight from the specification's own list of common mistakes: "Using wildcard or
@@ -53,6 +55,39 @@ class McpScopeBreadthRule(McpAuthorizationRule):
     def estimated_requests(self) -> int:
         """The discovery probe, the anonymous three, then six documented metadata attempts."""
         return 10
+
+    def fixtures(self) -> Iterable[RuleFixture]:
+        """Sample a wildcard scope, narrow scopes, and a server publishing no scopes to read."""
+        wildcard = {**_samples.RESOURCE_METADATA, "scopes_supported": ["*"]}
+        return materialise(
+            (
+                _samples.sample(
+                    "protected resource metadata advertising a wildcard scope",
+                    FixtureOutcome.FINDING,
+                    lambda: _samples.target(
+                        _samples.protected_server(resource_metadata=wildcard),
+                        credential=_samples.CREDENTIAL,
+                    ),
+                ),
+                _samples.sample(
+                    "narrow scopes advertised and named in the challenge",
+                    FixtureOutcome.CLEAN,
+                    lambda: _samples.target(
+                        _samples.protected_server(), credential=_samples.CREDENTIAL
+                    ),
+                ),
+                _samples.sample(
+                    "a gated server publishing neither metadata document",
+                    FixtureOutcome.INCONCLUSIVE,
+                    lambda: _samples.target(
+                        _samples.protected_server(
+                            resource_metadata=None, authorization_metadata=None
+                        ),
+                        credential=_samples.CREDENTIAL,
+                    ),
+                ),
+            )
+        )
 
     def examine(self, view: McpAuthorizationView) -> Iterator[Finding]:
         """Read the advertised scopes from both metadata documents and the challenge."""

@@ -1,11 +1,13 @@
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 
 from guardana.core.report import Finding
 from guardana.core.rule import RuleMeta
+from guardana.core.rule.fixture import FixtureOutcome, RuleFixture, materialise
 from guardana.core.safety import Detection, Impact
 from guardana.core.severity import Severity
 from guardana.core.target import Capability, McpAuthorizationView, TargetKind, display_url
 from guardana.core.taxonomy import OWASP_ASI03_2026, OWASP_MCP01_2025, OWASP_MCP07_2025
+from guardana.rules.mcp import _samples
 from guardana.rules.mcp._base import McpAuthorizationRule
 
 _ISS_SUPPORTED = "authorization_response_iss_parameter_supported"
@@ -55,6 +57,41 @@ class McpIssuerIdentificationRule(McpAuthorizationRule):
     def estimated_requests(self) -> int:
         """The discovery probe, the anonymous three, then six documented metadata attempts."""
         return 10
+
+    def fixtures(self) -> Iterable[RuleFixture]:
+        """Sample metadata silent about `iss`, metadata advertising it, and no metadata at all."""
+        silent = {
+            key: value
+            for key, value in _samples.AUTHORIZATION_METADATA.items()
+            if key != _ISS_SUPPORTED
+        }
+        return materialise(
+            (
+                _samples.sample(
+                    "authorization server metadata not advertising the iss parameter",
+                    FixtureOutcome.FINDING,
+                    lambda: _samples.target(
+                        _samples.protected_server(authorization_metadata=silent),
+                        credential=_samples.CREDENTIAL,
+                    ),
+                ),
+                _samples.sample(
+                    "authorization server metadata advertising the iss parameter",
+                    FixtureOutcome.CLEAN,
+                    lambda: _samples.target(
+                        _samples.protected_server(), credential=_samples.CREDENTIAL
+                    ),
+                ),
+                _samples.sample(
+                    "an authorization server publishing no metadata to read",
+                    FixtureOutcome.INCONCLUSIVE,
+                    lambda: _samples.target(
+                        _samples.protected_server(authorization_metadata=None),
+                        credential=_samples.CREDENTIAL,
+                    ),
+                ),
+            )
+        )
 
     def examine(self, view: McpAuthorizationView) -> Iterator[Finding]:
         """Read the authorization server's metadata and grade what it says about `iss`."""

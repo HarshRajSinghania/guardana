@@ -1,13 +1,22 @@
-from collections.abc import Iterator, Sequence
+from collections.abc import Iterable, Iterator, Sequence
 
 from guardana.core.report import Finding
 from guardana.core.rule import RuleMeta
+from guardana.core.rule.fixture import FixtureOutcome, RuleFixture, materialise
 from guardana.core.safety import Detection, Impact
 from guardana.core.severity import Severity
 from guardana.core.target import Capability, McpAuthorizationView, TargetKind
 from guardana.core.taxonomy import OWASP_ASI03_2026, OWASP_MCP07_2025
+from guardana.rules.mcp import _samples
 from guardana.rules.mcp._base import McpAuthorizationRule
 from guardana.rules.mcp._ids import SHORT_ID, counts_up, shortest
+
+_UNSTRUCTURED = (
+    "5d0c9e3a-8f1b-4c62-a7e4-1b93f0d26c88",
+    "e2a74b19-03cd-4f85-9b6a-7c51d8e40f13",
+    "91f6c3d7-4a28-4e0b-8d95-f3027ab6c541",
+)
+"""Session ids no structure can be read from, so only the stripped request can decide."""
 
 
 class McpSessionBindingRule(McpAuthorizationRule):
@@ -68,6 +77,36 @@ class McpSessionBindingRule(McpAuthorizationRule):
         one, which stays below the handshake era's nine.
         """
         return 9
+
+    def fixtures(self) -> Iterable[RuleFixture]:
+        """Sample a session that authenticates, one that does not, and no session to open."""
+        return materialise(
+            (
+                _samples.sample(
+                    "a session answering without the credential that opened it",
+                    FixtureOutcome.FINDING,
+                    lambda: _samples.target(
+                        _samples.gated_server(
+                            session_ids=_UNSTRUCTURED, session_authenticates=True
+                        ),
+                        credential=_samples.CREDENTIAL,
+                    ),
+                ),
+                _samples.sample(
+                    "a session checked for the credential on every request",
+                    FixtureOutcome.CLEAN,
+                    lambda: _samples.target(
+                        _samples.gated_server(session_ids=_UNSTRUCTURED),
+                        credential=_samples.CREDENTIAL,
+                    ),
+                ),
+                _samples.sample(
+                    "a gated server refusing a run that holds no credential to open a session",
+                    FixtureOutcome.INCONCLUSIVE,
+                    lambda: _samples.target(_samples.gated_server(session_ids=_UNSTRUCTURED)),
+                ),
+            )
+        )
 
     def examine(self, view: McpAuthorizationView) -> Iterator[Finding]:
         """Grade the session ids, then the request that carried one without a credential."""

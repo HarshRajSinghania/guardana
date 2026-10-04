@@ -1,11 +1,13 @@
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 
 from guardana.core.report import Finding
 from guardana.core.rule import RuleMeta
+from guardana.core.rule.fixture import FixtureOutcome, RuleFixture, materialise
 from guardana.core.safety import Detection, Impact
 from guardana.core.severity import Severity
 from guardana.core.target import Capability, McpAuthorizationView, TargetKind, display_url
 from guardana.core.taxonomy import OWASP_ASI03_2026, OWASP_LLM02_2026, OWASP_MCP01_2025
+from guardana.rules.mcp import _samples
 from guardana.rules.mcp._base import McpAuthorizationRule
 
 
@@ -52,6 +54,38 @@ class McpDiscoveryTargetRule(McpAuthorizationRule):
     def estimated_requests(self) -> int:
         """The discovery probe, the anonymous three, then six documented metadata attempts."""
         return 10
+
+    def fixtures(self) -> Iterable[RuleFixture]:
+        """Sample a challenge naming cloud metadata, a conforming chain, and an unread server."""
+        return materialise(
+            (
+                _samples.sample(
+                    "a challenge directing the client to the cloud metadata address",
+                    FixtureOutcome.FINDING,
+                    lambda: _samples.target(
+                        _samples.protected_server(
+                            challenge=(
+                                f'Bearer resource_metadata="{_samples.UNSAFE_ADDRESS}'
+                                f'/.well-known/oauth-protected-resource"'
+                            )
+                        ),
+                        credential=_samples.CREDENTIAL,
+                    ),
+                ),
+                _samples.sample(
+                    "a discovery chain naming only the server's own origin",
+                    FixtureOutcome.CLEAN,
+                    lambda: _samples.target(
+                        _samples.protected_server(), credential=_samples.CREDENTIAL
+                    ),
+                ),
+                _samples.sample(
+                    "a server speaking only a revision guardana does not",
+                    FixtureOutcome.INCONCLUSIVE,
+                    lambda: _samples.target(_samples.unspoken_server()),
+                ),
+            )
+        )
 
     def examine(self, view: McpAuthorizationView) -> Iterator[Finding]:
         """Report every discovery address this run refused to fetch, and why."""
