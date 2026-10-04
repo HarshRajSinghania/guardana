@@ -21,6 +21,7 @@ from guardana.rules._base import ArtifactRule
 from guardana.rules.supply_chain import _samples
 from guardana.rules.supply_chain._ast_names import import_aliases
 from guardana.rules.supply_chain._leads import lead_verdict
+from guardana.rules.supply_chain._unread_python import unread_python
 
 # A dataset "loading script" is a Python class the datasets library imports and
 # runs to produce examples — arbitrary code that executes while you are "just
@@ -206,7 +207,9 @@ class DatasetIntegrityRule(ArtifactRule):
             return
         for path in target.iter_files((".py",)):
             source = target.python_source(path)
-            if source is not None:
+            if source is None:
+                yield from unread_python(self.meta, target, path, ctx)
+            else:
                 yield from self._scan(source)
 
     def _scan(self, source: PythonSource) -> Iterator[Finding]:

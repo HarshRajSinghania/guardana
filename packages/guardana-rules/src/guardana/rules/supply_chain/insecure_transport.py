@@ -13,6 +13,7 @@ from guardana.core.taxonomy import NIST_SUPPLY_CHAIN, OWASP_LLM03_2025, OWASP_LL
 from guardana.rules._base import ArtifactRule
 from guardana.rules.supply_chain import _samples
 from guardana.rules.supply_chain._leads import lead_verdict
+from guardana.rules.supply_chain._unread_python import unread_python
 
 # Bare call names that fetch a model, dataset, or file over the network. A
 # plaintext `http://` URL only matters as an argument to one of these — an
@@ -122,7 +123,9 @@ class InsecureTransportRule(ArtifactRule):
             return
         for path in target.iter_files((".py",)):
             source = target.python_source(path)
-            if source is not None:
+            if source is None:
+                yield from unread_python(self.meta, target, path, ctx)
+            else:
                 yield from self._scan(source)
 
     def _scan(self, source: PythonSource) -> Iterator[Finding]:

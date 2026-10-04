@@ -16,6 +16,7 @@ from guardana.core.taxonomy import (
 )
 from guardana.rules._base import ArtifactRule
 from guardana.rules.supply_chain import _samples
+from guardana.rules.supply_chain._unread_python import unread_python
 
 # `trust_remote_code=True` tells transformers / datasets to import and run code
 # that ships inside a Hub repo — arbitrary code execution at load time, and the
@@ -108,7 +109,9 @@ class RemoteCodeRule(ArtifactRule):
             return
         for path in target.iter_files((".py",)):
             source = target.python_source(path)
-            if source is not None:
+            if source is None:
+                yield from unread_python(self.meta, target, path, ctx)
+            else:
                 yield from self._scan(source)
 
     def _scan(self, source: PythonSource) -> Iterator[Finding]:

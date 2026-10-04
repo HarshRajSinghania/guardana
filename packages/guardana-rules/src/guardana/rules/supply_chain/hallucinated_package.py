@@ -19,6 +19,7 @@ from guardana.rules.supply_chain._known_packages import (
     installed_import_names,
 )
 from guardana.rules.supply_chain._leads import lead_verdict
+from guardana.rules.supply_chain._unread_python import unread_python
 
 _STDLIB = frozenset(sys.stdlib_module_names)
 # Matched exactly, as Python's own finder does: `helperlib.PY` is not importable as
@@ -146,7 +147,9 @@ class HallucinatedPackageRule(ArtifactRule):
         declared = declared_import_names(files)
         for path in target.iter_files((".py",)):
             source = target.python_source(path)
-            if source is not None:
+            if source is None:
+                yield from unread_python(self.meta, target, path, ctx)
+            else:
                 yield from self._scan(source, known, declared)
 
     def _scan(
