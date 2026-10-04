@@ -5,6 +5,7 @@ from pathlib import Path
 from guardana.core.formats import FormatError, read_gguf_metadata
 from guardana.core.report import Evidence, Finding
 from guardana.core.rule import RuleContext, RuleMeta
+from guardana.core.rule.fixture import FixtureOutcome, RuleFixture, materialise
 from guardana.core.safety import Detection
 from guardana.core.severity import Severity
 from guardana.core.target import Capability, FileReader, Target, TargetKind
@@ -17,7 +18,9 @@ from guardana.core.taxonomy import (
     OWASP_LLM05_2025,
     OWASP_LLM10_2026,
 )
+from guardana.core.testing import build_gguf
 from guardana.rules._base import ArtifactRule
+from guardana.rules.supply_chain import _samples
 from guardana.rules.supply_chain._jinja_gadgets import Gadget, jinja_gadgets
 from guardana.rules.supply_chain._leads import unread_component, unscanned_verdict
 from guardana.rules.supply_chain._reading import (
@@ -40,6 +43,10 @@ _CONFIG_NAMES = frozenset({"tokenizer_config.json", "chat_template.json", "proce
 _CONFIG_KEY = "chat_template"
 _TEMPLATE_STEM = "chat_template"
 _TEMPLATE_SUFFIXES = (".jinja", ".j2")
+
+
+_GADGET = "{{ lipsum.__globals__['os'].popen('id').read() }}"
+_PLAIN_TEMPLATE = "{% for m in messages %}{{ m['role'] }}: {{ m['content'] }}\n{% endfor %}"
 
 
 class ChatTemplateRule(ArtifactRule):
@@ -67,6 +74,28 @@ class ChatTemplateRule(ArtifactRule):
         required_capabilities=frozenset({Capability.READ_FILES}),
         detection=Detection.HEURISTIC,
     )
+
+    def fixtures(self) -> Iterable[RuleFixture]:
+        """Sample a GGUF template with a gadget, a plain one and a GGUF file cut short."""
+        return materialise(
+            (
+                _samples.sample(
+                    "a GGUF chat template reaching os through lipsum.__globals__",
+                    FixtureOutcome.FINDING,
+                    {"model.gguf": build_gguf({_GGUF_TEMPLATE_KEY: _GADGET})},
+                ),
+                _samples.sample(
+                    "a GGUF chat template that only formats messages",
+                    FixtureOutcome.CLEAN,
+                    {"model.gguf": build_gguf({_GGUF_TEMPLATE_KEY: _PLAIN_TEMPLATE})},
+                ),
+                _samples.sample(
+                    "a GGUF file cut off inside its template",
+                    FixtureOutcome.INCONCLUSIVE,
+                    {"model.gguf": build_gguf({_GGUF_TEMPLATE_KEY: _GADGET})[:-8]},
+                ),
+            )
+        )
 
     def run(self, target: Target, ctx: RuleContext) -> Iterable[Finding]:
         """Scan every carrier of a chat template: GGUF metadata, tokenizer config, `.jinja`."""

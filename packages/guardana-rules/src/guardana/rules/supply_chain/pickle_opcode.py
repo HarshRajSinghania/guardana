@@ -10,6 +10,7 @@ from pathlib import Path
 
 from guardana.core.report import Evidence, Finding
 from guardana.core.rule import RuleContext, RuleMeta
+from guardana.core.rule.fixture import FixtureOutcome, RuleFixture, materialise
 from guardana.core.safety import Detection
 from guardana.core.severity import Severity
 from guardana.core.target import Capability, FileReader, Target, TargetKind
@@ -23,6 +24,7 @@ from guardana.core.taxonomy import (
     OWASP_LLM10_2026,
 )
 from guardana.rules._base import ArtifactRule
+from guardana.rules.supply_chain import _samples
 from guardana.rules.supply_chain._leads import unread_component, unscanned_verdict
 from guardana.rules.supply_chain._reading import read_bytes_bounded
 
@@ -615,6 +617,28 @@ class PickleOpcodeRule(ArtifactRule):
         required_capabilities=frozenset({Capability.READ_FILES}),
         detection=Detection.INVARIANT,
     )
+
+    def fixtures(self) -> Iterable[RuleFixture]:
+        """Sample a pickle importing `os.system`, one holding plain data and a 7z archive."""
+        return materialise(
+            (
+                _samples.sample(
+                    "a pickle whose GLOBAL opcode imports os.system",
+                    FixtureOutcome.FINDING,
+                    {"model.pkl": b"cos\nsystem\n(Vid\ntR."},
+                ),
+                _samples.sample(
+                    "a pickle holding only a dict of floats",
+                    FixtureOutcome.CLEAN,
+                    {"model.pkl": b"(dp0\nVweights\np1\n(lp2\nF0.0\naF1.0\nas."},
+                ),
+                _samples.sample(
+                    "a checkpoint compressed as 7z, which this scanner cannot open",
+                    FixtureOutcome.INCONCLUSIVE,
+                    {"model.pkl": _7Z_MAGIC + bytes(26)},
+                ),
+            )
+        )
 
     def run(self, target: Target, ctx: RuleContext) -> Iterable[Finding]:
         """Scan every pickle-shaped file under the target, and every `.bin` that is one."""

@@ -3,12 +3,14 @@ from collections.abc import Iterable, Iterator
 
 from guardana.core.report import Evidence, Finding
 from guardana.core.rule import RuleContext, RuleMeta
+from guardana.core.rule.fixture import FixtureOutcome, RuleFixture, materialise
 from guardana.core.safety import Detection
 from guardana.core.severity import Severity
 from guardana.core.source import PythonSource
 from guardana.core.target import Capability, FileReader, Target, TargetKind
 from guardana.core.taxonomy import NIST_SUPPLY_CHAIN, OWASP_LLM03_2025, OWASP_LLM04_2026
 from guardana.rules._base import ArtifactRule
+from guardana.rules.supply_chain import _samples
 from guardana.rules.supply_chain._ast_names import import_aliases, resolved_call_name
 
 _SAFE_YAML_LOADERS = frozenset({"SafeLoader", "CSafeLoader"})
@@ -107,6 +109,9 @@ def _sinks(source: PythonSource) -> Iterator[tuple[int, str, Severity]]:
             )
 
 
+_LOAD = "import torch\n\nmodel = torch.load('model.pt'{})\n"
+
+
 class DependencyRiskRule(ArtifactRule):
     """Flags calls that deserialize untrusted data (pickle family, `torch.load`, `yaml.load`)."""
 
@@ -123,6 +128,28 @@ class DependencyRiskRule(ArtifactRule):
         required_capabilities=frozenset({Capability.READ_FILES}),
         detection=Detection.HEURISTIC,
     )
+
+    def fixtures(self) -> Iterable[RuleFixture]:
+        """Sample a bare `torch.load`, one restricted to weights and one the scan could not read."""
+        return materialise(
+            (
+                _samples.sample(
+                    "torch.load without weights_only",
+                    FixtureOutcome.FINDING,
+                    {"load.py": _LOAD.format("")},
+                ),
+                _samples.sample(
+                    "torch.load restricted to weights",
+                    FixtureOutcome.CLEAN,
+                    {"load.py": _LOAD.format(", weights_only=True")},
+                ),
+                _samples.sample(
+                    "a loader padded past the read limit, so nobody read it",
+                    FixtureOutcome.INCONCLUSIVE,
+                    {"load.py": _samples.past_the_source_limit(_LOAD.format(""))},
+                ),
+            )
+        )
 
     def run(self, target: Target, ctx: RuleContext) -> Iterable[Finding]:
         """Scan every `.py` file under the target for deserialization sinks."""

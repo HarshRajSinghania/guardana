@@ -4,12 +4,14 @@ from pathlib import Path
 
 from guardana.core.report import Evidence, Finding
 from guardana.core.rule import RuleContext, RuleMeta
+from guardana.core.rule.fixture import FixtureOutcome, RuleFixture, materialise
 from guardana.core.safety import Detection
 from guardana.core.severity import Severity
 from guardana.core.source import PythonSource
 from guardana.core.target import Capability, FileReader, Target, TargetKind
 from guardana.core.taxonomy import NIST_SUPPLY_CHAIN, OWASP_LLM03_2025, OWASP_LLM04_2026
 from guardana.rules._base import ArtifactRule
+from guardana.rules.supply_chain import _samples
 from guardana.rules.supply_chain._leads import lead_verdict, unscanned_verdict
 from guardana.rules.supply_chain._reading import MAX_SCAN_BYTES, read_text_prefix
 
@@ -46,6 +48,9 @@ def _license_lead(text: str) -> str | None:
     return None
 
 
+_PINNED = "from transformers import AutoModel\n\nmodel = AutoModel.from_pretrained('org/model'{})\n"
+
+
 class ProvenanceRule(ArtifactRule):
     """Flags an unpinned model download, or a licence in the model card worth a second look."""
 
@@ -62,6 +67,32 @@ class ProvenanceRule(ArtifactRule):
         required_capabilities=frozenset({Capability.READ_FILES}),
         detection=Detection.HEURISTIC,
     )
+
+    def fixtures(self) -> Iterable[RuleFixture]:
+        """Sample an unpinned download, a pinned one and a model card past the read bound."""
+        return materialise(
+            (
+                _samples.sample(
+                    "from_pretrained with no revision",
+                    FixtureOutcome.FINDING,
+                    {"load.py": _PINNED.format("")},
+                ),
+                _samples.sample(
+                    "from_pretrained pinned to a commit",
+                    FixtureOutcome.CLEAN,
+                    {
+                        "load.py": _PINNED.format(
+                            ", revision='6c0e6080953db56375760c0471a8c5f2929baf11'"
+                        )
+                    },
+                ),
+                _samples.sample(
+                    "a model card padded past the read bound, its licence after the padding",
+                    FixtureOutcome.INCONCLUSIVE,
+                    {"README.md": _samples.past_the_scan_bound("license: AGPL-3.0\n")},
+                ),
+            )
+        )
 
     def run(self, target: Target, ctx: RuleContext) -> Iterable[Finding]:
         """Scan `.py` files for downloads, and model cards for licence markers."""

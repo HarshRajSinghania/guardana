@@ -2,6 +2,7 @@ from collections.abc import Iterable, Iterator
 
 from guardana.core.report import Evidence, Finding
 from guardana.core.rule import RuleContext, RuleMeta
+from guardana.core.rule.fixture import FixtureOutcome, RuleFixture, materialise
 from guardana.core.safety import Detection
 from guardana.core.severity import Severity
 from guardana.core.source import PythonSource
@@ -13,6 +14,7 @@ from guardana.core.taxonomy import (
     OWASP_LLM04_2026,
 )
 from guardana.rules._base import ArtifactRule
+from guardana.rules.supply_chain import _samples
 from guardana.rules.supply_chain._code_sinks import code_sinks
 
 
@@ -33,6 +35,28 @@ class CodeExecutionRule(ArtifactRule):
         required_capabilities=frozenset({Capability.READ_FILES}),
         detection=Detection.HEURISTIC,
     )
+
+    def fixtures(self) -> Iterable[RuleFixture]:
+        """Sample a shell sink, an argument-list subprocess and a file the scan could not read."""
+        return materialise(
+            (
+                _samples.sample(
+                    "os.system running a command string",
+                    FixtureOutcome.FINDING,
+                    {"run.py": "import os\n\nos.system('id')\n"},
+                ),
+                _samples.sample(
+                    "subprocess.run with an argument list",
+                    FixtureOutcome.CLEAN,
+                    {"run.py": "import subprocess\n\nsubprocess.run(['ls', '-l'], check=True)\n"},
+                ),
+                _samples.sample(
+                    "a shell sink padded past the read limit, so nobody read it",
+                    FixtureOutcome.INCONCLUSIVE,
+                    {"run.py": _samples.past_the_source_limit("import os\nos.system('id')\n")},
+                ),
+            )
+        )
 
     def run(self, target: Target, ctx: RuleContext) -> Iterable[Finding]:
         """Scan every `.py` file under the target for code-execution sinks."""

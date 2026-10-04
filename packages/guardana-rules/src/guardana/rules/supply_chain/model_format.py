@@ -8,6 +8,7 @@ from defusedxml.common import DTDForbidden, EntitiesForbidden, ExternalReference
 from guardana.core.formats import FormatError, read_safetensors_header
 from guardana.core.report import Evidence, Finding
 from guardana.core.rule import RuleContext, RuleMeta
+from guardana.core.rule.fixture import FixtureOutcome, RuleFixture, materialise
 from guardana.core.safety import Detection
 from guardana.core.severity import Severity
 from guardana.core.target import Capability, FileReader, Target, TargetKind
@@ -19,7 +20,9 @@ from guardana.core.taxonomy import (
     OWASP_LLM05_2025,
     OWASP_LLM10_2026,
 )
+from guardana.core.testing import build_safetensors
 from guardana.rules._base import ArtifactRule
+from guardana.rules.supply_chain import _samples
 from guardana.rules.supply_chain._leads import unread_component, unscanned_verdict
 from guardana.rules.supply_chain._reading import MAX_SCAN_BYTES, read_bytes_bounded
 
@@ -143,6 +146,12 @@ _WHOLE_FILE_DETECTORS: dict[str, Callable[[Path, RuleContext], Iterator[Finding]
 }
 
 
+_XXE_SAMPLE = (
+    '<?xml version="1.0"?>\n<!DOCTYPE PMML [<!ENTITY ext SYSTEM "file:///etc/hostname">]>\n'
+    '<PMML version="4.4"><Header description="&ext;"/></PMML>\n'
+)
+
+
 class ModelFormatRule(ArtifactRule):
     """Flags risky constructs in non-pickle model formats (PMML/XML, safetensors).
 
@@ -166,6 +175,28 @@ class ModelFormatRule(ArtifactRule):
         required_capabilities=frozenset({Capability.READ_FILES}),
         detection=Detection.HEURISTIC,
     )
+
+    def fixtures(self) -> Iterable[RuleFixture]:
+        """Sample a PMML file declaring an entity, a safetensors file and one with a cut header."""
+        return materialise(
+            (
+                _samples.sample(
+                    "a PMML model declaring an external entity",
+                    FixtureOutcome.FINDING,
+                    {"model.pmml": _XXE_SAMPLE},
+                ),
+                _samples.sample(
+                    "a well-formed safetensors file",
+                    FixtureOutcome.CLEAN,
+                    {"model.safetensors": build_safetensors()},
+                ),
+                _samples.sample(
+                    "a safetensors file whose header length is cut short",
+                    FixtureOutcome.INCONCLUSIVE,
+                    {"model.safetensors": b"\x01\x00"},
+                ),
+            )
+        )
 
     def run(self, target: Target, ctx: RuleContext) -> Iterable[Finding]:
         """Scan every model file whose suffix has a detector."""

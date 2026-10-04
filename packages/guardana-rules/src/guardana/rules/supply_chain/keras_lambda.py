@@ -6,6 +6,7 @@ from pathlib import Path
 
 from guardana.core.report import Evidence, Finding
 from guardana.core.rule import RuleContext, RuleMeta
+from guardana.core.rule.fixture import FixtureOutcome, RuleFixture, materialise
 from guardana.core.safety import Detection
 from guardana.core.severity import Severity
 from guardana.core.target import Capability, FileReader, Target, TargetKind
@@ -18,6 +19,7 @@ from guardana.core.taxonomy import (
     OWASP_ML06_2023,
 )
 from guardana.rules._base import ArtifactRule
+from guardana.rules.supply_chain import _samples
 from guardana.rules.supply_chain._leads import unread_component, unscanned_verdict
 from guardana.rules.supply_chain._reading import read_bytes_bounded
 
@@ -78,6 +80,41 @@ class KerasLambdaRule(ArtifactRule):
         required_capabilities=frozenset({Capability.READ_FILES}),
         detection=Detection.INVARIANT,
     )
+
+    def fixtures(self) -> Iterable[RuleFixture]:
+        """Sample a `.keras` model with a Lambda layer, one without and one that is no archive."""
+        return materialise(
+            (
+                _samples.sample(
+                    "a .keras model declaring a Lambda layer",
+                    FixtureOutcome.FINDING,
+                    {
+                        "model.keras": _samples.keras_archive(
+                            [
+                                {
+                                    "class_name": "Lambda",
+                                    "config": {"name": "fn", "function": "lambda x: x"},
+                                }
+                            ]
+                        )
+                    },
+                ),
+                _samples.sample(
+                    "a .keras model of Dense layers only",
+                    FixtureOutcome.CLEAN,
+                    {
+                        "model.keras": _samples.keras_archive(
+                            [{"class_name": "Dense", "config": {"name": "dense", "units": 1}}]
+                        )
+                    },
+                ),
+                _samples.sample(
+                    "a .keras file that is not a readable archive",
+                    FixtureOutcome.INCONCLUSIVE,
+                    {"model.keras": b"not a zip archive"},
+                ),
+            )
+        )
 
     def run(self, target: Target, ctx: RuleContext) -> Iterable[Finding]:
         """Parse `.keras` archives structurally; scan legacy `.h5`/`.hdf5` for the class marker."""

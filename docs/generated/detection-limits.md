@@ -195,7 +195,7 @@ A framework mapping says a rule is relevant to that entry, not that the entry is
 
 ## supply_chain
 
-### Invariant, not sampled
+### Tested invariant
 
 - `guardana.supply_chain.keras_lambda`: Keras Lambda layer (arbitrary code on model load)
 - `guardana.supply_chain.pickle_opcode`: Dangerous pickle opcode (arbitrary code on load)

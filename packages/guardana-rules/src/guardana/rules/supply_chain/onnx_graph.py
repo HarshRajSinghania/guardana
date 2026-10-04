@@ -11,6 +11,7 @@ from guardana.core.formats import (
 )
 from guardana.core.report import Evidence, Finding
 from guardana.core.rule import RuleContext, RuleMeta
+from guardana.core.rule.fixture import FixtureOutcome, RuleFixture, materialise
 from guardana.core.safety import Detection
 from guardana.core.severity import Severity
 from guardana.core.target import Capability, FileReader, Target, TargetKind
@@ -23,8 +24,10 @@ from guardana.core.taxonomy import (
     OWASP_LLM05_2025,
     OWASP_LLM10_2026,
 )
+from guardana.core.testing import build_onnx
 from guardana.rules._base import ArtifactRule
 from guardana.rules.prompt._injection_markers import has_smuggled_char
+from guardana.rules.supply_chain import _samples
 from guardana.rules.supply_chain._leads import lead_verdict, unread_component, unscanned_verdict
 
 _RULE_ID = "guardana.supply_chain.onnx_graph"
@@ -78,6 +81,36 @@ class OnnxGraphRule(ArtifactRule):
 
     def __init__(self, *, max_entries: int = _MAX_GRAPH_FIELDS) -> None:
         self._limits = Limits(max_entries=max_entries)
+
+    def fixtures(self) -> Iterable[RuleFixture]:
+        """Sample external data outside the model, a standard graph and a model cut short."""
+        return materialise(
+            (
+                _samples.sample(
+                    "external_data climbing out of the model directory",
+                    FixtureOutcome.FINDING,
+                    {
+                        "model.onnx": build_onnx(
+                            nodes=(("Conv", ""),), external_paths=("../../etc/passwd",)
+                        )
+                    },
+                ),
+                _samples.sample(
+                    "a graph of standard operators with its data inline",
+                    FixtureOutcome.CLEAN,
+                    {
+                        "model.onnx": build_onnx(
+                            nodes=(("Conv", ""), ("Relu", "")), producer="pytorch"
+                        )
+                    },
+                ),
+                _samples.sample(
+                    "a model cut off inside its graph",
+                    FixtureOutcome.INCONCLUSIVE,
+                    {"model.onnx": build_onnx(nodes=(("Conv", ""),), producer="pytorch")[:-3]},
+                ),
+            )
+        )
 
     def run(self, target: Target, ctx: RuleContext) -> Iterable[Finding]:
         """Walk every `.onnx` graph's structure without loading its weights."""

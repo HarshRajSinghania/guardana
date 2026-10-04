@@ -5,12 +5,14 @@ from pathlib import Path
 
 from guardana.core.report import Evidence, Finding
 from guardana.core.rule import RuleContext, RuleMeta
+from guardana.core.rule.fixture import FixtureOutcome, RuleFixture, materialise
 from guardana.core.safety import Detection
 from guardana.core.severity import Severity
 from guardana.core.source import PythonSource
 from guardana.core.target import Capability, FileReader, Target, TargetKind
 from guardana.core.taxonomy import OWASP_LLM03_2025, OWASP_LLM04_2026
 from guardana.rules._base import ArtifactRule
+from guardana.rules.supply_chain import _samples
 from guardana.rules.supply_chain._declared_deps import declared_import_names, normalize
 from guardana.rules.supply_chain._known_packages import (
     KNOWN_DISTRIBUTIONS,
@@ -98,6 +100,31 @@ class HallucinatedPackageRule(ArtifactRule):
         required_capabilities=frozenset({Capability.READ_FILES}),
         detection=Detection.HEURISTIC,
     )
+
+    def fixtures(self) -> Iterable[RuleFixture]:
+        """Sample an unknown import, a declared one and a file the scan could not read."""
+        return materialise(
+            (
+                _samples.sample(
+                    "an import nobody declared or published",
+                    FixtureOutcome.FINDING,
+                    {"app.py": "import json\n\nimport tokenizerz_fast_utils\n"},
+                ),
+                _samples.sample(
+                    "an import the project declares in its requirements",
+                    FixtureOutcome.CLEAN,
+                    {
+                        "app.py": "import json\n\nimport acme_tokenizers\n",
+                        "requirements.txt": "acme-tokenizers==1.0\n",
+                    },
+                ),
+                _samples.sample(
+                    "an unknown import padded past the read limit, so nobody read it",
+                    FixtureOutcome.INCONCLUSIVE,
+                    {"app.py": _samples.past_the_source_limit("import tokenizerz_fast_utils\n")},
+                ),
+            )
+        )
 
     def run(self, target: Target, ctx: RuleContext) -> Iterable[Finding]:
         """Scan every `.py` file, treating the target's own modules as known."""

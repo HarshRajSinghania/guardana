@@ -3,6 +3,7 @@ from pathlib import Path
 
 from guardana.core.report import Evidence, Finding
 from guardana.core.rule import RuleContext, RuleMeta
+from guardana.core.rule.fixture import FixtureOutcome, RuleFixture, materialise
 from guardana.core.safety import Detection
 from guardana.core.severity import Severity
 from guardana.core.target import Capability, FileReader, Target, TargetKind
@@ -15,6 +16,7 @@ from guardana.core.taxonomy import (
     OWASP_ML06_2023,
 )
 from guardana.rules._base import ArtifactRule
+from guardana.rules.supply_chain import _samples
 from guardana.rules.supply_chain._leads import lead_verdict, unread_component, unscanned_verdict
 from guardana.rules.supply_chain._reading import read_bytes_bounded
 
@@ -48,6 +50,28 @@ class SavedModelOpsRule(ArtifactRule):
         required_capabilities=frozenset({Capability.READ_FILES}),
         detection=Detection.HEURISTIC,
     )
+
+    def fixtures(self) -> Iterable[RuleFixture]:
+        """Sample a graph with a `WriteFile` op, one without and one longer than the read bound."""
+        return materialise(
+            (
+                _samples.sample(
+                    "a SavedModel graph carrying a WriteFile op",
+                    FixtureOutcome.FINDING,
+                    {"saved_model.pb": b"\n\x0bsave/Write\x12\tWriteFile"},
+                ),
+                _samples.sample(
+                    "a SavedModel graph of constants only",
+                    FixtureOutcome.CLEAN,
+                    {"saved_model.pb": b"\n\x05const\x12\x05Const"},
+                ),
+                _samples.sample(
+                    "a graph padded past the read bound, its WriteFile op after the padding",
+                    FixtureOutcome.INCONCLUSIVE,
+                    {"saved_model.pb": bytes(_MAX_SCAN_BYTES) + b"\x12\tWriteFile"},
+                ),
+            )
+        )
 
     def run(self, target: Target, ctx: RuleContext) -> Iterable[Finding]:
         """Bytes-scan every `.pb` graph for filesystem operators."""

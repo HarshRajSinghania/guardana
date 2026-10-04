@@ -10,10 +10,12 @@ from pathlib import Path
 from guardana.core.evaluator.base import Verdict
 from guardana.core.report import Evidence, Finding
 from guardana.core.rule import RuleContext, RuleMeta
+from guardana.core.rule.fixture import FixtureOutcome, RuleFixture, materialise
 from guardana.core.safety import Detection
 from guardana.core.severity import Severity
 from guardana.core.target import Capability, FileReader, Target, TargetKind
 from guardana.core.taxonomy import OWASP_LLM02_2025, OWASP_LLM02_2026
+from guardana.core.testing import fake_aws_key
 from guardana.rules._base import ArtifactRule
 from guardana.rules._secrets import (
     FILE_SECRET_PATTERNS,
@@ -21,6 +23,7 @@ from guardana.rules._secrets import (
     is_scannable_text,
     redact,
 )
+from guardana.rules.supply_chain import _samples
 from guardana.rules.supply_chain._leads import unscanned_verdict
 from guardana.rules.supply_chain._reading import MAX_SCAN_BYTES, read_bytes_bounded
 
@@ -169,6 +172,9 @@ def _scan_entropy(text: str) -> Iterator[tuple[_Where, str, str]]:
         yield cursor.at(match.start()), name, value
 
 
+_FROM_THE_ENVIRONMENT = "aws_region: eu-west-1\naws_access_key_id: ${AWS_ACCESS_KEY_ID}\n"
+
+
 class HardcodedSecretRule(ArtifactRule):
     """Scans repository files for hardcoded secrets.
 
@@ -190,6 +196,28 @@ class HardcodedSecretRule(ArtifactRule):
         required_capabilities=frozenset({Capability.READ_FILES}),
         detection=Detection.HEURISTIC,
     )
+
+    def fixtures(self) -> Iterable[RuleFixture]:
+        """Sample a key in a config, a config naming none and a file past the read bound."""
+        return materialise(
+            (
+                _samples.sample(
+                    "an AWS access key id in a YAML config",
+                    FixtureOutcome.FINDING,
+                    {"config.yaml": f"aws_access_key_id: {fake_aws_key()}\n"},
+                ),
+                _samples.sample(
+                    "a YAML config reading its key from the environment",
+                    FixtureOutcome.CLEAN,
+                    {"config.yaml": _FROM_THE_ENVIRONMENT},
+                ),
+                _samples.sample(
+                    "an .env padded past the read bound, its key after the padding",
+                    FixtureOutcome.INCONCLUSIVE,
+                    {".env": _samples.past_the_scan_bound(f"AWS_KEY={fake_aws_key()}")},
+                ),
+            )
+        )
 
     def run(self, target: Target, ctx: RuleContext) -> Iterable[Finding]:
         """Scan every text-like file under the target for secret shapes."""

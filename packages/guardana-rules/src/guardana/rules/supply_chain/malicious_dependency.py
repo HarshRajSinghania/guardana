@@ -5,6 +5,7 @@ from pathlib import Path
 
 from guardana.core.report import Evidence, Finding
 from guardana.core.rule import RuleContext, RuleMeta
+from guardana.core.rule.fixture import FixtureOutcome, RuleFixture, materialise
 from guardana.core.safety import Detection
 from guardana.core.severity import Severity
 from guardana.core.target import Capability, FileReader, Target, TargetKind
@@ -16,6 +17,7 @@ from guardana.core.taxonomy import (
     OWASP_ML06_2023,
 )
 from guardana.rules._base import ArtifactRule
+from guardana.rules.supply_chain import _samples
 from guardana.rules.supply_chain._advisories import Advisory, load_advisories
 from guardana.rules.supply_chain._leads import lead_verdict, unscanned_verdict
 from guardana.rules.supply_chain._reading import MAX_SCAN_BYTES, read_text_prefix
@@ -98,6 +100,12 @@ def _setup_network_calls(source: str) -> Iterator[int]:
                 yield node.lineno
 
 
+_LATIN_1_SETUP = (
+    b"# -*- coding: latin-1 -*-\n# Autor: Jos\xe9\nfrom setuptools import setup\n\n"
+    b"setup(name='sample')\n"
+)
+
+
 class MaliciousDependencyRule(ArtifactRule):
     """Flag advisory-listed package releases, and install-time network fetches in setup.py.
 
@@ -125,6 +133,28 @@ class MaliciousDependencyRule(ArtifactRule):
 
     def __init__(self, *, advisories: Sequence[Advisory] | None = None) -> None:
         self._advisories = tuple(advisories) if advisories is not None else load_advisories()
+
+    def fixtures(self) -> Iterable[RuleFixture]:
+        """Sample a compromised pin, the clean release and a setup.py this rule cannot decode."""
+        return materialise(
+            (
+                _samples.sample(
+                    "requirements pinning a compromised ultralytics release",
+                    FixtureOutcome.FINDING,
+                    {"requirements.txt": "ultralytics==8.3.41\n"},
+                ),
+                _samples.sample(
+                    "requirements pinning the clean ultralytics release",
+                    FixtureOutcome.CLEAN,
+                    {"requirements.txt": "ultralytics==8.3.43\n"},
+                ),
+                _samples.sample(
+                    "a Latin-1 setup.py, which pip runs and this rule cannot read as UTF-8",
+                    FixtureOutcome.INCONCLUSIVE,
+                    {"setup.py": _LATIN_1_SETUP},
+                ),
+            )
+        )
 
     def run(self, target: Target, ctx: RuleContext) -> Iterable[Finding]:
         """Match dependency manifests against the advisory dataset; scan setup.py for fetches."""
