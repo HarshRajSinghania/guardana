@@ -238,12 +238,25 @@ unscoped query exists. Tested per entity, both read and write.
 **Scenario:** a model's reply contains a script tag; it lands in evidence; the
 dashboard renders it.
 
-**Stance:** evidence is attacker-influenced text by definition. The dashboard
-HTML-escapes every submitted string before it inserts it into the page.
+**Stance:** evidence is attacker-influenced text by definition. Two layers stand
+between it and a script. The page carries no data: findings arrive only by `fetch`
+as JSON, and the page's script HTML-escapes every value before it inserts it.
+The page is served with a Content-Security-Policy that allows exactly one script
+and one stylesheet, the page's own, by the SHA-256 of the text actually served:
+`default-src 'none'`, no `'unsafe-inline'` or `'unsafe-eval'` for scripts or
+styles, `connect-src 'self'`, `img-src 'self' data:`, `base-uri 'none'`,
+`form-action 'self'`, `frame-ancestors 'none'`, plus `X-Content-Type-Options:
+nosniff` and `Referrer-Policy: no-referrer`. The page uses no `style` attributes,
+so styles need no inline allowance either. Tests check the header, that the hash
+matches the served script, and, without a browser, that every value the script
+splices into markup is escaped; a crafted finding reaches the API as data and
+never the page.
 
-**Residual risk:** escaping is the only layer. The collector sends no
-Content-Security-Policy, and no test renders a crafted payload through the
-dashboard.
+**Residual risk:** the escaping test reads the script's structure rather than
+rendering it in a browser, so a value passed through a call that returns raw text
+is outside what it can see. If escaping did fail, the policy still blocks the
+injected script and any outside image or stylesheet, but injected markup could
+change what the reader sees.
 
 ### T8 — Denial of service through huge inputs
 

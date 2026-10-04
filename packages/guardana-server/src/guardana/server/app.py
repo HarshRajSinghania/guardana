@@ -9,7 +9,7 @@ from typing import Annotated
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse
 from guardana.server.auth import Authenticated, AuthError, Scope, authenticate
-from guardana.server.dashboard import render_dashboard
+from guardana.server.dashboard import dashboard_headers, render_dashboard
 from guardana.server.db.connection import connect
 from guardana.server.db.migrations import MigrationState, apply_pending, read_state
 from guardana.server.db.settings import StorageChoice, migrate_on_start, resolve_storage
@@ -270,10 +270,11 @@ def _mount_dashboard(app: FastAPI, store: Store, refresh_seconds: int, reading: 
     eventually produces reads as a lie to everybody except the type checker.
     """
     page = render_dashboard(refresh_seconds)
+    headers = dashboard_headers(page)
 
     @app.get("/", response_class=HTMLResponse)
-    def dashboard_page() -> str:
-        return page
+    def dashboard_page() -> HTMLResponse:
+        return HTMLResponse(page, headers=headers)
 
     @app.get("/stats")
     def get_stats(identity: reading) -> dict[str, object]:  # type: ignore[valid-type]

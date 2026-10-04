@@ -4,13 +4,54 @@ No template engine, no build step, no external assets: inline CSS/JS and inline
 SVG charts, so it works fully offline. The page is a thin client — it polls
 `/stats` (aggregated server-side) and `/findings`, reads `/catalog` once for
 human-readable rule names/descriptions, and renders. Submitted data is untrusted
-(any agent can POST), so the client escapes every value it injects.
+(any agent can POST), so the client escapes every value it injects, and the page
+is served under a Content-Security-Policy that runs no script but its own.
 """
+
+import base64
+import hashlib
+import re
+
+_INLINE_SCRIPT = re.compile(r"<script>(.*?)</script>", re.DOTALL)
+_INLINE_STYLE = re.compile(r"<style>(.*?)</style>", re.DOTALL)
 
 
 def render_dashboard(refresh_seconds: int) -> str:
     """Return the dashboard as one self-contained HTML document."""
     return _PAGE.replace("__REFRESH_MS__", str(max(1, refresh_seconds) * 1000))
+
+
+def dashboard_headers(page: str) -> dict[str, str]:
+    """Return the security headers to serve `page` with.
+
+    Scripts and styles are allowed by the SHA-256 of the inline blocks in `page`
+    itself, so the policy always matches the exact text served; a block the
+    pattern does not find is simply not allowed to run.
+    """
+    scripts = " ".join(_hash_source(text) for text in _INLINE_SCRIPT.findall(page)) or "'none'"
+    styles = " ".join(_hash_source(text) for text in _INLINE_STYLE.findall(page)) or "'none'"
+    policy = "; ".join(
+        [
+            "default-src 'none'",
+            f"script-src {scripts}",
+            f"style-src {styles}",
+            "connect-src 'self'",
+            "img-src 'self' data:",
+            "base-uri 'none'",
+            "form-action 'self'",
+            "frame-ancestors 'none'",
+        ]
+    )
+    return {
+        "Content-Security-Policy": policy,
+        "X-Content-Type-Options": "nosniff",
+        "Referrer-Policy": "no-referrer",
+    }
+
+
+def _hash_source(text: str) -> str:
+    digest = hashlib.sha256(text.encode("utf-8")).digest()
+    return f"'sha256-{base64.b64encode(digest).decode('ascii')}'"
 
 
 _PAGE = """<!doctype html>
@@ -59,6 +100,7 @@ _PAGE = """<!doctype html>
     white-space: nowrap; }
   .bar-row .k.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; }
   .bar { height: 12px; border-radius: 4px; min-width: 2px; }
+  .bar.accent { background: var(--accent); }
   .bar-row .v { text-align: right; font-variant-numeric: tabular-nums; font-size: 12px; }
   table { width: 100%; border-collapse: collapse; font-size: 12px; }
   th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line);
@@ -81,6 +123,8 @@ _PAGE = """<!doctype html>
   footer { color: var(--muted); font-size: 11px; padding: 16px 24px;
     border-top: 1px solid var(--line); max-width: 1100px; margin: 0 auto; }
   .mt { margin-top: 20px; }
+  .row h2 { margin: 0; }
+  #token { width: min(420px, 100%); padding: 8px; font-family: inherit; }
   /* Bounded so the page height stays stable as findings accumulate — the footer
      is always reachable, and the list scrolls within its own box. */
   #findings { max-height: 460px; overflow-y: auto; margin-top: 8px; }
@@ -112,14 +156,13 @@ _PAGE = """<!doctype html>
 <main>
   <!-- Shown when /stats answers 401: this browser has not signed in. A read-scoped
        API key is pasted once and kept in an httpOnly cookie the page cannot read. -->
-  <div class="card" id="signin" style="display:none">
+  <div class="card" id="signin" hidden>
     <h2>Sign in</h2>
     <p class="muted">This collector requires an API key. Paste one with the
       <code>read</code> scope — it is stored in a cookie this page cannot read, and
       revoking the key ends the session.</p>
     <form id="signin-form">
-      <input id="token" type="password" placeholder="gdn_…" autocomplete="off"
-             style="width:min(420px,100%);padding:8px;font-family:inherit">
+      <input id="token" type="password" placeholder="gdn_…" autocomplete="off">
       <button type="submit">Sign in</button>
       <span id="signin-error" class="muted"></span>
     </form>
@@ -147,15 +190,15 @@ _PAGE = """<!doctype html>
   <div class="card mt">
     <h2>Activity over time (recent window)</h2>
     <div class="legend">
-      <span><b style="background:var(--sev-high)"></b>findings</span>
-      <span><b style="background:var(--sev-info)"></b>unverified</span>
+      <span><b class="sev-HIGH"></b>findings</span>
+      <span><b class="sev-INFO"></b>unverified</span>
     </div>
     <div id="series"></div>
   </div>
 
   <div class="card mt">
     <div class="row">
-      <h2 style="margin:0">Recent findings</h2>
+      <h2>Recent findings</h2>
       <label>source
         <select id="source-filter"><option value="">all sources</option></select>
       </label>
@@ -174,48 +217,55 @@ _PAGE = """<!doctype html>
 
 <script>
 const SEVS = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"];
-const SEV_VAR = s => getComputedStyle(document.documentElement)
-  .getPropertyValue("--sev-" + s.toLowerCase()).trim() || "var(--sev-info)";
 const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g,
   c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const el = id => document.getElementById(id);
 let CATALOG = {};  // rule_id -> {name, description}, from /catalog
 const friendlyName = f => (CATALOG[f.rule_id] || {}).name || f.title || f.rule_id;
 
-function barRow(key, value, max, color, mono) {
+function barRow(key, value, max, tone, mono) {
   const w = max > 0 ? Math.round((value / max) * 100) : 0;
   return `<div class="bar-row"><div class="k${mono ? " mono" : ""}" title="${esc(key)}">`
-    + `${esc(key)}</div><div class="bar" style="width:${w}%;background:${color}"`
-    + ` title="${esc(key)}: ${value}"></div><div class="v">${value}</div></div>`;
+    + `${esc(key)}</div><div class="bar ${esc(tone)}" data-w="${w}"`
+    + ` title="${esc(key)}: ${esc(value)}"></div><div class="v">${esc(value)}</div></div>`;
+}
+
+// The policy drops `style` attributes, so a bar's width goes through the CSSOM,
+// which it allows.
+function fillBars(id, html) {
+  const box = el(id);
+  box.innerHTML = html;
+  box.querySelectorAll(".bar[data-w]").forEach(b => { b.style.width = b.dataset.w + "%"; });
 }
 
 function renderTiles(t, w) {
   const tile = (n, l, warn) => `<div class="card tile${warn ? " warn" : ""}">`
-    + `<div class="n">${n}</div><div class="l">${l}</div></div>`;
+    + `<div class="n">${esc(n)}</div><div class="l">${esc(l)}</div></div>`;
   el("tiles").innerHTML = tile(t.findings, "findings")
         + tile(t.errors || 0, "could not run")
     + tile(t.unverified, "unverified", t.unverified > 0)
     + tile(t.sources, "sources")
     + tile(t.submissions, w && !w.complete
-      ? `newest submissions (of more than ${w.limit})` : "submissions");
+      ? "newest submissions (of more than " + w.limit + ")" : "submissions");
 }
 
 function renderSeverity(by) {
   const max = Math.max(1, ...SEVS.map(s => by[s] || 0));
   const any = SEVS.some(s => by[s]);
-  el("severity").innerHTML = any
-    ? SEVS.map(s => barRow(s, by[s] || 0, max, SEV_VAR(s))).join("")
-    : `<div class="empty">No findings yet.</div>`;
+  fillBars("severity", any
+    ? SEVS.map(s => barRow(s, by[s] || 0, max, "sev-" + s)).join("")
+    : `<div class="empty">No findings yet.</div>`);
 }
 
 function renderSources(rows) {
   if (!rows.length) {
     el("sources").innerHTML = `<div class="empty">No sources yet.</div>`; return; }
-  el("sources").innerHTML = "<table><thead><tr><th>source</th><th>find.</th>"
-    + "<th>unver.</th><th>worst</th></tr></thead><tbody>"
+  el("sources").innerHTML = `<table><thead><tr><th>source</th><th>find.</th>`
+    + `<th>unver.</th><th>worst</th></tr></thead><tbody>`
     + rows.map(r => `<tr><td class="mono" title="${esc(r.source)}">${esc(r.source)}</td>`
-      + `<td>${r.findings}</td><td>${r.unverified}</td><td>${sevPill(r.worst_severity)}</td></tr>`)
-      .join("") + "</tbody></table>";
+      + `<td>${esc(r.findings)}</td><td>${esc(r.unverified)}</td>`
+      + `<td>${sevPill(r.worst_severity)}</td></tr>`)
+      .join("") + `</tbody></table>`;
 }
 
 function sevPill(s) { return s ? `<span class="pill sev-${esc(s)}">${esc(s)}</span>` : "—"; }
@@ -223,10 +273,10 @@ function sevPill(s) { return s ? `<span class="pill sev-${esc(s)}">${esc(s)}</sp
 function renderRules(rows) {
   if (!rows.length) { el("rules").innerHTML = `<div class="empty">No findings yet.</div>`; return; }
   const max = Math.max(1, ...rows.map(r => r.count));
-  el("rules").innerHTML = rows.map(r => {
+  fillBars("rules", rows.map(r => {
     const name = (CATALOG[r.rule_id] || {}).name || r.rule_id.replace(/^guardana\\./, "");
-    return barRow(name, r.count, max, "var(--accent)");
-  }).join("");
+    return barRow(name, r.count, max, "accent");
+  }).join(""));
 }
 
 function renderSeries(series) {
@@ -241,7 +291,7 @@ function renderSeries(series) {
   const dots = key => series.map((b, i) =>
     `<circle cx="${x(i).toFixed(1)}" cy="${y(b[key]).toFixed(1)}" r="2.5"
       fill="${key === "findings" ? "var(--sev-high)" : "var(--sev-info)"}">`
-    + `<title>${b[key]} ${key}</title></circle>`).join("");
+    + `<title>${esc(b[key])} ${esc(key)}</title></circle>`).join("");
   el("series").innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}"
     role="img" aria-label="findings and unverified over time">
     <path d="${path("findings")}" fill="none" stroke="var(--sev-high)" stroke-width="2"/>
@@ -259,7 +309,7 @@ function renderFindings(items) {
     // design, it never depends on the engine — so it shows what the agent sent and
     // nothing more. An older agent sends no title, and the chip simply says less.
     const tax = (f.taxonomy || []).map(t => {
-      const label = t.title ? `${t.id} ${t.title}` : t.id;
+      const label = t.title ? t.id + " " + t.title : t.id;
       return `<span class="tax" title="${esc(t.framework)}">${esc(label)}</span>`;
     }).join("");
     const det = `<div class="det">`
@@ -327,8 +377,8 @@ async function loadStats() {
 }
 
 function showSignIn(show) {
-  el("signin").style.display = show ? "block" : "none";
-  el("panels").style.display = show ? "none" : "block";
+  el("signin").hidden = !show;
+  el("panels").hidden = show;
 }
 
 async function signIn(event) {
