@@ -162,25 +162,53 @@ To read a run as data instead of asserting on it, the supported [`guardana.core.
 
 ### Before active testing
 
-Probes send real requests and can cost money or trigger provider abuse detection. The default profile sets no request or cost ceiling; opt into a budget before using a paid target. Prefer staging. Guardana sends tool calls to doubles, but the surrounding application can still act on a model response. Evidence may contain sensitive text and is redacted by default. `guardana monitor` re-runs active probes on a schedule. See [`docs/safe-testing.md`](docs/safe-testing.md), [`docs/privacy.md`](docs/privacy.md), and [`docs/profiles.md`](docs/profiles.md).
+Probes send real requests and can cost money or trigger provider abuse detection. The default profile sets no request or cost ceiling. Set a budget before using a paid target, and prefer staging. Guardana sends tool calls to doubles, but the surrounding application can still act on a model response. Evidence may contain sensitive text and is redacted by default. `guardana monitor` re-runs active probes on a schedule. See [`docs/safe-testing.md`](docs/safe-testing.md), [`docs/privacy.md`](docs/privacy.md), and [`docs/profiles.md`](docs/profiles.md).
+
+For example, put this budget in `guardana.yaml`:
+
+```yaml
+budgets: {max_requests: 60, max_duration: 5m}
+```
+
+Plan first, then probe a staging URL:
+
+```bash
+guardana plan probe --url https://staging.example/v1 --model support-bot --profile guardana.yaml
+guardana probe --url https://staging.example/v1 --model support-bot --profile guardana.yaml
+```
+
+Against a staging endpoint that refused every prompt, the result was `indeterminate` (exit `2`):
+
+```text
+⚠ No findings, but 4 piece(s) of coverage were missing (this is not an all-clear).
+0 finding(s); 14 rule(s) run, 16 skipped. 4 unverified. 4 piece(s) of coverage missing. 24/28 case(s) measured, 4 ungraded. 1 component(s) observed.
+```
+
+The missing coverage includes a check whose payload was never delivered. Zero findings here is not a pass.
+
+### What Guardana observes in three systems
+
+| System | Point Guardana at | What it observes | What it cannot see |
+|---|---|---|---|
+| A dedicated model | Model files with `guardana scan PATH`; a staging endpoint with `guardana probe`. | File risks and replies to selected active checks. | What an application does after receiving a model reply. |
+| A multi-tenant retrieval application | Its endpoint with `--fixtures`; recorded answers with `guardana grade RECORDING`. | Tenant-boundary markers and poisoned-document instructions that reach replies. | Internal retrieval that never appears in a reply, or production traffic. |
+| An agent with tools | Its endpoint, an MCP server or A2A agent; recorded traces with `guardana analyze-trace TRACE`. | Selected probe replies, protocol surfaces and recorded tool effects; tool doubles can supply test tools. | Calls and effects absent from the recorded trace, or production traffic. |
 
 ## Extend it for your application
 
-The 58 built-ins cover shared risks. Add rules for your data, tools, permissions, and business rules. Guardana has five extension points: **Target, Rule, Evaluator, Report/Finding, and Profile**. A shared registry discovers extensions from Guardana and private packages.
+The 58 built-ins cover shared risks. Installed packages have six entry-point groups: **rules, evaluators, targets, taxonomies, renderers, and reporters**. Rules express checks in YAML or Python; evaluators grade replies (configuration supports `llm_judge` through an OpenAI-compatible endpoint and the optional `guard` classifier); targets connect through locator schemes; taxonomies add control sets; renderers add formats; reporters add destinations. See [`docs/writing-rules.md`](docs/writing-rules.md), [`docs/outputs.md`](docs/outputs.md), and [`docs/extending.md`](docs/extending.md).
 
-By default, Guardana loads only its own distributions. It refuses an installed third-party pack before importing it and records the refusal as an error. Under the default gate, a run with a refused pack is `indeterminate`, even if that run did not select its rules. Admit a reviewed pack by distribution name with `--plugins allowlist --allow-plugin`, or configure `plugins:` in a profile. `guardana doctor` shows what would load. Admitted Python packs run with your privileges; see [`SECURITY.md`](SECURITY.md).
+A profile (`guardana.yaml`) configures a run. A finding is a result format. A [security contract](docs/usage-contracts.md) declares policy for one application. None is an entry-point group.
 
-- **Rules** express prohibited behavior in YAML or Python. [`docs/writing-rules.md`](docs/writing-rules.md) explains both forms; `guardana new-rule` scaffolds one.
-- **Security contracts** describe application invariants such as tenant boundaries, required approval, allowed scopes, and credential boundaries ([`docs/usage-contracts.md`](docs/usage-contracts.md)).
-- **Evaluators** control how replies are graded. Configuration supports `llm_judge` through an OpenAI-compatible endpoint and the optional `guard` classifier.
-- **Targets** connect installed, trusted systems through a declared locator scheme.
-- **Taxonomies** let a package register its own control set.
+One pack flow is: install `guardana-reference-pack` 0.1.0 from the GitHub Release; admit its distribution with `--plugins allowlist --allow-plugin` or `plugins:`; select its rules in `guardana.yaml`; run `guardana probe`. [`examples/reference_pack`](examples/reference_pack) includes sampled rules, a target, an evaluator, a taxonomy, a renderer and a reporter. The [conformance kit](docs/conformance-kit.md) checks that an extension keeps its contract.
 
-[`examples/custom_rule/`](examples/custom_rule/) is a working third-party package. The `guardana-core` library supports embedding the engine without the CLI. See [`docs/extending.md`](docs/extending.md) and [`docs/architecture.md`](docs/architecture.md). The extension API remains pre-1.0; compatibility details are in [`docs/product-status.md`](docs/product-status.md).
+By default, Guardana loads only its own distributions. It refuses an installed third-party pack before importing it and records the refusal as an error. Under the default gate, a run with a refused pack is `indeterminate`, even if that run did not select its rules. `guardana doctor` shows what would load. Admitted Python packs run with your privileges; see [`SECURITY.md`](SECURITY.md).
+
+[`examples/custom_rule/`](examples/custom_rule/) is a working third-party package. `guardana new-rule` scaffolds a rule. The `guardana-core` library supports embedding the engine without the CLI. See [`docs/architecture.md`](docs/architecture.md) and [`docs/product-status.md`](docs/product-status.md). The compatibility policy is in [`docs/compatibility.md`](docs/compatibility.md).
 
 ## Maturity and limits
 
-The engine, built-in rules, CLI workflows, supported Python verification API, quality suites, and optional collector are beta. The extension API is unstable. Read [`docs/product-status.md`](docs/product-status.md) before using Guardana as a security gate.
+The engine, built-in rules, CLI workflows, supported Python verification API, extension API, quality suites, and optional collector are beta. The extension API is frozen at 1.0 under [`docs/compatibility.md`](docs/compatibility.md). Read [`docs/product-status.md`](docs/product-status.md) before using Guardana as a security gate.
 
 Guardana's agent harness tests a model with Guardana's scripted tools; it does not exercise your agent's own framework and tools. Trace analysis checks an execution your application recorded. `monitor` samples by running active checks; it does not inspect production traffic. A scan of a path with no file to read is indeterminate rather than a pass, but a scan cannot tell whether the files it read are the ones you meant to ship; a release preset needs rules selected for the target's capabilities. The current checks cover text, not image, PDF, audio, or document carriers. Provider compatibility and judge-graded verdicts need validation for your deployment.
 

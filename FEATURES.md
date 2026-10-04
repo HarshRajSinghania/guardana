@@ -54,6 +54,8 @@ locator becomes a target. `guardana doctor` shows which schemes were loaded.
 support those main workflows. The [documentation map](docs/index.md) links each
 command guide.
 
+A profile can set `delivery: {required: true}`. Every delivery the run makes must be acknowledged. An unacknowledged installed reporter or collector delivery exits `8` with the verdict printed for `scan`, `probe`, `analyze-trace` and `import-observations`; `monitor` prints `monitor: N alert deliveries not acknowledged` and can exit `8`. Stopped runs keep `4`, `6` or `7`, and redaction failures keep `5`. Without the key, delivery behavior is unchanged; the key is outside the profile digest. The collector client counts delivery only when a JSON response has `status` equal to `ok`.
+
 ## Evidence that does not fail open
 
 A run keeps separate channels for:
@@ -66,9 +68,7 @@ A run keeps separate channels for:
   named by its file beside the rule's unverified result, a scanned path that held no file,
   or a rule that graded none of its cases (or fewer than `fail_on.min_graded_share`);
 - assessments: what was measured, including passes;
-- skipped rules, each with its reason — among them `not_offered`, a rule that found while
-  it ran that the target has none of what it examines (an MCP server without tasks, an
-  A2A agent without `ListTasks`), a coverage gap `--preset release` refuses.
+- skipped rules, each with its reason — `not_applicable` for a protocol the target does not speak, and `not_offered` when a rule finds that the target has none of what it examines (an MCP server without tasks, an A2A agent without `ListTasks`). `not_applicable` is not a coverage gap. A missing capability within a spoken protocol remains a gap; a rule demanded by id remains a `demanded_check` shortfall. A target whose `Target.speaks()` returns `None` keeps `missing_capability`.
 
 Unknown counts and costs remain unknown rather than becoming zero. Exhausted
 budgets, incomplete runs, unreadable artifacts, and incomparable baselines produce
@@ -142,6 +142,8 @@ Active and trace-backed checks cover:
 Every built-in rule id, severity, target, maturity, and framework mapping is in the
 [generated rule catalog](docs/generated/rule-catalog.md).
 
+Unreadable MCP discovery documents now produce an inconclusive result instead of disappearing behind another address's 404. `guardana.mcp.discovery_target` declines on an unreadable document; `guardana.mcp.scope_breadth` declines when only part was read; `guardana.mcp.authorization_discovery` reports what came back and is inconclusive when no document could be fetched. `guardana.agent.mcp_server_manifest` accepts `approved=` in code for a clean comparison.
+
 ## Evaluators
 
 Built-in evaluators are:
@@ -184,7 +186,7 @@ A regression case carries the reply it was promoted from and a correct reply wri
 required evidence, and redaction. Built-in presets cover CI, pre-training,
 monitoring and release gates; `release` also fails when a selected check is skipped or
 reaches no verdict. Baselines are explicit, fingerprinted, and can expire; comparisons
-refuse changes that make the evidence incomparable.
+refuse changes that make the evidence incomparable. A baseline `version` must be an integer of at least 1; an absent value means 1. A profile may declare `schema_version`; absent means 1, invalid values and higher versions are refused, and writers omit it at 1. [`schemas/profile-v1.schema.json`](schemas/profile-v1.schema.json) describes every accepted profile key.
 
 Rules map to versioned OWASP LLM, OWASP Agentic, OWASP MCP, OWASP ML, MITRE ATLAS,
 and NIST AML references. `guardana taxonomy` resolves editions and crosswalks
@@ -200,8 +202,10 @@ without guessing from a short id.
   and shell-hook integration examples.
 - No account and no telemetry; an artifact scan opens no network connection unless a `--reporter` is configured.
 - JSON Schemas for saved runs, plans, comparisons, traces, recordings, suite datasets, recipes,
-  recipe locks, recipe artifacts, fixtures files, pack manifests and pack locks, served at the URL each
-  `$id` names under `https://guardana.dev/schemas/`.
+  recipe locks, recipe artifacts, fixtures files, pack manifests, pack locks, profiles and the collector envelope, served at the URL each
+  `$id` names under `https://guardana.dev/schemas/`. The profile schema is [`schemas/profile-v1.schema.json`](schemas/profile-v1.schema.json); the envelope schema is [`schemas/collector-envelope-v8.schema.json`](schemas/collector-envelope-v8.schema.json).
+- [`docs/generated/api-surface.json`](docs/generated/api-surface.json) records the supported Python, CLI, output, locator, Action and `GUARDANA_*` surface. The docs check rejects drift, and the file is identical on Python 3.11, 3.12 and 3.13. [`docs/generated/compatibility-matrix.md`](docs/generated/compatibility-matrix.md) records what each published minor release carried. [`docs/compatibility.md`](docs/compatibility.md) states the 1.0 compatibility and deprecation policy; `scripts/release.py` rejects a release candidate with an unrecorded surface change.
+- Stored documents from published releases 0.2.0 through 0.40.0 are read by current tests. They include runs, collector envelopes, profiles, pack manifests and locks, and datasets; `run migrate`, `load_verification` and `diff` read the runs. [`scripts/capture_historical_documents.py`](scripts/capture_historical_documents.py) produces them, and [`historical/releases.json`](packages/guardana-core/tests/historical/releases.json) records their versions.
 
 ## Extension surface
 
@@ -220,7 +224,7 @@ manifest, entry points, one sampled rule per shape, a locator target and tests �
 passes `pack validate` and `rule test` before it is edited. `pack validate` checks that the
 distribution declaring a rule, evaluator, target or taxonomy framework is the one that
 registers it. Pack manifests declare API
-compatibility and locks pin the exact installed extensions.
+compatibility and locks pin the exact installed extensions. A lock pins an evaluator or target only when the pack's own distribution registers it. `pack lock` refuses another distribution's registration; `pack lock --check` reports it `removed` with exit `1`. Two distributions registering a target class of the same name cause a load error naming both. An older recipe lock can report changed protocol skip reasons as drift; retake it with `guardana recipe lock`.
 
 A package can also add a format for `--format` and a reporter for `--reporter`
 ([installed outputs](docs/outputs.md)), with no change to the CLI. Each is imported only when
@@ -229,13 +233,13 @@ or two distributions claim its name, and handed what the saved run holds, never 
 exchanges when it leaves the machine. A reporter prints one stable delivery line whatever
 happens; a failed installed output exits `8` with the verdict printed. `examples/output_pack`
 ships a CSV export of every outcome and a Standard Webhooks sender, tested against the
-specification's reference verifier.
+specification's reference verifier. Its webhook ignores `HTTP_PROXY` and `HTTPS_PROXY`, so it sends only to the destination `--reporter` names. [`docs/outputs.md`](docs/outputs.md) asks installed reporters to do the same; the built-in collector client still honors proxy variables.
 The shipped conformance helpers verify capability claims and fail closed on an
-incomplete implementation.
+incomplete implementation. [`docs/conformance-kit.md`](docs/conformance-kit.md) adds `guardana.testing.assert_renderer_conforms(spec)` and `assert_reporter_conforms(spec, delivered=…, rejected=…, unreachable=…)`. They raise `OutputContractError`; the reporter check blocks network calls during `prepare` and checks each locator against every sample run. `guardana.core.testing` adds `sample_verifications()`, `receiver()` and `files_target(files)`.
 
-The extension API remains pre-1.0; compatibility guarantees are described in
-[Product status](docs/product-status.md) and the path to stability in
-[ROADMAP.md](ROADMAP.md).
+All 58 built-in rules have finding, clean and inconclusive samples of their own. `guardana rule test 'guardana.*'` runs them and generates the summary count. A sample whose target cannot read a file is inconclusive. [`examples/reference_pack`](examples/reference_pack) is `guardana-reference-pack` 0.1.0, attached to the GitHub Release and installed in isolation in CI. It includes YAML and Python rules, an evaluator, a conforming target, a taxonomy, `reference-summary`, `reference-file`, a schema-3 manifest and a committed lock. It is not on PyPI yet.
+
+The extension API is beta and frozen at 1.0 under [`docs/compatibility.md`](docs/compatibility.md). [`Product status`](docs/product-status.md) and [`ROADMAP.md`](ROADMAP.md) state the remaining limits. `is_local_address` and flat-set support in `check_pack` and `check_packs` are removed; the latter now raises `TypeError`. `--no-plugins` remains deprecated until 2.0.
 
 ## Optional collector
 
@@ -252,10 +256,14 @@ The collector is optional. Local and CI verification do not depend on it. It doe
 not yet provide quality-assessment trends, human SSO/RBAC, or a supported
 Kubernetes deployment; those remain roadmap work.
 
+The collector accepts envelope versions from 2 through its own and refuses a newer agent with `422` naming supported versions. Tests post stored older envelopes to migrated PostgreSQL and read them back. Tests exercise backup and restore, rollback and forward, project deletion, an older-schema upgrade and key rotation; [`docs/deployment.md`](docs/deployment.md) names each test. The dashboard uses a Content-Security-Policy with SHA-256 allowances for its script and style, `frame-ancestors 'none'`, and `Referrer-Policy: no-referrer`; every response has `X-Content-Type-Options: nosniff`. A test checks escaped dashboard values.
+
+[`docs/maintainers/security-runbook.md`](docs/maintainers/security-runbook.md) covers security incidents, and [`scripts/check_repo_settings.py`](scripts/check_repo_settings.py) reports each setting as `PRESENT`, `ABSENT` or `NOT CHECKED`. No drill is recorded in [`docs/maintainers/drills.md`](docs/maintainers/drills.md). [`docs/generated/application-measures.md`](docs/generated/application-measures.md) reports "not measured" for application coverage and supported-verdict share until two independent teams have rows.
+
 ## Safety boundaries
 
 Guardana never executes a tool offered to a model, and MCP authorization discovery
-connects only to the address it checked. An A2A agent is sent reads only, on the origin
+connects only to the address it checked. A collector or reporter named by `--reporter` is also a destination the run may reach. An A2A agent is sent reads only, on the origin
 the operator named, and its tokens never leave that origin. Active checks still send real
 requests and can cost money or trigger a model's surrounding application, so they
 are opt-in, budgeted, and documented for staging use. See

@@ -352,7 +352,7 @@ so this page is maintained as carefully as the code.</p>
 <tr>
 <td><code>guardana grade</code></td>
 <td><strong>beta</strong></td>
-<td>Grades a recording — answers you supplied, or the exchanges <code>probe --keep-exchanges</code> kept — with your rules and no target request. Chat rules only: canary, tool and MCP rules are skipped for a missing capability, and a rule the recording does not answer is skipped as <code>not_recorded</code>.</td>
+<td>Grades a recording — answers you supplied, or the exchanges <code>probe --keep-exchanges</code> kept — with your rules and no target request. MCP and A2A rules are <code>not_applicable</code> on a chat recording; canary and tool rules still skip for a missing capability, and a rule the recording does not answer is skipped as <code>not_recorded</code>.</td>
 </tr>
 <tr>
 <td>Quality suites</td>
@@ -361,8 +361,8 @@ so this page is maintained as carefully as the code.</p>
 </tr>
 <tr>
 <td>Extension API</td>
-<td><strong>unstable by design</strong></td>
-<td>Frozen at 1.0, and deliberately not before. <code>ROADMAP.md</code> states what 1.0 requires.</td>
+<td><strong>beta</strong></td>
+<td>Frozen at 1.0 under the <a href="compatibility.html">compatibility policy</a>. <code>ROADMAP.md</code> states the remaining 1.0 criteria.</td>
 </tr>
 </tbody>
 </table></div>
@@ -387,17 +387,11 @@ implementations.</p>
 <p><code>guardana grade</code> answers a rule's question from a recording only when the recording holds
 exactly the messages the rule sends; whitespace or a reworded question is an unanswered
 question, which errors rather than passes. A probe keeps the chat exchanges of its plain pass
-and nothing else, so canary passes, tool offers and MCP checks cannot be graded again, and a
+and nothing else, so canary passes and tool offers cannot be graded again, while MCP and A2A rules are <code>not_applicable</code> on the chat recording. A
 pack's own endpoint target cannot keep exchanges. A reply redaction changed is never graded
 again. <code>grade</code> sends nothing to the collector.</p>
 <h3 id="a-release-gate-cannot-see-a-target-that-holds-the-wrong-files">A release gate cannot see a target that holds the wrong files</h3>
-<p><code>--preset release</code> fails when a selected check is skipped or reaches no verdict, and a
-preset cannot narrow which rules run: a chat endpoint skips every MCP and A2A rule, so
-<code>probe --preset release</code> needs a profile that selects the rules the endpoint serves
-(<a href="profiles.html#release-complete-coverage-or-no-pass">profiles</a>). A <code>scan</code> of a path that
-holds no file other than <code>.guardanaignore</code> files is <code>indeterminate</code> (exit <code>2</code>) under every
-preset, and <code>plan scan</code> refuses it, but a scan cannot tell a directory that holds the wrong
-files from the one the build meant to produce.</p>
+<p><code>--preset release</code> fails when a selected check has a coverage gap or reaches no verdict. MCP and A2A rules on a chat endpoint are <code>not_applicable</code>, not coverage gaps; a chat rule missing tools or seeded fixtures can still leave <code>probe --preset release</code> <code>indeterminate</code>. A rule demanded by id remains a <code>demanded_check</code> shortfall even when its protocol is inapplicable. A profile can select rules the endpoint serves (<a href="profiles.html#release-complete-coverage-or-no-pass">profiles</a>). A <code>scan</code> of a path that holds no file other than <code>.guardanaignore</code> files is <code>indeterminate</code> (exit <code>2</code>) under every preset, and <code>plan scan</code> refuses it. A scan cannot tell a directory holding the wrong files from the one the build meant to produce.</p>
 <h3 id="protocol-coverage-is-narrow-on-purpose">Protocol coverage is narrow on purpose</h3>
 <p>MCP is spoken in <code>2026-07-28</code> and <code>2025-11-25</code>; a server answering in an older revision is
 reported as sharing no revision, never graded in one Guardana does not speak. Task ids are
@@ -421,7 +415,7 @@ expiry is evaluated at read time, an audit log that records whether the actor wa
 a verified key or an unverified CLI claim, retention and deletion as commands, and
 a restore-tested backup procedure. The dashboard signs in with a read-scoped key
 held in an <code>HttpOnly</code>, <code>SameSite=Strict</code> cookie.</p>
-<p>What it does <strong>not</strong> hold is a measurement trend. It aggregates findings,
+<p>What it does <strong>not</strong> hold is a measurement trend. The generated application coverage and supported-verdict share remain &quot;not measured&quot; until two independent teams have rows in <a href="generated/application-measures.html"><code>docs/generated/application-measures.md</code></a>. It aggregates findings,
 <code>unverified</code> and errors — so it can answer &quot;is this system accumulating security
 problems&quot;, and cannot yet answer &quot;did quality improve&quot;. Assessments are recorded in
 the run document from 0.22.0; carrying them into the collector, with the sample
@@ -478,7 +472,7 @@ with <code>--plugins builtins</code>: Guardana's own distributions load, every o
 is refused before it is imported, and the refusal is recorded so the run says what it
 declined. A pack is admitted by name (<code>--plugins allowlist --allow-plugin</code>, or
 <code>plugins:</code> in a profile), <code>guardana doctor</code> lists what it would execute, and a locked
-pack (<code>guardana pack lock</code>) pins the digest of every rule it provides. <code>--no-plugins</code> is
+pack (<code>guardana pack lock</code>) pins the digest of every rule it provides. A lock pins an evaluator or target only when that pack's own distribution registers it; <code>pack lock --check</code> reports another distribution's registration as <code>removed</code> with exit <code>1</code>. <code>--no-plugins</code> is
 a deprecated alias for <code>--plugins disabled</code>, understood only by <code>scan</code> and <code>plan scan</code>.
 Two limits remain: an admitted pack runs with your privileges, and a declarative pack
 format that executes no Python is decided but not built. See the <a href="threat-model.html">threat

@@ -24,9 +24,9 @@ so this page is maintained as carefully as the code.
 | `guardana monitor` | **beta** | Scheduled **active** verification. Not passive traffic inspection, not inline. |
 | `guardana diff` | **beta** | Compares two saved runs. The saved-run format is versioned and migratable — `guardana run migrate` reads every earlier schema. |
 | Collector (`guardana-server`) | **beta** | PostgreSQL with reversible migrations, a scoped API key on every route carrying a finding, project isolation on every query, and a record of what each run verified and where. Findings have a lifecycle and expiring waivers; actions are audited; retention and deletion are commands. What it does not yet hold is a quality trend — it aggregates findings, not measurements. |
-| `guardana grade` | **beta** | Grades a recording — answers you supplied, or the exchanges `probe --keep-exchanges` kept — with your rules and no target request. Chat rules only: canary, tool and MCP rules are skipped for a missing capability, and a rule the recording does not answer is skipped as `not_recorded`. |
+| `guardana grade` | **beta** | Grades a recording — answers you supplied, or the exchanges `probe --keep-exchanges` kept — with your rules and no target request. MCP and A2A rules are `not_applicable` on a chat recording; canary and tool rules still skip for a missing capability, and a rule the recording does not answer is skipped as `not_recorded`. |
 | Quality suites | **beta** | Gates pass rates on team-supplied versioned datasets, with repeated trials and judge correction. No numeric aggregate gate or statistical comparison between suite runs. |
-| Extension API | **unstable by design** | Frozen at 1.0, and deliberately not before. `ROADMAP.md` states what 1.0 requires. |
+| Extension API | **beta** | Frozen at 1.0 under the [compatibility policy](compatibility.md). `ROADMAP.md` states the remaining 1.0 criteria. |
 
 ## Released and experimental
 
@@ -62,19 +62,13 @@ implementations.
 `guardana grade` answers a rule's question from a recording only when the recording holds
 exactly the messages the rule sends; whitespace or a reworded question is an unanswered
 question, which errors rather than passes. A probe keeps the chat exchanges of its plain pass
-and nothing else, so canary passes, tool offers and MCP checks cannot be graded again, and a
+and nothing else, so canary passes and tool offers cannot be graded again, while MCP and A2A rules are `not_applicable` on the chat recording. A
 pack's own endpoint target cannot keep exchanges. A reply redaction changed is never graded
 again. `grade` sends nothing to the collector.
 
 ### A release gate cannot see a target that holds the wrong files
 
-`--preset release` fails when a selected check is skipped or reaches no verdict, and a
-preset cannot narrow which rules run: a chat endpoint skips every MCP and A2A rule, so
-`probe --preset release` needs a profile that selects the rules the endpoint serves
-([profiles](profiles.md#release-complete-coverage-or-no-pass)). A `scan` of a path that
-holds no file other than `.guardanaignore` files is `indeterminate` (exit `2`) under every
-preset, and `plan scan` refuses it, but a scan cannot tell a directory that holds the wrong
-files from the one the build meant to produce.
+`--preset release` fails when a selected check has a coverage gap or reaches no verdict. MCP and A2A rules on a chat endpoint are `not_applicable`, not coverage gaps; a chat rule missing tools or seeded fixtures can still leave `probe --preset release` `indeterminate`. A rule demanded by id remains a `demanded_check` shortfall even when its protocol is inapplicable. A profile can select rules the endpoint serves ([profiles](profiles.md#release-complete-coverage-or-no-pass)). A `scan` of a path that holds no file other than `.guardanaignore` files is `indeterminate` (exit `2`) under every preset, and `plan scan` refuses it. A scan cannot tell a directory holding the wrong files from the one the build meant to produce.
 
 ### Protocol coverage is narrow on purpose
 
@@ -105,7 +99,7 @@ a verified key or an unverified CLI claim, retention and deletion as commands, a
 a restore-tested backup procedure. The dashboard signs in with a read-scoped key
 held in an `HttpOnly`, `SameSite=Strict` cookie.
 
-What it does **not** hold is a measurement trend. It aggregates findings,
+What it does **not** hold is a measurement trend. The generated application coverage and supported-verdict share remain "not measured" until two independent teams have rows in [`docs/generated/application-measures.md`](generated/application-measures.md). It aggregates findings,
 `unverified` and errors — so it can answer "is this system accumulating security
 problems", and cannot yet answer "did quality improve". Assessments are recorded in
 the run document from 0.22.0; carrying them into the collector, with the sample
@@ -176,7 +170,7 @@ with `--plugins builtins`: Guardana's own distributions load, every other instal
 is refused before it is imported, and the refusal is recorded so the run says what it
 declined. A pack is admitted by name (`--plugins allowlist --allow-plugin`, or
 `plugins:` in a profile), `guardana doctor` lists what it would execute, and a locked
-pack (`guardana pack lock`) pins the digest of every rule it provides. `--no-plugins` is
+pack (`guardana pack lock`) pins the digest of every rule it provides. A lock pins an evaluator or target only when that pack's own distribution registers it; `pack lock --check` reports another distribution's registration as `removed` with exit `1`. `--no-plugins` is
 a deprecated alias for `--plugins disabled`, understood only by `scan` and `plan scan`.
 Two limits remain: an admitted pack runs with your privileges, and a declarative pack
 format that executes no Python is decided but not built. See the [threat

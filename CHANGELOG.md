@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Rules for protocols a target does not speak are `not_applicable`.** `Target.speaks()` declares `chat`, `mcp` or `a2a`; its default `None` leaves the protocol unknown. A missing capability within a spoken protocol remains a coverage gap, and a rule demanded by id remains a `demanded_check` shortfall. A plain chat endpoint can therefore still be `indeterminate` under `probe --preset release`.
+- **A profile can require acknowledged delivery with `delivery: {required: true}`.** An unacknowledged reporter or collector delivery exits `8` with the verdict printed for `scan`, `probe`, `analyze-trace` and `import-observations`; `monitor` counts unacknowledged alerts and can also exit `8`. Stopped runs keep `4`, `6` or `7`, and redaction failures keep `5`. The setting does not change the profile digest.
+- **Profiles can declare `schema_version`.** An absent value means 1; invalid values and higher versions are refused. Writers omit the key at 1, and [`schemas/profile-v1.schema.json`](schemas/profile-v1.schema.json) describes accepted keys.
+- **The conformance kit checks renderer and reporter output contracts.** `guardana.testing.assert_renderer_conforms(spec)` and `assert_reporter_conforms(spec, delivered=…, rejected=…, unreachable=…)` raise `OutputContractError`; the reporter check blocks network calls during `prepare` and checks every locator against every sample run. `guardana.core.testing` adds `sample_verifications()`, `receiver()` and `files_target(files)`. See [`docs/conformance-kit.md`](docs/conformance-kit.md).
+- **All 58 built-in rules carry finding, clean and inconclusive samples.** `guardana rule test 'guardana.*'` runs them, and the generated rule summary counts them. A sample whose target cannot read a file is inconclusive.
+- **Documents written by published releases from 0.2.0 through 0.40.0 are read by current tests.** These include runs, collector envelopes, profiles, pack manifests and locks, and datasets; `run migrate`, `load_verification` and `diff` read the runs. [`scripts/capture_historical_documents.py`](scripts/capture_historical_documents.py) produces them, and [`releases.json`](packages/guardana-core/tests/historical/releases.json) records their versions.
+- **The collector envelope is published at [`schemas/collector-envelope-v8.schema.json`](schemas/collector-envelope-v8.schema.json).** A collector accepts versions from 2 through its own. It refuses a newer agent with `422` and names the versions it speaks; tests post stored older envelopes to migrated PostgreSQL and read them back.
+- **Collector recovery procedures are exercised by tests.** They cover backup and restore, rollback and forward, project deletion, an older-schema upgrade and key rotation; [`docs/deployment.md`](docs/deployment.md) names the tests. [`docs/maintainers/security-runbook.md`](docs/maintainers/security-runbook.md) and [`scripts/check_repo_settings.py`](scripts/check_repo_settings.py) cover security procedures and their repository settings. No security runbook drill is recorded in [`docs/maintainers/drills.md`](docs/maintainers/drills.md).
+- **Application measures have a generated page.** [`scripts/adopter_measure.py`](scripts/adopter_measure.py) and [`docs/generated/application-measures.md`](docs/generated/application-measures.md) report application coverage and the share of attempted checks reaching a supported verdict. Both remain "not measured" until two independent teams have rows.
+- **The collector dashboard sends a Content-Security-Policy and `Referrer-Policy: no-referrer`.** Script and style allowances use SHA-256 hashes, and `frame-ancestors 'none'` blocks framing. Every collector response sends `X-Content-Type-Options: nosniff`; a test checks escaped dashboard values.
+- **The supported surface and compatibility policy are published.** [`docs/generated/api-surface.json`](docs/generated/api-surface.json) records the Python, CLI, extension, output, locator, Action and environment surface and is checked on Python 3.11, 3.12 and 3.13. [`docs/compatibility.md`](docs/compatibility.md) states the 1.0 policy, and [`docs/generated/compatibility-matrix.md`](docs/generated/compatibility-matrix.md) records earlier releases. `scripts/release.py` refuses a release candidate with an unrecorded surface change.
+- **[`examples/reference_pack`](examples/reference_pack) provides `guardana-reference-pack` 0.1.0.** It includes sampled YAML and Python rules, an evaluator, a conforming target, a taxonomy catalogue, `reference-summary`, `reference-file`, a schema-3 manifest and a committed lock. It uses the supported surface, runs in isolation in CI and is attached to the GitHub Release. It is not on PyPI yet.
+
+### Changed
+
+- **Pack locks pin evaluators and targets only when the pack's own distribution registers them.** `pack lock` refuses another distribution's registration; `pack lock --check` reports it `removed` and exits `1`. Duplicate target-class names across distributions are a load error naming both.
+- **The collector client requires a JSON object with `status` equal to `ok` to count a submission as delivered.** Any other 2xx response is a failed delivery, with or without `delivery.required`.
+- **The reference webhook in `examples/output_pack` ignores `HTTP_PROXY` and `HTTPS_PROXY`.** [`docs/outputs.md`](docs/outputs.md) asks installed reporters to do the same. The built-in collector client still honors proxy variables.
+- **Baseline `version` must be an integer of at least 1.** A boolean is refused; a missing value still means 1.
+- **Unreadable MCP discovery documents now produce a visible result.** `guardana.mcp.discovery_target` declines on an unreadable document, `guardana.mcp.scope_breadth` declines on incomplete input, and `guardana.mcp.authorization_discovery` reports what came back or is inconclusive when nothing could be fetched.
+- **`guardana.agent.mcp_server_manifest` accepts an approved manifest in code with `approved=`.** Its samples can show a clean comparison.
+- **Principle 3 includes a collector or reporter named by `--reporter` among a run's destinations.**
+
+### Changed — breaking
+
+- **Older recipe locks can report protocol skip reasons as drift.** MCP and A2A rules on chat targets, and chat rules on MCP or A2A targets, change from `missing_capability` or `unsafe_mode` to `not_applicable`. Retake the lock with `guardana recipe lock`.
+- **Calls using removed compatibility helpers can fail.** `check_pack` and `check_packs` given a flat set of ids now raise `TypeError`. `--no-plugins` remains deprecated until 2.0.
+- **An unreadable MCP discovery document can make a run `inconclusive`.** Earlier runs could report nothing for that document.
+
+### Removed
+
+- **`is_local_address` and flat-set support in `check_pack` and `check_packs` are removed after deprecation.**
+
 ## [0.40.0] - 2026-10-04 — installed outputs, saved-run export and pack schema 3
 
 ### Added
