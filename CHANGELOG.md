@@ -33,12 +33,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Unreadable MCP discovery documents now produce a visible result.** `guardana.mcp.discovery_target` declines on an unreadable document, `guardana.mcp.scope_breadth` declines on incomplete input, and `guardana.mcp.authorization_discovery` reports what came back or is inconclusive when nothing could be fetched.
 - **`guardana.agent.mcp_server_manifest` accepts an approved manifest in code with `approved=`.** Its samples can show a clean comparison.
 - **Principle 3 includes a collector or reporter named by `--reporter` among a run's destinations.**
+- **MCP authorization discovery treats only `404` and `410` as a document that was never published.** Any other status of `400` or above is an unread document, and a later `404` no longer hides it: `guardana.mcp.scope_breadth`, `guardana.mcp.discovery_target` and `guardana.mcp.authorization_discovery` are inconclusive on a `429`, `5xx`, `401` or `403` where they were silent or reported "not published".
+- **A reporter that claims a delivery the receiver never got fails the conformance kit.** `assert_reporter_conforms(..., receiver=)` requires one request at the receiver's accepting URL for each run the reporter called `delivered`.
+- **With `delivery.required` and no `--reporter`, a run says so once on stderr.** The exit code is unchanged.
+- **A collector answer of deeply nested JSON is a failed delivery, not a crash.** It no longer ends the run with exit `5`.
+- **`guardana.core.testing.files_target` takes `source_read_limit=`, and `ScriptedMcpServer` takes `resource_metadata_status=` and `authorization_metadata_status=`.** Samples a target declines no longer write 16 MiB files.
+- **`scripts/check_repo_settings.py` reports the tag ruleset present only when it restricts creating, updating and deleting `v*` tags and only maintainers or admins can bypass it.** `scripts/adopter_measure.py` refuses a run with an error that names no rule and a sheet that lists one run twice. `scripts/release.py` refuses a release whose reference pack changed without a new version.
+- **The reference pack requires `guardana-core>=0.41`, and `release.yml` builds, attests and attaches it in its own job after the main publish,** so a broken pack blocks neither PyPI, the GitHub Release nor the images.
 
 ### Changed — breaking
 
 - **Older recipe locks can report protocol skip reasons as drift.** MCP and A2A rules on chat targets, and chat rules on MCP or A2A targets, change from `missing_capability` or `unsafe_mode` to `not_applicable`. Retake the lock with `guardana recipe lock`.
 - **Calls using removed compatibility helpers can fail.** `check_pack` and `check_packs` given a flat set of ids now raise `TypeError`. `--no-plugins` remains deprecated until 2.0.
 - **An unreadable MCP discovery document can make a run `inconclusive`.** Earlier runs could report nothing for that document.
+- **`scan --write-baseline` and `probe --write-mcp-pin` refuse a collector `--reporter` with exit `3`.** Neither writes the run's report, so a collector named beside them received nothing before.
 
 ### Removed
 
