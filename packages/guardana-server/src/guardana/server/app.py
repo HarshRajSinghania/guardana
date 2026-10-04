@@ -203,8 +203,9 @@ def _scope_of(identity: Authenticated | None) -> TenantScope:
 
     If the envelope named the project, the runner would declare where it writes,
     and a credential that does not bound the write is not a boundary at all. It is
-    also why the envelope stays at v5: nothing in it mentions a tenant, so an agent
-    and a collector still upgrade independently.
+    also why no envelope version names a tenant: tenancy lives entirely on the
+    collector's side, so adding or moving a project never changes what an agent
+    sends, and an agent and a collector still upgrade independently.
 
     `None` is only reachable in the explicitly-unauthenticated mode, which has no
     database — and `PostgresStore` refuses the scope it produces.

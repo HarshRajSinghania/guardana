@@ -102,6 +102,7 @@ This file is generated from the documentation map; do not edit it by hand.
 ## Schemas
 
 - [Guardana Artifact Index v1](https://guardana.dev/schemas/artifact/v1.schema.json): guardana-artifact.json in a recipe's output directory: which files a run wrote there.
+- [Guardana Collector Envelope v8](https://guardana.dev/schemas/collector-envelope/v8.schema.json): What `--reporter server://<url>` POSTs to `/findings`: one run's finding channels, what ran, and, when the run declared them, its deployment and its identity.
 - [Guardana Dataset v2](https://guardana.dev/schemas/dataset/v2.schema.json): One record of a Guardana quality suite's dataset, format 2, which adds a regression case's `observed` and `accepted`; format 1 is still read.
 - [Guardana Run Comparison v3](https://guardana.dev/schemas/diff/v3.schema.json): What changed between two saved runs.
 - [Guardana Fixtures v1](https://guardana.dev/schemas/fixtures/v1.schema.json): guardana-fixtures.yaml: the synthetic data an application runs with in CI.

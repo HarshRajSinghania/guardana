@@ -197,6 +197,55 @@ database reports the same applied migrations as the original.
 Keep the dump somewhere your `deploy/.env` is not. A backup stored beside the
 credentials for the system it came from is one theft, not two.
 
+## Rotating an API key
+
+Rotate on a schedule, when someone who held a key leaves, and at once when a key
+may have leaked. Both keys work until the old one is revoked, so no run is lost
+in between.
+
+1. **Issue** the new key for the same project, with the same `--scope` and
+   `--environment` as the one it replaces:
+
+   ```bash
+   docker compose -f deploy/docker-compose.yml run --rm collector \
+     key create --project acme/web --name github-actions-2   # prints the key, once
+   ```
+
+2. **Deploy** it: replace `GUARDANA_COLLECTOR_TOKEN` in every pipeline that used
+   the old key, and let one run report with it.
+3. **Revoke** the old key by the prefix `key list` shows:
+
+   ```bash
+   docker compose -f deploy/docker-compose.yml run --rm collector key list --project acme/web
+   docker compose -f deploy/docker-compose.yml run --rm collector key revoke <old-prefix>
+   ```
+
+4. **Confirm** the old key is refused. An empty body stores nothing whatever the
+   answer: `401` means the key is revoked, and `422` means it still works.
+
+   ```bash
+   curl -s -o /dev/null -w '%{http_code}\n' -X POST https://collector.example.com/findings \
+     -H "Authorization: Bearer $OLD_KEY" -H 'Content-Type: application/json' -d '{}'
+   ```
+
+Rotation changes who may write, never what was written: the runs the old key
+sent stay in the project. A key belongs to one project, so a team with several
+projects rotates each key on its own.
+
+## Which test exercises each procedure
+
+A procedure nobody has run is a belief. Each of these is run by a PostgreSQL test
+in `packages/guardana-server/tests/`, which CI refuses to skip; deletion is
+described in [`usage-collector.md`](usage-collector.md).
+
+| Procedure | Test |
+|---|---|
+| backup and restore | `test_backup_restore.py` |
+| upgrade, roll back one step, migrate forward | `test_migrations.py` |
+| upgrade from the schema of an older release, then ingest every envelope a published release wrote | `test_upgrade_from_previous_release.py` |
+| key rotation | `test_key_rotation.py` |
+| retention, and deleting a project or an organization | `test_retention_and_deletion.py` |
+
 ## What to watch
 
 Two limits are on by default and worth knowing before a fleet meets them:

@@ -360,6 +360,21 @@ silently misreading a renamed field. The `unverified` channel is carried over
 the wire for the same reason it is surfaced locally — a check that could not be
 graded must never reach the collector as a false all-clear.
 
+The version window:
+
+- every change to the envelope raises its version;
+- a collector accepts every version from 2 up to its own, so an agent left on an
+  older release keeps reporting and sends only what it could observe;
+- an agent newer than its collector is refused with `422`, and the refusal names
+  the versions the collector speaks — upgrade collectors before agents;
+- dropping a version is a major release.
+
+Version 8 is published as
+[`collector-envelope/v8.schema.json`](https://guardana.dev/schemas/collector-envelope/v8.schema.json).
+The collector's tests send it every envelope a published release wrote, from
+version 2 on, and read each one back through the tenant-scoped store. No envelope
+version names a tenant: the project comes from the API key.
+
 `guardana-server` is a small, independently deployed FastAPI app
 (`guardana.server.app.create_app`) with a PostgreSQL-backed store
 (`guardana.server.postgres_store.PostgresStore`). It exposes `POST /findings`,
