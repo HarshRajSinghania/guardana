@@ -241,7 +241,23 @@ jobs:
           --with pytest
           pytest examples/retrieval_pilot/tests
 
-      # The first three example steps prove a hand-written pack still works. This one proves
+      # An installed format and an installed reporter from a package Guardana does not
+      # ship, selected through the CLI. The webhook receiver checks every delivery with
+      # `standardwebhooks`, the specification's reference verifier, installed for the
+      # tests only: nothing in the package imports it.
+      - name: Run the output package's own tests against an installed Guardana
+        run: >
+          uv run --isolated --no-cache
+          --with ./packages/guardana-core
+          --with ./packages/guardana-rules
+          --with ./packages/guardana-cli
+          --with ./packages/guardana-report
+          --with ./examples/output_pack
+          --with standardwebhooks==1.1.0
+          --with pytest
+          pytest examples/output_pack/tests
+
+      # The example steps above prove a hand-written package still works. This one proves
       # the command that writes a pack from nothing does — installed, validated and
       # graded, with its own detector checked against a manifest that lies.
       - name: Scaffold a pack and prove it installs, validates and grades

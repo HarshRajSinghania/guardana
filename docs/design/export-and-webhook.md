@@ -498,11 +498,13 @@ order:
 A `case` row's `status` is `passed` or `failed` for a measured case with a verdict, `measured`
 for a measured case without one, and the `AssessmentStatus` value otherwise. Its `detail` is
 `value <v> <unit>, threshold <t>` when a value was measured, then `reason <UnmeasuredReason>`
-when set, then the `rationale`, joined with `; `. A cell whose first non-whitespace character is
-`=`, `+`, `-`, `@`, `＝`, `＋`, `－` or `＠`, or which starts with a tab or a carriage return, is
-prefixed with `'`. Nothing is truncated: the redactor's bound already applies. A test walks the
+when set, then the `rationale`, joined with `; `. A cell whose first character after leading
+whitespace and field separators (`,`, `;`) is `=`, `+`, `-`, `@`, `＝`, `＋`, `－` or `＠`, or which
+starts with a tab or a carriage return, is prefixed with `'`; a separator matters because a
+spreadsheet in a `;` locale may split the cell there. Nothing is truncated: the redactor's bound already applies. A test walks the
 fields of `ScanResult`, `Assessment` and `SuiteSummary` and fails on one the table neither
-exports nor excludes by name (`observations`, `usage`, `protocols`, `trials_per_case`, `scope`).
+exports nor excludes by name (for `ScanResult`: `observations`, `usage`, `protocols`,
+`trials_per_case`, `scope`; the other two name theirs in the test).
 
 **`acme-webhook`**, `--reporter acme-webhook://https://hooks.example.com/guardana` or
 `--reporter acme-webhook://env:ACME_WEBHOOK_URL`, which reads the destination from that
@@ -511,7 +513,8 @@ variable so a URL carrying a token stays out of shell history and CI logs:
 - `prepare` refuses, with a reason: an unset variable; a destination that is not `https`, unless
   its host is `localhost`, `127.0.0.1` or `::1`; userinfo; `ACME_WEBHOOK_SECRET` unset or not
   `whsec_` followed by base64. `destination` is `scheme://host[:port]`: no path, query or
-  fragment is ever shown. `sent_secrets()` returns the secret and the full URL.
+  fragment is ever shown. `sent_secrets()` returns the secret, and the full URL when it differs
+from the destination, so withholding it never blanks the destination itself.
 - Body, Standard Webhooks shape, compact JSON, at most 20480 UTF-8 bytes:
 
   ```json

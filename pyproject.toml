@@ -116,6 +116,7 @@ convention = "pep257"
 "examples/hermes_integrator/tests/**" = ["S101", "D", "PLR2004"]
 "examples/shell_hook_integrator/tests/**" = ["S101", "D", "PLR2004"]
 "examples/retrieval_pilot/tests/**" = ["S101", "D", "PLR2004"]
+"examples/output_pack/tests/**" = ["S101", "D", "PLR2004"]
 "scripts/tests/**" = ["S101", "D", "PLR2004", "SLF001"]
 # Maintainer scripts are CLIs — print() is their user interface, not stray debug output.
 "scripts/*.py" = ["T201"]
@@ -144,6 +145,10 @@ mypy_path = [
     "examples/hermes_integrator/src",
     "examples/shell_hook_integrator/src",
     "examples/retrieval_pilot/src",
+    "examples/output_pack/src",
+    # Its own directory, never the tests beside it: their `conftest.py` would clash with
+    # the collector's. Same entry in pytest's `pythonpath`.
+    "examples/output_pack/tests/doubles",
     # Same reason as pytest's `pythonpath` below: the round-trip helpers are imported
     # by gates in several suites, so the type checker has to resolve them too.
     "packages/guardana-core/tests",
@@ -155,6 +160,11 @@ exclude = ["examples/vulnerable-model"]
 module = "defusedxml.*"
 ignore_missing_imports = true
 
+# The reference webhook verifier, installed only in the output example's isolated suite.
+[[tool.mypy.overrides]]
+module = "standardwebhooks.*"
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 addopts = "-q -ra --strict-markers --strict-config"
 # The round-trip machinery (`_roundtrip`, `_documents`) is shared by gates in three
@@ -163,7 +173,8 @@ addopts = "-q -ra --strict-markers --strict-config"
 # in different packages. Made importable here rather than through a second
 # `conftest.py`: two files named `conftest` in one repository is a duplicate module
 # for mypy, and the helper has to sit beside the tests that import it.
-pythonpath = ["packages/guardana-core/tests", "scripts"]
+# The output example's doubles sit in their own directory for the same reason.
+pythonpath = ["packages/guardana-core/tests", "scripts", "examples/output_pack/tests/doubles"]
 # The example plugin is deliberately NOT collected here: installing it would put
 # its `acme.*` rules into every `Registry.discover()` call and make the dogfood
 # scan non-representative. CI runs its tests in a dedicated job instead, which is

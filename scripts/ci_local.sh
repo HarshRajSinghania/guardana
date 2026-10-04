@@ -129,8 +129,14 @@ step "Example retrieval_pilot" uv run --isolated --no-cache \
   --with ./packages/guardana-core --with ./packages/guardana-rules \
   --with ./packages/guardana-cli --with ./packages/guardana-report \
   --with ./examples/retrieval_pilot --with pytest pytest examples/retrieval_pilot/tests
+# `standardwebhooks` is the receiver's reference verifier, installed for the tests only.
+step "Example output_pack" uv run --isolated --no-cache \
+  --with ./packages/guardana-core --with ./packages/guardana-rules \
+  --with ./packages/guardana-cli --with ./packages/guardana-report \
+  --with ./examples/output_pack --with standardwebhooks==1.1.0 \
+  --with pytest pytest examples/output_pack/tests
 
-# The first three above prove a hand-written pack still works, this one proves
+# The examples above prove a hand-written package still works, this one proves
 # the command that writes one from nothing does.
 step "New pack"           uv run python scripts/new_pack_check.py
 

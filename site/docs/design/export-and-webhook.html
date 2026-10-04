@@ -817,11 +817,13 @@ order:</p>
 <p>A <code>case</code> row's <code>status</code> is <code>passed</code> or <code>failed</code> for a measured case with a verdict, <code>measured</code>
 for a measured case without one, and the <code>AssessmentStatus</code> value otherwise. Its <code>detail</code> is
 <code>value &lt;v&gt; &lt;unit&gt;, threshold &lt;t&gt;</code> when a value was measured, then <code>reason &lt;UnmeasuredReason&gt;</code>
-when set, then the <code>rationale</code>, joined with <code>; </code>. A cell whose first non-whitespace character is
-<code>=</code>, <code>+</code>, <code>-</code>, <code>@</code>, <code>＝</code>, <code>＋</code>, <code>－</code> or <code>＠</code>, or which starts with a tab or a carriage return, is
-prefixed with <code>'</code>. Nothing is truncated: the redactor's bound already applies. A test walks the
+when set, then the <code>rationale</code>, joined with <code>; </code>. A cell whose first character after leading
+whitespace and field separators (<code>,</code>, <code>;</code>) is <code>=</code>, <code>+</code>, <code>-</code>, <code>@</code>, <code>＝</code>, <code>＋</code>, <code>－</code> or <code>＠</code>, or which
+starts with a tab or a carriage return, is prefixed with <code>'</code>; a separator matters because a
+spreadsheet in a <code>;</code> locale may split the cell there. Nothing is truncated: the redactor's bound already applies. A test walks the
 fields of <code>ScanResult</code>, <code>Assessment</code> and <code>SuiteSummary</code> and fails on one the table neither
-exports nor excludes by name (<code>observations</code>, <code>usage</code>, <code>protocols</code>, <code>trials_per_case</code>, <code>scope</code>).</p>
+exports nor excludes by name (for <code>ScanResult</code>: <code>observations</code>, <code>usage</code>, <code>protocols</code>,
+<code>trials_per_case</code>, <code>scope</code>; the other two name theirs in the test).</p>
 <p><strong><code>acme-webhook</code></strong>, <code>--reporter acme-webhook://https://hooks.example.com/guardana</code> or
 <code>--reporter acme-webhook://env:ACME_WEBHOOK_URL</code>, which reads the destination from that
 variable so a URL carrying a token stays out of shell history and CI logs:</p>
@@ -830,7 +832,8 @@ variable so a URL carrying a token stays out of shell history and CI logs:</p>
 <p><code>prepare</code> refuses, with a reason: an unset variable; a destination that is not <code>https</code>, unless
 its host is <code>localhost</code>, <code>127.0.0.1</code> or <code>::1</code>; userinfo; <code>ACME_WEBHOOK_SECRET</code> unset or not
 <code>whsec_</code> followed by base64. <code>destination</code> is <code>scheme://host[:port]</code>: no path, query or
-fragment is ever shown. <code>sent_secrets()</code> returns the secret and the full URL.</p>
+fragment is ever shown. <code>sent_secrets()</code> returns the secret, and the full URL when it differs
+from the destination, so withholding it never blanks the destination itself.</p>
 </li>
 <li>
 <p>Body, Standard Webhooks shape, compact JSON, at most 20480 UTF-8 bytes:</p>
