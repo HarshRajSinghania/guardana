@@ -111,8 +111,8 @@ willing to let a rule reach.
 
 | Impact | What it does |
 |---|---|
-| `passive` | reads only — a file scan, or reading a tool manifest |
-| `active` | sends prompts to a model: costs money, appears in the target's logs |
+| `passive` | sends nothing — reads a file, a trace or a saved run |
+| `active` | sends requests to a live target — prompts to a model, or reads of a server's manifest or agent card; costs money or quota, appears in the target's logs |
 | `side_effecting` | may cause the target to *act* — call a real tool, write to a real memory store |
 
 ```bash

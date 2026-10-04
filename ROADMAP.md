@@ -40,7 +40,7 @@ It follows the remaining "Now" item, F4, with F2's five-user study alongside, on
 | Target | Delivers |
 |---|---|
 | **v0.40** | F4 one redacted export and one webhook |
-| **v0.41** | 1.0 readiness: every criterion below that an earlier release did not meet |
+| **v0.41** | 1.0 readiness: every criterion below that an earlier release did not meet, and a rule for a protocol the target does not speak recorded as not applicable rather than as a coverage gap |
 | **v1.0.0rc1**, **v1.0.0rc2** | the frozen surface with fixes only, at least two weeks apart so the pilot teams can run each one |
 | **v1.0.0** | the first stable release |
 
@@ -122,6 +122,7 @@ started from [the direction audit](docs/design/audit-0.31-direction.md); F7's de
 - A Prometheus reporter over the common output contract, once a team names the measurements and unknowns it needs.
 - Live RAG and application targets beyond the F6 pilot, with safe fixtures and explicit data boundaries, ordered by pilot needs.
 - Central distribution of signed, versioned profiles and policies, after local locks and recipes prove use.
+- Agent-card signature verification for A2A as an optional extra, so the JOSE dependency it needs never reaches `guardana-core`.
 - Agent supply-chain provenance beyond a manifest hash: the approved tool schema, package or image identity, resolved server origin, and skill and configuration identity.
 - An evidence-quality contract for imported runs (garak, promptfoo, Inspect, OpenTelemetry): source trust, missing fields, redaction, sampling, judge identity and comparability, and when an imported observation may become a verified local regression.
 - OIDC/SSO, human roles and Helm when collector users need them; exercise upgrade, rollback, backup, restore and deletion.

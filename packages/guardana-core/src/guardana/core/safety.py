@@ -19,10 +19,17 @@ class Impact(StrEnum):
     """
 
     PASSIVE = "passive"
-    """Reads only. A file scan, or reading a tool manifest."""
+    """Sends nothing: reads files, a trace or a saved run.
+
+    A rule that sends any request to a live target, a manifest read included, is at
+    least `ACTIVE`.
+    """
 
     ACTIVE = "active"
-    """Sends prompts to a model. Costs money and appears in the target's logs."""
+    """Sends requests to a live target: prompts to a model, or reads of a server's manifest.
+
+    Costs money or quota and appears in the target's logs.
+    """
 
     SIDE_EFFECTING = "side_effecting"
     """May cause the target to act: call a tool, write to a memory store.

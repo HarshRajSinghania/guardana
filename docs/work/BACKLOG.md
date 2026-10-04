@@ -34,8 +34,8 @@ Found by the pre-ship review and the false-green hunt on 2026-09-30; each was re
 
 - **A protocol the target does not speak is a capability skip.** A chat endpoint skips the
   MCP and A2A rules, so `probe --preset release` is `indeterminate` against any single endpoint
-  unless a profile selects the rules it serves (documented). Decide whether an MCP rule
-  against a chat endpoint, or a chat rule against an MCP server, is `not_applicable`.
+  unless a profile selects the rules it serves (documented). Decided: a rule for another
+  protocol is `not_applicable`, not a coverage gap; it is built in v0.41.
 - **A trace reads as `content_prefix` when `MAX_SPANS` stops a read of a file the buffer
   already held whole.** Conservative: `content` is claimed only after the raw read returned
   end of file.
@@ -84,14 +84,11 @@ left for the owner, or are design gaps already documented elsewhere.
 
 ## Left by protocol conformance (0.39.0)
 
-- **`Impact.PASSIVE` says "reading a tool manifest"**, but a gate in `test_probe_cost.py`
-  makes every endpoint rule declare at least `active`, so the MCP manifest check, the
-  registry comparison and the A2A reads all run as `active` and `--safety passive` skips
-  them. Decide which side is right.
 - **A2A HTTP+JSON and gRPC bindings** are not spoken, and an interface on another origin
   is not followed; one binding has one fixture.
 - **Agent-card signatures are not verified**: JWS over RFC 8785 needs a JOSE or crypto
-  dependency in the engine (principle 6).
+  dependency (principle 6). Decided: an optional extra after 1.0, never a dependency of
+  `guardana-core`.
 - **MCP Server Cards** (`.well-known/mcp.json`) are not read (an open proposal in neither
   revision); **`cacheScope` on prompt and resource lists** is not graded (Guardana sends
   neither request); **older handshake revisions** (`2025-06-18`, `2025-03-26`) are reported

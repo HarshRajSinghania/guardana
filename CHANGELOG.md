@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **`--safety passive` is documented as sending nothing.** The `passive` impact covers files, traces and saved runs; any request to a live target, a manifest read included, is `active`, which every built-in endpoint rule already declares.
+
 ## [0.39.0] - 2026-10-04 — MCP and A2A probes with explicit coverage and saved stops
 
 ### Changed — breaking
