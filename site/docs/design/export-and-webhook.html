@@ -1,0 +1,962 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>One redacted export and one webhook — Guardana documentation</title>
+<meta name="description" content="an installed package adds a format to --format and a reporter to --reporter, each imported only when selected, both handed what the saved run holds; a webhook says whether it was delivered, a failed output has its own exit code, and offline use sends nothing">
+<link rel="canonical" href="https://guardana.dev/docs/design/export-and-webhook">
+<link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../../assets/brand/v1/tokens.css">
+<link rel="stylesheet" href="../docs.css">
+</head>
+<body>
+<header class="top"><div class="bar">
+<a class="mark" href="../../"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z" style="color:var(--brand)"/><path d="m8.6 12.1 2.4 2.4 4.5-4.8"/></svg><span class="w">guard<b>ana</b></span></a>
+<nav>
+<a href="../index.html">Documentation</a>
+<a href="../rules/index.html">Rules</a>
+<a href="https://github.com/guardana/guardana">GitHub</a>
+</nav>
+</div></header>
+<div class="shell">
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="../index.html">Overview</a></li></ul>
+<h2>First run</h2><ul>
+<li><a href="../usage-init.html">guardana init</a></li>
+<li><a href="../recipe-local-scan.html">Recipe: scan your own project</a></li>
+<li><a href="../recipe-recorded-answers.html">Recipe: check a run your application recorded</a></li>
+<li><a href="../recipe-real-application.html">Recipe: probe your real application</a></li>
+<li><a href="../how-it-works.html">How Guardana works</a></li>
+<li><a href="../install.html">Installing</a></li>
+<li><a href="../usage-testing.html">In your test suite</a></li>
+<li><a href="../python-api.html">Python API<span class="tag">beta</span></a></li>
+<li><a href="../usage-scan.html">guardana scan</a></li>
+<li><a href="../usage-probe.html">guardana probe</a></li>
+</ul>
+<h2>Run and policy</h2><ul>
+<li><a href="../safe-testing.html">Safe active testing</a></li>
+<li><a href="../usage-doubles.html">Stateful tool doubles<span class="tag">beta</span></a></li>
+<li><a href="../usage-fixtures.html">guardana fixtures<span class="tag">beta</span></a></li>
+<li><a href="../usage-recipe.html">guardana recipe<span class="tag">beta</span></a></li>
+<li><a href="../usage-doctor.html">guardana doctor</a></li>
+<li><a href="../usage-target.html">guardana target inspect</a></li>
+<li><a href="../providers.html">Providers</a></li>
+<li><a href="../usage-plan.html">guardana plan</a></li>
+<li><a href="../exit-codes.html">Exit codes</a></li>
+<li><a href="../profiles.html">Profiles — guardana.yaml</a></li>
+</ul>
+<h2>Evidence and regression</h2><ul>
+<li><a href="../usage-case.html">guardana case<span class="tag">beta</span></a></li>
+<li><a href="../usage-baseline.html">guardana baseline</a></li>
+<li><a href="../usage-diff.html">guardana diff</a></li>
+<li><a href="../usage-monitor.html">guardana monitor</a></li>
+<li><a href="../usage-run.html">guardana run</a></li>
+<li><a href="../usage-calibrate.html">guardana calibrate</a></li>
+<li><a href="../usage-suites.html">Quality suites<span class="tag">beta</span></a></li>
+<li><a href="../privacy.html">Evidence and redaction</a></li>
+</ul>
+<h2>Recorded applications</h2><ul>
+<li><a href="../usage-analyze-trace.html">guardana analyze-trace</a></li>
+<li><a href="../usage-grade.html">guardana grade<span class="tag">beta</span></a></li>
+<li><a href="../usage-trace-inspect.html">guardana trace inspect</a></li>
+<li><a href="../usage-contracts.html">Security contracts</a></li>
+<li><a href="../usage-import-observations.html">guardana import-observations</a></li>
+<li><a href="../writing-an-integrator.html">Writing an integrator<span class="tag">beta</span></a></li>
+</ul>
+<h2>Rules and extensions</h2><ul>
+<li><a href="../usage-rules.html">guardana rules</a></li>
+<li><a href="../usage-taxonomy.html">guardana taxonomy</a></li>
+<li><a href="../writing-rules.html">Writing rules</a></li>
+<li><a href="../usage-rule-test.html">guardana rule test</a></li>
+<li><a href="../usage-new-pack.html">guardana new-pack</a></li>
+<li><a href="../usage-pack.html">guardana pack</a></li>
+<li><a href="../extending.html">Extending Guardana</a></li>
+<li><a href="../model-formats.html">Reading model formats</a></li>
+</ul>
+<h2>Collector and deployment</h2><ul>
+<li><a href="../integrations.html">CI and pre-commit</a></li>
+<li><a href="../deployment.html">Deploying the collector<span class="tag">beta</span></a></li>
+<li><a href="../usage-collector.html">The collector<span class="tag">beta</span></a></li>
+</ul>
+<h2>Architecture and security</h2><ul>
+<li><a href="../product-status.html">Product status</a></li>
+<li><a href="../threat-model.html">Threat model</a></li>
+<li><a href="../architecture.html">Architecture</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="../rules/index.html">Rule explorer</a></li>
+<li><a href="../generated/rule-summary.html">Rule summary</a></li>
+<li><a href="../generated/rule-catalog.html">Rule catalog</a></li>
+<li><a href="../generated/evaluator-catalog.html">Evaluator catalog</a></li>
+<li><a href="../generated/taxonomy-coverage.html">Taxonomy coverage</a></li>
+<li><a href="../generated/detection-limits.html">Detection limits</a></li>
+<li><a href="../generated/first-run.html">First-run measure</a></li>
+</ul>
+<h2>Design documents</h2><ul>
+<li><a href="../design/README.html">How these are written</a></li>
+</ul>
+<h2>Project direction</h2><ul>
+<li><a href="../design/guardana-and-control.html">Guardana and Guardana Control<span class="tag">accepted</span></a></li>
+<li><a href="../design/non-executing-packs.html">Non-executing packs and the default plugin trust<span class="tag">accepted</span></a></li>
+<li><a href="../design/audit-0.31-direction.html">Direction audit after 0.31<span class="tag">accepted</span></a></li>
+</ul>
+<h2>Maintainers</h2><ul>
+<li><a href="../maintainers/github-setup.html">GitHub repository setup</a></li>
+<li><a href="../maintainers/ops-catalogue.html">Operations catalogue</a></li>
+<li><a href="../maintainers/lessons.html">Lessons</a></li>
+<li><a href="../maintainers/first-run-study.html">First-run study</a></li>
+</ul>
+<h2>Also here</h2><ul>
+<li><a href="../design/trace-domain-model.html">The Trace domain model<span class="tag">implemented</span></a></li>
+<li><a href="../design/trace-producer.html">Producing a trace<span class="tag">implemented</span></a></li>
+<li><a href="../design/framework-adapters.html">Framework adapters<span class="tag">implemented</span></a></li>
+<li><a href="../design/assessment-channel.html">The assessment channel<span class="tag">implemented</span></a></li>
+<li><a href="../design/capability-protocols.html">Capability protocols<span class="tag">implemented</span></a></li>
+<li><a href="../design/security-contracts.html">Security contracts<span class="tag">implemented</span></a></li>
+<li><a href="../design/mcp-protocol-eras.html">MCP has two eras<span class="tag">implemented</span></a></li>
+<li><a href="../design/mcp-authorization-depth.html">MCP authorization depth<span class="tag">implemented</span></a></li>
+<li><a href="../design/taxonomy-editions.html">Taxonomy editions<span class="tag">implemented</span></a></li>
+<li><a href="../design/extension-author-tooling.html">Extension author tooling<span class="tag">implemented</span></a></li>
+<li><a href="../design/target-locators.html">Target locators<span class="tag">implemented</span></a></li>
+<li><a href="../design/output-plugins.html">Output plugins<span class="tag">superseded</span></a></li>
+<li><a href="../design/quality-suites.html">Quality suites<span class="tag">implemented</span></a></li>
+<li><a href="../design/paired-regression-statistics.html">Paired regression statistics<span class="tag">proposed</span></a></li>
+<li><a href="../design/attack-techniques.html">Attack techniques<span class="tag">proposed</span></a></li>
+<li><a href="../design/namespaced-extension-ids.html">Namespaced extension ids<span class="tag">proposed</span></a></li>
+<li><a href="../design/declarative-fixtures.html">Declarative fixtures for scenarios and agent runs<span class="tag">implemented</span></a></li>
+<li><a href="../design/pack-scaffolding.html">Scaffolding a pack<span class="tag">implemented</span></a></li>
+<li><a href="../design/repeated-trials.html">Repeated trials<span class="tag">implemented</span></a></li>
+<li><a href="../design/documentation-site.html">A documentation site<span class="tag">implemented</span></a></li>
+<li><a href="../design/judge-error-correction.html">Judge error in a measured rate<span class="tag">implemented</span></a></li>
+<li><a href="../design/regrading-stored-exchanges.html">Re-grading stored exchanges<span class="tag">superseded</span></a></li>
+<li><a href="../design/anytime-valid-monitoring.html">Anytime-valid monitoring<span class="tag">proposed</span></a></li>
+<li><a href="../design/recorded-answers.html">Recorded answers and regrading<span class="tag">accepted</span></a></li>
+<li><a href="../design/team-recipes.html">Repository recipes, one connection and provider conformance<span class="tag">accepted</span></a></li>
+<li><a href="../design/application-fixtures-and-regressions.html">Regression cases, a declared fixture boundary and the retrieval pilot<span class="tag">implemented</span></a></li>
+<li><a href="../design/guarded-applications.html">A guarded application, and the outcomes a run states honestly<span class="tag">implemented</span></a></li>
+<li><a href="../design/run-manifest-v2.html">Run manifest v2<span class="tag">implemented</span></a></li>
+<li><a href="../design/protocol-conformance.html">Protocol conformance against servers Guardana did not write<span class="tag">implemented</span></a></li>
+<li><a href="../design/export-and-webhook.html" aria-current="page">One redacted export and one webhook<span class="tag">proposed</span></a></li>
+<li><a href="../design/privacy-and-redaction.html">Privacy and redaction<span class="tag">implemented</span></a></li>
+<li><a href="../design/exit-codes.html">Exit codes and gate semantics<span class="tag">implemented</span></a></li>
+<li><a href="../design/collector-persistence.html">Collector persistence<span class="tag">implemented</span></a></li>
+<li><a href="../design/collector-tenancy.html">Collector tenancy<span class="tag">implemented</span></a></li>
+<li><a href="../design/ai-systems-and-deployments.html">AI systems and deployments<span class="tag">implemented</span></a></li>
+<li><a href="../design/collector-runs-and-findings.html">Runs and findings<span class="tag">implemented</span></a></li>
+<li><a href="../design/finding-lifecycle-and-waivers.html">Finding lifecycle and waivers<span class="tag">implemented</span></a></li>
+<li><a href="../design/audit-retention-and-deletion.html">Audit, retention and deletion<span class="tag">implemented</span></a></li>
+<li><a href="../design/panel-sessions.html">Panel sessions<span class="tag">implemented</span></a></li>
+</ul>
+</nav>
+<details class="mnav">
+<summary>Menu · <b>One redacted export and one webhook</b></summary>
+<nav class="inner" aria-label="Documentation">
+<ul class="home"><li><a href="../index.html">Overview</a></li></ul>
+<h2>First run</h2><ul>
+<li><a href="../usage-init.html">guardana init</a></li>
+<li><a href="../recipe-local-scan.html">Recipe: scan your own project</a></li>
+<li><a href="../recipe-recorded-answers.html">Recipe: check a run your application recorded</a></li>
+<li><a href="../recipe-real-application.html">Recipe: probe your real application</a></li>
+<li><a href="../how-it-works.html">How Guardana works</a></li>
+<li><a href="../install.html">Installing</a></li>
+<li><a href="../usage-testing.html">In your test suite</a></li>
+<li><a href="../python-api.html">Python API<span class="tag">beta</span></a></li>
+<li><a href="../usage-scan.html">guardana scan</a></li>
+<li><a href="../usage-probe.html">guardana probe</a></li>
+</ul>
+<h2>Run and policy</h2><ul>
+<li><a href="../safe-testing.html">Safe active testing</a></li>
+<li><a href="../usage-doubles.html">Stateful tool doubles<span class="tag">beta</span></a></li>
+<li><a href="../usage-fixtures.html">guardana fixtures<span class="tag">beta</span></a></li>
+<li><a href="../usage-recipe.html">guardana recipe<span class="tag">beta</span></a></li>
+<li><a href="../usage-doctor.html">guardana doctor</a></li>
+<li><a href="../usage-target.html">guardana target inspect</a></li>
+<li><a href="../providers.html">Providers</a></li>
+<li><a href="../usage-plan.html">guardana plan</a></li>
+<li><a href="../exit-codes.html">Exit codes</a></li>
+<li><a href="../profiles.html">Profiles — guardana.yaml</a></li>
+</ul>
+<h2>Evidence and regression</h2><ul>
+<li><a href="../usage-case.html">guardana case<span class="tag">beta</span></a></li>
+<li><a href="../usage-baseline.html">guardana baseline</a></li>
+<li><a href="../usage-diff.html">guardana diff</a></li>
+<li><a href="../usage-monitor.html">guardana monitor</a></li>
+<li><a href="../usage-run.html">guardana run</a></li>
+<li><a href="../usage-calibrate.html">guardana calibrate</a></li>
+<li><a href="../usage-suites.html">Quality suites<span class="tag">beta</span></a></li>
+<li><a href="../privacy.html">Evidence and redaction</a></li>
+</ul>
+<h2>Recorded applications</h2><ul>
+<li><a href="../usage-analyze-trace.html">guardana analyze-trace</a></li>
+<li><a href="../usage-grade.html">guardana grade<span class="tag">beta</span></a></li>
+<li><a href="../usage-trace-inspect.html">guardana trace inspect</a></li>
+<li><a href="../usage-contracts.html">Security contracts</a></li>
+<li><a href="../usage-import-observations.html">guardana import-observations</a></li>
+<li><a href="../writing-an-integrator.html">Writing an integrator<span class="tag">beta</span></a></li>
+</ul>
+<h2>Rules and extensions</h2><ul>
+<li><a href="../usage-rules.html">guardana rules</a></li>
+<li><a href="../usage-taxonomy.html">guardana taxonomy</a></li>
+<li><a href="../writing-rules.html">Writing rules</a></li>
+<li><a href="../usage-rule-test.html">guardana rule test</a></li>
+<li><a href="../usage-new-pack.html">guardana new-pack</a></li>
+<li><a href="../usage-pack.html">guardana pack</a></li>
+<li><a href="../extending.html">Extending Guardana</a></li>
+<li><a href="../model-formats.html">Reading model formats</a></li>
+</ul>
+<h2>Collector and deployment</h2><ul>
+<li><a href="../integrations.html">CI and pre-commit</a></li>
+<li><a href="../deployment.html">Deploying the collector<span class="tag">beta</span></a></li>
+<li><a href="../usage-collector.html">The collector<span class="tag">beta</span></a></li>
+</ul>
+<h2>Architecture and security</h2><ul>
+<li><a href="../product-status.html">Product status</a></li>
+<li><a href="../threat-model.html">Threat model</a></li>
+<li><a href="../architecture.html">Architecture</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="../rules/index.html">Rule explorer</a></li>
+<li><a href="../generated/rule-summary.html">Rule summary</a></li>
+<li><a href="../generated/rule-catalog.html">Rule catalog</a></li>
+<li><a href="../generated/evaluator-catalog.html">Evaluator catalog</a></li>
+<li><a href="../generated/taxonomy-coverage.html">Taxonomy coverage</a></li>
+<li><a href="../generated/detection-limits.html">Detection limits</a></li>
+<li><a href="../generated/first-run.html">First-run measure</a></li>
+</ul>
+<h2>Design documents</h2><ul>
+<li><a href="../design/README.html">How these are written</a></li>
+</ul>
+<h2>Project direction</h2><ul>
+<li><a href="../design/guardana-and-control.html">Guardana and Guardana Control<span class="tag">accepted</span></a></li>
+<li><a href="../design/non-executing-packs.html">Non-executing packs and the default plugin trust<span class="tag">accepted</span></a></li>
+<li><a href="../design/audit-0.31-direction.html">Direction audit after 0.31<span class="tag">accepted</span></a></li>
+</ul>
+<h2>Maintainers</h2><ul>
+<li><a href="../maintainers/github-setup.html">GitHub repository setup</a></li>
+<li><a href="../maintainers/ops-catalogue.html">Operations catalogue</a></li>
+<li><a href="../maintainers/lessons.html">Lessons</a></li>
+<li><a href="../maintainers/first-run-study.html">First-run study</a></li>
+</ul>
+<h2>Also here</h2><ul>
+<li><a href="../design/trace-domain-model.html">The Trace domain model<span class="tag">implemented</span></a></li>
+<li><a href="../design/trace-producer.html">Producing a trace<span class="tag">implemented</span></a></li>
+<li><a href="../design/framework-adapters.html">Framework adapters<span class="tag">implemented</span></a></li>
+<li><a href="../design/assessment-channel.html">The assessment channel<span class="tag">implemented</span></a></li>
+<li><a href="../design/capability-protocols.html">Capability protocols<span class="tag">implemented</span></a></li>
+<li><a href="../design/security-contracts.html">Security contracts<span class="tag">implemented</span></a></li>
+<li><a href="../design/mcp-protocol-eras.html">MCP has two eras<span class="tag">implemented</span></a></li>
+<li><a href="../design/mcp-authorization-depth.html">MCP authorization depth<span class="tag">implemented</span></a></li>
+<li><a href="../design/taxonomy-editions.html">Taxonomy editions<span class="tag">implemented</span></a></li>
+<li><a href="../design/extension-author-tooling.html">Extension author tooling<span class="tag">implemented</span></a></li>
+<li><a href="../design/target-locators.html">Target locators<span class="tag">implemented</span></a></li>
+<li><a href="../design/output-plugins.html">Output plugins<span class="tag">superseded</span></a></li>
+<li><a href="../design/quality-suites.html">Quality suites<span class="tag">implemented</span></a></li>
+<li><a href="../design/paired-regression-statistics.html">Paired regression statistics<span class="tag">proposed</span></a></li>
+<li><a href="../design/attack-techniques.html">Attack techniques<span class="tag">proposed</span></a></li>
+<li><a href="../design/namespaced-extension-ids.html">Namespaced extension ids<span class="tag">proposed</span></a></li>
+<li><a href="../design/declarative-fixtures.html">Declarative fixtures for scenarios and agent runs<span class="tag">implemented</span></a></li>
+<li><a href="../design/pack-scaffolding.html">Scaffolding a pack<span class="tag">implemented</span></a></li>
+<li><a href="../design/repeated-trials.html">Repeated trials<span class="tag">implemented</span></a></li>
+<li><a href="../design/documentation-site.html">A documentation site<span class="tag">implemented</span></a></li>
+<li><a href="../design/judge-error-correction.html">Judge error in a measured rate<span class="tag">implemented</span></a></li>
+<li><a href="../design/regrading-stored-exchanges.html">Re-grading stored exchanges<span class="tag">superseded</span></a></li>
+<li><a href="../design/anytime-valid-monitoring.html">Anytime-valid monitoring<span class="tag">proposed</span></a></li>
+<li><a href="../design/recorded-answers.html">Recorded answers and regrading<span class="tag">accepted</span></a></li>
+<li><a href="../design/team-recipes.html">Repository recipes, one connection and provider conformance<span class="tag">accepted</span></a></li>
+<li><a href="../design/application-fixtures-and-regressions.html">Regression cases, a declared fixture boundary and the retrieval pilot<span class="tag">implemented</span></a></li>
+<li><a href="../design/guarded-applications.html">A guarded application, and the outcomes a run states honestly<span class="tag">implemented</span></a></li>
+<li><a href="../design/run-manifest-v2.html">Run manifest v2<span class="tag">implemented</span></a></li>
+<li><a href="../design/protocol-conformance.html">Protocol conformance against servers Guardana did not write<span class="tag">implemented</span></a></li>
+<li><a href="../design/export-and-webhook.html" aria-current="page">One redacted export and one webhook<span class="tag">proposed</span></a></li>
+<li><a href="../design/privacy-and-redaction.html">Privacy and redaction<span class="tag">implemented</span></a></li>
+<li><a href="../design/exit-codes.html">Exit codes and gate semantics<span class="tag">implemented</span></a></li>
+<li><a href="../design/collector-persistence.html">Collector persistence<span class="tag">implemented</span></a></li>
+<li><a href="../design/collector-tenancy.html">Collector tenancy<span class="tag">implemented</span></a></li>
+<li><a href="../design/ai-systems-and-deployments.html">AI systems and deployments<span class="tag">implemented</span></a></li>
+<li><a href="../design/collector-runs-and-findings.html">Runs and findings<span class="tag">implemented</span></a></li>
+<li><a href="../design/finding-lifecycle-and-waivers.html">Finding lifecycle and waivers<span class="tag">implemented</span></a></li>
+<li><a href="../design/audit-retention-and-deletion.html">Audit, retention and deletion<span class="tag">implemented</span></a></li>
+<li><a href="../design/panel-sessions.html">Panel sessions<span class="tag">implemented</span></a></li>
+</ul>
+</nav>
+</details>
+<main>
+<h1>One redacted export and one webhook<span class="status proposed">proposed</span></h1><p class="lede">an installed package adds a format to --format and a reporter to --reporter, each imported only when selected, both handed what the saved run holds; a webhook says whether it was delivered, a failed output has its own exit code, and offline use sends nothing</p><p><strong>Status:</strong> proposed · <strong>Written:</strong> 2026-10-04 · <strong>Serves:</strong> ROADMAP v0.40 (F4), BACKLOG B06 ·
+<strong>Narrows:</strong> <a href="output-plugins.html"><code>output-plugins.md</code></a>, which this supersedes</p>
+<h2 id="the-question">The question</h2>
+<p><code>--format</code> is a closed enum of four renderers and <code>--reporter</code> knows one destination, the
+collector, so a team that needs another output edits the CLI. F4 asks for one redacted local
+export and one webhook that reports its delivery status, supplied by an independently installed
+package and selected without a new flag or command. Both go through the common redaction
+boundary, collision checks, plugin trust and pack locks. Offline use sends nothing. The general
+renderer and reporter contract (diff renderers, binary formats, streaming, several reporters in
+one run) waits for a team that needs it.</p>
+<h2 id="what-exists-so-this-does-not-rebuild-it">What exists, so this does not rebuild it</h2>
+<ul>
+<li><code>--format</code> (<code>cli/_formats.py</code>, <code>OutputFormat</code>) is accepted by <code>scan</code>, <code>probe</code>, <code>grade</code>,
+<code>analyze-trace</code> and <code>import-observations</code> and resolved by <code>guardana.report.get_renderer</code>
+(<code>report/__init__.py</code>), which wraps each built-in in <code>_Redacting</code> with a default
+<code>EvidenceRedactor()</code>. <code>plan</code>, <code>config explain</code> and <code>target inspect</code> use the same enum and only
+ask whether it is <code>json</code>; <code>diff</code>, <code>rules</code>, <code>taxonomy</code> and <code>trace inspect</code> have their own.
+<code>recipe run</code> takes neither flag and always writes human, JUnit and <code>run.json</code>.</li>
+<li><code>--reporter</code> is taken by <code>scan</code>, <code>probe</code>, <code>analyze-trace</code>, <code>import-observations</code> and
+<code>monitor</code>; <code>grade</code> has none. <code>check_reporter_url</code> is the first statement of each command.
+<code>submit_safely</code> runs after <code>emit</code>, whatever the gate: it warns on an outage or a rejection and
+propagates anything else, such as a bad URL or a serialization defect (<code>cli/_reporting.py</code>).
+<code>HttpReporter</code> redacts the result again and redacts the source at <code>redacted</code> even under
+<code>metadata_only</code> (<code>core/reporter.py</code>).</li>
+<li><code>Verification</code> (<code>core/verify.py</code>) is the F3 result boundary: <code>result</code> redacted under the
+profile's privacy policy with the run's secrets withheld and the baseline applied, <code>manifest</code>,
+<code>gate</code>, <code>exit_code</code>, <code>open_questions</code>, <code>document()</code>. <code>stop_messages</code> and <code>judge_stops</code> are CLI
+wording, never saved; <code>stop_messages</code> are taken before redaction. <code>exchanges</code> are the kept
+prompts and replies, redacted span by span. <code>scan</code>, <code>probe</code> and <code>grade</code> produce one;
+<code>analyze-trace</code> and <code>import-observations</code> hold the same three values (<code>result</code>, <code>run</code>,
+<code>outcome</code>). <code>load_report</code> (<code>core/report/load.py</code>) reads a saved run of any schema into a
+<code>RunReport(manifest, result)</code>; <code>ResultSummary.gate</code> is the recorded verdict, <code>None</code> in a
+migrated schema-1 run.</li>
+<li>Trust: <code>PluginTrust.allows(distribution)</code> (<code>core/plugins.py</code>). <code>installed_entry_points()</code>
+(<code>core/entrypoints.py</code>) lists the four groups from metadata and imports nothing; it is the
+one enumeration every trust decision walks. <code>Registry.discover</code> imports every admitted entry
+point and records each refusal as a load error. <code>guardana doctor</code> lists each third-party entry
+point, its state taken from the registry (<code>_classify</code>), and warns of the gate consequence of a
+refusal (<code>_consequence</code>).</li>
+<li>Packs: <code>guardana-pack.yaml</code> schema 2 (<code>provides.rules|evaluators|targets|taxonomies</code>,
+<code>core/pack/load.py</code>; <code>_migrate_v1_to_v2</code> refuses a v1 manifest naming <code>taxonomies</code>).
+<code>discover_packs</code> reads a manifest from the module an admitted entry point names, through
+<code>importlib.resources.files</code>, which finds a package's manifest on Python 3.11 only when the
+module is the package itself. <code>check_pack</code> checks every declared id and its owner.
+<code>pack validate</code> and <code>pack lock</code> refuse when trust refused or failed anything
+(<code>_discover_completely</code>, <code>cli/pack.py</code>; SECURITY.md). <code>guardana-lock.yaml</code> schema 2 pins rules
+by digest, evaluators and targets by id, catalogues by digest, and lists ids no manifest
+declares as <code>unlocked</code>; an older <code>_pack</code> ignores keys it does not know, and a lock taken under
+another <code>extension_api</code> is refused as incomparable (<code>core/pack/lock.py</code>). <code>schemas/</code> holds no
+pack or lock schema. The recipe lock does not reference the pack lock (<code>team-recipes.md</code>).</li>
+<li><code>new-pack</code> writes <code>schema_version: PACK_SCHEMA_VERSION</code> (<code>cli/new_pack.py</code>).</li>
+<li>Isolated example suites install a package with <code>uv run --isolated --no-cache</code> and run its own
+tests (<code>scripts/ci_local.sh</code>, <code>.github/workflows/ci.yml</code>); <code>examples/custom_rule</code> registers the
+four groups.</li>
+</ul>
+<h2 id="evidence-from-outside">Evidence from outside</h2>
+<ul>
+<li>Standard Webhooks 1.0.0 is a vendor-neutral sending convention: headers <code>webhook-id</code>,
+<code>webhook-timestamp</code> (Unix seconds) and <code>webhook-signature</code>, an HMAC-SHA256 over
+<code>msg_id.timestamp.payload</code> written as <code>v1,&lt;base64&gt;</code>, a symmetric secret written <code>whsec_&lt;base64&gt;</code>,
+a body of <code>type</code>, <code>timestamp</code> and <code>data</code>. &quot;2xx status code (status codes 200-299)&quot; is a
+successful delivery; &quot;410 Gone&quot; means the receiver wants no more. It recommends payloads
+&quot;smaller than 20kb&quot;, thin payloads, and <code>webhook-id</code> as the receiver's idempotency key, the same
+on every retry of one event.
+(<a href="https://github.com/standard-webhooks/standard-webhooks/blob/main/spec/standard-webhooks.md">spec</a>,
+read 2026-10-04)</li>
+<li>OpenAI (&quot;following the Standard Webhooks specification&quot;; 3xx &quot;treated as failures&quot;) and the
+Gemini API (&quot;strictly follows the Standard Webhooks specification for security headers&quot;)
+deliver with it, so receivers already verify it.
+(<a href="https://developers.openai.com/api/docs/guides/webhooks">OpenAI</a>,
+<a href="https://ai.google.dev/gemini-api/docs/webhooks">Gemini</a>, read 2026-10-04)</li>
+<li><code>standardwebhooks</code> 1.1.0 (MIT) is the specification's reference verifier for Python; its PyPI
+metadata declares no dependency. (<a href="https://pypi.org/project/standardwebhooks/">PyPI</a>, read
+2026-10-04)</li>
+<li>The CloudEvents HTTP binding &quot;does not introduce any new security features for HTTP&quot;, so it
+would leave signing to be invented.
+(<a href="https://github.com/cloudevents/spec/blob/main/cloudevents/bindings/http-protocol-binding.md">binding</a>,
+read 2026-10-04)</li>
+<li>A cell an attacker controls can become a spreadsheet formula. OWASP: for Excel, &quot;prefix any cell
+starting with <code>=</code>, <code>+</code>, <code>-</code>, or <code>@</code>&quot; so it reads as text.
+(<a href="https://community.owasp.org/attacks/CSV_Injection">CSV injection</a>, read 2026-10-04)</li>
+</ul>
+<h2 id="decisions">Decisions</h2>
+<h3 id="1-two-entry-point-groups-imported-only-when-selected-with-their-own-api-version">1. Two entry-point groups, imported only when selected, with their own API version</h3>
+<p><code>guardana.renderers</code> and <code>guardana.reporters</code> (constants <code>RENDERER_GROUP</code>, <code>REPORTER_GROUP</code>,
+tuple <code>OUTPUT_GROUPS</code> in <code>core/entrypoints.py</code>). This is a deliberate change to a protected
+contract: the four groups become six, and CLAUDE.md, the <code>entrypoints.py</code> docstring and
+<code>.claude/rules/examples.md</code> say so.</p>
+<p>They are <strong>not</strong> added to <code>GROUPS</code>: <code>Registry.discover</code> never walks them, so an installed output
+is never imported, and never recorded as a refused or failed load, by a run that does not select
+it. <code>installed_entry_points(groups=GROUPS)</code> gains the parameter and stays the only enumeration;
+selection, <code>doctor</code> and the pack commands pass the groups they need. Trust is decided per
+distribution, so admitting an output distribution admits any rules it also ships; <code>doctor</code> lists
+every entry point of a distribution together.</p>
+<p>One entry point is one output, and <strong>its entry-point name is the output's name</strong>. A provider
+returns a <code>RendererSpec</code> or a <code>ReporterSpec</code> whose <code>name</code> equals that entry-point name. Because
+the name is in the metadata, a collision and a trust refusal are decided before anything is
+imported.</p>
+<p>A name matches <code>[a-z][a-z0-9-]*</code>, at most 40 characters. Reserved: renderer names <code>human</code>,
+<code>json</code>, <code>sarif</code>, <code>junit</code>; reporter names <code>server</code>, <code>http</code>, <code>https</code>; any name starting with
+<code>guardana</code>. The built-ins are not registered through the groups: <code>--plugins disabled</code> loads no
+entry point and must still print and still forward to a collector. <code>RESERVED_RENDERER_NAMES</code>
+and <code>RESERVED_REPORTER_NAMES</code> live in <code>core/output.py</code>; a test in
+<code>packages/guardana-report/tests/</code> asserts <code>guardana.report.RENDERER_NAMES</code> is a subset. An
+installed entry point with a reserved or invalid name can never be selected: <code>doctor</code> warns, and
+<code>pack validate</code> refuses a manifest declaring one.</p>
+<p><code>OUTPUT_API_VERSION = 1</code> (<code>core/output.py</code>), with <code>SUPPORTED_OUTPUT_API_VERSIONS = {1}</code>, versions
+<code>RendererSpec</code>, <code>ReporterSpec</code>, <code>ReporterRequest</code>, <code>Deliverer</code> and <code>Delivery</code>.
+<code>EXTENSION_API_VERSION</code> stays <code>2</code>: the rule, evaluator and target contracts do not move, and a
+lock compares only <code>extension_api</code>, so bumping it would make every lock incomparable for no
+change in what it pins. The output contract is part of the extension surface the 1.0
+compatibility matrix lists; it grows by adding to version 1 or by a version 2 a pack opts into.</p>
+<h3 id="2-selection-decided-before-the-run-refused-with-exit-3">2. Selection: decided before the run, refused with exit 3</h3>
+<p>New module <code>guardana.core.output</code>. <code>OutputSelectionKind(StrEnum)</code>: <code>unknown</code>, <code>reserved</code>,
+<code>collision</code>, <code>refused</code>, <code>broken</code>, <code>unsupported</code>. <code>OutputSelectionError(Exception)</code> carries
+<code>kind</code>, <code>name</code>, <code>message</code> and <code>distributions: tuple[str, ...]</code>.</p>
+<pre><code class="language-python">select_renderer(name: str, trust: PluginTrust) -&gt; SelectedRenderer      # (name, spec, origin)
+select_reporter(name: str, locator: str, trust: PluginTrust) -&gt; PreparedReporter
+                                                    # (name, spec, deliverer, origin)
+</code></pre>
+<p><code>origin</code> is <code>guardana.core.origin.Origin(distribution, version)</code>. Steps, in order:</p>
+<ol>
+<li><code>name</code> reserved → <code>reserved</code>. <code>name</code> not matching the pattern → <code>unknown</code>.</li>
+<li>The group's entry points named <code>name</code>, through <code>installed_entry_points(groups=(group,))</code>. None
+→ <code>unknown</code>.</li>
+<li>Entry points named <code>name</code> that differ in distribution (PEP 503 form; an unnamed one is
+distinct), in <code>value</code>, or in version → <code>collision</code>, naming each; none is imported. So an
+editable and a wheel install of one distribution side by side collide too, and the output
+that runs never depends on install order or <code>sys.path</code>.</li>
+<li><code>trust.allows(distribution)</code> false → <code>refused</code>, with <code>distributions</code> set.</li>
+<li>Import the entry point and call its provider. Any exception except <code>KeyboardInterrupt</code>
+(<code>SystemExit</code> included), a value that is not the expected spec, or <code>spec.name != name</code> →
+<code>broken</code>.</li>
+<li>Reporters only: <code>spec.prepare(ReporterRequest(locator=locator))</code>. Any exception except
+<code>KeyboardInterrupt</code>, or a value without a callable <code>deliver</code>, a <code>str</code> <code>destination</code> and a
+callable <code>sent_secrets</code>, → <code>broken</code>. <code>prepare</code> validates and sends nothing.</li>
+</ol>
+<p>Messages, which tests pin (<code>&lt;dist&gt;</code> is <code>distribution version</code>, or <code>an unnamed distribution</code>):</p>
+<pre><code>the format acme-tabel is not installed; built-in: human, json, sarif, junit; installed: acme-table (admitted)
+the reporter acme-hook is not installed; built-in: server://URL or an http(s) collector URL; installed: acme-webhook (refused)
+acme-table is a built-in format name, so no installed format can use it
+the format acme-table is installed by 2 distributions (acme-a 1.0, acme-b 2.0), so neither is used
+the format acme-table comes from acme-guardana-outputs 0.1.0, which plugin trust builtins does not admit
+the format acme-table from acme-guardana-outputs 0.1.0 could not be loaded: ValueError: &lt;reason&gt;
+</code></pre>
+<p>After a <code>refused</code> message the CLI appends the admission forms (<code>cli/_plugins.py</code>), as
+<code>hint_refused_plugins</code> words them. Every reason taken from plugin code passes the sanitiser of
+decision 5.</p>
+<p><strong>CLI.</strong> <code>--format</code> on <code>scan</code>, <code>probe</code>, <code>grade</code> and <code>analyze-trace</code> becomes a <code>str</code> option with
+the default <code>human</code> and help <code>human|json|sarif|junit, or an installed format</code>.
+<code>cli/_formats.py: resolve_format(value, trust) -&gt; OutputFormat | SelectedRenderer</code> turns a
+built-in name into <code>OutputFormat</code> and selects anything else; every helper typed <code>OutputFormat</code>
+today (<code>_keeping</code>, <code>_finish_probe</code>, <code>refuse_incomparable_output</code>) takes the union, and
+<code>--keep-exchanges</code> stays refused unless the format is <code>json</code>. <code>import-observations --format</code>
+stays the enum: the command loads no plugins.</p>
+<p><code>cli/_reporting.py: split_reporter(value) -&gt; tuple[str, str] | None</code> returns <code>(name, rest)</code> for
+<code>&lt;name&gt;://&lt;rest&gt;</code> when <code>&lt;name&gt;</code> matches the name pattern and is not <code>server</code>, <code>http</code> or <code>https</code>.
+It runs first; <code>check_reporter_url</code> runs only when it returns <code>None</code>, so every collector value,
+including a bare <code>host:port</code>, keeps today's path and message. The <code>unknown</code> reporter message
+names the collector forms, so <code>htps://collector</code> still points at them.</p>
+<p>Both selections run on the line after <code>resolve_trust</code>, before <code>Registry.discover</code>, before any
+target or meter is built and before any request is sent.</p>
+<p>Refused with exit <code>3</code> before anything is sent, without reading metadata, kind <code>unsupported</code>:</p>
+<ul>
+<li><code>monitor --reporter &lt;name&gt;://</code>: &quot;monitor runs cycles, not a saved run; an installed reporter
+runs with scan, probe or analyze-trace&quot;.</li>
+<li><code>import-observations --reporter &lt;name&gt;://</code>: &quot;import-observations loads no plugins; it forwards
+to the collector only&quot;.</li>
+<li><code>scan --write-baseline</code> or <code>probe --write-mcp-pin</code> with an installed format or reporter: &quot;an
+installed output needs the run's report, which --write-baseline (or --write-mcp-pin) does not
+produce&quot;.</li>
+</ul>
+<p>Every <code>OutputSelectionError</code> prints <code>error: &lt;message&gt;</code> and exits <code>3</code>.</p>
+<h3 id="3-the-input-is-a-verification-holding-what-the-saved-run-holds">3. The input is a <code>Verification</code> holding what the saved run holds</h3>
+<p>Both kinds receive a <code>Verification</code>, the F3 boundary. It already says what makes a run not
+clean: <code>gate</code>, <code>exit_code</code> and <code>open_questions</code> come from <code>core.gate</code>, and an output adds no
+condition of its own (<code>.claude/rules/cli-report.md</code>). <code>scan</code>, <code>probe</code> and <code>grade</code> pass the one the
+verifier returned; <code>analyze-trace</code> builds <code>Verification(result=result, manifest=run, gate=outcome)</code>.</p>
+<p><strong>The boundary</strong> is <code>outbound(verification, *, leaves_machine: bool) -&gt; Verification</code> in
+<code>core/output.py</code>, returning <code>dataclasses.replace(verification, ...)</code> with:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Renderer</th>
+<th>Reporter</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>result</code></td>
+<td><code>EvidenceRedactor().redact_result(result)</code>: the second pass <code>_Redacting</code> and <code>HttpReporter</code> give the built-ins</td>
+<td>the same</td>
+</tr>
+<tr>
+<td><code>manifest</code></td>
+<td>as saved</td>
+<td>as saved, <code>target.ref</code> redacted by the <code>redacted</code>-mode redactor <code>HttpReporter</code> uses for its source</td>
+</tr>
+<tr>
+<td><code>stop_messages</code>, <code>judge_stops</code></td>
+<td><code>()</code>: never saved; the CLI prints them itself</td>
+<td><code>()</code></td>
+</tr>
+<tr>
+<td><code>exchanges</code></td>
+<td>as kept: written beside the saved run already</td>
+<td><code>None</code>: the collector never receives them either</td>
+</tr>
+<tr>
+<td><code>judge_usage</code></td>
+<td>as recorded</td>
+<td>as recorded</td>
+</tr>
+</tbody>
+</table></div>
+<p>So no output sees more than the saved run holds, and nothing that leaves the machine holds more
+than the collector would receive. No argument asks for an unredacted result. If <code>outbound</code>
+raises, the output is not called (decisions 4 and 5).</p>
+<p>A test plants one fake credential in every channel of <code>result</code>, in <code>manifest.target.ref</code>, in a
+stop message and in a kept exchange, then runs every built-in renderer, the collector reporter, a
+recording discovered renderer and a recording discovered reporter, and asserts none sees it.</p>
+<p><code>guardana.core.verify.load_verification(path) -&gt; Verification</code> reads a saved run of any schema
+through <code>load_report</code>, sets <code>gate</code> from <code>manifest.result_summary.gate</code>, and leaves <code>exchanges</code>
+<code>None</code>. A run that records no gate raises <code>ReportLoadError(&quot;&lt;path&gt; records no gate, so its verdict cannot be read&quot;)</code>; a migrated schema-1 run is one. This is how a run is exported after the
+fact, and the documented way to get both a comparable run and an export from one paid probe:</p>
+<pre><code class="language-python">trust = PluginTrust(mode=PluginMode.ALLOWLIST, allowed=frozenset({&quot;acme-guardana-outputs&quot;}))
+table = render(select_renderer(&quot;acme-table&quot;, trust), load_verification(Path(&quot;run.json&quot;)))
+</code></pre>
+<p><code>recipe run</code> takes no output flag; its <code>run.json</code> is exported the same way.</p>
+<h3 id="4-a-renderer-returns-text-a-failed-one-has-its-own-exit-code">4. A renderer returns text; a failed one has its own exit code</h3>
+<pre><code class="language-python">@dataclass(frozen=True, slots=True)
+class RendererSpec:
+    name: str
+    summary: str                                  # one line, shown by pack validate
+    render: Callable[[Verification], str]
+</code></pre>
+<p><code>render(selected, verification) -&gt; str</code> (<code>core/output.py</code>) applies <code>outbound</code> and calls the spec.
+<code>OutputError(Exception)</code> (<code>core/output.py</code>, attributes <code>name</code>, <code>origin</code>, cause chained) is raised
+for any exception except <code>KeyboardInterrupt</code> (<code>SystemExit</code> included), for a result that is not a
+<code>str</code>, and for an empty string: every format writes at least a header, so an empty file would
+read as a successful export of nothing. A failure of <code>outbound</code> is an <code>OutputError</code> with reason
+<code>redaction failed: &lt;type&gt;</code>.</p>
+<p>The command writes the text through <code>emit(rendered, output, name, verbatim=True)</code>: written with
+<code>newline=&quot;&quot;</code> and printed without an added newline, so CSV line endings survive. <code>--output</code>
+behaves as today, including the warning that <code>diff</code> cannot read the file;
+<code>refuse_incomparable_output</code> still refuses only <code>human</code>.</p>
+<p><strong>Exit <code>8</code>, new:</strong> &quot;an installed output failed&quot;. It is a new code because the outcome is new and
+its cause is not Guardana: exit <code>5</code> sends a bug report to Guardana, and this one belongs to the
+distribution that shipped the output. On an <code>OutputError</code> the command prints, in order: the
+verdict line <code>the run's verdict: &lt;gate&gt; (exit &lt;code&gt;)</code>, then <code>error: the format &lt;name&gt; from &lt;dist&gt; failed: &lt;reason&gt; — nothing was written; report it to &lt;distribution&gt;</code>, then the delivery
+line of decision 5 if a reporter was selected, and exits <code>8</code>. Exit <code>8</code> replaces <code>0</code>, <code>1</code> and <code>2</code>;
+a run that stopped keeps <code>4</code>, <code>6</code> or <code>7</code>, because a stop outranks the verdict and the output
+alike. <code>ExitCode.OUTPUT_FAILED = 8</code> joins <code>cli/exit_codes.py</code>, <code>docs/exit-codes.md</code> and its test.</p>
+<h3 id="5-a-reporter-returns-its-delivery-status">5. A reporter returns its delivery status</h3>
+<pre><code class="language-python">@dataclass(frozen=True, slots=True)
+class ReporterSpec:
+    name: str
+    summary: str
+    prepare: Callable[[ReporterRequest], &quot;Deliverer&quot;]
+
+@dataclass(frozen=True, slots=True)
+class ReporterRequest:
+    locator: str                                  # what followed &lt;name&gt;:// on the command line
+
+class Deliverer(Protocol):
+    destination: str                              # display form, fixed by prepare
+    def sent_secrets(self) -&gt; tuple[str, ...]: ...  # withheld from every line printed
+    def deliver(self, verification: Verification) -&gt; &quot;Delivery&quot;: ...
+
+class DeliveryStatus(StrEnum):
+    DELIVERED = &quot;delivered&quot;        # the receiver acknowledged it
+    REJECTED = &quot;rejected&quot;          # the receiver answered and did not accept it
+    UNREACHABLE = &quot;unreachable&quot;    # no answer from the receiver
+    NOT_SENT = &quot;not_sent&quot;          # decided before sending; nothing left the machine
+    UNKNOWN = &quot;unknown&quot;            # the reporter failed; whether anything left is unknown
+
+@dataclass(frozen=True, slots=True)
+class Delivery:
+    status: DeliveryStatus
+    detail: str = &quot;&quot;
+    attempts: int = 0
+    http_status: int | None = None
+</code></pre>
+<p><code>deliver(prepared, verification) -&gt; Delivery</code> (<code>core/output.py</code>):</p>
+<ol>
+<li>Applies <code>outbound(..., leaves_machine=True)</code>. A failure returns <code>NOT_SENT</code>, detail
+<code>redaction failed: &lt;type&gt;</code>.</li>
+<li>Calls <code>deliverer.deliver</code> in a daemon thread and waits at most <code>DELIVERY_DEADLINE_SECONDS = 30</code>. Past it: <code>UNKNOWN</code>, detail <code>did not finish within 30 s</code>. A <code>KeyboardInterrupt</code> in the
+waiting thread propagates, so an interrupted run still exits <code>7</code>.</li>
+<li>Any exception except <code>KeyboardInterrupt</code> (<code>SystemExit</code> included): <code>UNKNOWN</code>, detail
+<code>&lt;type&gt;: &lt;message&gt;</code>. A value that is not a <code>Delivery</code>, or one whose <code>status</code> is not a
+<code>DeliveryStatus</code>, whose <code>attempts</code> is not a non-negative <code>int</code>, whose <code>http_status</code> is
+neither <code>None</code> nor an <code>int</code>, or whose <code>detail</code> is not a <code>str</code>: <code>UNKNOWN</code>, detail <code>returned an invalid delivery</code>. <code>UNKNOWN</code> is never written as anything else.</li>
+<li>Sanitises <code>destination</code> and <code>detail</code>: every <code>sent_secrets()</code> value is withheld as written,
+then <code>EvidenceRedactor().redact_text</code>, then control characters (C0, DEL, C1) are dropped, then
+<code>bounded_reason</code>. A renderer's failure reason and a <code>broken</code> reason go through the same
+sanitiser with no secrets.</li>
+</ol>
+<p><strong>The delivery line</strong> is a documented, stable contract (<code>docs/outputs.md</code>), printed once to
+stderr for every selected reporter on every path that reaches a <code>Verification</code>:</p>
+<pre><code>delivery: &lt;status&gt; — &lt;name&gt; to &lt;destination&gt;[ (HTTP &lt;code&gt;, &lt;n&gt; attempt|attempts)][: &lt;detail&gt;]
+</code></pre>
+<p>The parenthesis lists what is set and is omitted when neither is. Examples:</p>
+<pre><code>delivery: delivered — acme-webhook to https://hooks.example.com (HTTP 204, 1 attempt)
+delivery: rejected — acme-webhook to https://hooks.example.com (HTTP 410, 1 attempt): the receiver no longer accepts deliveries
+delivery: unreachable — acme-webhook to https://hooks.example.com (3 attempts): timed out
+delivery: not_sent — acme-webhook to https://hooks.example.com: the run's report was not produced
+delivery: unknown — acme-webhook to https://hooks.example.com: did not finish within 30 s
+</code></pre>
+<p><strong>Where and when.</strong> In each command the delivery replaces the place of <code>submit_safely</code>: after
+<code>emit</code>, before <code>exit_with</code>, whatever the gate, stopped runs included; in <code>_finish_probe</code> it sits
+where <code>submit_safely</code> sits, before <code>report_target_stop</code>. From the moment <code>prepare</code> succeeds, a
+command that ends before delivery prints <code>not_sent</code> with the reason: the format failed, the
+report could not be written, the target or judge was unavailable, the run was interrupted, or
+the budget was refused before sending. A <code>try</code>/<code>finally</code> around the command body after selection
+does it.</p>
+<p><strong>Exit code.</strong> <code>delivered</code>, <code>rejected</code>, <code>unreachable</code> and <code>not_sent</code> keep the verdict's exit
+code: the receiver's state is not the run's, and that is the collector's rule for an outage or a
+rejection. <code>unknown</code> is a defect in the reporter, as a bad URL or a serialization error is a
+defect the collector path lets end the command: it ends with exit <code>8</code> under the precedence of
+decision 4. A Python caller reads the <code>Delivery</code>. The built-in collector keeps its messages and
+its envelope; moving it onto the delivery line would change a shipped output nobody asked to
+change.</p>
+<h3 id="6-trust-and-doctor">6. Trust and <code>doctor</code></h3>
+<p>Selection uses the <code>ResolvedTrust</code> the command already resolved from <code>--plugins</code>,
+<code>--allow-plugin</code> and the profile. Under the unstated default (<code>builtins</code>) a third-party output is
+<code>refused</code>.</p>
+<p><code>doctor</code> decides the state of an output entry point from metadata and trust, never from the
+registry, which never sees it: <code>_State</code> gains <code>ON_SELECTION</code> (<code>imported only when selected</code>),
+<code>REFUSED_OUTPUT</code> (<code>refused if selected under plugin trust &lt;mode&gt;</code>) and <code>UNSELECTABLE</code> (<code>never selectable: reserved name</code> / <code>invalid name</code>). An entry point in a collision gets its own <code>WARN</code>
+check: <code>the format acme-table is installed by 2 distributions (a, b); selecting it is refused</code>.
+Output states are left out of <code>_consequence</code>, whose gate sentence is false for them, and do not
+raise a distribution block above <code>WARN</code>. The &quot;N loaded, M refused&quot; counts keep counting
+<code>GROUPS</code> only, and a block lists the output entry points under them.</p>
+<h3 id="7-manifest-and-lock">7. Manifest and lock</h3>
+<p><strong>Pack schema 3</strong>, written only when a manifest declares an output:</p>
+<pre><code class="language-yaml">schema_version: 3
+name: acme-outputs
+extension_api: &quot;&gt;=2,&lt;3&quot;
+output_api: &quot;&gt;=1,&lt;2&quot;
+provides:
+  renderers: [acme-table]
+  reporters: [acme-webhook]
+</code></pre>
+<p><code>output_api</code> is required exactly when <code>provides</code> names a renderer or reporter, refused
+otherwise, and read like <code>extension_api</code> (an <code>ApiRange</code>); a range outside
+<code>SUPPORTED_OUTPUT_API_VERSIONS</code> is a <code>check_pack</code> problem in the words <code>why_not_any</code> uses. A
+schema 2 manifest naming <code>renderers</code>, <code>reporters</code> or <code>output_api</code> is refused, as v1 refuses
+<code>taxonomies</code>. <code>load_manifest</code> refuses an output name that is invalid or reserved. <code>new-pack</code>
+writes <code>schema_version: 2</code> explicitly, so a scaffolded pack still validates on 0.39.</p>
+<p><strong>Discovery for pack commands.</strong> <code>discover_outputs(trust) -&gt; OutputDiscovery</code> (<code>core/output.py</code>)
+imports every admitted, non-colliding output provider:</p>
+<pre><code class="language-python">@dataclass(frozen=True, slots=True)
+class OutputDiscovery:
+    renderers: Mapping[str, Origin]
+    reporters: Mapping[str, Origin]
+    refused: tuple[InstalledEntryPoint, ...]
+    failed: tuple[tuple[InstalledEntryPoint, str], ...]   # provider raised or spec mismatched
+    collisions: Mapping[str, tuple[str, ...]]             # &quot;renderer:&lt;name&gt;&quot; -&gt; distributions
+</code></pre>
+<p>Only <code>pack validate</code> and <code>pack lock</code> call it. They exit <code>2</code>, before <code>discover_packs</code> reads any
+manifest, when it reports anything refused, failed or colliding, with the message
+<code>_discover_completely</code> uses, so SECURITY.md's promise covers outputs. <code>discover_packs</code> walks
+<code>GROUPS + OUTPUT_GROUPS</code>. An output entry point must name the package module
+(<code>acme_outputs:provide_table</code>, not <code>acme_outputs.table:provide</code>): on Python 3.11
+<code>importlib.resources.files</code> finds no manifest from a submodule. The unmanifested warning in
+<code>pack validate</code> names renderers and reporters too.</p>
+<p><strong><code>pack validate</code>.</strong> <code>Registered</code> gains <code>renderers</code>, <code>reporters</code> (name → distribution) and
+<code>output_collisions</code>. <code>check_pack</code> checks them as it checks evaluators: declared and not
+delivered, delivered by another distribution, and <code>declares renderer acme-table, which 2 distributions provide (a, b) — selecting it is refused</code>.</p>
+<p><strong>Lock schema 3</strong>, written only when a pack pins an output or an output is unlocked; otherwise
+<code>pack lock</code> writes schema 2 exactly as today, so a lock without outputs still reads on 0.39. Each
+pack entry gains <code>renderers: [...]</code> and <code>reporters: [...]</code> after <code>targets</code>, both always present in
+a schema 3 lock. <code>LockedPack</code> and <code>Installed</code> gain both, pinned by name as evaluators are, with
+the distribution version as the coarse pin. One spelling everywhere ids are pooled: <code>provides</code>,
+<code>Installed.ids()</code>, <code>lock_of</code>'s declared set and <code>unlocked</code> use <code>renderer:&lt;name&gt;</code> and
+<code>reporter:&lt;name&gt;</code>. <code>_undelivered</code> covers outputs (declared and not provided raises <code>PackError</code>),
+<code>_pack_drift</code> reports <code>added</code> and <code>removed</code> outputs, <code>_READABLE_LOCK_SCHEMAS</code> becomes <code>{1, 2, 3}</code>,
+and a schema 1 or 2 lock carrying <code>renderers</code> or <code>reporters</code> is refused. A schema 2 lock with an
+output now installed reports it as <code>added</code>.</p>
+<p>&quot;Pack locks&quot; means drift that <code>pack lock --check</code> reports; selection does not read
+<code>guardana-lock.yaml</code>, as rule discovery does not. A directory or editable install changes its
+code under one version; that limit is the one evaluators and targets already have, and the
+recipe lock's <code>sources</code> digests remain the way to pin such code.</p>
+<p><code>schemas/</code> gains <code>pack-manifest-v3.schema.json</code> and <code>pack-lock-v3.schema.json</code>, validated by a
+round-trip test in <code>packages/guardana-core/tests/</code>; earlier versions are not backfilled.
+Migration tests from schema 2 sit beside the existing pack tests.</p>
+<h3 id="8-offline-use-sends-nothing">8. Offline use sends nothing</h3>
+<p>A run without <code>--reporter</code> contacts nothing new. A discovered renderer is trusted code, so this
+is proven, not enforced: the reference renderer and the reference reporter's <code>prepare</code> are tested
+under a socket guard. An installed reporter that is not selected is never imported (decision 1).
+A reporter named in <code>--reporter</code> is a destination the run names, as the collector is.</p>
+<h3 id="9-the-independently-installed-package">9. The independently installed package</h3>
+<p><code>examples/output_pack/</code>, distribution <code>acme-guardana-outputs</code>, package <code>acme_outputs</code>, Apache-2.0
+like the other examples, <code>dependencies = [&quot;guardana-core&quot;]</code>, standard library only. It is not
+published; it is installed in isolation in CI to prove a third party needs no change to
+Guardana.</p>
+<pre><code class="language-toml">[project.entry-points.&quot;guardana.renderers&quot;]
+acme-table = &quot;acme_outputs:provide_table&quot;
+[project.entry-points.&quot;guardana.reporters&quot;]
+acme-webhook = &quot;acme_outputs:provide_webhook&quot;
+</code></pre>
+<p><code>acme_outputs/__init__.py</code> holds only the two providers, each importing its module inside the
+function, so selecting the table never imports <code>acme_outputs.webhook</code>. <code>guardana-pack.yaml</code> is
+the schema 3 manifest above.</p>
+<p><strong><code>acme-table</code></strong>, CSV under RFC 4180: <code>csv</code> module, <code>QUOTE_ALL</code>, <code>\r\n</code>, one header row:
+<code>run_id,gate,outcome,check,case,severity,location,title,status,detail</code>. <code>run_id</code> and <code>gate</code>
+repeat on every row, so a filtered sheet still shows the verdict. An empty cell is written for
+what a row does not have. Severity is <code>Severity.name</code>. Rows, in this order, each channel in result
+order:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th><code>outcome</code></th>
+<th>from</th>
+<th><code>check</code></th>
+<th><code>case</code></th>
+<th><code>severity</code></th>
+<th><code>location</code></th>
+<th><code>title</code></th>
+<th><code>status</code></th>
+<th><code>detail</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>run</code></td>
+<td>the run</td>
+<td></td>
+<td></td>
+<td><code>result.max_severity()</code></td>
+<td><code>manifest.target.ref</code></td>
+<td></td>
+<td><code>exit &lt;code&gt;</code></td>
+<td>every open question, <code>;</code>-separated, <code>stopped</code> written <code>stopped:&lt;stopped_by&gt;</code></td>
+</tr>
+<tr>
+<td><code>finding</code>, <code>unverified</code>, <code>waived</code></td>
+<td>each channel</td>
+<td><code>rule_id</code></td>
+<td></td>
+<td>its severity</td>
+<td><code>target_ref</code></td>
+<td><code>title</code></td>
+<td></td>
+<td><code>evidence.summary</code></td>
+</tr>
+<tr>
+<td><code>error</code></td>
+<td><code>errors</code></td>
+<td><code>source</code></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td><code>stage</code></td>
+<td><code>reason</code></td>
+</tr>
+<tr>
+<td><code>skipped</code></td>
+<td><code>rules_skipped</code></td>
+<td><code>rule_id</code></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td><code>reason</code></td>
+<td><code>detail</code>, then <code>; missing: a, b</code> when any</td>
+</tr>
+<tr>
+<td><code>shortfall</code></td>
+<td><code>coverage_shortfall</code></td>
+<td><code>name</code></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td><code>kind</code></td>
+<td><code>detail</code></td>
+</tr>
+<tr>
+<td><code>case</code></td>
+<td><code>assessments</code></td>
+<td><code>rule_id</code></td>
+<td><code>case_id</code>, <code>#&lt;trial&gt;</code> appended when set</td>
+<td></td>
+<td><code>subject_ref</code></td>
+<td></td>
+<td>below</td>
+<td>below</td>
+</tr>
+<tr>
+<td><code>suite</code></td>
+<td><code>suites</code></td>
+<td>its key</td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td><code>outcome</code></td>
+<td><code>reason</code></td>
+</tr>
+<tr>
+<td><code>ran_no_finding</code></td>
+<td>each of <code>rules_run</code> named by no row above</td>
+<td>the rule</td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table></div>
+<p>A <code>case</code> row's <code>status</code> is <code>passed</code> or <code>failed</code> for a measured case with a verdict, <code>measured</code>
+for a measured case without one, and the <code>AssessmentStatus</code> value otherwise. Its <code>detail</code> is
+<code>value &lt;v&gt; &lt;unit&gt;, threshold &lt;t&gt;</code> when a value was measured, then <code>reason &lt;UnmeasuredReason&gt;</code>
+when set, then the <code>rationale</code>, joined with <code>; </code>. A cell whose first non-whitespace character is
+<code>=</code>, <code>+</code>, <code>-</code>, <code>@</code>, <code>＝</code>, <code>＋</code>, <code>－</code> or <code>＠</code>, or which starts with a tab or a carriage return, is
+prefixed with <code>'</code>. Nothing is truncated: the redactor's bound already applies. A test walks the
+fields of <code>ScanResult</code>, <code>Assessment</code> and <code>SuiteSummary</code> and fails on one the table neither
+exports nor excludes by name (<code>observations</code>, <code>usage</code>, <code>protocols</code>, <code>trials_per_case</code>, <code>scope</code>).</p>
+<p><strong><code>acme-webhook</code></strong>, <code>--reporter acme-webhook://https://hooks.example.com/guardana</code> or
+<code>--reporter acme-webhook://env:ACME_WEBHOOK_URL</code>, which reads the destination from that
+variable so a URL carrying a token stays out of shell history and CI logs:</p>
+<ul>
+<li>
+<p><code>prepare</code> refuses, with a reason: an unset variable; a destination that is not <code>https</code>, unless
+its host is <code>localhost</code>, <code>127.0.0.1</code> or <code>::1</code>; userinfo; <code>ACME_WEBHOOK_SECRET</code> unset or not
+<code>whsec_</code> followed by base64. <code>destination</code> is <code>scheme://host[:port]</code>: no path, query or
+fragment is ever shown. <code>sent_secrets()</code> returns the secret and the full URL.</p>
+</li>
+<li>
+<p>Body, Standard Webhooks shape, compact JSON, at most 20480 UTF-8 bytes:</p>
+<pre><code class="language-json">{&quot;type&quot;: &quot;run.completed&quot;, &quot;timestamp&quot;: &quot;2026-10-04T12:00:00+00:00&quot;,
+ &quot;data&quot;: {&quot;run_id&quot;: &quot;…&quot;, &quot;tool_version&quot;: &quot;0.40.0&quot;, &quot;gate&quot;: &quot;indeterminate&quot;, &quot;exit_code&quot;: 2,
+          &quot;stopped_by&quot;: null, &quot;open_questions&quot;: [&quot;unverified&quot;],
+          &quot;counts&quot;: {&quot;findings&quot;: {&quot;CRITICAL&quot;: 0, &quot;HIGH&quot;: 1, &quot;MEDIUM&quot;: 0, &quot;LOW&quot;: 0, &quot;INFO&quot;: 0},
+                     &quot;unverified&quot;: 2, &quot;waived&quot;: 0, &quot;errors&quot;: 0, &quot;skipped&quot;: 1, &quot;shortfalls&quot;: 0,
+                     &quot;cases&quot;: {&quot;passed&quot;: 0, &quot;failed&quot;: 0, &quot;measured&quot;: 0, &quot;inconclusive&quot;: 0,
+                               &quot;error&quot;: 0, &quot;skipped&quot;: 0},
+                     &quot;suites&quot;: {&quot;pass&quot;: 0, &quot;fail&quot;: 0, &quot;inconclusive&quot;: 0}},
+          &quot;target&quot;: {&quot;kind&quot;: &quot;endpoint&quot;, &quot;ref&quot;: &quot;…&quot;}, &quot;deployment&quot;: {&quot;environment&quot;: &quot;staging&quot;},
+          &quot;findings&quot;: [{&quot;rule_id&quot;: &quot;…&quot;, &quot;severity&quot;: &quot;HIGH&quot;, &quot;title&quot;: &quot;…&quot;}],
+          &quot;findings_truncated&quot;: false}}
+</code></pre>
+<p><code>timestamp</code> is <code>completed_at</code>, else <code>started_at</code>; a run with neither is <code>not_sent</code>. Every
+severity and every count key is present, zero included; <code>deployment</code> holds declared fields
+only. <code>findings</code> lists up to 50, most severe first, then dropped from the end until the body
+fits; <code>findings_truncated</code> is always present. It carries no evidence text, no prompt and no
+reply, so <code>full</code> evidence never leaves through it. A test walks the counts against the
+channels of <code>ScanResult</code>, so a channel added later cannot be dropped silently.</p>
+</li>
+<li>
+<p>Headers: <code>content-type: application/json</code>; <code>webhook-id: msg_&lt;digest(type, run_id)&gt;</code>, the same
+on every attempt, so a receiver drops a repeat and a re-delivery of a saved run reads as the
+replay it is; <code>webhook-timestamp</code> and <code>webhook-signature</code> computed per attempt, with HMAC-SHA256
+keyed by the base64-decoded part after <code>whsec_</code>, over <code>id.timestamp.body</code>.</p>
+</li>
+<li>
+<p>Sending: <code>urllib</code>, redirects not followed (a 3xx is <code>rejected</code>), one monotonic deadline of 25 s
+across all attempts, each attempt's timeout the smaller of 10 s and what remains, at most 3
+attempts, at most 64 KiB of a response read. It retries on no answer, <code>408</code>, <code>429</code> and <code>5xx</code>,
+after 1 s and then 2 s, or after a <code>Retry-After</code> in seconds; a <code>Retry-After</code> that is not a
+number of seconds, or that would pass the deadline, ends the retries. The final attempt
+decides: 2xx <code>delivered</code>; another answer <code>rejected</code> (<code>410</code>: &quot;the receiver no longer accepts
+deliveries&quot;); no answer <code>unreachable</code>. A body over the bound after truncation is <code>not_sent</code>.
+<code>sleep</code> and the clock are injectable for tests. Nothing is sent before <code>deliver</code>.</p>
+</li>
+</ul>
+<h3 id="10-tests-that-prove-it">10. Tests that prove it</h3>
+<ul>
+<li><strong>Engine</strong> (<code>packages/guardana-core/tests/</code>): each selection kind, with entry points faked
+over <code>importlib.metadata</code> and nothing installed; a collision imports neither module; a
+provider, <code>prepare</code>, <code>render</code> and <code>deliver</code> that call <code>sys.exit(0)</code> are <code>broken</code>, <code>OutputError</code>
+and <code>unknown</code>; <code>deliver</code> past its deadline is <code>unknown</code>; every invalid <code>Delivery</code> shape is
+<code>unknown</code>; the planted-credential test of decision 3; <code>load_verification</code> over
+<code>tests/saved_runs/</code> and each schema's migrated document, a schema-1 run raising; manifest and
+lock schema 3 round trips, the schema 2 refusals, and lock schema 2 still written without
+outputs.</li>
+<li><strong>CLI</strong> (<code>packages/guardana-cli/tests/</code>): exit <code>3</code> for each refusal, before any request to a
+scripted endpoint; the <code>unsupported</code> refusals; exit <code>8</code> with the verdict line printed and no
+file written for a renderer that raises or returns <code>&quot;&quot;</code>; exit <code>8</code> for an <code>unknown</code> delivery, and
+a stopped run keeping <code>4</code>; a delivery of each other status printing its line and keeping the
+verdict's code; <code>not_sent</code> printed on each early exit after <code>prepare</code>; <code>doctor</code> listing output
+entry points, collisions and reserved names without importing them; <code>pack validate</code> and
+<code>pack lock</code> exiting <code>2</code> on a refused output.</li>
+<li><strong>The package</strong> (<code>examples/output_pack/tests/</code>, isolated, installing core, rules, cli and
+report): <code>scan</code> and <code>grade</code> select <code>acme-table</code> under <code>--plugins allowlist --allow-plugin acme-guardana-outputs</code> with <code>socket.socket.connect</code> patched to raise
+(<code>examples/output_pack/tests/conftest.py</code>), and <code>acme_outputs.webhook</code> is absent from
+<code>sys.modules</code> afterwards. <code>probe</code> against a scripted <code>http.server</code> endpoint exports a failed
+run, an indeterminate run and a run stopped by <code>--max-requests 1</code>, each with its verdict and
+every open question. Formula cells, including <code>;=</code>, <code> =</code> and <code>＝</code>, are neutralised. A declined
+suite and a stopped run produce no <code>ran_no_finding</code> row for their rules. <code>pack validate</code> and
+<code>pack lock</code> cover both names.</li>
+<li><strong>Against a receiver Guardana did not write</strong>: a standard-library <code>ThreadingHTTPServer</code> whose
+handler verifies every delivery with <code>standardwebhooks.Webhook(secret).verify(body, headers)</code>
+(the specification's reference verifier) and answers by script. <code>204</code> is delivered; <code>503</code> then
+<code>204</code> is delivered in 2 attempts with one <code>webhook-id</code>; <code>410</code> is rejected without a retry; a
+closed port is unreachable after 3 attempts; with a different secret the verifier refuses, the
+handler answers <code>401</code>, and the delivery is rejected. The suite adds
+<code>--with standardwebhooks==1.1.0</code>, test-only; nothing in the package or in <code>packages/*/src</code>
+imports it.</li>
+<li><strong>Everything else that installs a pack</strong>: the four existing isolated suites,
+<code>scripts/new_pack_check.py</code>, and <code>scripts/clean_install_check.py</code>, which also runs
+<code>guardana scan --format no-such-format .</code> and expects exit <code>3</code>.</li>
+</ul>
+<h2 id="documentation">Documentation</h2>
+<p>A new page, <code>docs/outputs.md</code>: choosing an installed format or reporter, trust, the delivery line
+grammar, exit <code>8</code>, exporting a saved run from Python, writing one, and what the webhook payload
+reveals (rule ids, severities and titles per deployment, plus declared commit and image
+digests). It is linked from <code>docs/index.md</code>. Edited: <code>docs/extending.md</code> (six groups),
+<code>docs/architecture.md</code> and <code>docs/how-it-works.md</code> (the group counts), <code>docs/usage-scan.md</code>,
+<code>docs/usage-probe.md</code>, <code>docs/usage-analyze-trace.md</code> (<code>--format</code> and <code>--reporter</code>),
+<code>docs/usage-grade.md</code> (<code>--format</code>), <code>docs/usage-monitor.md</code> and
+<code>docs/usage-import-observations.md</code> (their refusals), <code>docs/usage-pack.md</code> (schema 3 manifest and
+lock, <code>renderer:</code>/<code>reporter:</code> entries), <code>docs/usage-doctor.md</code>, <code>docs/python-api.md</code>
+(<code>load_verification</code>, <code>guardana.core.output</code>), <code>docs/exit-codes.md</code> (code 8), <code>docs/privacy.md</code>
+(what each output receives; the collector or an installed reporter receives results only with
+<code>--reporter</code>), <code>docs/threat-model.md</code> (a selected output is trusted code; the operator names the
+webhook's destination, as with a probe target; the payload is a vulnerability inventory and
+carries no evidence), <code>SECURITY.md</code> (trust covers six groups; a refused output is an error only
+when selected), CLAUDE.md and <code>.claude/rules/</code> (six groups, exit 8, the new isolated suite).
+<code>FEATURES.md</code>, <code>CHANGELOG.md</code> (with an upgrade note: a lock or manifest that pins an output is
+refused by 0.39) and <code>docs/product-status.md</code> get the change; <code>ROADMAP.md</code> moves F4 at release
+and its link to <code>output-plugins.md</code> points here, as does <code>docs/design/target-locators.md</code>.
+<code>site/index.html</code>: not applicable, no headline claim changes. <code>examples/output_pack/README.md</code>
+is the walkthrough. The isolated suite joins <code>scripts/ci_local.sh</code>, <code>.github/workflows/ci.yml</code>
+and <code>docs/maintainers/ops-catalogue.md</code>.</p>
+<h2 id="rejected">Rejected</h2>
+<ul>
+<li><strong>Adding the groups to <code>GROUPS</code>.</strong> Every run would import every installed output and record a
+refused one as a load error, so a webhook package nobody selected would change a verdict and
+execute code the run never needed.</li>
+<li><strong>Choosing the winner of a collision by install order.</strong> The output that ran would depend on
+something nobody reviewed.</li>
+<li><strong>A new flag (<code>--export</code>, <code>--webhook</code>) or command (<code>guardana export run.json</code>).</strong> F4 is the
+proof that an output needs no CLI change; a saved run is exported from Python.</li>
+<li><strong>Reusing exit <code>5</code> for a failed output</strong>: it sends the report to the wrong project, and a code
+is never given a second meaning.</li>
+<li><strong>Keeping the verdict's exit code when a reporter raises</strong>: a broken reporter would stay green
+in CI forever. A receiver that refuses or cannot be reached is an outage, as for the collector.</li>
+<li><strong>A delivery receipt beside the saved run</strong>: a new persisted document nothing needs; the
+stable delivery line, exit <code>8</code> and the Python value answer &quot;was it delivered&quot;.</li>
+<li><strong>Handing outputs the unredacted result</strong>, or a flag asking for it. No format needs a secret
+present to say one was found.</li>
+<li><strong>Bumping <code>EXTENSION_API_VERSION</code></strong> instead of an output API (decision 1).</li>
+<li><strong>CloudEvents</strong> for the webhook: its HTTP binding defines no signature.</li>
+<li><strong>Retrying for days</strong>, as Standard Webhooks advises a service: a CLI run ends, so the reference
+bounds itself to 25 s and says what happened.</li>
+<li><strong>An HTTP framework for the test receiver</strong>: the reference verifier is the independent part; a
+standard-library server adds no dependency.</li>
+<li><strong>Shipping the export and webhook in <code>guardana-report</code></strong> or as a sixth published package. The
+row asks for an independently installed package, and a published one is a support promise
+nobody has asked for yet. Whether the 1.0 reference pack carries an output is v0.41's question.</li>
+</ul>
+<h2 id="open-questions-with-the-default-this-design-takes">Open questions, with the default this design takes</h2>
+<ul>
+<li>Principle 3 lists the collector and no other reporter. The default reads a reporter named in
+<code>--reporter</code> as a destination the run names, as the collector already is; naming reporters in
+the principle is the owner's wording to change.</li>
+<li>A team that wants a <code>rejected</code> or <code>unreachable</code> delivery to fail its job: the default keeps the
+verdict's exit code, as for the collector. A setting for it waits for a team that asks.</li>
+</ul>
+
+</main>
+</div>
+<footer class="foot"><div class="bar">
+<span class="who">Guardana 0.39.0 · Apache-2.0 ·
+maintained by Konrad Karauda</span>
+<a href="https://github.com/guardana/guardana/blob/main/docs/design/export-and-webhook.md">Edit this page on GitHub</a>
+<a href="https://github.com/guardana/guardana">github.com/guardana</a>
+<a href="../../llms.txt">llms.txt</a>
+</div></footer>
+</body>
+</html>

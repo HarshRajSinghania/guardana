@@ -2,12 +2,12 @@
 title: "Output plugins"
 nav_order: 72
 summary: "renderers and reporters as entry points, why the built-in ones are not registered through them, and the one invariant every output must satisfy before it sees a result"
-status: proposed
+status: superseded
 ---
 
 # Output plugins: renderers and reporters a pack can add
 
-**Status:** proposed · **Written:** 2026-09-02 · **Cycle 1 of the extensibility program** ([`audit-0.22.md`](https://github.com/guardana/guardana/blob/257b6bb98be678fc387d11ea92b180882c7c6a93/docs/design/audit-0.22.md))
+**Status:** superseded by [`export-and-webhook.md`](export-and-webhook.md), which narrows it to one export and one webhook · **Written:** 2026-09-02 · **Cycle 1 of the extensibility program** ([`audit-0.22.md`](https://github.com/guardana/guardana/blob/257b6bb98be678fc387d11ea92b180882c7c6a93/docs/design/audit-0.22.md))
 
 ## The gap
 

@@ -110,8 +110,8 @@ claims wait for M1.
 Keep the earlier designs for [suites](docs/design/quality-suites.md),
 [trials](docs/design/repeated-trials.md) and
 [judge error](docs/design/judge-error-correction.md).
-F4 starts from [output plugins](docs/design/output-plugins.md), narrowed to the export and
-the webhook; M1 from [paired statistics](docs/design/paired-regression-statistics.md) and
+F4's design is [one redacted export and one webhook](docs/design/export-and-webhook.md);
+M1 starts from [paired statistics](docs/design/paired-regression-statistics.md) and
 the case-compatibility contract in [recorded answers](docs/design/recorded-answers.md). F6 and F7
 started from [the direction audit](docs/design/audit-0.31-direction.md); F7's design is
 [protocol conformance](docs/design/protocol-conformance.md).

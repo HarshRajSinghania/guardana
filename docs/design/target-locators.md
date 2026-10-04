@@ -168,5 +168,5 @@ should hold.
 ## See also
 
 - [`capability-protocols.md`](capability-protocols.md) — the contract a target satisfies
-- [`output-plugins.md`](output-plugins.md) — the same move for what comes out of a run
+- [`export-and-webhook.md`](export-and-webhook.md) — the same move for what comes out of a run
 - [`../usage-target.md`](../usage-target.md) — the user page
