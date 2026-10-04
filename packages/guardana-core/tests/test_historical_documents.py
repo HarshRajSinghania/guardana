@@ -2,9 +2,10 @@
 
 `historical/` holds what each release from 0.2.0 on wrote when it was fed synthetic
 inputs, captured by `scripts/capture_historical_documents.py` and kept whenever a
-kind's shape changed. The in-code builders in `_documents.py` test single fields; this
-tests what an older writer actually wrote. The envelopes are read by the collector's
-own suite.
+kind's shape changed, and the profile examples each release's own documentation showed
+and that release loaded. The in-code builders in `_documents.py` test single fields;
+this tests what an older writer actually wrote or accepted. The envelopes are read by
+the collector's own suite.
 """
 
 import json
@@ -132,6 +133,16 @@ def test_the_corpus_holds_documents_of_every_kind() -> None:
         assert _stored(kind), f"historical/{kind}/ holds no document"
 
 
+def _profile_examples(release: dict[str, object]) -> list[dict[str, object]]:
+    entry = release["profile_examples"]
+    assert isinstance(entry, dict)
+    if entry["tried"] is False:
+        return []
+    examples = entry["examples"]
+    assert isinstance(examples, list)
+    return examples
+
+
 def test_the_release_record_names_exactly_the_stored_documents() -> None:
     named: set[str] = set()
     for release in _releases().values():
@@ -140,6 +151,7 @@ def test_the_release_record_names_exactly_the_stored_documents() -> None:
         named |= {
             str(e["stored"]) for e in kinds.values() if isinstance(e, dict) and e.get("stored")
         }
+        named |= {str(e["stored"]) for e in _profile_examples(release) if e.get("stored")}
     on_disk = {str(path.relative_to(HISTORICAL)) for path in _documents()}
 
     assert named == on_disk
@@ -166,6 +178,35 @@ def test_no_stored_document_holds_a_local_path_or_a_ci_field(path: Path) -> None
     assert [marker for marker in _LEAK_MARKERS if marker in text] == []
     if path.suffix == ".json":
         assert list(_ci_fields(json.loads(text))) == []
+
+
+def test_every_release_says_where_each_profile_example_came_from_and_what_it_did() -> None:
+    for version, release in _releases().items():
+        entry = release["profile_examples"]
+        assert isinstance(entry, dict)
+        if entry["tried"] is False:
+            assert str(entry["why"]).strip(), f"{version}: no example tried and no why"
+        for example in _profile_examples(release):
+            where = f"{version} example {example['n']}"
+            assert example["tag"] == f"v{version}", where
+            assert str(example["doc"]).startswith("docs/"), where
+            assert isinstance(example["block"], int), where
+            assert example["block"] >= 1, where
+            if example["loaded"] is False:
+                assert str(example["why"]).strip(), f"{where}: refused with no reason"
+                assert "stored" not in example, f"{where}: a refused example was stored"
+                continue
+            assert example["loaded_by"] in {"scan", "probe"}, where
+            if example["stored"]:
+                assert example["stored"] == f"profile/{version}-{example['n']}.yaml", where
+
+
+def test_the_corpus_holds_profile_examples_a_release_loaded_and_one_it_refused() -> None:
+    """Without both, the example capture could have tried nothing and still read as green."""
+    examples = [e for release in _releases().values() for e in _profile_examples(release)]
+
+    assert [e for e in examples if e.get("stored")]
+    assert [e for e in examples if e["loaded"] is False]
 
 
 @pytest.mark.parametrize(
@@ -220,7 +261,11 @@ def test_each_pair_of_consecutive_runs_compares(before: Path, after: Path) -> No
 
 @pytest.mark.parametrize("path", _stored("profile"), ids=lambda p: p.name)
 def test_every_stored_profile_loads(path: Path) -> None:
-    load_profile(path)
+    document = yaml.safe_load(path.read_text(encoding="utf-8"))
+
+    profile = load_profile(path)
+
+    assert profile.name == str(document.get("name", "custom"))
 
 
 @pytest.mark.parametrize("path", _stored("pack-manifest"), ids=lambda p: p.name)

@@ -9,10 +9,22 @@ collector on 127.0.0.1, a pack, and two datasets. A document is kept under
 or its key paths differ from the last one kept for that kind; `historical/releases.json`
 records what each release produced, or why it did not.
 
+Profiles have a second source: every fenced YAML block in a release's own `docs/` at its
+tag whose top-level keys are all profile keys. Each is handed to that release's `scan
+--profile`, then to a `probe --profile` of the scripted endpoint when the scan refuses it;
+one either loads is kept as `profile/<release>-<n>.yaml` when no profile kept
+before declares its version with its key paths, and one it refuses is recorded with the
+reason under `profile_examples` and never stored.
+
     uv run python scripts/capture_historical_documents.py --dry-run   # the plan, no installs
     uv run python scripts/capture_historical_documents.py             # capture every release
+    uv run python scripts/capture_historical_documents.py --profiles-only   # profiles alone
 
-Needs the network (the PyPI JSON API and the index), `uv`, and Python 3.12 known to `uv`.
+`--profiles-only` takes the releases and their index times from `releases.json`, replaces
+only `profile/` and the profile entries of that record, and leaves every other kind as it is.
+
+Needs the network (the PyPI JSON API and the index), `uv`, Python 3.12 known to `uv`, and
+the release tags in this clone.
 Exit codes: 0 the corpus was written or the plan printed, 1 a release failed a command it
 has, or something this script depends on did not hold (the reason is printed).
 """
@@ -66,7 +78,34 @@ LEAK_MARKERS = ("/Users/", "/home/", "C:\\", "/private/", "/tmp/", "/var/")  # n
 RULE_TEXT_PATHS = ("/tmp/session-42.log",)  # noqa: S108
 """Paths a built-in rule writes into its prompts: text a release quoted, not one it leaked."""
 
+PROFILE_KEYS = frozenset(
+    {
+        "schema_version",
+        "name",
+        "rules",
+        "fail_on",
+        "rule_config",
+        "evaluators",
+        "budgets",
+        "privacy",
+        "trace",
+        "contracts",
+        "calibrations",
+        "trials",
+        "plugins",
+        "delivery",
+    }
+)
+"""The top-level keys of a profile; a documented YAML block holding only these is an example."""
+
+EXAMPLE_FILE = "profile-example.yaml"
+EXAMPLE_ENV_VALUE = "historical-corpus-placeholder"
+"""What every environment variable a profile example names is set to while it is loaded."""
+
 _PUBLISH_MARGIN = timedelta(minutes=1)
+_FENCE_OPEN = re.compile(r"^(?P<indent>[ \t]*)(?P<fence>`{3,}|~{3,})[ \t]*ya?ml\b")
+_ENV_REFERENCE = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)")
+_REASON_LIMIT = 300
 _VERDICT_EXITS = frozenset({0, 1, 2})
 _FIELD_NAME = re.compile(r"^\$?[A-Za-z_][A-Za-z0-9_]*$")
 _VERSION = re.compile(r"^(\d+)\.(\d+)\.(\d+)(?:rc(\d+))?$")
@@ -137,9 +176,13 @@ class Invocation:
 class Commands:
     """How every release from `first` up to the next row's `first` is driven.
 
-    `pack` says where the pack the lock pins comes from: a minimal one this script
-    writes, or the one the release's own `new-pack` scaffolds. `extras` are
-    requirements installed beside the release, each with its reason in `note`.
+    `profile_example` are the commands that try a documented profile example, in order,
+    until one loads it: a scan, then a probe of the scripted endpoint for an example a
+    scan cannot honour, such as a duration budget. They write no file, so the report
+    each prints is what shows the release loaded the example. `pack` says where
+    the pack the lock pins comes from: a minimal one this script writes, or the one
+    the release's own `new-pack` scaffolds. `extras` are requirements installed beside
+    the release, each with its reason in `note`.
     """
 
     first: str
@@ -147,6 +190,7 @@ class Commands:
     envelope: Invocation
     probe_run: Invocation
     profile: Invocation
+    profile_example: tuple[Invocation, ...]
     lock: Invocation
     pack: Literal["handwritten", "scaffolded"]
     scaffold: Invocation | None = None
@@ -179,6 +223,25 @@ _PROBE_JSON = Invocation(
     writes="probe-run.json",
 )
 _INIT = Invocation(command=("init",), argv=("init", "guardana.yaml"), writes="guardana.yaml")
+_SCAN_PROFILED = Invocation(
+    command=("scan",),
+    argv=("scan", "subject", "--format", "json", "--profile", EXAMPLE_FILE),
+)
+_PROBE_PROFILED = Invocation(
+    command=("probe",),
+    argv=(
+        "probe",
+        "--url",
+        "http://127.0.0.1:{endpoint}/v1",
+        "--model",
+        "scripted",
+        "--format",
+        "json",
+        "--profile",
+        EXAMPLE_FILE,
+    ),
+)
+_PROFILED = (_SCAN_PROFILED, _PROBE_PROFILED)
 _LOCK = Invocation(
     command=("pack", "lock"),
     argv=(
@@ -207,6 +270,7 @@ COMMAND_TABLE: tuple[Commands, ...] = (
         envelope=_SCAN_REPORTED,
         probe_run=_PROBE_JSON,
         profile=_INIT,
+        profile_example=_PROFILED,
         lock=_LOCK,
         pack="handwritten",
     ),
@@ -216,6 +280,7 @@ COMMAND_TABLE: tuple[Commands, ...] = (
         envelope=_SCAN_REPORTED,
         probe_run=_PROBE_JSON,
         profile=_INIT,
+        profile_example=_PROFILED,
         lock=_LOCK,
         pack="handwritten",
         extras=("click",),
@@ -230,6 +295,7 @@ COMMAND_TABLE: tuple[Commands, ...] = (
         envelope=_identified(_SCAN_REPORTED),
         probe_run=_identified(_PROBE_JSON),
         profile=_INIT,
+        profile_example=tuple(_identified(each) for each in _PROFILED),
         lock=_LOCK,
         pack="handwritten",
     ),
@@ -239,6 +305,7 @@ COMMAND_TABLE: tuple[Commands, ...] = (
         envelope=_identified(_SCAN_REPORTED),
         probe_run=_identified(_PROBE_JSON),
         profile=_INIT,
+        profile_example=tuple(_identified(each) for each in _PROFILED),
         lock=_LOCK,
         pack="scaffolded",
         scaffold=_NEW_PACK,
@@ -331,6 +398,7 @@ class Selection:
     """
 
     last: dict[Kind, tuple[int | None, frozenset[str]]] = field(default_factory=dict)
+    kept: dict[Kind, set[tuple[int | None, frozenset[str]]]] = field(default_factory=dict)
 
     def keep(self, kind: Kind, document: object) -> bool:
         """Record `document` and say whether it differs from the last one kept of its kind."""
@@ -338,7 +406,145 @@ class Selection:
         if self.last.get(kind) == seen:
             return False
         self.last[kind] = seen
+        self.kept.setdefault(kind, set()).add(seen)
         return True
+
+    def keep_new(self, kind: Kind, document: object) -> bool:
+        """Say whether `document` has a shape no kept document of its kind has, and keep it then.
+
+        Documented examples come many to a release and in a fixed order, so measured
+        against the last one kept they would alternate and keep every example of every
+        release; this leaves the chain `keep` measures untouched.
+        """
+        seen = (declared_version(kind, document), key_paths(document))
+        shapes = self.kept.setdefault(kind, set())
+        if seen in shapes:
+            return False
+        shapes.add(seen)
+        return True
+
+
+@dataclass(frozen=True, slots=True)
+class Example:
+    """One fenced YAML block in a release's own documentation that reads as a profile.
+
+    `block` counts the YAML blocks of `doc` from 1, so `tag`, `doc` and `block` name it.
+    """
+
+    tag: str
+    doc: str
+    block: int
+    text: str
+
+
+def yaml_blocks(markdown: str) -> list[str]:
+    """Return the body of every fenced YAML block in `markdown`, its fence indentation removed."""
+    blocks: list[str] = []
+    lines = markdown.splitlines()
+    index = 0
+    while index < len(lines):
+        opening = _FENCE_OPEN.match(lines[index])
+        index += 1
+        if opening is None:
+            continue
+        indent, fence = opening.group("indent"), opening.group("fence")
+        body: list[str] = []
+        while index < len(lines) and lines[index].strip() != fence:
+            line = lines[index]
+            body.append(line[len(indent) :] if line.startswith(indent) else line.lstrip())
+            index += 1
+        index += 1
+        blocks.append("\n".join(body) + "\n")
+    return blocks
+
+
+def is_profile_example(document: object) -> bool:
+    """Say whether a parsed block is a profile: only profile keys, and more than a name."""
+    if not isinstance(document, dict) or not document:
+        return False
+    keys = {str(key) for key in document}
+    return keys <= PROFILE_KEYS and bool(keys - {"name", "schema_version"})
+
+
+def examples_in(tag: str, doc: str, markdown: str) -> list[Example]:
+    """Return every profile example in one documentation page, numbered among its YAML blocks."""
+    found: list[Example] = []
+    for block, text in enumerate(yaml_blocks(markdown), start=1):
+        try:
+            document = yaml.safe_load(text)
+        except yaml.YAMLError:
+            continue
+        if is_profile_example(document):
+            found.append(Example(tag=tag, doc=doc, block=block, text=text))
+    return found
+
+
+def release_examples(version: str) -> list[Example]:
+    """Return every profile example in `docs/` at the tag of `version`, by page then block."""
+    tag = f"v{version}"
+    listing = _git("ls-tree", "-r", "--name-only", tag, "--", "docs")
+    examples: list[Example] = []
+    for doc in sorted(listing.splitlines()):
+        if doc.endswith(".md"):
+            examples += examples_in(tag, doc, _git("show", f"{tag}:{doc}"))
+    return examples
+
+
+def _git(*args: str) -> str:
+    done = subprocess.run(  # noqa: S603 — fixed git subcommands on this clone
+        ["git", "-C", str(ROOT), *args],  # noqa: S607
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if done.returncode != 0:
+        raise CaptureError(f"git {' '.join(args)} exited {done.returncode}:\n{done.stderr}")
+    return done.stdout
+
+
+def example_env(text: str) -> dict[str, str]:
+    """Return a placeholder for every environment variable a profile example names.
+
+    A name is a `${NAME}` reference or the value of a key ending `_env`, which is how a
+    profile names the variable holding a judge's key.
+    """
+    names = set(_ENV_REFERENCE.findall(text))
+    stack: list[object] = [yaml.safe_load(text)]
+    while stack:
+        node = stack.pop()
+        if isinstance(node, dict):
+            for key, value in node.items():
+                if str(key).endswith("_env") and isinstance(value, str) and value:
+                    names.add(value)
+                stack.append(value)
+        elif isinstance(node, list):
+            stack.extend(node)
+    return dict.fromkeys(sorted(names), EXAMPLE_ENV_VALUE)
+
+
+def loaded_report(outcome: "Outcome") -> bool:
+    """Say whether a profiled scan loaded its profile: a verdict exit and a JSON report.
+
+    The exit code alone cannot say it: an early release lets a profile error escape as a
+    traceback, which exits 1 like a gate that found something.
+    """
+    if outcome.exit_code not in _VERDICT_EXITS:
+        return False
+    try:
+        report = json.loads(outcome.stdout)
+    except json.JSONDecodeError:
+        return False
+    return isinstance(report, dict)
+
+
+def refusal_reason(outcome: "Outcome", local: Sequence[str]) -> str:
+    """Return why a release did not load an example: its exit and its last line of output."""
+    lines = [line.strip() for line in outcome.output.splitlines() if line.strip()]
+    last = lines[-1] if lines else "no output"
+    for path in sorted(local, key=len, reverse=True):
+        last = last.replace(path, ".")
+    reason = f"exit {outcome.exit_code}: {last}"
+    return reason if len(reason) <= _REASON_LIMIT else reason[: _REASON_LIMIT - 1] + "…"
 
 
 DATASETS: Mapping[int, str] = {
@@ -558,6 +764,7 @@ class Outcome:
 
     exit_code: int
     output: str
+    stdout: str = ""
 
 
 class Sandbox:
@@ -574,11 +781,17 @@ class Sandbox:
         self._prepared: set[tuple[str, ...]] = set()
         self._help: dict[tuple[str, ...], str | None] = {}
 
-    def run(self, argv: Sequence[str], *, requirements: Sequence[str] = ()) -> Outcome:
+    def run(
+        self,
+        argv: Sequence[str],
+        *,
+        requirements: Sequence[str] = (),
+        env: Mapping[str, str] | None = None,
+    ) -> Outcome:
         """Run `argv` inside the release, offline and with the scrubbed environment.
 
         The environment is resolved first with the caller's network and configuration,
-        so the run itself needs neither.
+        so the run itself needs neither; `env` adds variables on top of the scrubbed set.
         """
         wanted = (*self.row.extras, *requirements)
         if wanted not in self._prepared:
@@ -599,12 +812,12 @@ class Sandbox:
         done = subprocess.run(  # noqa: S603
             [*self.isolation.argv(self.release, wanted, offline=True), *argv],
             cwd=self.work,
-            env=scrubbed_env(self.home),
+            env={**(env or {}), **scrubbed_env(self.home)},
             capture_output=True,
             text=True,
             check=False,
         )
-        return Outcome(done.returncode, done.stdout + done.stderr)
+        return Outcome(done.returncode, done.stdout + done.stderr, done.stdout)
 
     def help_text(self, command: tuple[str, ...]) -> str | None:
         """Return the `--help` of `command`, or None when the release has no such command."""
@@ -757,41 +970,46 @@ def _collector_handler(servers: _Servers) -> type[BaseHTTPRequestHandler]:
     return Collector
 
 
+@dataclass(frozen=True, slots=True)
+class Tried:
+    """What a release did with one profile example.
+
+    `loaded_by` names the command that loaded it; `refused` says why every one refused it.
+    """
+
+    example: Example
+    refused: str | None
+    loaded_by: str | None = None
+
+
 @dataclass(slots=True)
 class Captured:
-    """What one release produced: each kind's document text, or why there is none."""
+    """What one release produced: each kind's document text, or why there is none.
+
+    `examples` is every profile example of the release's documentation and what the
+    release did with it; `examples_absent` says why none was tried.
+    """
 
     documents: dict[Kind, str] = field(default_factory=dict)
     absent: dict[Kind, str] = field(default_factory=dict)
     datasets: dict[int, str | None] = field(default_factory=dict)
     facts: dict[str, object] = field(default_factory=dict)
+    examples: list[Tried] = field(default_factory=list)
+    examples_absent: str | None = None
 
 
 def capture(sandbox: Sandbox, servers: _Servers) -> Captured:
     """Drive one release through every kind and return what it wrote."""
     captured = Captured()
-    work = sandbox.work
-    (work / "subject").mkdir()
-    (work / "subject" / "model.pkl").write_bytes(_PICKLE)
-    for fmt, text in DATASETS.items():
-        (work / f"dataset-format-{fmt}.jsonl").write_text(text, encoding="utf-8")
+    _prepare_inputs(sandbox.work)
     row = sandbox.row
-    ports = servers.ports
-
-    for kind, invocation in (
-        (Kind.RUN, row.run),
-        (Kind.PROBE_RUN, row.probe_run),
-        (Kind.PROFILE, row.profile),
-    ):
-        reason = sandbox.lacks(invocation)
-        if reason is not None:
-            captured.absent[kind] = reason
-            continue
-        _expect_success(sandbox, kind, invocation, sandbox.run(invocation.bound(ports)))
-        if invocation.writes is None:
-            raise CaptureError(f"the command table gives {kind} no file to read back")
-        captured.documents[kind] = (work / invocation.writes).read_text(encoding="utf-8")
-
+    _capture_written(
+        sandbox,
+        captured,
+        ((Kind.RUN, row.run), (Kind.PROBE_RUN, row.probe_run), (Kind.PROFILE, row.profile)),
+        servers.ports,
+    )
+    _capture_examples(sandbox, captured, servers.ports)
     _capture_envelope(sandbox, servers, captured)
     facts = _introspect(sandbox)
     _capture_pack(sandbox, captured, facts)
@@ -801,12 +1019,96 @@ def capture(sandbox: Sandbox, servers: _Servers) -> Captured:
     elif isinstance(datasets, dict):
         captured.datasets = {int(fmt): refusal for fmt, refusal in datasets.items()}
     captured.facts = facts
-    local = (str(work), str(work.resolve()), str(Path.home()))
+    _refuse_leaks(sandbox, captured)
+    return captured
+
+
+def capture_profiles(sandbox: Sandbox, servers: _Servers) -> Captured:
+    """Drive one release through the profile kind alone: `init` and the documented examples."""
+    captured = Captured()
+    _prepare_inputs(sandbox.work)
+    _capture_written(sandbox, captured, ((Kind.PROFILE, sandbox.row.profile),), servers.ports)
+    _capture_examples(sandbox, captured, servers.ports)
+    _refuse_leaks(sandbox, captured)
+    return captured
+
+
+def _prepare_inputs(work: Path) -> None:
+    (work / "subject").mkdir()
+    (work / "subject" / "model.pkl").write_bytes(_PICKLE)
+    for fmt, text in DATASETS.items():
+        (work / f"dataset-format-{fmt}.jsonl").write_text(text, encoding="utf-8")
+
+
+def _capture_written(
+    sandbox: Sandbox,
+    captured: Captured,
+    invocations: Sequence[tuple[Kind, Invocation]],
+    ports: Mapping[str, int],
+) -> None:
+    for kind, invocation in invocations:
+        reason = sandbox.lacks(invocation)
+        if reason is not None:
+            captured.absent[kind] = reason
+            continue
+        _expect_success(sandbox, kind, invocation, sandbox.run(invocation.bound(ports)))
+        if invocation.writes is None:
+            raise CaptureError(f"the command table gives {kind} no file to read back")
+        captured.documents[kind] = (sandbox.work / invocation.writes).read_text(encoding="utf-8")
+
+
+def _capture_examples(sandbox: Sandbox, captured: Captured, ports: Mapping[str, int]) -> None:
+    """Hand every documented profile example to the release; the same text is tried once."""
+    loaders: list[Invocation] = []
+    lacking: list[str] = []
+    for invocation in sandbox.row.profile_example:
+        reason = sandbox.lacks(invocation)
+        if reason is None:
+            loaders.append(invocation)
+        else:
+            lacking.append(reason)
+    if not loaders:
+        captured.examples_absent = "; ".join(lacking)
+        return
+    tried: dict[str, Tried] = {}
+    for example in release_examples(sandbox.release.version):
+        if example.text not in tried:
+            tried[example.text] = _try_example(sandbox, loaders, example, ports)
+        captured.examples.append(replace(tried[example.text], example=example))
+
+
+def _try_example(
+    sandbox: Sandbox, loaders: Sequence[Invocation], example: Example, ports: Mapping[str, int]
+) -> Tried:
+    (sandbox.work / EXAMPLE_FILE).write_text(example.text, encoding="utf-8")
+    local = _local_paths(sandbox.work)
+    refusals: list[str] = []
+    for invocation in loaders:
+        outcome = sandbox.run(invocation.bound(ports), env=example_env(example.text))
+        name = " ".join(invocation.command)
+        if loaded_report(outcome):
+            return Tried(example, refused=None, loaded_by=name)
+        refusals.append(f"{name}: {refusal_reason(outcome, local)}")
+    return Tried(example, refused="; ".join(refusals))
+
+
+def _local_paths(work: Path) -> tuple[str, ...]:
+    return (str(work), str(work.resolve()), str(Path.home()))
+
+
+def _refuse_leaks(sandbox: Sandbox, captured: Captured) -> None:
+    local = _local_paths(sandbox.work)
     for kind, text in captured.documents.items():
         leaks = leaked_markers(text, local)
         if leaks:
             raise CaptureError(f"{sandbox.release.version}: its {kind} holds {', '.join(leaks)}")
-    return captured
+    for tried in captured.examples:
+        leaks = leaked_markers(tried.refused or "", local)
+        if leaks:
+            raise CaptureError(
+                f"{sandbox.release.version}: the refusal of {tried.example.doc} block "
+                f"{tried.example.block} holds {', '.join(leaks)}"
+            )
 
 
 def _capture_envelope(sandbox: Sandbox, servers: _Servers, captured: Captured) -> None:
@@ -938,25 +1240,13 @@ class Corpus:
         for kind in Kind:
             if kind is Kind.DATASET:
                 kinds[kind] = self._datasets(release, captured)
-                continue
-            if kind in captured.absent:
-                kinds[kind] = {"produced": False, "why": captured.absent[kind]}
-                continue
-            text = captured.documents[kind]
-            document = parse_document(kind, text)
-            stored = None
-            if self.selection.keep(kind, document):
-                stored = f"{kind}/{release.version}.{EXTENSIONS[kind]}"
-                self.files[stored] = text
-            kinds[kind] = {
-                "produced": True,
-                "schema_version": declared_version(kind, document),
-                "stored": stored,
-            }
+            else:
+                kinds[kind] = self._kind(release, captured, kind)
         self.releases[release.version] = {
             "exclude_newer": release.exclude_newer,
             "extras": list(row.extras),
             "kinds": kinds,
+            "profile_examples": self._examples(release, captured),
             **captured.facts,
         }
         return [
@@ -964,6 +1254,59 @@ class Corpus:
             for kind, entry in kinds.items()
             if isinstance(entry, dict) and entry.get("produced") is True
         ]
+
+    def add_profiles(self, release: Release, captured: Captured) -> None:
+        """Replace the profile entries of a release already recorded; leave the rest as it is."""
+        record = self.releases.get(release.version)
+        kinds = record.get("kinds") if record is not None else None
+        if record is None or not isinstance(kinds, dict):
+            raise CaptureError(f"{release.version} has no record in {RELEASES_FILE} to update")
+        kinds[Kind.PROFILE] = self._kind(release, captured, Kind.PROFILE)
+        record["profile_examples"] = self._examples(release, captured)
+
+    def _kind(self, release: Release, captured: Captured, kind: Kind) -> dict[str, object]:
+        if kind in captured.absent:
+            return {"produced": False, "why": captured.absent[kind]}
+        text = captured.documents[kind]
+        document = parse_document(kind, text)
+        stored = None
+        if self.selection.keep(kind, document):
+            stored = f"{kind}/{release.version}.{EXTENSIONS[kind]}"
+            self.files[stored] = text
+        return {
+            "produced": True,
+            "schema_version": declared_version(kind, document),
+            "stored": stored,
+        }
+
+    def _examples(self, release: Release, captured: Captured) -> dict[str, object]:
+        """Record every example tried; store a loaded one whose shape no kept profile has."""
+        if captured.examples_absent is not None:
+            return {"tried": False, "why": captured.examples_absent}
+        entries: list[dict[str, object]] = []
+        for n, tried in enumerate(captured.examples, start=1):
+            example = tried.example
+            entry: dict[str, object] = {
+                "n": n,
+                "tag": example.tag,
+                "doc": example.doc,
+                "block": example.block,
+                "loaded": tried.refused is None,
+            }
+            entries.append(entry)
+            if tried.refused is not None:
+                entry["why"] = tried.refused
+                continue
+            entry["loaded_by"] = tried.loaded_by
+            stored = None
+            leaks = leaked_markers(example.text)
+            if leaks:
+                entry["withheld"] = f"holds {', '.join(leaks)}"
+            elif self.selection.keep_new(Kind.PROFILE, yaml.safe_load(example.text)):
+                stored = f"{Kind.PROFILE}/{release.version}-{n}.{EXTENSIONS[Kind.PROFILE]}"
+                self.files[stored] = example.text
+            entry["stored"] = stored
+        return {"tried": True, "examples": entries}
 
     def _datasets(self, release: Release, captured: Captured) -> dict[str, object]:
         if Kind.DATASET in captured.absent:
@@ -990,9 +1333,9 @@ class Corpus:
             "stored": stored,
         }
 
-    def write(self, out: Path) -> None:
-        """Replace the corpus under `out` with this one."""
-        for kind in Kind:
+    def write(self, out: Path, kinds: Sequence[Kind] = tuple(Kind)) -> None:
+        """Replace the directories of `kinds` under `out`, and the record, with this corpus."""
+        for kind in kinds:
             directory = out / kind
             if directory.is_dir():
                 shutil.rmtree(directory)
@@ -1020,39 +1363,137 @@ def _parser() -> argparse.ArgumentParser:
         help="capture only this release; repeatable (the corpus is still replaced)",
     )
     parser.add_argument(
+        "--profiles-only",
+        action="store_true",
+        help=(
+            f"capture only profiles, for every release {RELEASES_FILE} records; every other "
+            "kind and record is left as it is"
+        ),
+    )
+    parser.add_argument(
         "--out", type=Path, default=CORPUS, help="where to write the corpus (default: %(default)s)"
     )
     parser.add_argument("--keep", action="store_true", help="leave the working tree behind")
     return parser
 
 
-def _plan(releases: Sequence[Release]) -> None:
+def _plan(releases: Sequence[Release], *, profiles_only: bool = False) -> None:
     for release in releases:
         row = commands_for(release.version)
         print(f"{release.version}  --exclude-newer {release.exclude_newer}  row {row.first}")
-        for kind, invocation in (
-            (Kind.RUN, row.run),
-            (Kind.ENVELOPE, row.envelope),
-            (Kind.PROBE_RUN, row.probe_run),
-            (Kind.PROFILE, row.profile),
-            (Kind.PACK_LOCK, row.lock),
-        ):
-            print(f"    {kind:<10} guardana {' '.join(invocation.argv)}")
+        lines = [
+            (str(Kind.PROFILE), row.profile),
+            *(("example", invocation) for invocation in row.profile_example),
+        ]
+        if not profiles_only:
+            lines = [
+                (str(Kind.RUN), row.run),
+                (str(Kind.ENVELOPE), row.envelope),
+                (str(Kind.PROBE_RUN), row.probe_run),
+                *lines,
+                (str(Kind.PACK_LOCK), row.lock),
+            ]
+        for label, invocation in lines:
+            print(f"    {label:<10} guardana {' '.join(invocation.argv)}")
+        examples = release_examples(release.version)
+        print(f"    {len(examples)} profile example(s) in docs/ at v{release.version}")
         if row.extras:
             print(f"    with {', '.join(row.extras)}: {row.note}")
 
 
-def _named(releases: Sequence[Release], versions: Sequence[str]) -> list[Release]:
+def _named(
+    releases: Sequence[Release], versions: Sequence[str], source: str = "PyPI from 0.2.0 on"
+) -> list[Release]:
     unknown = set(versions) - {release.version for release in releases}
     if unknown:
-        raise CaptureError(f"not on PyPI from 0.2.0 on: {', '.join(sorted(unknown))}")
+        raise CaptureError(f"not on {source}: {', '.join(sorted(unknown))}")
     return [release for release in releases if release.version in versions]
 
 
+def recorded_releases(out: Path) -> dict[str, dict[str, object]]:
+    """Read the record a full capture wrote under `out`."""
+    path = out / RELEASES_FILE
+    try:
+        record = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise CaptureError(f"cannot read {path}: {exc}") from exc
+    if not isinstance(record, dict) or not all(isinstance(v, dict) for v in record.values()):
+        raise CaptureError(f"{path} is not an object of release records")
+    return record
+
+
+def _recorded_as_releases(record: Mapping[str, Mapping[str, object]]) -> list[Release]:
+    releases = []
+    for version, entry in record.items():
+        stamp = entry.get("exclude_newer")
+        if not isinstance(stamp, str):
+            raise CaptureError(f"{version} records no exclude_newer in {RELEASES_FILE}")
+        releases.append(Release(version, stamp))
+    return sorted(releases, key=lambda release: version_key(release.version))
+
+
+def example_counts(record: Mapping[str, Mapping[str, object]]) -> dict[str, int]:
+    """Count the profile examples a record says were tried, loaded, refused and stored."""
+    counts = {"releases": 0, "tried": 0, "loaded": 0, "refused": 0, "stored": 0}
+    for entry in record.values():
+        block = entry.get("profile_examples")
+        examples = block.get("examples") if isinstance(block, dict) else None
+        if not isinstance(examples, list):
+            continue
+        counts["releases"] += 1
+        for example in examples:
+            if not isinstance(example, dict):
+                continue
+            counts["tried"] += 1
+            counts["loaded" if example.get("loaded") is True else "refused"] += 1
+            counts["stored"] += 1 if example.get("stored") else 0
+    return counts
+
+
+def _capture_profiles(args: argparse.Namespace) -> int:
+    if args.release:
+        raise CaptureError(
+            "--profiles-only replaces profile/ from every recorded release; it takes no --release"
+        )
+    record = recorded_releases(args.out)
+    releases = _recorded_as_releases(record)
+    if args.dry_run:
+        _plan(releases, profiles_only=True)
+        return 0
+    isolation = Isolation.locate()
+    corpus = Corpus(releases=record)
+    work = Path(tempfile.mkdtemp(prefix="guardana-historical-"))
+    try:
+        with _Servers().serving() as servers:
+            for release in releases:
+                row = commands_for(release.version)
+                sandbox = Sandbox(release, row, isolation, work / release.version)
+                corpus.add_profiles(release, capture_profiles(sandbox, servers))
+                tally = example_counts({release.version: record[release.version]})
+                print(
+                    f"✓ {release.version}: {tally['loaded']} of {tally['tried']} example(s) "
+                    f"loaded, {tally['stored']} stored",
+                    flush=True,
+                )
+    finally:
+        if not args.keep:
+            shutil.rmtree(work, ignore_errors=True)
+    corpus.write(args.out, kinds=(Kind.PROFILE,))
+    counts = example_counts(corpus.releases)
+    print(
+        f"✓ {counts['tried']} profile example(s) from {counts['releases']} release(s): "
+        f"{counts['loaded']} loaded, {counts['refused']} refused, {counts['stored']} stored "
+        f"→ {args.out}"
+    )
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
-    """Capture every release, or print the plan."""
+    """Capture every release, or only their profiles, or print the plan."""
     args = _parser().parse_args(argv)
     try:
+        if args.profiles_only:
+            return _capture_profiles(args)
         releases = fetch_releases()
         if args.release:
             releases = _named(releases, args.release)

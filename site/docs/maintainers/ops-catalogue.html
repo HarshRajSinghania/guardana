@@ -499,11 +499,11 @@ wrong before.</p>
 </tr>
 <tr>
 <td><code>capture_historical_documents.py</code></td>
-<td>⚠ install every published release in isolation and keep the documents each one wrote from synthetic inputs, with <code>releases.json</code>, under <code>packages/guardana-core/tests/historical/</code>; run after a release that changes a document</td>
+<td>⚠ install every published release in isolation and keep the documents each one wrote from synthetic inputs, and the profile examples in its own <code>docs/</code> that it loaded, with <code>releases.json</code>, under <code>packages/guardana-core/tests/historical/</code>; run after a release that changes a document; <code>--profiles-only</code> redoes only the profiles of the releases already recorded</td>
 <td><code>repo</code></td>
 <td><code>--dry-run</code>, <code>--help</code></td>
 <td>PyPI</td>
-<td><code>uv</code></td>
+<td><code>uv</code>, release tags in the clone</td>
 </tr>
 <tr>
 <td><code>release.py</code></td>

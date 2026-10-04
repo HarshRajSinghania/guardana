@@ -9,7 +9,7 @@ import json
 import subprocess
 import tempfile
 import urllib.request
-from collections.abc import Callable
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any, NoReturn
 
@@ -63,7 +63,7 @@ def test_help_prints_usage_and_does_nothing(
 
     assert exit_info.value.code == 0
     out = capsys.readouterr().out
-    for flag in ("--dry-run", "--release", "--out", "--keep"):
+    for flag in ("--dry-run", "--release", "--profiles-only", "--out", "--keep"):
         assert flag in out
     assert acted == []
 
@@ -127,7 +127,14 @@ def test_the_pack_comes_from_new_pack_from_0_26_and_is_handwritten_before() -> N
 
 def test_every_command_line_names_only_relative_paths() -> None:
     for row in COMMAND_TABLE:
-        invocations = [row.run, row.envelope, row.probe_run, row.profile, row.lock]
+        invocations = [
+            row.run,
+            row.envelope,
+            row.probe_run,
+            row.profile,
+            *row.profile_example,
+            row.lock,
+        ]
         if row.scaffold is not None:
             invocations.append(row.scaffold)
         for invocation in invocations:
@@ -343,3 +350,334 @@ def test_the_collector_keeps_each_envelope_and_the_endpoint_answers_as_openai() 
     assert servers.take() == [envelope]
     assert reply["choices"][0]["message"]["role"] == "assistant"
     assert reply["model"] == "scripted"
+
+
+PAGE = """\
+# Profiles
+
+```yaml
+name: ci
+fail_on:
+  severity: high
+```
+
+A rule is not a profile:
+
+```yaml
+id: acme.rule
+title: A rule
+```
+
+- In a list item:
+
+  ```yml
+  budgets:
+    max_requests: 10
+  ```
+
+A name alone says nothing a profile needs:
+
+~~~yaml
+name: only-a-name
+~~~
+
+```yaml
+rules: [unclosed
+```
+"""
+
+
+def test_every_fenced_yaml_block_is_read_and_its_fence_indent_removed() -> None:
+    blocks = capture.yaml_blocks(PAGE)
+
+    assert len(blocks) == 5
+    assert blocks[2] == "budgets:\n  max_requests: 10\n"
+
+
+def test_a_profile_example_holds_only_profile_keys_and_more_than_a_name() -> None:
+    examples = capture.examples_in("v0.20.0", "docs/profiles.md", PAGE)
+
+    assert [(e.tag, e.doc, e.block) for e in examples] == [
+        ("v0.20.0", "docs/profiles.md", 1),
+        ("v0.20.0", "docs/profiles.md", 3),
+    ]
+    assert not capture.is_profile_example({"name": "x", "schema_version": 1})
+    assert not capture.is_profile_example({"name": "x", "collector": {}})
+    assert not capture.is_profile_example(["fail_on"])
+    assert capture.is_profile_example({"schema_version": 1, "trace": {"require": []}})
+
+
+def test_every_variable_an_example_names_gets_a_placeholder() -> None:
+    text = (
+        "evaluators:\n"
+        "  llm_judge:\n"
+        "    api_key_env: JUDGE_KEY\n"
+        "    url: ${JUDGE_URL}/v1\n"
+        "fail_on: {severity: high}\n"
+    )
+
+    assert capture.example_env(text) == {
+        "JUDGE_KEY": capture.EXAMPLE_ENV_VALUE,
+        "JUDGE_URL": capture.EXAMPLE_ENV_VALUE,
+    }
+    assert capture.example_env("fail_on: {severity: high}\n") == {}
+
+
+@pytest.mark.parametrize(
+    ("exit_code", "stdout", "loaded"),
+    [
+        (0, '{"schema_version": 17}', True),
+        (1, '{"findings": []}', True),
+        (2, '{"findings": []}', True),
+        (1, "Traceback (most recent call last):\n  ProfileError: invalid profile", False),
+        (3, "", False),
+        (0, "[]", False),
+    ],
+)
+def test_an_example_counts_as_loaded_only_with_a_verdict_exit_and_a_report(
+    exit_code: int, stdout: str, loaded: bool
+) -> None:
+    outcome = capture.Outcome(exit_code, stdout, stdout)
+
+    assert capture.loaded_report(outcome) is loaded
+
+
+def test_a_refusal_names_the_exit_and_the_last_line_without_local_paths() -> None:
+    outcome = capture.Outcome(
+        3, "note: reading\nerror: invalid profile /w/0.20.0/profile-example.yaml: bad\n", ""
+    )
+
+    assert capture.refusal_reason(outcome, ("/w/0.20.0",)) == (
+        "exit 3: error: invalid profile ./profile-example.yaml: bad"
+    )
+    assert capture.refusal_reason(capture.Outcome(1, "", ""), ()) == "exit 1: no output"
+    long = capture.refusal_reason(capture.Outcome(3, "x" * 1000, ""), ())
+    assert len(long) == capture._REASON_LIMIT
+
+
+def _example(block: int, text: str) -> capture.Example:
+    return capture.Example(tag="v0.20.0", doc="docs/profiles.md", block=block, text=text)
+
+
+def _loaded(block: int, text: str) -> capture.Tried:
+    return capture.Tried(_example(block, text), refused=None, loaded_by="scan")
+
+
+class _ScriptedSandbox(capture.Sandbox):
+    """A release whose commands answer from a table instead of running."""
+
+    def __init__(self, work: Path, replies: dict[str, capture.Outcome]) -> None:
+        super().__init__(
+            Release("0.20.0", "t"),
+            commands_for("0.20.0"),
+            capture.Isolation(uv="uv", cache="cache", python="python"),
+            work,
+        )
+        self.replies = replies
+        self.ran: list[list[str]] = []
+
+    def run(
+        self,
+        argv: Sequence[str],
+        *,
+        requirements: Sequence[str] = (),
+        env: Mapping[str, str] | None = None,
+    ) -> capture.Outcome:
+        self.ran.append(list(argv))
+        return self.replies[argv[1]]
+
+
+_PORTS = {"endpoint": 8001}
+_REPORT = capture.Outcome(0, '{"schema_version": 6}', '{"schema_version": 6}')
+_DURATION = capture.Outcome(3, "error: a file scan does not interrupt itself", "")
+
+
+def test_an_example_a_scan_refuses_is_handed_to_a_probe_of_the_scripted_endpoint(
+    tmp_path: Path,
+) -> None:
+    sandbox = _ScriptedSandbox(tmp_path / "w", {"scan": _DURATION, "probe": _REPORT})
+    loaders = commands_for("0.20.0").profile_example
+
+    tried = capture._try_example(
+        sandbox, loaders, _example(1, "budgets: {max_duration: 15m}\n"), {"endpoint": 8001}
+    )
+
+    assert tried == capture.Tried(
+        _example(1, "budgets: {max_duration: 15m}\n"), refused=None, loaded_by="probe"
+    )
+    assert [argv[1] for argv in sandbox.ran] == ["scan", "probe"]
+    assert "http://127.0.0.1:8001/v1" in sandbox.ran[1]
+    assert (sandbox.work / capture.EXAMPLE_FILE).read_text(encoding="utf-8") == (
+        "budgets: {max_duration: 15m}\n"
+    )
+
+
+def test_an_example_every_command_refuses_carries_each_reason(tmp_path: Path) -> None:
+    refusal = capture.Outcome(3, "error: invalid profile: unknown budgets key(s): currency", "")
+    sandbox = _ScriptedSandbox(tmp_path / "w", {"scan": refusal, "probe": refusal})
+
+    tried = capture._try_example(
+        sandbox, commands_for("0.20.0").profile_example, _example(1, "budgets: {}\n"), _PORTS
+    )
+
+    assert tried.loaded_by is None
+    assert tried.refused == (
+        "scan: exit 3: error: invalid profile: unknown budgets key(s): currency; "
+        "probe: exit 3: error: invalid profile: unknown budgets key(s): currency"
+    )
+
+
+def test_an_example_a_scan_loads_is_not_probed(tmp_path: Path) -> None:
+    sandbox = _ScriptedSandbox(tmp_path / "w", {"scan": _REPORT, "probe": _DURATION})
+
+    tried = capture._try_example(
+        sandbox, commands_for("0.20.0").profile_example, _example(1, "trace: {}\n"), _PORTS
+    )
+
+    assert tried.loaded_by == "scan"
+    assert [argv[1] for argv in sandbox.ran] == ["scan"]
+
+
+INIT_PROFILE = "name: default\nrules:\n  include: ['guardana.*']\nfail_on:\n  severity: high\n"
+
+
+def _with_examples(*tried: capture.Tried) -> Captured:
+    captured = _captured(profile=INIT_PROFILE)
+    captured.examples = list(tried)
+    return captured
+
+
+def _examples_of(corpus: Corpus, version: str) -> list[dict[str, object]]:
+    entry = corpus.releases[version]["profile_examples"]
+    assert isinstance(entry, dict)
+    examples = entry["examples"]
+    assert isinstance(examples, list)
+    return examples
+
+
+def test_a_loaded_example_of_a_new_shape_is_stored_and_a_refused_one_only_recorded() -> None:
+    corpus = Corpus()
+    budgets = "budgets:\n  max_requests: 10\n"
+    tried = (
+        _loaded(1, INIT_PROFILE),
+        _loaded(2, budgets),
+        capture.Tried(_example(3, "plugins: {mode: allowlist}\n"), "exit 3: error: bad plugins"),
+        _loaded(4, budgets),
+    )
+
+    corpus.add(Release("0.20.0", "t"), commands_for("0.20.0"), _with_examples(*tried))
+
+    where = {"tag": "v0.20.0", "doc": "docs/profiles.md"}
+    assert _examples_of(corpus, "0.20.0") == [
+        {"n": 1, **where, "block": 1, "loaded": True, "loaded_by": "scan", "stored": None},
+        {
+            "n": 2,
+            **where,
+            "block": 2,
+            "loaded": True,
+            "loaded_by": "scan",
+            "stored": "profile/0.20.0-2.yaml",
+        },
+        {"n": 3, **where, "block": 3, "loaded": False, "why": "exit 3: error: bad plugins"},
+        {"n": 4, **where, "block": 4, "loaded": True, "loaded_by": "scan", "stored": None},
+    ]
+    assert sorted(f for f in corpus.files if f.startswith("profile/")) == [
+        "profile/0.20.0-2.yaml",
+        "profile/0.20.0.yaml",
+    ]
+    assert corpus.files["profile/0.20.0-2.yaml"] == budgets
+
+
+def test_examples_leave_the_chain_of_init_profiles_as_it_was() -> None:
+    corpus = Corpus()
+    for version in ("0.20.0", "0.21.0"):
+        captured = _with_examples(_loaded(1, "trace: {require: []}\n"))
+        corpus.add(Release(version, "t"), commands_for(version), captured)
+
+    kinds = corpus.releases["0.21.0"]["kinds"]
+    assert isinstance(kinds, dict)
+    assert kinds[Kind.PROFILE]["stored"] is None
+    assert _examples_of(corpus, "0.21.0")[0]["stored"] is None
+    assert sorted(f for f in corpus.files if f.startswith("profile/")) == [
+        "profile/0.20.0-1.yaml",
+        "profile/0.20.0.yaml",
+    ]
+
+
+def test_a_loaded_example_holding_a_local_path_is_withheld() -> None:
+    corpus = Corpus()
+    text = "rules:\n  paths: ['/home/someone/rules']\n"
+
+    corpus.add(
+        Release("0.20.0", "t"),
+        commands_for("0.20.0"),
+        _with_examples(_loaded(1, text)),
+    )
+
+    example = _examples_of(corpus, "0.20.0")[0]
+    assert example["withheld"] == "holds /home/"
+    assert example["stored"] is None
+    assert not [f for f in corpus.files if f.startswith("profile/0.20.0-")]
+
+
+def test_a_release_without_the_profiled_scan_says_why_no_example_was_tried() -> None:
+    corpus = Corpus()
+    captured = _captured(profile=INIT_PROFILE)
+    captured.examples_absent = "`scan` has no --profile"
+
+    corpus.add(Release("0.20.0", "t"), commands_for("0.20.0"), captured)
+
+    assert corpus.releases["0.20.0"]["profile_examples"] == {
+        "tried": False,
+        "why": "`scan` has no --profile",
+    }
+
+
+def test_a_profiles_only_capture_rewrites_profiles_and_keeps_every_other_kind(
+    tmp_path: Path,
+) -> None:
+    full = Corpus()
+    run = json.dumps({"schema_version": 4})
+    full.add(Release("0.20.0", "t"), commands_for("0.20.0"), _captured(run=run))
+    full.write(tmp_path)
+    stale = tmp_path / "profile" / "0.1.0.yaml"
+    stale.parent.mkdir(exist_ok=True)
+    stale.write_text("name: stale\n", encoding="utf-8")
+
+    profiles = Corpus(releases=capture.recorded_releases(tmp_path))
+    captured = _with_examples(_loaded(1, "trace: {require: []}\n"))
+    profiles.add_profiles(Release("0.20.0", "t"), captured)
+    profiles.write(tmp_path, kinds=(Kind.PROFILE,))
+
+    assert (tmp_path / "run" / "0.20.0.json").read_text(encoding="utf-8") == run
+    assert not stale.exists()
+    assert sorted(p.name for p in (tmp_path / "profile").iterdir()) == [
+        "0.20.0-1.yaml",
+        "0.20.0.yaml",
+    ]
+    record = capture.recorded_releases(tmp_path)["0.20.0"]
+    kinds = record["kinds"]
+    assert isinstance(kinds, dict)
+    assert kinds[Kind.RUN]["stored"] == "run/0.20.0.json"
+    assert kinds[Kind.PROFILE]["stored"] == "profile/0.20.0.yaml"
+    assert capture.example_counts({"0.20.0": record}) == {
+        "releases": 1,
+        "tried": 1,
+        "loaded": 1,
+        "refused": 0,
+        "stored": 1,
+    }
+
+
+def test_a_profiles_only_capture_of_an_unrecorded_release_is_refused() -> None:
+    with pytest.raises(CaptureError, match="no record"):
+        Corpus().add_profiles(Release("0.20.0", "t"), _captured(profile=INIT_PROFILE))
+
+
+def test_a_profiles_only_capture_takes_no_release_and_runs_nothing(
+    acted: list[str], capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert capture.main(["--profiles-only", "--release", "0.20.0"]) == 1
+
+    assert "takes no --release" in capsys.readouterr().err
+    assert acted == []

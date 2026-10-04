@@ -43,7 +43,30 @@
       "3.11",
       "3.12",
       "3.13"
-    ]
+    ],
+    "profile_examples": {
+      "tried": true,
+      "examples": [
+        {
+          "n": 1,
+          "tag": "v0.2.0",
+          "doc": "docs/profiles.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 2,
+          "tag": "v0.2.0",
+          "doc": "docs/profiles.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": "profile/0.2.0-2.yaml"
+        }
+      ]
+    }
   },
   "0.3.0": {
     "exclude_newer": "2026-07-26T17:41:54Z",
@@ -89,7 +112,30 @@
       "3.11",
       "3.12",
       "3.13"
-    ]
+    ],
+    "profile_examples": {
+      "tried": true,
+      "examples": [
+        {
+          "n": 1,
+          "tag": "v0.3.0",
+          "doc": "docs/profiles.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 2,
+          "tag": "v0.3.0",
+          "doc": "docs/profiles.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": "profile/0.3.0-2.yaml"
+        }
+      ]
+    }
   },
   "0.4.0": {
     "exclude_newer": "2026-07-27T12:37:29Z",
@@ -135,7 +181,30 @@
       "3.11",
       "3.12",
       "3.13"
-    ]
+    ],
+    "profile_examples": {
+      "tried": true,
+      "examples": [
+        {
+          "n": 1,
+          "tag": "v0.4.0",
+          "doc": "docs/profiles.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 2,
+          "tag": "v0.4.0",
+          "doc": "docs/profiles.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        }
+      ]
+    }
   },
   "0.5.0": {
     "exclude_newer": "2026-07-29T10:10:55Z",
@@ -181,7 +250,30 @@
       "3.11",
       "3.12",
       "3.13"
-    ]
+    ],
+    "profile_examples": {
+      "tried": true,
+      "examples": [
+        {
+          "n": 1,
+          "tag": "v0.5.0",
+          "doc": "docs/profiles.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 2,
+          "tag": "v0.5.0",
+          "doc": "docs/profiles.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        }
+      ]
+    }
   },
   "0.6.0": {
     "exclude_newer": "2026-07-31T13:01:40Z",
@@ -229,7 +321,30 @@
       "3.11",
       "3.12",
       "3.13"
-    ]
+    ],
+    "profile_examples": {
+      "tried": true,
+      "examples": [
+        {
+          "n": 1,
+          "tag": "v0.6.0",
+          "doc": "docs/profiles.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 2,
+          "tag": "v0.6.0",
+          "doc": "docs/profiles.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        }
+      ]
+    }
   },
   "0.7.0": {
     "exclude_newer": "2026-08-02T16:53:01Z",
@@ -279,7 +394,72 @@
       "3.11",
       "3.12",
       "3.13"
-    ]
+    ],
+    "profile_examples": {
+      "tried": true,
+      "examples": [
+        {
+          "n": 1,
+          "tag": "v0.7.0",
+          "doc": "docs/design/2026-08-02-enterprise-readiness-plan.md",
+          "block": 2,
+          "loaded": false,
+          "why": "scan: exit 3: error: invalid profile profile-example.yaml: unknown budgets key(s): currency, max_cost, on_exhaustion; probe: exit 3: error: invalid profile profile-example.yaml: unknown budgets key(s): currency, max_cost, on_exhaustion"
+        },
+        {
+          "n": 2,
+          "tag": "v0.7.0",
+          "doc": "docs/design/2026-08-02-enterprise-readiness-plan.md",
+          "block": 3,
+          "loaded": false,
+          "why": "scan: exit 3: error: invalid profile profile-example.yaml: unknown privacy key(s): redact, store_prompts, store_responses, store_tool_arguments; probe: exit 3: error: invalid profile profile-example.yaml: unknown privacy key(s): redact, store_prompts, store_responses, store_tool_arguments"
+        },
+        {
+          "n": 3,
+          "tag": "v0.7.0",
+          "doc": "docs/privacy.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": "profile/0.7.0-3.yaml"
+        },
+        {
+          "n": 4,
+          "tag": "v0.7.0",
+          "doc": "docs/profiles.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 5,
+          "tag": "v0.7.0",
+          "doc": "docs/profiles.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 6,
+          "tag": "v0.7.0",
+          "doc": "docs/profiles.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "probe",
+          "stored": "profile/0.7.0-6.yaml"
+        },
+        {
+          "n": 7,
+          "tag": "v0.7.0",
+          "doc": "docs/usage-target.md",
+          "block": 1,
+          "loaded": false,
+          "why": "scan: exit 3: error: invalid profile profile-example.yaml: unknown fail_on key(s): fail_on_skipped; probe: exit 3: error: invalid profile profile-example.yaml: unknown fail_on key(s): fail_on_skipped"
+        }
+      ]
+    }
   },
   "0.8.0": {
     "exclude_newer": "2026-08-03T21:34:17Z",
@@ -329,7 +509,73 @@
       "3.11",
       "3.12",
       "3.13"
-    ]
+    ],
+    "profile_examples": {
+      "tried": true,
+      "examples": [
+        {
+          "n": 1,
+          "tag": "v0.8.0",
+          "doc": "docs/design/2026-08-02-enterprise-readiness-plan.md",
+          "block": 2,
+          "loaded": false,
+          "why": "scan: exit 3: error: invalid profile profile-example.yaml: unknown budgets key(s): currency, max_cost, on_exhaustion; probe: exit 3: error: invalid profile profile-example.yaml: unknown budgets key(s): currency, max_cost, on_exhaustion"
+        },
+        {
+          "n": 2,
+          "tag": "v0.8.0",
+          "doc": "docs/design/2026-08-02-enterprise-readiness-plan.md",
+          "block": 3,
+          "loaded": false,
+          "why": "scan: exit 3: error: invalid profile profile-example.yaml: unknown privacy key(s): redact, store_prompts, store_responses, store_tool_arguments; probe: exit 3: error: invalid profile profile-example.yaml: unknown privacy key(s): redact, store_prompts, store_responses, store_tool_arguments"
+        },
+        {
+          "n": 3,
+          "tag": "v0.8.0",
+          "doc": "docs/privacy.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 4,
+          "tag": "v0.8.0",
+          "doc": "docs/profiles.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 5,
+          "tag": "v0.8.0",
+          "doc": "docs/profiles.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 6,
+          "tag": "v0.8.0",
+          "doc": "docs/profiles.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "probe",
+          "stored": null
+        },
+        {
+          "n": 7,
+          "tag": "v0.8.0",
+          "doc": "docs/usage-target.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": "profile/0.8.0-7.yaml"
+        }
+      ]
+    }
   },
   "0.9.1": {
     "exclude_newer": "2026-08-05T20:54:03Z",
@@ -377,7 +623,73 @@
       "3.11",
       "3.12",
       "3.13"
-    ]
+    ],
+    "profile_examples": {
+      "tried": true,
+      "examples": [
+        {
+          "n": 1,
+          "tag": "v0.9.1",
+          "doc": "docs/design/enterprise-readiness-plan.md",
+          "block": 2,
+          "loaded": false,
+          "why": "scan: exit 3: error: invalid profile profile-example.yaml: unknown budgets key(s): currency, max_cost, on_exhaustion; probe: exit 3: error: invalid profile profile-example.yaml: unknown budgets key(s): currency, max_cost, on_exhaustion"
+        },
+        {
+          "n": 2,
+          "tag": "v0.9.1",
+          "doc": "docs/design/enterprise-readiness-plan.md",
+          "block": 3,
+          "loaded": false,
+          "why": "scan: exit 3: error: invalid profile profile-example.yaml: unknown privacy key(s): redact, store_prompts, store_responses, store_tool_arguments; probe: exit 3: error: invalid profile profile-example.yaml: unknown privacy key(s): redact, store_prompts, store_responses, store_tool_arguments"
+        },
+        {
+          "n": 3,
+          "tag": "v0.9.1",
+          "doc": "docs/privacy.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 4,
+          "tag": "v0.9.1",
+          "doc": "docs/profiles.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 5,
+          "tag": "v0.9.1",
+          "doc": "docs/profiles.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 6,
+          "tag": "v0.9.1",
+          "doc": "docs/profiles.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "probe",
+          "stored": null
+        },
+        {
+          "n": 7,
+          "tag": "v0.9.1",
+          "doc": "docs/usage-target.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        }
+      ]
+    }
   },
   "0.10.0": {
     "exclude_newer": "2026-08-06T07:22:14Z",
@@ -425,7 +737,73 @@
       "3.11",
       "3.12",
       "3.13"
-    ]
+    ],
+    "profile_examples": {
+      "tried": true,
+      "examples": [
+        {
+          "n": 1,
+          "tag": "v0.10.0",
+          "doc": "docs/design/enterprise-readiness-plan.md",
+          "block": 2,
+          "loaded": false,
+          "why": "scan: exit 3: error: invalid profile profile-example.yaml: unknown budgets key(s): currency, max_cost, on_exhaustion; probe: exit 3: error: invalid profile profile-example.yaml: unknown budgets key(s): currency, max_cost, on_exhaustion"
+        },
+        {
+          "n": 2,
+          "tag": "v0.10.0",
+          "doc": "docs/design/enterprise-readiness-plan.md",
+          "block": 3,
+          "loaded": false,
+          "why": "scan: exit 3: error: invalid profile profile-example.yaml: unknown privacy key(s): redact, store_prompts, store_responses, store_tool_arguments; probe: exit 3: error: invalid profile profile-example.yaml: unknown privacy key(s): redact, store_prompts, store_responses, store_tool_arguments"
+        },
+        {
+          "n": 3,
+          "tag": "v0.10.0",
+          "doc": "docs/privacy.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 4,
+          "tag": "v0.10.0",
+          "doc": "docs/profiles.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 5,
+          "tag": "v0.10.0",
+          "doc": "docs/profiles.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 6,
+          "tag": "v0.10.0",
+          "doc": "docs/profiles.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "probe",
+          "stored": null
+        },
+        {
+          "n": 7,
+          "tag": "v0.10.0",
+          "doc": "docs/usage-target.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        }
+      ]
+    }
   },
   "0.11.0": {
     "exclude_newer": "2026-08-06T06:59:19Z",
@@ -473,7 +851,73 @@
       "3.11",
       "3.12",
       "3.13"
-    ]
+    ],
+    "profile_examples": {
+      "tried": true,
+      "examples": [
+        {
+          "n": 1,
+          "tag": "v0.11.0",
+          "doc": "docs/design/enterprise-readiness-plan.md",
+          "block": 2,
+          "loaded": false,
+          "why": "scan: exit 3: error: invalid profile profile-example.yaml: unknown budgets key(s): currency, max_cost, on_exhaustion; probe: exit 3: error: invalid profile profile-example.yaml: unknown budgets key(s): currency, max_cost, on_exhaustion"
+        },
+        {
+          "n": 2,
+          "tag": "v0.11.0",
+          "doc": "docs/design/enterprise-readiness-plan.md",
+          "block": 3,
+          "loaded": false,
+          "why": "scan: exit 3: error: invalid profile profile-example.yaml: unknown privacy key(s): redact, store_prompts, store_responses, store_tool_arguments; probe: exit 3: error: invalid profile profile-example.yaml: unknown privacy key(s): redact, store_prompts, store_responses, store_tool_arguments"
+        },
+        {
+          "n": 3,
+          "tag": "v0.11.0",
+          "doc": "docs/privacy.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 4,
+          "tag": "v0.11.0",
+          "doc": "docs/profiles.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 5,
+          "tag": "v0.11.0",
+          "doc": "docs/profiles.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 6,
+          "tag": "v0.11.0",
+          "doc": "docs/profiles.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "probe",
+          "stored": null
+        },
+        {
+          "n": 7,
+          "tag": "v0.11.0",
+          "doc": "docs/usage-target.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        }
+      ]
+    }
   },
   "0.12.0": {
     "exclude_newer": "2026-08-07T08:17:11Z",
@@ -521,7 +965,73 @@
       "3.11",
       "3.12",
       "3.13"
-    ]
+    ],
+    "profile_examples": {
+      "tried": true,
+      "examples": [
+        {
+          "n": 1,
+          "tag": "v0.12.0",
+          "doc": "docs/design/enterprise-readiness-plan.md",
+          "block": 2,
+          "loaded": false,
+          "why": "scan: exit 3: error: invalid profile profile-example.yaml: unknown budgets key(s): currency, max_cost, on_exhaustion; probe: exit 3: error: invalid profile profile-example.yaml: unknown budgets key(s): currency, max_cost, on_exhaustion"
+        },
+        {
+          "n": 2,
+          "tag": "v0.12.0",
+          "doc": "docs/design/enterprise-readiness-plan.md",
+          "block": 3,
+          "loaded": false,
+          "why": "scan: exit 3: error: invalid profile profile-example.yaml: unknown privacy key(s): redact, store_prompts, store_responses, store_tool_arguments; probe: exit 3: error: invalid profile profile-example.yaml: unknown privacy key(s): redact, store_prompts, store_responses, store_tool_arguments"
+        },
+        {
+          "n": 3,
+          "tag": "v0.12.0",
+          "doc": "docs/privacy.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 4,
+          "tag": "v0.12.0",
+          "doc": "docs/profiles.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 5,
+          "tag": "v0.12.0",
+          "doc": "docs/profiles.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 6,
+          "tag": "v0.12.0",
+          "doc": "docs/profiles.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "probe",
+          "stored": null
+        },
+        {
+          "n": 7,
+          "tag": "v0.12.0",
+          "doc": "docs/usage-target.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        }
+      ]
+    }
   },
   "0.13.0": {
     "exclude_newer": "2026-08-09T11:39:00Z",
@@ -569,7 +1079,73 @@
       "3.11",
       "3.12",
       "3.13"
-    ]
+    ],
+    "profile_examples": {
+      "tried": true,
+      "examples": [
+        {
+          "n": 1,
+          "tag": "v0.13.0",
+          "doc": "docs/design/enterprise-readiness-plan.md",
+          "block": 2,
+          "loaded": false,
+          "why": "scan: exit 3: error: invalid profile profile-example.yaml: unknown budgets key(s): currency, max_cost, on_exhaustion; probe: exit 3: error: invalid profile profile-example.yaml: unknown budgets key(s): currency, max_cost, on_exhaustion"
+        },
+        {
+          "n": 2,
+          "tag": "v0.13.0",
+          "doc": "docs/design/enterprise-readiness-plan.md",
+          "block": 3,
+          "loaded": false,
+          "why": "scan: exit 3: error: invalid profile profile-example.yaml: unknown privacy key(s): redact, store_prompts, store_responses, store_tool_arguments; probe: exit 3: error: invalid profile profile-example.yaml: unknown privacy key(s): redact, store_prompts, store_responses, store_tool_arguments"
+        },
+        {
+          "n": 3,
+          "tag": "v0.13.0",
+          "doc": "docs/privacy.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 4,
+          "tag": "v0.13.0",
+          "doc": "docs/profiles.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 5,
+          "tag": "v0.13.0",
+          "doc": "docs/profiles.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 6,
+          "tag": "v0.13.0",
+          "doc": "docs/profiles.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "probe",
+          "stored": null
+        },
+        {
+          "n": 7,
+          "tag": "v0.13.0",
+          "doc": "docs/usage-target.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        }
+      ]
+    }
   },
   "0.14.0": {
     "exclude_newer": "2026-08-09T18:22:11Z",
@@ -617,7 +1193,73 @@
       "3.11",
       "3.12",
       "3.13"
-    ]
+    ],
+    "profile_examples": {
+      "tried": true,
+      "examples": [
+        {
+          "n": 1,
+          "tag": "v0.14.0",
+          "doc": "docs/design/enterprise-readiness-plan.md",
+          "block": 2,
+          "loaded": false,
+          "why": "scan: exit 3: error: invalid profile profile-example.yaml: unknown budgets key(s): currency, max_cost, on_exhaustion; probe: exit 3: error: invalid profile profile-example.yaml: unknown budgets key(s): currency, max_cost, on_exhaustion"
+        },
+        {
+          "n": 2,
+          "tag": "v0.14.0",
+          "doc": "docs/design/enterprise-readiness-plan.md",
+          "block": 3,
+          "loaded": false,
+          "why": "scan: exit 3: error: invalid profile profile-example.yaml: unknown privacy key(s): redact, store_prompts, store_responses, store_tool_arguments; probe: exit 3: error: invalid profile profile-example.yaml: unknown privacy key(s): redact, store_prompts, store_responses, store_tool_arguments"
+        },
+        {
+          "n": 3,
+          "tag": "v0.14.0",
+          "doc": "docs/privacy.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 4,
+          "tag": "v0.14.0",
+          "doc": "docs/profiles.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 5,
+          "tag": "v0.14.0",
+          "doc": "docs/profiles.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 6,
+          "tag": "v0.14.0",
+          "doc": "docs/profiles.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "probe",
+          "stored": null
+        },
+        {
+          "n": 7,
+          "tag": "v0.14.0",
+          "doc": "docs/usage-target.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        }
+      ]
+    }
   },
   "0.15.0": {
     "exclude_newer": "2026-08-10T05:53:07Z",
@@ -665,7 +1307,73 @@
       "3.11",
       "3.12",
       "3.13"
-    ]
+    ],
+    "profile_examples": {
+      "tried": true,
+      "examples": [
+        {
+          "n": 1,
+          "tag": "v0.15.0",
+          "doc": "docs/design/enterprise-readiness-plan.md",
+          "block": 2,
+          "loaded": false,
+          "why": "scan: exit 3: error: invalid profile profile-example.yaml: unknown budgets key(s): currency, max_cost, on_exhaustion; probe: exit 3: error: invalid profile profile-example.yaml: unknown budgets key(s): currency, max_cost, on_exhaustion"
+        },
+        {
+          "n": 2,
+          "tag": "v0.15.0",
+          "doc": "docs/design/enterprise-readiness-plan.md",
+          "block": 3,
+          "loaded": false,
+          "why": "scan: exit 3: error: invalid profile profile-example.yaml: unknown privacy key(s): redact, store_prompts, store_responses, store_tool_arguments; probe: exit 3: error: invalid profile profile-example.yaml: unknown privacy key(s): redact, store_prompts, store_responses, store_tool_arguments"
+        },
+        {
+          "n": 3,
+          "tag": "v0.15.0",
+          "doc": "docs/privacy.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 4,
+          "tag": "v0.15.0",
+          "doc": "docs/profiles.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 5,
+          "tag": "v0.15.0",
+          "doc": "docs/profiles.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 6,
+          "tag": "v0.15.0",
+          "doc": "docs/profiles.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "probe",
+          "stored": null
+        },
+        {
+          "n": 7,
+          "tag": "v0.15.0",
+          "doc": "docs/usage-target.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        }
+      ]
+    }
   },
   "0.16.0": {
     "exclude_newer": "2026-08-10T09:47:48Z",
@@ -713,7 +1421,73 @@
       "3.11",
       "3.12",
       "3.13"
-    ]
+    ],
+    "profile_examples": {
+      "tried": true,
+      "examples": [
+        {
+          "n": 1,
+          "tag": "v0.16.0",
+          "doc": "docs/design/enterprise-readiness-plan.md",
+          "block": 2,
+          "loaded": false,
+          "why": "scan: exit 3: error: invalid profile profile-example.yaml: unknown budgets key(s): currency, max_cost, on_exhaustion; probe: exit 3: error: invalid profile profile-example.yaml: unknown budgets key(s): currency, max_cost, on_exhaustion"
+        },
+        {
+          "n": 2,
+          "tag": "v0.16.0",
+          "doc": "docs/design/enterprise-readiness-plan.md",
+          "block": 3,
+          "loaded": false,
+          "why": "scan: exit 3: error: invalid profile profile-example.yaml: unknown privacy key(s): redact, store_prompts, store_responses, store_tool_arguments; probe: exit 3: error: invalid profile profile-example.yaml: unknown privacy key(s): redact, store_prompts, store_responses, store_tool_arguments"
+        },
+        {
+          "n": 3,
+          "tag": "v0.16.0",
+          "doc": "docs/privacy.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 4,
+          "tag": "v0.16.0",
+          "doc": "docs/profiles.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 5,
+          "tag": "v0.16.0",
+          "doc": "docs/profiles.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 6,
+          "tag": "v0.16.0",
+          "doc": "docs/profiles.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "probe",
+          "stored": null
+        },
+        {
+          "n": 7,
+          "tag": "v0.16.0",
+          "doc": "docs/usage-target.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        }
+      ]
+    }
   },
   "0.17.0": {
     "exclude_newer": "2026-08-10T11:32:22Z",
@@ -761,7 +1535,100 @@
       "3.11",
       "3.12",
       "3.13"
-    ]
+    ],
+    "profile_examples": {
+      "tried": true,
+      "examples": [
+        {
+          "n": 1,
+          "tag": "v0.17.0",
+          "doc": "docs/design/enterprise-readiness-plan.md",
+          "block": 2,
+          "loaded": false,
+          "why": "scan: exit 3: error: invalid profile profile-example.yaml: unknown budgets key(s): currency, max_cost, on_exhaustion; probe: exit 3: error: invalid profile profile-example.yaml: unknown budgets key(s): currency, max_cost, on_exhaustion"
+        },
+        {
+          "n": 2,
+          "tag": "v0.17.0",
+          "doc": "docs/design/enterprise-readiness-plan.md",
+          "block": 3,
+          "loaded": false,
+          "why": "scan: exit 3: error: invalid profile profile-example.yaml: unknown privacy key(s): redact, store_prompts, store_responses, store_tool_arguments; probe: exit 3: error: invalid profile profile-example.yaml: unknown privacy key(s): redact, store_prompts, store_responses, store_tool_arguments"
+        },
+        {
+          "n": 3,
+          "tag": "v0.17.0",
+          "doc": "docs/design/security-contracts.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": "profile/0.17.0-3.yaml"
+        },
+        {
+          "n": 4,
+          "tag": "v0.17.0",
+          "doc": "docs/privacy.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 5,
+          "tag": "v0.17.0",
+          "doc": "docs/profiles.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 6,
+          "tag": "v0.17.0",
+          "doc": "docs/profiles.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": "profile/0.17.0-6.yaml"
+        },
+        {
+          "n": 7,
+          "tag": "v0.17.0",
+          "doc": "docs/profiles.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "probe",
+          "stored": null
+        },
+        {
+          "n": 8,
+          "tag": "v0.17.0",
+          "doc": "docs/usage-contracts.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": "profile/0.17.0-8.yaml"
+        },
+        {
+          "n": 9,
+          "tag": "v0.17.0",
+          "doc": "docs/usage-target.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 10,
+          "tag": "v0.17.0",
+          "doc": "docs/usage-trace-inspect.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": "profile/0.17.0-10.yaml"
+        }
+      ]
+    }
   },
   "0.17.1": {
     "exclude_newer": "2026-08-11T08:27:53Z",
@@ -809,7 +1676,100 @@
       "3.11",
       "3.12",
       "3.13"
-    ]
+    ],
+    "profile_examples": {
+      "tried": true,
+      "examples": [
+        {
+          "n": 1,
+          "tag": "v0.17.1",
+          "doc": "docs/design/enterprise-readiness-plan.md",
+          "block": 2,
+          "loaded": false,
+          "why": "scan: exit 3: error: invalid profile profile-example.yaml: unknown budgets key(s): currency, max_cost, on_exhaustion; probe: exit 3: error: invalid profile profile-example.yaml: unknown budgets key(s): currency, max_cost, on_exhaustion"
+        },
+        {
+          "n": 2,
+          "tag": "v0.17.1",
+          "doc": "docs/design/enterprise-readiness-plan.md",
+          "block": 3,
+          "loaded": false,
+          "why": "scan: exit 3: error: invalid profile profile-example.yaml: unknown privacy key(s): redact, store_prompts, store_responses, store_tool_arguments; probe: exit 3: error: invalid profile profile-example.yaml: unknown privacy key(s): redact, store_prompts, store_responses, store_tool_arguments"
+        },
+        {
+          "n": 3,
+          "tag": "v0.17.1",
+          "doc": "docs/design/security-contracts.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 4,
+          "tag": "v0.17.1",
+          "doc": "docs/privacy.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 5,
+          "tag": "v0.17.1",
+          "doc": "docs/profiles.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 6,
+          "tag": "v0.17.1",
+          "doc": "docs/profiles.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 7,
+          "tag": "v0.17.1",
+          "doc": "docs/profiles.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "probe",
+          "stored": null
+        },
+        {
+          "n": 8,
+          "tag": "v0.17.1",
+          "doc": "docs/usage-contracts.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 9,
+          "tag": "v0.17.1",
+          "doc": "docs/usage-target.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 10,
+          "tag": "v0.17.1",
+          "doc": "docs/usage-trace-inspect.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        }
+      ]
+    }
   },
   "0.18.0": {
     "exclude_newer": "2026-08-11T10:40:14Z",
@@ -857,7 +1817,108 @@
       "3.11",
       "3.12",
       "3.13"
-    ]
+    ],
+    "profile_examples": {
+      "tried": true,
+      "examples": [
+        {
+          "n": 1,
+          "tag": "v0.18.0",
+          "doc": "docs/design/enterprise-readiness-plan.md",
+          "block": 2,
+          "loaded": false,
+          "why": "scan: exit 3: error: invalid profile profile-example.yaml: unknown budgets key(s): currency, max_cost, on_exhaustion; probe: exit 3: error: invalid profile profile-example.yaml: unknown budgets key(s): currency, max_cost, on_exhaustion"
+        },
+        {
+          "n": 2,
+          "tag": "v0.18.0",
+          "doc": "docs/design/enterprise-readiness-plan.md",
+          "block": 3,
+          "loaded": false,
+          "why": "scan: exit 3: error: invalid profile profile-example.yaml: unknown privacy key(s): redact, store_prompts, store_responses, store_tool_arguments; probe: exit 3: error: invalid profile profile-example.yaml: unknown privacy key(s): redact, store_prompts, store_responses, store_tool_arguments"
+        },
+        {
+          "n": 3,
+          "tag": "v0.18.0",
+          "doc": "docs/design/security-contracts.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 4,
+          "tag": "v0.18.0",
+          "doc": "docs/privacy.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 5,
+          "tag": "v0.18.0",
+          "doc": "docs/profiles.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 6,
+          "tag": "v0.18.0",
+          "doc": "docs/profiles.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 7,
+          "tag": "v0.18.0",
+          "doc": "docs/profiles.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "probe",
+          "stored": null
+        },
+        {
+          "n": 8,
+          "tag": "v0.18.0",
+          "doc": "docs/usage-calibrate.md",
+          "block": 1,
+          "loaded": false,
+          "why": "scan: exit 1: names cannot be recorded; probe: exit 1: names cannot be recorded"
+        },
+        {
+          "n": 9,
+          "tag": "v0.18.0",
+          "doc": "docs/usage-contracts.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 10,
+          "tag": "v0.18.0",
+          "doc": "docs/usage-target.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 11,
+          "tag": "v0.18.0",
+          "doc": "docs/usage-trace-inspect.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        }
+      ]
+    }
   },
   "0.18.1": {
     "exclude_newer": "2026-08-11T12:39:53Z",
@@ -905,7 +1966,108 @@
       "3.11",
       "3.12",
       "3.13"
-    ]
+    ],
+    "profile_examples": {
+      "tried": true,
+      "examples": [
+        {
+          "n": 1,
+          "tag": "v0.18.1",
+          "doc": "docs/design/enterprise-readiness-plan.md",
+          "block": 2,
+          "loaded": false,
+          "why": "scan: exit 3: error: invalid profile profile-example.yaml: unknown budgets key(s): currency, max_cost, on_exhaustion; probe: exit 3: error: invalid profile profile-example.yaml: unknown budgets key(s): currency, max_cost, on_exhaustion"
+        },
+        {
+          "n": 2,
+          "tag": "v0.18.1",
+          "doc": "docs/design/enterprise-readiness-plan.md",
+          "block": 3,
+          "loaded": false,
+          "why": "scan: exit 3: error: invalid profile profile-example.yaml: unknown privacy key(s): redact, store_prompts, store_responses, store_tool_arguments; probe: exit 3: error: invalid profile profile-example.yaml: unknown privacy key(s): redact, store_prompts, store_responses, store_tool_arguments"
+        },
+        {
+          "n": 3,
+          "tag": "v0.18.1",
+          "doc": "docs/design/security-contracts.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 4,
+          "tag": "v0.18.1",
+          "doc": "docs/privacy.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 5,
+          "tag": "v0.18.1",
+          "doc": "docs/profiles.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 6,
+          "tag": "v0.18.1",
+          "doc": "docs/profiles.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 7,
+          "tag": "v0.18.1",
+          "doc": "docs/profiles.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "probe",
+          "stored": null
+        },
+        {
+          "n": 8,
+          "tag": "v0.18.1",
+          "doc": "docs/usage-calibrate.md",
+          "block": 1,
+          "loaded": false,
+          "why": "scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
+        },
+        {
+          "n": 9,
+          "tag": "v0.18.1",
+          "doc": "docs/usage-contracts.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 10,
+          "tag": "v0.18.1",
+          "doc": "docs/usage-target.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 11,
+          "tag": "v0.18.1",
+          "doc": "docs/usage-trace-inspect.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        }
+      ]
+    }
   },
   "0.19.1": {
     "exclude_newer": "2026-08-11T18:51:31Z",
@@ -953,7 +2115,108 @@
       "3.11",
       "3.12",
       "3.13"
-    ]
+    ],
+    "profile_examples": {
+      "tried": true,
+      "examples": [
+        {
+          "n": 1,
+          "tag": "v0.19.1",
+          "doc": "docs/design/enterprise-readiness-plan.md",
+          "block": 2,
+          "loaded": false,
+          "why": "scan: exit 3: error: invalid profile profile-example.yaml: unknown budgets key(s): currency, max_cost, on_exhaustion; probe: exit 3: error: invalid profile profile-example.yaml: unknown budgets key(s): currency, max_cost, on_exhaustion"
+        },
+        {
+          "n": 2,
+          "tag": "v0.19.1",
+          "doc": "docs/design/enterprise-readiness-plan.md",
+          "block": 3,
+          "loaded": false,
+          "why": "scan: exit 3: error: invalid profile profile-example.yaml: unknown privacy key(s): redact, store_prompts, store_responses, store_tool_arguments; probe: exit 3: error: invalid profile profile-example.yaml: unknown privacy key(s): redact, store_prompts, store_responses, store_tool_arguments"
+        },
+        {
+          "n": 3,
+          "tag": "v0.19.1",
+          "doc": "docs/design/security-contracts.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 4,
+          "tag": "v0.19.1",
+          "doc": "docs/privacy.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 5,
+          "tag": "v0.19.1",
+          "doc": "docs/profiles.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 6,
+          "tag": "v0.19.1",
+          "doc": "docs/profiles.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 7,
+          "tag": "v0.19.1",
+          "doc": "docs/profiles.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "probe",
+          "stored": null
+        },
+        {
+          "n": 8,
+          "tag": "v0.19.1",
+          "doc": "docs/usage-calibrate.md",
+          "block": 1,
+          "loaded": false,
+          "why": "scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
+        },
+        {
+          "n": 9,
+          "tag": "v0.19.1",
+          "doc": "docs/usage-contracts.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 10,
+          "tag": "v0.19.1",
+          "doc": "docs/usage-target.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 11,
+          "tag": "v0.19.1",
+          "doc": "docs/usage-trace-inspect.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        }
+      ]
+    }
   },
   "0.20.0": {
     "exclude_newer": "2026-08-12T10:29:34Z",
@@ -1003,7 +2266,108 @@
       "3.11",
       "3.12",
       "3.13"
-    ]
+    ],
+    "profile_examples": {
+      "tried": true,
+      "examples": [
+        {
+          "n": 1,
+          "tag": "v0.20.0",
+          "doc": "docs/design/enterprise-readiness-plan.md",
+          "block": 2,
+          "loaded": false,
+          "why": "scan: exit 3: error: invalid profile profile-example.yaml: unknown budgets key(s): currency, max_cost, on_exhaustion; probe: exit 3: error: invalid profile profile-example.yaml: unknown budgets key(s): currency, max_cost, on_exhaustion"
+        },
+        {
+          "n": 2,
+          "tag": "v0.20.0",
+          "doc": "docs/design/enterprise-readiness-plan.md",
+          "block": 3,
+          "loaded": false,
+          "why": "scan: exit 3: error: invalid profile profile-example.yaml: unknown privacy key(s): redact, store_prompts, store_responses, store_tool_arguments; probe: exit 3: error: invalid profile profile-example.yaml: unknown privacy key(s): redact, store_prompts, store_responses, store_tool_arguments"
+        },
+        {
+          "n": 3,
+          "tag": "v0.20.0",
+          "doc": "docs/design/security-contracts.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 4,
+          "tag": "v0.20.0",
+          "doc": "docs/privacy.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 5,
+          "tag": "v0.20.0",
+          "doc": "docs/profiles.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 6,
+          "tag": "v0.20.0",
+          "doc": "docs/profiles.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 7,
+          "tag": "v0.20.0",
+          "doc": "docs/profiles.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "probe",
+          "stored": null
+        },
+        {
+          "n": 8,
+          "tag": "v0.20.0",
+          "doc": "docs/usage-calibrate.md",
+          "block": 1,
+          "loaded": false,
+          "why": "scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
+        },
+        {
+          "n": 9,
+          "tag": "v0.20.0",
+          "doc": "docs/usage-contracts.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 10,
+          "tag": "v0.20.0",
+          "doc": "docs/usage-target.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 11,
+          "tag": "v0.20.0",
+          "doc": "docs/usage-trace-inspect.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        }
+      ]
+    }
   },
   "0.21.0": {
     "exclude_newer": "2026-08-15T14:29:47Z",
@@ -1053,7 +2417,108 @@
       "3.11",
       "3.12",
       "3.13"
-    ]
+    ],
+    "profile_examples": {
+      "tried": true,
+      "examples": [
+        {
+          "n": 1,
+          "tag": "v0.21.0",
+          "doc": "docs/design/enterprise-readiness-plan.md",
+          "block": 2,
+          "loaded": false,
+          "why": "scan: exit 3: error: invalid profile profile-example.yaml: unknown budgets key(s): currency, max_cost, on_exhaustion; probe: exit 3: error: invalid profile profile-example.yaml: unknown budgets key(s): currency, max_cost, on_exhaustion"
+        },
+        {
+          "n": 2,
+          "tag": "v0.21.0",
+          "doc": "docs/design/enterprise-readiness-plan.md",
+          "block": 3,
+          "loaded": false,
+          "why": "scan: exit 3: error: invalid profile profile-example.yaml: unknown privacy key(s): redact, store_prompts, store_responses, store_tool_arguments; probe: exit 3: error: invalid profile profile-example.yaml: unknown privacy key(s): redact, store_prompts, store_responses, store_tool_arguments"
+        },
+        {
+          "n": 3,
+          "tag": "v0.21.0",
+          "doc": "docs/design/security-contracts.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 4,
+          "tag": "v0.21.0",
+          "doc": "docs/privacy.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 5,
+          "tag": "v0.21.0",
+          "doc": "docs/profiles.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 6,
+          "tag": "v0.21.0",
+          "doc": "docs/profiles.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 7,
+          "tag": "v0.21.0",
+          "doc": "docs/profiles.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "probe",
+          "stored": null
+        },
+        {
+          "n": 8,
+          "tag": "v0.21.0",
+          "doc": "docs/usage-calibrate.md",
+          "block": 1,
+          "loaded": false,
+          "why": "scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
+        },
+        {
+          "n": 9,
+          "tag": "v0.21.0",
+          "doc": "docs/usage-contracts.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 10,
+          "tag": "v0.21.0",
+          "doc": "docs/usage-target.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 11,
+          "tag": "v0.21.0",
+          "doc": "docs/usage-trace-inspect.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        }
+      ]
+    }
   },
   "0.22.0": {
     "exclude_newer": "2026-08-20T16:12:48Z",
@@ -1103,7 +2568,108 @@
       "3.11",
       "3.12",
       "3.13"
-    ]
+    ],
+    "profile_examples": {
+      "tried": true,
+      "examples": [
+        {
+          "n": 1,
+          "tag": "v0.22.0",
+          "doc": "docs/design/enterprise-readiness-plan.md",
+          "block": 2,
+          "loaded": false,
+          "why": "scan: exit 3: error: invalid profile profile-example.yaml: unknown budgets key(s): currency, max_cost, on_exhaustion; probe: exit 3: error: invalid profile profile-example.yaml: unknown budgets key(s): currency, max_cost, on_exhaustion"
+        },
+        {
+          "n": 2,
+          "tag": "v0.22.0",
+          "doc": "docs/design/enterprise-readiness-plan.md",
+          "block": 3,
+          "loaded": false,
+          "why": "scan: exit 3: error: invalid profile profile-example.yaml: unknown privacy key(s): redact, store_prompts, store_responses, store_tool_arguments; probe: exit 3: error: invalid profile profile-example.yaml: unknown privacy key(s): redact, store_prompts, store_responses, store_tool_arguments"
+        },
+        {
+          "n": 3,
+          "tag": "v0.22.0",
+          "doc": "docs/design/security-contracts.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 4,
+          "tag": "v0.22.0",
+          "doc": "docs/privacy.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 5,
+          "tag": "v0.22.0",
+          "doc": "docs/profiles.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 6,
+          "tag": "v0.22.0",
+          "doc": "docs/profiles.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 7,
+          "tag": "v0.22.0",
+          "doc": "docs/profiles.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "probe",
+          "stored": null
+        },
+        {
+          "n": 8,
+          "tag": "v0.22.0",
+          "doc": "docs/usage-calibrate.md",
+          "block": 1,
+          "loaded": false,
+          "why": "scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
+        },
+        {
+          "n": 9,
+          "tag": "v0.22.0",
+          "doc": "docs/usage-contracts.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 10,
+          "tag": "v0.22.0",
+          "doc": "docs/usage-target.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 11,
+          "tag": "v0.22.0",
+          "doc": "docs/usage-trace-inspect.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        }
+      ]
+    }
   },
   "0.23.0": {
     "exclude_newer": "2026-09-02T18:53:17Z",
@@ -1153,7 +2719,108 @@
       "3.11",
       "3.12",
       "3.13"
-    ]
+    ],
+    "profile_examples": {
+      "tried": true,
+      "examples": [
+        {
+          "n": 1,
+          "tag": "v0.23.0",
+          "doc": "docs/design/enterprise-readiness-plan.md",
+          "block": 2,
+          "loaded": false,
+          "why": "scan: exit 3: error: invalid profile profile-example.yaml: unknown budgets key(s): currency, max_cost, on_exhaustion; probe: exit 3: error: invalid profile profile-example.yaml: unknown budgets key(s): currency, max_cost, on_exhaustion"
+        },
+        {
+          "n": 2,
+          "tag": "v0.23.0",
+          "doc": "docs/design/enterprise-readiness-plan.md",
+          "block": 3,
+          "loaded": false,
+          "why": "scan: exit 3: error: invalid profile profile-example.yaml: unknown privacy key(s): redact, store_prompts, store_responses, store_tool_arguments; probe: exit 3: error: invalid profile profile-example.yaml: unknown privacy key(s): redact, store_prompts, store_responses, store_tool_arguments"
+        },
+        {
+          "n": 3,
+          "tag": "v0.23.0",
+          "doc": "docs/design/security-contracts.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 4,
+          "tag": "v0.23.0",
+          "doc": "docs/privacy.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 5,
+          "tag": "v0.23.0",
+          "doc": "docs/profiles.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 6,
+          "tag": "v0.23.0",
+          "doc": "docs/profiles.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 7,
+          "tag": "v0.23.0",
+          "doc": "docs/profiles.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "probe",
+          "stored": null
+        },
+        {
+          "n": 8,
+          "tag": "v0.23.0",
+          "doc": "docs/usage-calibrate.md",
+          "block": 1,
+          "loaded": false,
+          "why": "scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
+        },
+        {
+          "n": 9,
+          "tag": "v0.23.0",
+          "doc": "docs/usage-contracts.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 10,
+          "tag": "v0.23.0",
+          "doc": "docs/usage-target.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 11,
+          "tag": "v0.23.0",
+          "doc": "docs/usage-trace-inspect.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        }
+      ]
+    }
   },
   "0.24.0": {
     "exclude_newer": "2026-09-10T16:19:09Z",
@@ -1203,7 +2870,92 @@
       "3.11",
       "3.12",
       "3.13"
-    ]
+    ],
+    "profile_examples": {
+      "tried": true,
+      "examples": [
+        {
+          "n": 1,
+          "tag": "v0.24.0",
+          "doc": "docs/design/security-contracts.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 2,
+          "tag": "v0.24.0",
+          "doc": "docs/privacy.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 3,
+          "tag": "v0.24.0",
+          "doc": "docs/profiles.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 4,
+          "tag": "v0.24.0",
+          "doc": "docs/profiles.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 5,
+          "tag": "v0.24.0",
+          "doc": "docs/profiles.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "probe",
+          "stored": null
+        },
+        {
+          "n": 6,
+          "tag": "v0.24.0",
+          "doc": "docs/usage-calibrate.md",
+          "block": 1,
+          "loaded": false,
+          "why": "scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
+        },
+        {
+          "n": 7,
+          "tag": "v0.24.0",
+          "doc": "docs/usage-contracts.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 8,
+          "tag": "v0.24.0",
+          "doc": "docs/usage-target.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 9,
+          "tag": "v0.24.0",
+          "doc": "docs/usage-trace-inspect.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        }
+      ]
+    }
   },
   "0.25.0": {
     "exclude_newer": "2026-09-20T06:48:18Z",
@@ -1253,7 +3005,92 @@
       "3.11",
       "3.12",
       "3.13"
-    ]
+    ],
+    "profile_examples": {
+      "tried": true,
+      "examples": [
+        {
+          "n": 1,
+          "tag": "v0.25.0",
+          "doc": "docs/design/security-contracts.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 2,
+          "tag": "v0.25.0",
+          "doc": "docs/privacy.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 3,
+          "tag": "v0.25.0",
+          "doc": "docs/profiles.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 4,
+          "tag": "v0.25.0",
+          "doc": "docs/profiles.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 5,
+          "tag": "v0.25.0",
+          "doc": "docs/profiles.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "probe",
+          "stored": null
+        },
+        {
+          "n": 6,
+          "tag": "v0.25.0",
+          "doc": "docs/usage-calibrate.md",
+          "block": 1,
+          "loaded": false,
+          "why": "scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
+        },
+        {
+          "n": 7,
+          "tag": "v0.25.0",
+          "doc": "docs/usage-contracts.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 8,
+          "tag": "v0.25.0",
+          "doc": "docs/usage-target.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 9,
+          "tag": "v0.25.0",
+          "doc": "docs/usage-trace-inspect.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        }
+      ]
+    }
   },
   "0.26.0": {
     "exclude_newer": "2026-09-21T13:15:38Z",
@@ -1303,7 +3140,92 @@
       "3.11",
       "3.12",
       "3.13"
-    ]
+    ],
+    "profile_examples": {
+      "tried": true,
+      "examples": [
+        {
+          "n": 1,
+          "tag": "v0.26.0",
+          "doc": "docs/design/security-contracts.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 2,
+          "tag": "v0.26.0",
+          "doc": "docs/privacy.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 3,
+          "tag": "v0.26.0",
+          "doc": "docs/profiles.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 4,
+          "tag": "v0.26.0",
+          "doc": "docs/profiles.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 5,
+          "tag": "v0.26.0",
+          "doc": "docs/profiles.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "probe",
+          "stored": null
+        },
+        {
+          "n": 6,
+          "tag": "v0.26.0",
+          "doc": "docs/usage-calibrate.md",
+          "block": 1,
+          "loaded": false,
+          "why": "scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
+        },
+        {
+          "n": 7,
+          "tag": "v0.26.0",
+          "doc": "docs/usage-contracts.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 8,
+          "tag": "v0.26.0",
+          "doc": "docs/usage-target.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 9,
+          "tag": "v0.26.0",
+          "doc": "docs/usage-trace-inspect.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        }
+      ]
+    }
   },
   "0.26.1": {
     "exclude_newer": "2026-09-22T11:42:22Z",
@@ -1353,7 +3275,92 @@
       "3.11",
       "3.12",
       "3.13"
-    ]
+    ],
+    "profile_examples": {
+      "tried": true,
+      "examples": [
+        {
+          "n": 1,
+          "tag": "v0.26.1",
+          "doc": "docs/design/security-contracts.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 2,
+          "tag": "v0.26.1",
+          "doc": "docs/privacy.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 3,
+          "tag": "v0.26.1",
+          "doc": "docs/profiles.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 4,
+          "tag": "v0.26.1",
+          "doc": "docs/profiles.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 5,
+          "tag": "v0.26.1",
+          "doc": "docs/profiles.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "probe",
+          "stored": null
+        },
+        {
+          "n": 6,
+          "tag": "v0.26.1",
+          "doc": "docs/usage-calibrate.md",
+          "block": 1,
+          "loaded": false,
+          "why": "scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
+        },
+        {
+          "n": 7,
+          "tag": "v0.26.1",
+          "doc": "docs/usage-contracts.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 8,
+          "tag": "v0.26.1",
+          "doc": "docs/usage-target.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 9,
+          "tag": "v0.26.1",
+          "doc": "docs/usage-trace-inspect.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        }
+      ]
+    }
   },
   "0.27.0": {
     "exclude_newer": "2026-09-24T07:54:39Z",
@@ -1403,7 +3410,92 @@
       "3.11",
       "3.12",
       "3.13"
-    ]
+    ],
+    "profile_examples": {
+      "tried": true,
+      "examples": [
+        {
+          "n": 1,
+          "tag": "v0.27.0",
+          "doc": "docs/design/security-contracts.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 2,
+          "tag": "v0.27.0",
+          "doc": "docs/privacy.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 3,
+          "tag": "v0.27.0",
+          "doc": "docs/profiles.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 4,
+          "tag": "v0.27.0",
+          "doc": "docs/profiles.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": "profile/0.27.0-4.yaml"
+        },
+        {
+          "n": 5,
+          "tag": "v0.27.0",
+          "doc": "docs/profiles.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "probe",
+          "stored": null
+        },
+        {
+          "n": 6,
+          "tag": "v0.27.0",
+          "doc": "docs/usage-calibrate.md",
+          "block": 1,
+          "loaded": false,
+          "why": "scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
+        },
+        {
+          "n": 7,
+          "tag": "v0.27.0",
+          "doc": "docs/usage-contracts.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 8,
+          "tag": "v0.27.0",
+          "doc": "docs/usage-target.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 9,
+          "tag": "v0.27.0",
+          "doc": "docs/usage-trace-inspect.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        }
+      ]
+    }
   },
   "0.28.0": {
     "exclude_newer": "2026-09-25T08:02:53Z",
@@ -1453,7 +3545,92 @@
       "3.11",
       "3.12",
       "3.13"
-    ]
+    ],
+    "profile_examples": {
+      "tried": true,
+      "examples": [
+        {
+          "n": 1,
+          "tag": "v0.28.0",
+          "doc": "docs/design/security-contracts.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 2,
+          "tag": "v0.28.0",
+          "doc": "docs/privacy.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 3,
+          "tag": "v0.28.0",
+          "doc": "docs/profiles.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 4,
+          "tag": "v0.28.0",
+          "doc": "docs/profiles.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": "profile/0.28.0-4.yaml"
+        },
+        {
+          "n": 5,
+          "tag": "v0.28.0",
+          "doc": "docs/profiles.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "probe",
+          "stored": null
+        },
+        {
+          "n": 6,
+          "tag": "v0.28.0",
+          "doc": "docs/usage-calibrate.md",
+          "block": 1,
+          "loaded": false,
+          "why": "scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
+        },
+        {
+          "n": 7,
+          "tag": "v0.28.0",
+          "doc": "docs/usage-contracts.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 8,
+          "tag": "v0.28.0",
+          "doc": "docs/usage-target.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 9,
+          "tag": "v0.28.0",
+          "doc": "docs/usage-trace-inspect.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        }
+      ]
+    }
   },
   "0.29.0": {
     "exclude_newer": "2026-09-26T12:32:30Z",
@@ -1509,7 +3686,92 @@
       "3.11",
       "3.12",
       "3.13"
-    ]
+    ],
+    "profile_examples": {
+      "tried": true,
+      "examples": [
+        {
+          "n": 1,
+          "tag": "v0.29.0",
+          "doc": "docs/design/security-contracts.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 2,
+          "tag": "v0.29.0",
+          "doc": "docs/privacy.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 3,
+          "tag": "v0.29.0",
+          "doc": "docs/profiles.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 4,
+          "tag": "v0.29.0",
+          "doc": "docs/profiles.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 5,
+          "tag": "v0.29.0",
+          "doc": "docs/profiles.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "probe",
+          "stored": null
+        },
+        {
+          "n": 6,
+          "tag": "v0.29.0",
+          "doc": "docs/usage-calibrate.md",
+          "block": 1,
+          "loaded": false,
+          "why": "scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
+        },
+        {
+          "n": 7,
+          "tag": "v0.29.0",
+          "doc": "docs/usage-contracts.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 8,
+          "tag": "v0.29.0",
+          "doc": "docs/usage-target.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 9,
+          "tag": "v0.29.0",
+          "doc": "docs/usage-trace-inspect.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        }
+      ]
+    }
   },
   "0.30.0": {
     "exclude_newer": "2026-09-27T10:38:19Z",
@@ -1565,7 +3827,92 @@
       "3.11",
       "3.12",
       "3.13"
-    ]
+    ],
+    "profile_examples": {
+      "tried": true,
+      "examples": [
+        {
+          "n": 1,
+          "tag": "v0.30.0",
+          "doc": "docs/design/security-contracts.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 2,
+          "tag": "v0.30.0",
+          "doc": "docs/privacy.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 3,
+          "tag": "v0.30.0",
+          "doc": "docs/profiles.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 4,
+          "tag": "v0.30.0",
+          "doc": "docs/profiles.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 5,
+          "tag": "v0.30.0",
+          "doc": "docs/profiles.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "probe",
+          "stored": null
+        },
+        {
+          "n": 6,
+          "tag": "v0.30.0",
+          "doc": "docs/usage-calibrate.md",
+          "block": 1,
+          "loaded": false,
+          "why": "scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
+        },
+        {
+          "n": 7,
+          "tag": "v0.30.0",
+          "doc": "docs/usage-contracts.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 8,
+          "tag": "v0.30.0",
+          "doc": "docs/usage-target.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 9,
+          "tag": "v0.30.0",
+          "doc": "docs/usage-trace-inspect.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        }
+      ]
+    }
   },
   "0.31.0": {
     "exclude_newer": "2026-09-30T04:46:46Z",
@@ -1621,7 +3968,92 @@
       "3.11",
       "3.12",
       "3.13"
-    ]
+    ],
+    "profile_examples": {
+      "tried": true,
+      "examples": [
+        {
+          "n": 1,
+          "tag": "v0.31.0",
+          "doc": "docs/design/security-contracts.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 2,
+          "tag": "v0.31.0",
+          "doc": "docs/privacy.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 3,
+          "tag": "v0.31.0",
+          "doc": "docs/profiles.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 4,
+          "tag": "v0.31.0",
+          "doc": "docs/profiles.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 5,
+          "tag": "v0.31.0",
+          "doc": "docs/profiles.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "probe",
+          "stored": null
+        },
+        {
+          "n": 6,
+          "tag": "v0.31.0",
+          "doc": "docs/usage-calibrate.md",
+          "block": 1,
+          "loaded": false,
+          "why": "scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
+        },
+        {
+          "n": 7,
+          "tag": "v0.31.0",
+          "doc": "docs/usage-contracts.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 8,
+          "tag": "v0.31.0",
+          "doc": "docs/usage-target.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 9,
+          "tag": "v0.31.0",
+          "doc": "docs/usage-trace-inspect.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        }
+      ]
+    }
   },
   "0.32.0": {
     "exclude_newer": "2026-09-30T10:17:13Z",
@@ -1677,7 +4109,101 @@
       "3.11",
       "3.12",
       "3.13"
-    ]
+    ],
+    "profile_examples": {
+      "tried": true,
+      "examples": [
+        {
+          "n": 1,
+          "tag": "v0.32.0",
+          "doc": "docs/design/security-contracts.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 2,
+          "tag": "v0.32.0",
+          "doc": "docs/privacy.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 3,
+          "tag": "v0.32.0",
+          "doc": "docs/profiles.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 4,
+          "tag": "v0.32.0",
+          "doc": "docs/profiles.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": "profile/0.32.0-4.yaml"
+        },
+        {
+          "n": 5,
+          "tag": "v0.32.0",
+          "doc": "docs/profiles.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": "profile/0.32.0-5.yaml"
+        },
+        {
+          "n": 6,
+          "tag": "v0.32.0",
+          "doc": "docs/profiles.md",
+          "block": 4,
+          "loaded": true,
+          "loaded_by": "probe",
+          "stored": null
+        },
+        {
+          "n": 7,
+          "tag": "v0.32.0",
+          "doc": "docs/usage-calibrate.md",
+          "block": 1,
+          "loaded": false,
+          "why": "scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
+        },
+        {
+          "n": 8,
+          "tag": "v0.32.0",
+          "doc": "docs/usage-contracts.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 9,
+          "tag": "v0.32.0",
+          "doc": "docs/usage-target.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 10,
+          "tag": "v0.32.0",
+          "doc": "docs/usage-trace-inspect.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        }
+      ]
+    }
   },
   "0.33.0": {
     "exclude_newer": "2026-09-30T18:55:24Z",
@@ -1733,7 +4259,110 @@
       "3.11",
       "3.12",
       "3.13"
-    ]
+    ],
+    "profile_examples": {
+      "tried": true,
+      "examples": [
+        {
+          "n": 1,
+          "tag": "v0.33.0",
+          "doc": "docs/design/security-contracts.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 2,
+          "tag": "v0.33.0",
+          "doc": "docs/privacy.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 3,
+          "tag": "v0.33.0",
+          "doc": "docs/profiles.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 4,
+          "tag": "v0.33.0",
+          "doc": "docs/profiles.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": "profile/0.33.0-4.yaml"
+        },
+        {
+          "n": 5,
+          "tag": "v0.33.0",
+          "doc": "docs/profiles.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": "profile/0.33.0-5.yaml"
+        },
+        {
+          "n": 6,
+          "tag": "v0.33.0",
+          "doc": "docs/profiles.md",
+          "block": 4,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 7,
+          "tag": "v0.33.0",
+          "doc": "docs/profiles.md",
+          "block": 5,
+          "loaded": true,
+          "loaded_by": "probe",
+          "stored": null
+        },
+        {
+          "n": 8,
+          "tag": "v0.33.0",
+          "doc": "docs/usage-calibrate.md",
+          "block": 1,
+          "loaded": false,
+          "why": "scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
+        },
+        {
+          "n": 9,
+          "tag": "v0.33.0",
+          "doc": "docs/usage-contracts.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 10,
+          "tag": "v0.33.0",
+          "doc": "docs/usage-target.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 11,
+          "tag": "v0.33.0",
+          "doc": "docs/usage-trace-inspect.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        }
+      ]
+    }
   },
   "0.34.0": {
     "exclude_newer": "2026-10-01T18:56:35Z",
@@ -1789,7 +4418,110 @@
       "3.11",
       "3.12",
       "3.13"
-    ]
+    ],
+    "profile_examples": {
+      "tried": true,
+      "examples": [
+        {
+          "n": 1,
+          "tag": "v0.34.0",
+          "doc": "docs/design/security-contracts.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 2,
+          "tag": "v0.34.0",
+          "doc": "docs/privacy.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 3,
+          "tag": "v0.34.0",
+          "doc": "docs/profiles.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 4,
+          "tag": "v0.34.0",
+          "doc": "docs/profiles.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 5,
+          "tag": "v0.34.0",
+          "doc": "docs/profiles.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 6,
+          "tag": "v0.34.0",
+          "doc": "docs/profiles.md",
+          "block": 4,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 7,
+          "tag": "v0.34.0",
+          "doc": "docs/profiles.md",
+          "block": 5,
+          "loaded": true,
+          "loaded_by": "probe",
+          "stored": null
+        },
+        {
+          "n": 8,
+          "tag": "v0.34.0",
+          "doc": "docs/usage-calibrate.md",
+          "block": 1,
+          "loaded": false,
+          "why": "scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
+        },
+        {
+          "n": 9,
+          "tag": "v0.34.0",
+          "doc": "docs/usage-contracts.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 10,
+          "tag": "v0.34.0",
+          "doc": "docs/usage-target.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 11,
+          "tag": "v0.34.0",
+          "doc": "docs/usage-trace-inspect.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        }
+      ]
+    }
   },
   "0.35.0": {
     "exclude_newer": "2026-10-02T06:06:56Z",
@@ -1845,7 +4577,110 @@
       "3.11",
       "3.12",
       "3.13"
-    ]
+    ],
+    "profile_examples": {
+      "tried": true,
+      "examples": [
+        {
+          "n": 1,
+          "tag": "v0.35.0",
+          "doc": "docs/design/security-contracts.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 2,
+          "tag": "v0.35.0",
+          "doc": "docs/privacy.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": "profile/0.35.0-2.yaml"
+        },
+        {
+          "n": 3,
+          "tag": "v0.35.0",
+          "doc": "docs/profiles.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 4,
+          "tag": "v0.35.0",
+          "doc": "docs/profiles.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 5,
+          "tag": "v0.35.0",
+          "doc": "docs/profiles.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 6,
+          "tag": "v0.35.0",
+          "doc": "docs/profiles.md",
+          "block": 4,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 7,
+          "tag": "v0.35.0",
+          "doc": "docs/profiles.md",
+          "block": 5,
+          "loaded": true,
+          "loaded_by": "probe",
+          "stored": null
+        },
+        {
+          "n": 8,
+          "tag": "v0.35.0",
+          "doc": "docs/usage-calibrate.md",
+          "block": 1,
+          "loaded": false,
+          "why": "scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
+        },
+        {
+          "n": 9,
+          "tag": "v0.35.0",
+          "doc": "docs/usage-contracts.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 10,
+          "tag": "v0.35.0",
+          "doc": "docs/usage-target.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 11,
+          "tag": "v0.35.0",
+          "doc": "docs/usage-trace-inspect.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        }
+      ]
+    }
   },
   "0.36.0": {
     "exclude_newer": "2026-10-02T14:32:57Z",
@@ -1901,7 +4736,110 @@
       "3.11",
       "3.12",
       "3.13"
-    ]
+    ],
+    "profile_examples": {
+      "tried": true,
+      "examples": [
+        {
+          "n": 1,
+          "tag": "v0.36.0",
+          "doc": "docs/design/security-contracts.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 2,
+          "tag": "v0.36.0",
+          "doc": "docs/privacy.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 3,
+          "tag": "v0.36.0",
+          "doc": "docs/profiles.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 4,
+          "tag": "v0.36.0",
+          "doc": "docs/profiles.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": "profile/0.36.0-4.yaml"
+        },
+        {
+          "n": 5,
+          "tag": "v0.36.0",
+          "doc": "docs/profiles.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 6,
+          "tag": "v0.36.0",
+          "doc": "docs/profiles.md",
+          "block": 4,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 7,
+          "tag": "v0.36.0",
+          "doc": "docs/profiles.md",
+          "block": 5,
+          "loaded": true,
+          "loaded_by": "probe",
+          "stored": null
+        },
+        {
+          "n": 8,
+          "tag": "v0.36.0",
+          "doc": "docs/usage-calibrate.md",
+          "block": 1,
+          "loaded": false,
+          "why": "scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
+        },
+        {
+          "n": 9,
+          "tag": "v0.36.0",
+          "doc": "docs/usage-contracts.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 10,
+          "tag": "v0.36.0",
+          "doc": "docs/usage-target.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 11,
+          "tag": "v0.36.0",
+          "doc": "docs/usage-trace-inspect.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        }
+      ]
+    }
   },
   "0.37.0": {
     "exclude_newer": "2026-10-03T06:00:49Z",
@@ -1956,7 +4894,110 @@
       "3.11",
       "3.12",
       "3.13"
-    ]
+    ],
+    "profile_examples": {
+      "tried": true,
+      "examples": [
+        {
+          "n": 1,
+          "tag": "v0.37.0",
+          "doc": "docs/design/security-contracts.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 2,
+          "tag": "v0.37.0",
+          "doc": "docs/privacy.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 3,
+          "tag": "v0.37.0",
+          "doc": "docs/profiles.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 4,
+          "tag": "v0.37.0",
+          "doc": "docs/profiles.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 5,
+          "tag": "v0.37.0",
+          "doc": "docs/profiles.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 6,
+          "tag": "v0.37.0",
+          "doc": "docs/profiles.md",
+          "block": 4,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 7,
+          "tag": "v0.37.0",
+          "doc": "docs/profiles.md",
+          "block": 5,
+          "loaded": true,
+          "loaded_by": "probe",
+          "stored": null
+        },
+        {
+          "n": 8,
+          "tag": "v0.37.0",
+          "doc": "docs/usage-calibrate.md",
+          "block": 1,
+          "loaded": false,
+          "why": "scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
+        },
+        {
+          "n": 9,
+          "tag": "v0.37.0",
+          "doc": "docs/usage-contracts.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 10,
+          "tag": "v0.37.0",
+          "doc": "docs/usage-target.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 11,
+          "tag": "v0.37.0",
+          "doc": "docs/usage-trace-inspect.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        }
+      ]
+    }
   },
   "0.38.0": {
     "exclude_newer": "2026-10-03T17:34:03Z",
@@ -2011,7 +5052,110 @@
       "3.11",
       "3.12",
       "3.13"
-    ]
+    ],
+    "profile_examples": {
+      "tried": true,
+      "examples": [
+        {
+          "n": 1,
+          "tag": "v0.38.0",
+          "doc": "docs/design/security-contracts.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 2,
+          "tag": "v0.38.0",
+          "doc": "docs/privacy.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 3,
+          "tag": "v0.38.0",
+          "doc": "docs/profiles.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 4,
+          "tag": "v0.38.0",
+          "doc": "docs/profiles.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": "profile/0.38.0-4.yaml"
+        },
+        {
+          "n": 5,
+          "tag": "v0.38.0",
+          "doc": "docs/profiles.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 6,
+          "tag": "v0.38.0",
+          "doc": "docs/profiles.md",
+          "block": 4,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 7,
+          "tag": "v0.38.0",
+          "doc": "docs/profiles.md",
+          "block": 5,
+          "loaded": true,
+          "loaded_by": "probe",
+          "stored": "profile/0.38.0-7.yaml"
+        },
+        {
+          "n": 8,
+          "tag": "v0.38.0",
+          "doc": "docs/usage-calibrate.md",
+          "block": 1,
+          "loaded": false,
+          "why": "scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
+        },
+        {
+          "n": 9,
+          "tag": "v0.38.0",
+          "doc": "docs/usage-contracts.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 10,
+          "tag": "v0.38.0",
+          "doc": "docs/usage-target.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 11,
+          "tag": "v0.38.0",
+          "doc": "docs/usage-trace-inspect.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        }
+      ]
+    }
   },
   "0.39.0": {
     "exclude_newer": "2026-10-04T07:02:28Z",
@@ -2066,7 +5210,110 @@
       "3.11",
       "3.12",
       "3.13"
-    ]
+    ],
+    "profile_examples": {
+      "tried": true,
+      "examples": [
+        {
+          "n": 1,
+          "tag": "v0.39.0",
+          "doc": "docs/design/security-contracts.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 2,
+          "tag": "v0.39.0",
+          "doc": "docs/privacy.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 3,
+          "tag": "v0.39.0",
+          "doc": "docs/profiles.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 4,
+          "tag": "v0.39.0",
+          "doc": "docs/profiles.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 5,
+          "tag": "v0.39.0",
+          "doc": "docs/profiles.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 6,
+          "tag": "v0.39.0",
+          "doc": "docs/profiles.md",
+          "block": 4,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 7,
+          "tag": "v0.39.0",
+          "doc": "docs/profiles.md",
+          "block": 5,
+          "loaded": true,
+          "loaded_by": "probe",
+          "stored": null
+        },
+        {
+          "n": 8,
+          "tag": "v0.39.0",
+          "doc": "docs/usage-calibrate.md",
+          "block": 1,
+          "loaded": false,
+          "why": "scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
+        },
+        {
+          "n": 9,
+          "tag": "v0.39.0",
+          "doc": "docs/usage-contracts.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 10,
+          "tag": "v0.39.0",
+          "doc": "docs/usage-target.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 11,
+          "tag": "v0.39.0",
+          "doc": "docs/usage-trace-inspect.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        }
+      ]
+    }
   },
   "0.40.0": {
     "exclude_newer": "2026-10-04T12:33:31Z",
@@ -2121,6 +5368,109 @@
       "3.11",
       "3.12",
       "3.13"
-    ]
+    ],
+    "profile_examples": {
+      "tried": true,
+      "examples": [
+        {
+          "n": 1,
+          "tag": "v0.40.0",
+          "doc": "docs/design/security-contracts.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 2,
+          "tag": "v0.40.0",
+          "doc": "docs/privacy.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 3,
+          "tag": "v0.40.0",
+          "doc": "docs/profiles.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 4,
+          "tag": "v0.40.0",
+          "doc": "docs/profiles.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 5,
+          "tag": "v0.40.0",
+          "doc": "docs/profiles.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 6,
+          "tag": "v0.40.0",
+          "doc": "docs/profiles.md",
+          "block": 4,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 7,
+          "tag": "v0.40.0",
+          "doc": "docs/profiles.md",
+          "block": 5,
+          "loaded": true,
+          "loaded_by": "probe",
+          "stored": null
+        },
+        {
+          "n": 8,
+          "tag": "v0.40.0",
+          "doc": "docs/usage-calibrate.md",
+          "block": 1,
+          "loaded": false,
+          "why": "scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
+        },
+        {
+          "n": 9,
+          "tag": "v0.40.0",
+          "doc": "docs/usage-contracts.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 10,
+          "tag": "v0.40.0",
+          "doc": "docs/usage-target.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 11,
+          "tag": "v0.40.0",
+          "doc": "docs/usage-trace-inspect.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        }
+      ]
+    }
   }
 }
