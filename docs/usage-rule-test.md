@@ -258,15 +258,10 @@ classified wrongly carries a label one of the two disagrees with.
 
 ## Built-in coverage, stated plainly
 
-58 rules ship and **58 are fully sampled** today. `guardana rule test 'guardana.*'`
-reports the rest as `indeterminate`, truthfully — that is the command working, not
-the command being unready. A gate pins the number so it can only rise.
-
-Every YAML rule in the default catalog is fully sampled.
-
-Sampling the rest in an afternoon would mean writing fixtures to move a counter,
-and a fixture written for that reason is a test that cannot fail — which this
-project treats as worse than no test at all.
+Every built-in rule ships a finding, a clean and an inconclusive sample of its own, so
+`guardana rule test 'guardana.*'` proves each one; [the rule summary](generated/rule-summary.md)
+states the count from the registry. A gate refuses a built-in rule without all three, unless the
+gate lists it as exempt with the reason it can never decline.
 
 ## Options
 

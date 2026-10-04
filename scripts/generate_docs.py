@@ -121,6 +121,9 @@ def _summary(rules: list[Rule]) -> str:
         for severity in sorted(Severity, reverse=True)
         if by_severity[severity]
     ]
+    ctx = RuleContext(evaluators={type(e).id: e for e in provide_evaluators()})
+    proven = sum(verify_rule(rule, ctx).is_proven for rule in rules)
+    lines.append(f"| Proven by their own finding, clean and inconclusive samples | {proven} |")
     return "\n".join(lines) + "\n"
 
 

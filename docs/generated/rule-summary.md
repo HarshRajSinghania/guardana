@@ -19,3 +19,4 @@ status: stable
 | Severity CRITICAL | 9 |
 | Severity HIGH | 38 |
 | Severity MEDIUM | 11 |
+| Proven by their own finding, clean and inconclusive samples | 58 |
