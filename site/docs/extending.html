@@ -936,7 +936,9 @@ metadata, and external-data checks.</li>
 <li><code>files_target</code> — an <code>ArtifactTarget</code> over a fresh directory holding the
 files it is given by relative path, removed once the target is collected;
 a rule's fixtures build their trees with it. A file the target could not
-read makes a sample <code>inconclusive</code>, as a run reports it as an error.</li>
+read makes a sample <code>inconclusive</code>, as a run reports it as an error.
+<code>source_read_limit=</code> lowers the size past which the target leaves a Python
+file unread, so a sample of that needs a few hundred bytes.</li>
 </ul>
 <p><strong>Fake credentials</strong> are assembled at run time rather than written down, so
 a redaction test does not put a secret-shaped literal in the repository:</p>

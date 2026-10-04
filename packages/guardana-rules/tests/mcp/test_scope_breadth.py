@@ -112,3 +112,15 @@ def test_an_authorization_server_every_address_of_which_was_refused_is_unseen() 
 
 def test_an_authorization_server_publishing_no_metadata_advertises_no_scopes() -> None:
     assert findings(RULE, guarded(authorization_metadata=None), credential=CREDENTIAL) == []
+
+
+@pytest.mark.parametrize("status", [429, 500, 503])
+def test_an_authorization_server_failing_at_its_metadata_addresses_is_unseen(status: int) -> None:
+    reported = findings(RULE, guarded(authorization_metadata_status=status), credential=CREDENTIAL)
+
+    assert outcomes(reported) == ["inconclusive"]
+    assert f"HTTP {status}" in summaries(reported)[0]
+
+
+def test_an_authorization_server_answering_410_advertises_no_scopes() -> None:
+    assert findings(RULE, guarded(authorization_metadata_status=410), credential=CREDENTIAL) == []

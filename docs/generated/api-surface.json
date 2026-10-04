@@ -8555,6 +8555,18 @@
               "name": "authorization_metadata"
             },
             {
+              "annotation": "int | None",
+              "has_default": true,
+              "kind": "keyword_only",
+              "name": "resource_metadata_status"
+            },
+            {
+              "annotation": "int | None",
+              "has_default": true,
+              "kind": "keyword_only",
+              "name": "authorization_metadata_status"
+            },
+            {
               "annotation": "Sequence[str] | None",
               "has_default": true,
               "kind": "keyword_only",
@@ -9054,6 +9066,12 @@
           "has_default": false,
           "kind": "positional_or_keyword",
           "name": "files"
+        },
+        {
+          "annotation": "int | None",
+          "has_default": true,
+          "kind": "keyword_only",
+          "name": "source_read_limit"
         }
       ],
       "returns": "ArtifactTarget"

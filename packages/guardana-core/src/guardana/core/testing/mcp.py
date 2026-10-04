@@ -73,6 +73,9 @@ class ScriptedMcpServer:
 
     `resource_metadata_body` is served as given in place of `resource_metadata`, for a
     document that came back but is not JSON, or not a JSON object.
+    `resource_metadata_status` and `authorization_metadata_status` answer that document's
+    addresses with the status and an empty body instead, for a server that is unavailable,
+    rate-limited or refusing there.
     """
 
     def __init__(  # noqa: PLR0913 — one keyword per behaviour a real server varies in
@@ -88,6 +91,8 @@ class ScriptedMcpServer:
         resource_metadata: Mapping[str, Any] | None = None,
         resource_metadata_body: bytes | None = None,
         authorization_metadata: Mapping[str, Any] | None = None,
+        resource_metadata_status: int | None = None,
+        authorization_metadata_status: int | None = None,
         protocol_versions: Sequence[str] | None = None,
         cache_scope: str | None = None,
         ttl_ms: int | None = None,
@@ -108,6 +113,8 @@ class ScriptedMcpServer:
         self.resource_metadata = resource_metadata
         self.resource_metadata_body = resource_metadata_body
         self.authorization_metadata = authorization_metadata
+        self.resource_metadata_status = resource_metadata_status
+        self.authorization_metadata_status = authorization_metadata_status
         self.protocol_versions = list(protocol_versions) if protocol_versions is not None else None
         self.cache_scope = cache_scope
         self.ttl_ms = ttl_ms
@@ -263,18 +270,21 @@ class ScriptedMcpServer:
 
     def _metadata(self, url: str) -> RawReply:
         path = urlsplit(url).path
-        if path.startswith(_RESOURCE_METADATA_PATH) and self.resource_metadata_body is not None:
+        resource = path.startswith(_RESOURCE_METADATA_PATH)
+        authorization = any(path.startswith(prefix) for prefix in _AUTHORIZATION_METADATA_PATHS)
+        if resource and self.resource_metadata_status is not None:
+            return RawReply(status=self.resource_metadata_status, headers={}, body=b"")
+        if authorization and self.authorization_metadata_status is not None:
+            return RawReply(status=self.authorization_metadata_status, headers={}, body=b"")
+        if resource and self.resource_metadata_body is not None:
             return RawReply(
                 status=200,
                 headers={"Content-Type": "application/json"},
                 body=self.resource_metadata_body,
             )
-        if path.startswith(_RESOURCE_METADATA_PATH) and self.resource_metadata is not None:
+        if resource and self.resource_metadata is not None:
             return _document(self.resource_metadata)
-        if (
-            any(path.startswith(prefix) for prefix in _AUTHORIZATION_METADATA_PATHS)
-            and self.authorization_metadata is not None
-        ):
+        if authorization and self.authorization_metadata is not None:
             return _document(self.authorization_metadata)
         return _reply(404, {})
 

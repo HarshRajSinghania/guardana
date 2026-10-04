@@ -94,14 +94,10 @@ class RemoteCodeRule(ArtifactRule):
                     FixtureOutcome.CLEAN,
                     {"load.py": _LOAD.format("")},
                 ),
-                _samples.sample(
+                _samples.past_the_source_limit(
                     "a loader padded past the read limit, so nobody read it",
-                    FixtureOutcome.INCONCLUSIVE,
-                    {
-                        "load.py": _samples.past_the_source_limit(
-                            _LOAD.format(", trust_remote_code=True")
-                        )
-                    },
+                    "load.py",
+                    _LOAD.format(", trust_remote_code=True"),
                 ),
             )
         )

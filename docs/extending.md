@@ -623,6 +623,8 @@ against a crafted artifact with no binary checked into the repo:
   files it is given by relative path, removed once the target is collected;
   a rule's fixtures build their trees with it. A file the target could not
   read makes a sample `inconclusive`, as a run reports it as an error.
+  `source_read_limit=` lowers the size past which the target leaves a Python
+  file unread, so a sample of that needs a few hundred bytes.
 
 **Fake credentials** are assembled at run time rather than written down, so
 a redaction test does not put a secret-shaped literal in the repository:

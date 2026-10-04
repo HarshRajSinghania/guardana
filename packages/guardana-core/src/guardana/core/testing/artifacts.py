@@ -65,11 +65,15 @@ def build_gguf(
     return header + body
 
 
-def files_target(files: Mapping[str, bytes | str]) -> ArtifactTarget:
+def files_target(
+    files: Mapping[str, bytes | str], *, source_read_limit: int | None = None
+) -> ArtifactTarget:
     """Return an `ArtifactTarget` over a fresh directory holding `files`, keyed by relative path.
 
     The directory is removed when the target is garbage-collected, so a rule's fixtures can
     build their own tree each time they are materialised. A `str` is written as UTF-8.
+    `source_read_limit` replaces the target's default bound on a Python file it reads, so a
+    sample past it needs only a few bytes; None keeps the default a scan uses.
     """
     root = Path(tempfile.mkdtemp(prefix="guardana-fixture-"))
     try:
@@ -80,7 +84,11 @@ def files_target(files: Mapping[str, bytes | str]) -> ArtifactTarget:
     except Exception:
         shutil.rmtree(root, ignore_errors=True)
         raise
-    target = ArtifactTarget(root)
+    target = (
+        ArtifactTarget(root)
+        if source_read_limit is None
+        else ArtifactTarget(root, source_read_limit=source_read_limit)
+    )
     weakref.finalize(target, shutil.rmtree, root, ignore_errors=True)
     return target
 

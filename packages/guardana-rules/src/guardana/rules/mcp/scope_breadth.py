@@ -62,7 +62,7 @@ class McpScopeBreadthRule(McpAuthorizationRule):
         return 10
 
     def fixtures(self) -> Iterable[RuleFixture]:
-        """Sample a wildcard scope, narrow scopes, and a server publishing no scopes to read."""
+        """Sample a wildcard scope, narrow scopes, and two servers whose scopes went unread."""
         wildcard = {**_samples.RESOURCE_METADATA, "scopes_supported": ["*"]}
         return materialise(
             (
@@ -88,6 +88,14 @@ class McpScopeBreadthRule(McpAuthorizationRule):
                         _samples.protected_server(
                             resource_metadata=None, authorization_metadata=None
                         ),
+                        credential=_samples.CREDENTIAL,
+                    ),
+                ),
+                _samples.sample(
+                    "an authorization server answering 503 at its metadata addresses",
+                    FixtureOutcome.INCONCLUSIVE,
+                    lambda: _samples.target(
+                        _samples.protected_server(authorization_metadata_status=503),
                         credential=_samples.CREDENTIAL,
                     ),
                 ),
@@ -156,8 +164,9 @@ def _unseen_authorization_server(view: McpAuthorizationView) -> str | None:
     """Say why the authorization server's metadata went unread, or None when nothing is unseen.
 
     An authorization server that publishes no metadata advertises no scopes, so a
-    `404` leaves nothing unseen. No document beside a named issuer means every
-    address for it was refused as unsafe to fetch.
+    `404` or `410` leaves nothing unseen; any other error status leaves the document
+    unread. No document beside a named issuer means every address for it was refused
+    as unsafe to fetch.
     """
     document = view.authorization_server
     if document is not None:

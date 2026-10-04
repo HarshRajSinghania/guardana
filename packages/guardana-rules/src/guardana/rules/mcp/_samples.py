@@ -4,6 +4,7 @@ Built fresh for each run, so no sample sees what another one learned.
 """
 
 from collections.abc import Callable, Mapping
+from types import MappingProxyType
 
 from guardana.core.rule.fixture import DeclaredFixture, FixtureOutcome
 from guardana.core.target import McpServerTarget, RegistryEntry, Target
@@ -31,21 +32,29 @@ UNSPOKEN_REVISION = "2031-01-01"
 """A revision guardana does not speak, so nothing a server offering only it says is read."""
 
 CREDENTIAL = "sample-operator-token"
-TOOLS = ({"name": "lookup", "description": "Look a record up by its key."},)
+TOOLS: tuple[Mapping[str, object], ...] = (
+    MappingProxyType({"name": "lookup", "description": "Look a record up by its key."}),
+)
 REGISTRY_NAME = "io.invalid.samples/lookup"
 REPORTED_RELEASE = "1.4.0"
 
-RESOURCE_METADATA: Mapping[str, object] = {
-    "resource": ISSUER,
-    "authorization_servers": [ISSUER],
-    "scopes_supported": ["records:read", "records:write"],
-}
-AUTHORIZATION_METADATA: Mapping[str, object] = {
-    "issuer": ISSUER,
-    "code_challenge_methods_supported": ["S256"],
-    "scopes_supported": ["records:read"],
-    "authorization_response_iss_parameter_supported": True,
-}
+# Read-only because every sample server is handed these same objects: a sample that
+# changed one in place would change what every later sample is served.
+RESOURCE_METADATA: Mapping[str, object] = MappingProxyType(
+    {
+        "resource": ISSUER,
+        "authorization_servers": (ISSUER,),
+        "scopes_supported": ("records:read", "records:write"),
+    }
+)
+AUTHORIZATION_METADATA: Mapping[str, object] = MappingProxyType(
+    {
+        "issuer": ISSUER,
+        "code_challenge_methods_supported": ("S256",),
+        "scopes_supported": ("records:read",),
+        "authorization_response_iss_parameter_supported": True,
+    }
+)
 CHALLENGE = (
     f'Bearer resource_metadata="{ISSUER}/.well-known/oauth-protected-resource", '
     f'scope="records:read"'
@@ -121,4 +130,13 @@ def _server(url: str, behaviour: Mapping[str, object]) -> ScriptedMcpServer:
         "server_info": {"name": "lookup", "version": REPORTED_RELEASE},
         **behaviour,
     }
-    return ScriptedMcpServer(url, **settings)  # type: ignore[arg-type]
+    return ScriptedMcpServer(url, **{k: _thawed(v) for k, v in settings.items()})  # type: ignore[arg-type]
+
+
+def _thawed(value: object) -> object:
+    """Copy a read-only sample document into the plain JSON values a server serialises."""
+    if isinstance(value, Mapping):
+        return {key: _thawed(item) for key, item in value.items()}
+    if isinstance(value, tuple):
+        return [_thawed(item) for item in value]
+    return value

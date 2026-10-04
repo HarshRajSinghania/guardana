@@ -11,9 +11,16 @@ import zipfile
 from collections.abc import Mapping
 
 from guardana.core.rule.fixture import DeclaredFixture, FixtureOutcome
-from guardana.core.source import MAX_SOURCE_BYTES
 from guardana.core.testing import files_target
 from guardana.rules.supply_chain._reading import MAX_SCAN_BYTES
+
+SOURCE_READ_LIMIT = 256
+"""The Python read limit a sample's target is given, so a file past it is a few hundred bytes."""
+
+DECLINED_BY_THE_TARGET = (
+    "the decline is the target's: a file the scan could not read is an error the run "
+    "records, and the rule reads Python only through the target"
+)
 
 
 def sample(
@@ -23,9 +30,19 @@ def sample(
     return DeclaredFixture(name, outcome, lambda: files_target(files), note)
 
 
-def past_the_source_limit(tail: str) -> bytes:
-    """Return Python source longer than the target's read limit, with `tail` past it."""
-    return b"#" * MAX_SOURCE_BYTES + b"\n" + tail.encode()
+def past_the_source_limit(name: str, path: str, tail: str) -> DeclaredFixture:
+    """Declare an inconclusive sample whose `path` runs past the target's read limit.
+
+    `tail` lies beyond the limit, so the target leaves the file unread and the run
+    records it as an error; the rule itself never sees it.
+    """
+    padded = b"#" * SOURCE_READ_LIMIT + b"\n" + tail.encode()
+    return DeclaredFixture(
+        name,
+        FixtureOutcome.INCONCLUSIVE,
+        lambda: files_target({path: padded}, source_read_limit=SOURCE_READ_LIMIT),
+        DECLINED_BY_THE_TARGET,
+    )
 
 
 def past_the_scan_bound(tail: str, *, bound: int = MAX_SCAN_BYTES) -> bytes:

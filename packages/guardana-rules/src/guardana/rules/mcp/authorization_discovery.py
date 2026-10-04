@@ -19,6 +19,7 @@ from guardana.rules.mcp import _samples
 from guardana.rules.mcp._base import McpAuthorizationRule
 
 _PKCE_METHOD = "S256"
+_HTTP_ERROR = 400
 
 
 class McpAuthorizationDiscoveryRule(McpAuthorizationRule):
@@ -40,6 +41,9 @@ class McpAuthorizationDiscoveryRule(McpAuthorizationRule):
       its well-known address was built from (RFC 8414 §2 and §3.3): a client must not
       use a document that names no issuer or another one. Compared as strings, with no
       normalization, as the RFC compares them.
+
+    Only a `404` or `410` reads as a document not published. A metadata address that
+    answered any other error status said nothing about the document, so the rule declines.
 
     It says nothing about a server that answered an anonymous caller: there is no
     protected resource there, and `guardana.mcp.unauthenticated_access` is the rule
@@ -65,7 +69,7 @@ class McpAuthorizationDiscoveryRule(McpAuthorizationRule):
         return 10
 
     def fixtures(self) -> Iterable[RuleFixture]:
-        """Sample an unpublished surface, a conforming one, and an issuer too unsafe to fetch."""
+        """Sample an unpublished surface, a conforming one, an unsafe issuer and an unread one."""
         unsafe_issuer = {
             **_samples.RESOURCE_METADATA,
             "authorization_servers": [_samples.UNSAFE_ADDRESS],
@@ -92,6 +96,14 @@ class McpAuthorizationDiscoveryRule(McpAuthorizationRule):
                     FixtureOutcome.INCONCLUSIVE,
                     lambda: _samples.target(
                         _samples.protected_server(resource_metadata=unsafe_issuer),
+                        credential=_samples.CREDENTIAL,
+                    ),
+                ),
+                _samples.sample(
+                    "protected resource metadata answering 503",
+                    FixtureOutcome.INCONCLUSIVE,
+                    lambda: _samples.target(
+                        _samples.protected_server(resource_metadata_status=503),
                         credential=_samples.CREDENTIAL,
                     ),
                 ),
@@ -240,6 +252,11 @@ class McpAuthorizationDiscoveryRule(McpAuthorizationRule):
     def _unreadable(
         self, view: McpAuthorizationView, document: Document, what: str
     ) -> Iterator[Finding]:
+        """Report a document served but unusable, or absent; decline on one never answered.
+
+        Only a `404` or `410` says the document does not exist. A server that answered
+        an error status of any other kind said nothing about it, so the rule declines.
+        """
         if document.refused is not None:
             yield self.unverified(
                 view,
@@ -248,14 +265,15 @@ class McpAuthorizationDiscoveryRule(McpAuthorizationRule):
             )
             return
         address = display_url(document.url)
-        if document.status is not None and document.error is not None:
+        served = document.status is not None and document.status < _HTTP_ERROR
+        if served and document.error is not None:
             yield self.finding(
                 view,
                 f"the {what} at {address} answered HTTP {document.status} but "
                 f"{document.error}, so a client cannot read how to authenticate here",
             )
             return
-        if document.status is not None:
+        if document.status is not None and document.error is None:
             yield self.finding(
                 view,
                 f"the {what} is not published: {address} answered HTTP {document.status}, "

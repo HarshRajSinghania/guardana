@@ -8,7 +8,7 @@ from guardana.core.rule import RuleContext, RuleMeta
 from guardana.core.rule.fixture import DeclaredFixture, FixtureOutcome, RuleFixture, materialise
 from guardana.core.safety import Detection
 from guardana.core.severity import Severity
-from guardana.core.source import MAX_SOURCE_BYTES, PythonSource
+from guardana.core.source import PythonSource
 from guardana.core.target import Capability, FileReader, Target, TargetKind
 from guardana.core.taxonomy import (
     NIST_POISONING,
@@ -18,6 +18,7 @@ from guardana.core.taxonomy import (
 )
 from guardana.core.testing import files_target
 from guardana.rules._base import ArtifactRule
+from guardana.rules.supply_chain import _samples
 from guardana.rules.supply_chain._ast_names import import_aliases
 from guardana.rules.supply_chain._leads import lead_verdict
 
@@ -181,7 +182,6 @@ class DatasetIntegrityRule(ArtifactRule):
             "from datasets import load_dataset\n\n"
             "rows = load_dataset('imdb', revision='e6281661ce1c48d982bc483cf8a173c1bbeb5d31')\n"
         )
-        padded = unpinned + "#" * MAX_SOURCE_BYTES + "\n"
         return materialise(
             (
                 DeclaredFixture(
@@ -194,10 +194,8 @@ class DatasetIntegrityRule(ArtifactRule):
                     FixtureOutcome.CLEAN,
                     lambda: files_target({"train.py": pinned}),
                 ),
-                DeclaredFixture(
-                    "a training script padded past the source read limit",
-                    FixtureOutcome.INCONCLUSIVE,
-                    lambda: files_target({"train.py": padded}),
+                _samples.past_the_source_limit(
+                    "a training script padded past the source read limit", "train.py", unpinned
                 ),
             )
         )

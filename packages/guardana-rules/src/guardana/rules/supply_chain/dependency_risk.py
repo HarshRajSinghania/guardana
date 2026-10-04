@@ -143,10 +143,10 @@ class DependencyRiskRule(ArtifactRule):
                     FixtureOutcome.CLEAN,
                     {"load.py": _LOAD.format(", weights_only=True")},
                 ),
-                _samples.sample(
+                _samples.past_the_source_limit(
                     "a loader padded past the read limit, so nobody read it",
-                    FixtureOutcome.INCONCLUSIVE,
-                    {"load.py": _samples.past_the_source_limit(_LOAD.format(""))},
+                    "load.py",
+                    _LOAD.format(""),
                 ),
             )
         )

@@ -141,3 +141,25 @@ def test_a_document_served_but_unreadable_is_reported_as_what_came_back() -> Non
     assert outcomes(reported) == [None]
     assert "not published" not in summaries(reported)[0]
     assert "answered HTTP 200 but the reply is not a JSON object" in summaries(reported)[0]
+
+
+@pytest.mark.parametrize(
+    "unavailable", ["resource_metadata_status", "authorization_metadata_status"]
+)
+def test_a_metadata_document_answering_503_is_unread_rather_than_unpublished(
+    unavailable: str,
+) -> None:
+    server = guarded(**{unavailable: 503})
+
+    reported = findings(RULE, server, credential=CREDENTIAL)
+
+    assert outcomes(reported) == ["inconclusive"]
+    assert "not published" not in summaries(reported)[0]
+    assert "HTTP 503" in summaries(reported)[0]
+
+
+def test_a_metadata_document_answering_410_is_not_published() -> None:
+    reported = findings(RULE, guarded(resource_metadata_status=410), credential=CREDENTIAL)
+
+    assert outcomes(reported) == [None]
+    assert "is not published" in summaries(reported)[0]

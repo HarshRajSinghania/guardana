@@ -108,10 +108,10 @@ class InsecureTransportRule(ArtifactRule):
                     FixtureOutcome.CLEAN,
                     {"fetch.py": _FETCH.format(", timeout=30")},
                 ),
-                _samples.sample(
+                _samples.past_the_source_limit(
                     "a TLS-off fetch padded past the read limit, so nobody read it",
-                    FixtureOutcome.INCONCLUSIVE,
-                    {"fetch.py": _samples.past_the_source_limit(_FETCH.format(", verify=False"))},
+                    "fetch.py",
+                    _FETCH.format(", verify=False"),
                 ),
             )
         )

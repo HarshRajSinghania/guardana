@@ -108,3 +108,19 @@ def test_files_target_removes_its_directory_once_the_target_is_gone() -> None:
     gc.collect()
 
     assert not root.exists()
+
+
+def test_files_target_reads_only_up_to_the_limit_it_was_given() -> None:
+    target = files_target({"big.py": "x = 1\n" * 20, "a.py": "eval(1)\n"}, source_read_limit=16)
+    rule = _EvalRule([RuleFixture("one read, one not", target, FixtureOutcome.FINDING)])
+
+    assert verify_rule(rule).results[0].verdict is FixtureVerdict.PASSED
+    assert [unread.path.name for unread in target.unread_sources()] == ["big.py"]
+
+
+def test_files_target_reads_up_to_the_target_default_unless_told_otherwise() -> None:
+    target = files_target({"big.py": "x = 1\n" * 20})
+    rule = _EvalRule([RuleFixture("read in full", target, FixtureOutcome.CLEAN)])
+
+    assert verify_rule(rule).results[0].verdict is FixtureVerdict.PASSED
+    assert target.unread_sources() == ()

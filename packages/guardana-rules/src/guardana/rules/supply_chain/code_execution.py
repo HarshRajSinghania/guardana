@@ -50,10 +50,10 @@ class CodeExecutionRule(ArtifactRule):
                     FixtureOutcome.CLEAN,
                     {"run.py": "import subprocess\n\nsubprocess.run(['ls', '-l'], check=True)\n"},
                 ),
-                _samples.sample(
+                _samples.past_the_source_limit(
                     "a shell sink padded past the read limit, so nobody read it",
-                    FixtureOutcome.INCONCLUSIVE,
-                    {"run.py": _samples.past_the_source_limit("import os\nos.system('id')\n")},
+                    "run.py",
+                    "import os\nos.system('id')\n",
                 ),
             )
         )

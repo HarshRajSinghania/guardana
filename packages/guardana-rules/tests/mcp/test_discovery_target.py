@@ -123,3 +123,15 @@ def test_an_unreadable_advertised_document_is_not_buried_by_404s_at_the_well_kno
 
     assert outcomes(reported) == ["inconclusive"]
     assert "metadata/resource could not be read" in summaries(reported)[0]
+
+
+@pytest.mark.parametrize("status", [401, 403, 429, 500, 503])
+def test_a_resource_document_answering_an_error_hides_the_next_address(status: int) -> None:
+    reported = findings(RULE, guarded(resource_metadata_status=status), credential=CREDENTIAL)
+
+    assert outcomes(reported) == ["inconclusive"]
+    assert f"HTTP {status}" in summaries(reported)[0]
+
+
+def test_a_resource_document_that_is_gone_directs_a_client_nowhere() -> None:
+    assert findings(RULE, guarded(resource_metadata_status=410), credential=CREDENTIAL) == []

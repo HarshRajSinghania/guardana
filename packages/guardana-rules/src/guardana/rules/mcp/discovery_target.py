@@ -36,9 +36,10 @@ class McpDiscoveryTargetRule(McpAuthorizationRule):
     normal setup, and reporting it would make this rule noise on the first machine
     anybody tries it on.
 
-    A protected resource document that came back but could not be read hides the
-    authorization server it names, so the rule declines there. One that was never
-    published names nothing, and leaves nothing unseen.
+    A protected resource document that came back but could not be read, or whose
+    address answered an error other than `404` or `410`, hides the authorization server
+    it names, so the rule declines there. One that was never published names nothing,
+    and leaves nothing unseen.
     """
 
     meta = RuleMeta(
@@ -60,7 +61,7 @@ class McpDiscoveryTargetRule(McpAuthorizationRule):
         return 10
 
     def fixtures(self) -> Iterable[RuleFixture]:
-        """Sample a challenge naming cloud metadata, a conforming chain, and two left unread."""
+        """Sample a challenge naming cloud metadata, a conforming chain, and three left unread."""
         return materialise(
             (
                 _samples.sample(
@@ -93,6 +94,14 @@ class McpDiscoveryTargetRule(McpAuthorizationRule):
                     FixtureOutcome.INCONCLUSIVE,
                     lambda: _samples.target(
                         _samples.protected_server(resource_metadata_body=b"<html>sign in</html>"),
+                        credential=_samples.CREDENTIAL,
+                    ),
+                ),
+                _samples.sample(
+                    "protected resource metadata answering 503",
+                    FixtureOutcome.INCONCLUSIVE,
+                    lambda: _samples.target(
+                        _samples.protected_server(resource_metadata_status=503),
                         credential=_samples.CREDENTIAL,
                     ),
                 ),

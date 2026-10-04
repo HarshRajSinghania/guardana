@@ -118,10 +118,10 @@ class HallucinatedPackageRule(ArtifactRule):
                         "requirements.txt": "acme-tokenizers==1.0\n",
                     },
                 ),
-                _samples.sample(
+                _samples.past_the_source_limit(
                     "an unknown import padded past the read limit, so nobody read it",
-                    FixtureOutcome.INCONCLUSIVE,
-                    {"app.py": _samples.past_the_source_limit("import tokenizerz_fast_utils\n")},
+                    "app.py",
+                    "import tokenizerz_fast_utils\n",
                 ),
             )
         )

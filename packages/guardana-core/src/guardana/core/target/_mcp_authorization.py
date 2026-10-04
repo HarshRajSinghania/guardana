@@ -60,6 +60,8 @@ _CLIENT = {"name": "guardana", "version": "0"}
 _CHALLENGE_PARAM = re.compile(r'(\w+)\s*=\s*"([^"]*)"')
 _SESSION_SAMPLES = 3
 _HTTP_ERROR = 400
+_ABSENT = frozenset({404, 410})
+"""The statuses that say a metadata document does not exist; any other error leaves it unread."""
 _SUCCESS = range(200, 300)
 _NOT_THE_ERA = frozenset({400, 404, 405})
 """Statuses a server gives a handshake it does not implement, when no JSON-RPC error says more."""
@@ -159,6 +161,11 @@ class Document:
     scheme a client may not open — and it is a finding in its own right. Error
     means Guardana went and could not read what came back, which is a gap in the
     evidence rather than a statement about the server's intent.
+
+    A `status` with no `error` and no `content` is a `404` or `410`: the document
+    does not exist. Any other error status is an `error` carrying that status, since
+    a server that is unavailable, rate-limited or refusing has said nothing about
+    whether the document exists.
     """
 
     url: str
@@ -967,7 +974,7 @@ class _Probe:
         except McpError as exc:
             return Document(url=url, error=str(exc))
         if reply.status >= _HTTP_ERROR:
-            return Document(url=url, status=reply.status)
+            return _error_document(url, reply.status)
         content = reply.json_object()
         if content is None:
             return Document(url=url, status=reply.status, error="the reply is not a JSON object")
@@ -986,8 +993,8 @@ class _Probe:
         purpose, whatever else it also serves.
 
         With no readable answer, the first document that came back unreadable outranks
-        any status: a document that exists and could not be read is a gap in the
-        evidence, and a later `404` must not turn it into "not published".
+        any absence: a document that could not be read is a gap in the evidence, and a
+        later `404` must not turn it into "not published".
         """
         attempts: list[Document] = []
         refused: list[Document] = []
@@ -1014,6 +1021,13 @@ class _Probe:
     def _session_id_of(self, reply: RawReply) -> str | None:
         """Read the session id a reply issued, or None when it issued none."""
         return reply.header("Mcp-Session-Id")
+
+
+def _error_document(url: str, status: int) -> Document:
+    """Read an error status as a document that does not exist, or as one left unread."""
+    if status in _ABSENT:
+        return Document(url=url, status=status)
+    return Document(url=url, status=status, error=f"it answered HTTP {status}")
 
 
 def _refused_because(exc: RedirectRefusedError | AddressRefusedError) -> str:
