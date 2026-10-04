@@ -421,13 +421,54 @@ def test_a_reporter_whose_redaction_fails_sends_nothing_and_exits_5(
 
     assert result.exit_code == ExitCode.INTERNAL_ERROR, result.output
     assert _lines(result.output)[-3:] == [
-        f"delivery: not_sent — {_TO}: redaction failed: RuntimeError",
         "the run's verdict: pass (exit 0)",
         "error: the run could not be redacted for the reporter acme-webhook: RuntimeError — "
         "nothing was sent; this is a defect in Guardana",
+        f"delivery: not_sent — {_TO}: redaction failed: RuntimeError",
     ]
     assert len(_delivery_lines(result.output)) == 1
     assert _seen(hook) == []
+
+
+@pytest.mark.parametrize(
+    ("arguments", "said"),
+    [
+        (["--reporter", _HOOK], "redaction failed: RuntimeError"),
+        (["--format", "acme-table"], "the run's report was not produced"),
+    ],
+    ids=["reporter", "format"],
+)
+@pytest.mark.parametrize("debug", [True, False], ids=["debug", "quiet"])
+def test_a_failed_redaction_prints_its_traceback_only_with_guardana_debug(  # noqa: PLR0913 — the matrix
+    site: FakeSite,
+    clean_tree: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    arguments: list[str],
+    said: str,
+    *,
+    debug: bool,
+) -> None:
+    _both(site, rendered="'a,b'", deliver="return Delivery(DeliveryStatus.DELIVERED)")
+    _failing_boundary(monkeypatch)
+    if debug:
+        monkeypatch.setenv("GUARDANA_DEBUG", "1")
+    else:
+        monkeypatch.delenv("GUARDANA_DEBUG", raising=False)
+    if "--format" in arguments:
+        arguments = [*arguments, "--reporter", _HOOK]
+
+    result = runner.invoke(app, ["scan", str(clean_tree), *arguments, *_ADMIT])
+
+    assert result.exit_code == ExitCode.INTERNAL_ERROR, result.output
+    lines = _lines(result.output)
+    assert lines[-3].startswith("the run's verdict: pass (exit 0)")
+    assert lines[-2].startswith("error: the run could not be redacted for the ")
+    assert lines[-1] == f"delivery: not_sent — {_TO}: {said}"
+    printed = "Traceback (most recent call last):" in lines
+    assert printed is debug
+    assert ("RuntimeError: cannot redact" in lines) is debug
+    if debug:
+        assert lines.index("Traceback (most recent call last):") < len(lines) - 3
 
 
 @pytest.mark.parametrize(

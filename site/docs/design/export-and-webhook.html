@@ -489,7 +489,7 @@ verifier returned; <code>analyze-trace</code> builds <code>Verification(result=r
 <tr>
 <td><code>manifest</code></td>
 <td>as saved</td>
-<td>as saved with every text field redacted again by span (<code>redact_spans</code> over each <code>str</code> of the dataclass tree; enums, times, numbers and digests unchanged), then <code>target.ref</code> redacted by the <code>redacted</code>-mode redactor <code>HttpReporter</code> uses for its source</td>
+<td>as saved through the redactor's own span walk, <code>EvidenceRedactor.redact_spans_in</code>: every <code>str</code> of the dataclass tree, its tuples, lists, sets, frozensets and mapping values redacted by span, with the identifier fields <code>redact</code> exempts kept (rule and evaluator ids, assessors, <code>TaxonomyRef</code>), mapping keys kept, and enums, times, numbers and paths unchanged; any other type raises <code>TypeError</code>, so the walk fails closed. Then <code>target.ref</code> is redacted by the <code>redacted</code>-mode redactor <code>HttpReporter</code> uses for its source</td>
 </tr>
 <tr>
 <td><code>stop_messages</code>, <code>judge_stops</code></td>
@@ -509,16 +509,19 @@ verifier returned; <code>analyze-trace</code> builds <code>Verification(result=r
 </tbody>
 </table></div>
 <p>So no output sees more than the saved run holds. A reporter receives the saved run's manifest
-with every text field redacted again, <code>target.ref</code> at <code>redacted</code> mode, and no kept exchange. No
+through the redactor's own span walk, with identifier fields exempt and a value of a type the
+walk does not know refused rather than passed on, <code>target.ref</code> at <code>redacted</code> mode, and no kept
+exchange. No
 argument asks for an unredacted result. If <code>outbound</code> raises, the output is not called
 (decisions 4 and 5).</p>
 <p>A test plants one fake credential in every channel of <code>result</code>, in a stop message and in a kept
 exchange, and asserts that no built-in renderer, collector reporter, recording discovered
 renderer or recording discovered reporter sees it; a credential planted in <code>manifest.target.ref</code>
 reaches a format as saved, as the JSON report writes it, and reaches no reporter. A second test
-plants a credential in every text field of a manifest, found by the same walk the boundary
-uses, and asserts that none reaches a reporter while every enum, time and digest arrives
-unchanged.</p>
+plants a credential in every <code>str</code> of a manifest through a walk of its own that raises on any
+type it does not know, so a new container in the manifest fails the test, and asserts by <code>repr</code>
+and by a walk over every iterable that none reaches a reporter outside the exempt identifier
+fields.</p>
 <p><code>guardana.core.verify.load_verification(path) -&gt; Verification</code> reads a saved run of any schema
 through <code>load_report</code>, sets <code>gate</code> from <code>manifest.result_summary.gate</code>, and leaves <code>exchanges</code>
 <code>None</code>. A run that records no gate raises <code>ReportLoadError(&quot;&lt;path&gt; records no gate, so its verdict cannot be read&quot;)</code>; a migrated schema-1 run is one. This is how a run is exported after the
@@ -589,7 +592,8 @@ class Delivery:
 <p><code>deliver(prepared, verification) -&gt; Delivery</code> (<code>core/output.py</code>):</p>
 <ol>
 <li>Applies <code>outbound(..., leaves_machine=True)</code>. A failure raises <code>BoundaryError</code> and the
-reporter is not called; the CLI prints <code>delivery: not_sent — &lt;name&gt; to &lt;destination&gt;: redaction failed: &lt;type&gt;</code>, the verdict line, then <code>error: the run could not be redacted for the reporter &lt;name&gt;: &lt;type&gt; — nothing was sent; this is a defect in Guardana</code>, and exits <code>5</code>
+reporter is not called; the CLI prints the verdict line, then <code>error: the run could not be redacted for the reporter &lt;name&gt;: &lt;type&gt; — nothing was sent; this is a defect in Guardana</code>,
+then <code>delivery: not_sent — &lt;name&gt; to &lt;destination&gt;: redaction failed: &lt;type&gt;</code>, and exits <code>5</code>
 under the precedence of decision 4.</li>
 <li>Calls <code>deliverer.deliver</code> in a daemon thread and waits at most <code>DELIVERY_DEADLINE_SECONDS = 30</code>. Past it: <code>UNKNOWN</code>, detail <code>did not finish within 30 s</code>. A <code>KeyboardInterrupt</code> in the
 waiting thread propagates, so an interrupted run still exits <code>7</code>.</li>
@@ -626,7 +630,10 @@ code: the receiver's state is not the run's, and that is the collector's rule fo
 rejection. <code>unknown</code> is a defect in the reporter, as a bad URL or a serialization error is a
 defect the collector path lets end the command: it ends with exit <code>8</code> under the precedence of
 decision 4, and the verdict line is printed whenever <code>8</code> replaces the verdict's code. A failure
-of Guardana's own redaction is not the reporter's defect: it exits <code>5</code> (step 1). A Python caller
+of Guardana's own redaction is not the reporter's defect: it exits <code>5</code> (step 1). Both exit-<code>5</code>
+paths, the format's (decision 4) and the reporter's, print in one order: the verdict line, then
+the <code>error: …</code> line, then the delivery line last. With <code>GUARDANA_DEBUG=1</code> the traceback of what
+the redaction raised is printed first, as for every other exit <code>5</code>. A Python caller
 reads the <code>Delivery</code>. The built-in collector keeps its messages and
 its envelope; moving it onto the delivery line would change a shipped output nobody asked to
 change.</p>
@@ -894,12 +901,21 @@ and <code>unknown</code>; <code>deliver</code> past its deadline is <code>unknow
 <code>unknown</code>; the planted-credential test of decision 3; <code>load_verification</code> over
 <code>tests/saved_runs/</code> and each schema's migrated document, a schema-1 run raising; manifest and
 lock schema 3 round trips, the schema 2 refusals, and lock schema 2 still written without
-outputs.</li>
+outputs. The span walk fails closed: a credential planted in every <code>str</code> of a manifest by a
+walk that raises on any type it does not know, <code>PluginTrust.allowed</code> included, reaches no
+reporter except in the exempt identifier fields; a manifest holding a container the walk does
+not know makes <code>outbound</code> raise <code>TypeError</code> and <code>deliver</code> raise <code>BoundaryError</code> with the
+reporter not called; a rule id holding a credential-shaped substring is not rewritten; a saved
+manifest and the manifest of a real scan walk without raising.</li>
 <li><strong>CLI</strong> (<code>packages/guardana-cli/tests/</code>): exit <code>3</code> for each refusal, before any request to a
 scripted endpoint; the <code>unsupported</code> refusals; exit <code>8</code> with the verdict line printed and no
 file written for a renderer that raises or returns <code>&quot;&quot;</code>; exit <code>8</code> for an <code>unknown</code> delivery, and
 a stopped run keeping <code>4</code>; a delivery of each other status printing its line and keeping the
-verdict's code; <code>not_sent</code> printed on each early exit after <code>prepare</code>; <code>doctor</code> listing output
+verdict's code; <code>not_sent</code> printed on each early exit after <code>prepare</code>; exit <code>5</code> when the
+redaction fails for a format and for a reporter, each printing the verdict, <code>error: …</code> and the
+delivery line in that order, and a stopped probe keeping its code over either; <code>warning: nothing was forwarded to the collector</code> after a failed format or a failed redaction with the
+collector selected, from <code>scan</code>, <code>probe</code> and <code>analyze-trace</code>; the traceback of a failed
+redaction printed with <code>GUARDANA_DEBUG=1</code> and not without it, on both paths; <code>doctor</code> listing output
 entry points, collisions and reserved names without importing them; <code>pack validate</code> and
 <code>pack lock</code> exiting <code>2</code> on a refused output.</li>
 <li><strong>The package</strong> (<code>examples/output_pack/tests/</code>, isolated, installing core, rules, cli and

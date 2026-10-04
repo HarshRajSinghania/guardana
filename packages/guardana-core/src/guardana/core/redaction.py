@@ -16,9 +16,12 @@ import re
 from bisect import bisect_right
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field, fields, is_dataclass, replace
+from datetime import date
 from enum import Enum, StrEnum
 from functools import cache
-from typing import TYPE_CHECKING, Any, ClassVar, Protocol, TypeVar
+from pathlib import PurePath
+from types import NoneType
+from typing import TYPE_CHECKING, Any, ClassVar, Protocol, TypeVar, cast
 
 from guardana.core.fingerprint import digest_of
 
@@ -117,6 +120,17 @@ class _Dataclass(Protocol):
 
 
 _Record = TypeVar("_Record", bound=_Dataclass)
+_Walked = TypeVar("_Walked")
+
+_SCALARS = (int, float, NoneType, date, PurePath, bytes)
+"""Values the span walk returns as they are: none of them holds text a pattern could match.
+
+`bool` is an `int` and `datetime` a `date`; an `Enum` is checked before `str`, as a
+`StrEnum` member is both.
+"""
+
+_COLLECTIONS = (tuple, list, set, frozenset)
+"""What the span walk rebuilds item by item; only a tuple is walked by `redact`."""
 
 _ALREADY_REDACTED = re.compile(r"\[redacted:[a-z0-9-]+(?::[0-9a-f]{12})?\]")
 """A placeholder this redactor itself wrote, so a second pass leaves it alone.
@@ -274,6 +288,18 @@ class EvidenceRedactor:
         """
         return self._label(text)
 
+    def redact_spans_in(self, value: _Walked) -> _Walked:
+        """Return `value` with every str inside it redacted as `redact_spans` redacts it.
+
+        Walks dataclasses (rebuilt over their `init` fields), tuples, lists, sets,
+        frozensets and mapping values; a changed mapping comes back as a `dict` and its
+        keys are kept. Identifier fields and records are left alone, as `redact` leaves them, and
+        nothing is emptied or truncated. Any other value that is not an `Enum`, a number,
+        `None`, a date, a path or bytes raises `TypeError`, so a container this walk does
+        not know can never pass through unredacted.
+        """
+        return cast("_Walked", self._value(value, spans_only=True))
+
     def _patterns_for(self, mode: EvidenceMode) -> tuple[tuple[str, re.Pattern[str]], ...]:
         """Every pattern this mode removes, most specific first.
 
@@ -342,20 +368,24 @@ class EvidenceRedactor:
         """
         return self._record(result)
 
-    def _record(self, record: _Record) -> _Record:
+    def _record(self, record: _Record, *, spans_only: bool = False) -> _Record:
         """Return `record` with every string inside it redacted, or `record` itself.
 
         Narrative text from the target or a third party (evidence, reasons,
         rationales) gets the full policy: emptied under `metadata_only` and bounded
         in size. Every other string is a name or a location a reader navigates by,
         so only the matched spans are replaced and it is never emptied or truncated.
+        With `spans_only`, narrative text is redacted by span as well.
         """
         if isinstance(record, _identifier_types()):
             return record
-        narrative = _narrative_fields()
+        narrative = {} if spans_only else _narrative_fields()
+        identifiers = _identifier_record_fields()
         changes: dict[str, object] = {}
         for spec in fields(record):
             if not spec.init or spec.name in _IDENTIFIER_FIELDS:
+                continue
+            if (type(record), spec.name) in identifiers:
                 continue
             current = getattr(record, spec.name)
             withheld = narrative.get((type(record), spec.name))
@@ -364,7 +394,7 @@ class EvidenceRedactor:
                 if cleaned != current:
                     cleaned = cleaned or self._withheld(withheld, current)
             else:
-                cleaned = self._value(current)
+                cleaned = self._value(current, spans_only=spans_only)
             if cleaned is not current:
                 changes[spec.name] = cleaned
         return replace(record, **changes) if changes else record
@@ -383,20 +413,29 @@ class EvidenceRedactor:
         shown = self._apply(text, self._patterns_for(EvidenceMode.REDACTED))
         return f"{note[:-1]}:{digest_of(shown)[7:19]}]"
 
-    def _value(self, value: object) -> object:
-        """Redact one field's value, returning the same object when nothing changed."""
+    def _value(self, value: object, *, spans_only: bool = False) -> object:
+        """Redact one field's value, returning the same object when nothing changed.
+
+        With `spans_only`, lists and sets are walked too and a value of any type the
+        walk does not know raises `TypeError` instead of being returned unexamined.
+        """
         if isinstance(value, Enum):
             return value
         if isinstance(value, str):
             return self._label(value)
-        if type(value) is tuple:
-            items = tuple(self._value(item) for item in value)
-            return value if all(a is b for a, b in zip(items, value, strict=True)) else items
+        if isinstance(value, _COLLECTIONS) and type(value) in (
+            _COLLECTIONS if spans_only else (tuple,)
+        ):
+            walked = [self._value(item, spans_only=spans_only) for item in value]
+            unchanged = all(a is b for a, b in zip(walked, value, strict=True))
+            return value if unchanged else type(value)(walked)
         if isinstance(value, Mapping):
-            entries = {key: self._value(item) for key, item in value.items()}
+            entries = {key: self._value(item, spans_only=spans_only) for key, item in value.items()}
             return value if all(entries[key] is item for key, item in value.items()) else entries
         if is_dataclass(value) and not isinstance(value, type):
-            return self._record(value)
+            return self._record(value, spans_only=spans_only)
+        if spans_only and not isinstance(value, _SCALARS):
+            raise TypeError(f"the span walk does not know a {type(value).__qualname__}")
         return value
 
     def _label(self, text: str) -> str:
@@ -516,6 +555,17 @@ class MessageQuoting:
                 f"evidence mode metadata_only"
             )
         return self.spans(text)
+
+
+@cache
+def _identifier_record_fields() -> frozenset[tuple[type, str]]:
+    """Name the fields that hold a rule's or an evaluator's id under a name others also use."""
+    from guardana.core.manifest.records import (  # noqa: PLC0415 — one-way dependency
+        EvaluatorRecord,
+        RuleRecord,
+    )
+
+    return frozenset({(RuleRecord, "id"), (EvaluatorRecord, "id")})
 
 
 @cache

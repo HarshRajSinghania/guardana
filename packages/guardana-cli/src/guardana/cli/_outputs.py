@@ -10,7 +10,7 @@ from types import TracebackType
 from typing import NoReturn, Self
 
 import typer
-from guardana.cli._exit import exit_with
+from guardana.cli._exit import exit_with, print_debug_traceback
 from guardana.cli._formats import OutputFormat, format_name, is_built_in_format, resolve_format
 from guardana.cli._output import emit
 from guardana.cli._plugins import admission_forms
@@ -211,6 +211,7 @@ class RunOutputs:
         try:
             rendered = render(self.format, verification)
         except BoundaryError as exc:
+            print_debug_traceback(exc.__cause__ or exc)
             _print_verdict(verification)
             typer.echo(
                 f"error: the run could not be redacted for the format {exc.name}: {exc.reason} "
@@ -259,13 +260,14 @@ class RunOutputs:
             delivery = deliver(self.reporter, verification)
         except BoundaryError as exc:
             self._delivering = False
-            self._line(Delivery(DeliveryStatus.NOT_SENT, detail=f"redaction failed: {exc.reason}"))
+            print_debug_traceback(exc.__cause__ or exc)
             _print_verdict(verification)
             typer.echo(
                 f"error: the run could not be redacted for the reporter {exc.name}: "
                 f"{exc.reason} — nothing was sent; {_DEFECT}",
                 err=True,
             )
+            self._line(Delivery(DeliveryStatus.NOT_SENT, detail=f"redaction failed: {exc.reason}"))
             raise typer.Exit(code=_unless_stopped(verification, ExitCode.INTERNAL_ERROR)) from exc
         self._delivering = False
         self._line(delivery)

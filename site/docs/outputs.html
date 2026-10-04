@@ -347,7 +347,7 @@ them, and says whether it would be refused.</p>
 <tr>
 <td>the run description and verdict</td>
 <td>as saved</td>
-<td>as saved, with every text field redacted again and the target's address redacted</td>
+<td>as saved, with every text field but rule and evaluator ids redacted again and the target's address redacted</td>
 </tr>
 <tr>
 <td>kept exchanges</td>
@@ -402,10 +402,11 @@ output cannot decide that a run with open questions is clean.</p>
 words are stable; a script may read them.</p>
 <h2 id="exit-code-8">Exit code 8</h2>
 <p>Exit <code>8</code> means an installed output failed: a format raised or returned no text, so nothing was
-written, or a reporter's delivery is <code>unknown</code>. The verdict is printed as <code>the run's verdict: &lt;gate&gt; (exit &lt;code&gt;)</code>, and a failed format's error names the distribution to report it to. A
-run its target or budget stopped keeps exit <code>4</code> or <code>6</code>. When Guardana's own redaction fails
+written, or a reporter's delivery is <code>unknown</code>. The verdict is printed whenever <code>8</code> replaces its
+code, as <code>the run's verdict: &lt;gate&gt; (exit &lt;code&gt;)</code>, and a failed format's error names the distribution to report it to. A
+run its target or budget stopped keeps exit <code>4</code>, <code>6</code> or <code>7</code>. When Guardana's own redaction fails
 before an output is called, nothing is written or sent and the exit is <code>5</code>, a defect to report
-to Guardana. See <a href="exit-codes.html">exit codes</a>.</p>
+to Guardana; <code>GUARDANA_DEBUG=1</code> prints the traceback. See <a href="exit-codes.html">exit codes</a>.</p>
 <h2 id="export-a-saved-run-from-python">Export a saved run from Python</h2>
 <p>A paid probe saved with <code>--format json --output run.json</code> can be exported later, with no
 request to anything:</p>

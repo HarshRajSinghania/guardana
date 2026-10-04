@@ -224,13 +224,15 @@ gate=outcome)`.
 | Field | Renderer | Reporter |
 |---|---|---|
 | `result` | `EvidenceRedactor().redact_result(result)`: the second pass `_Redacting` and `HttpReporter` give the built-ins | the same |
-| `manifest` | as saved | as saved with every text field redacted again by span (`redact_spans` over each `str` of the dataclass tree; enums, times, numbers and digests unchanged), then `target.ref` redacted by the `redacted`-mode redactor `HttpReporter` uses for its source |
+| `manifest` | as saved | as saved through the redactor's own span walk, `EvidenceRedactor.redact_spans_in`: every `str` of the dataclass tree, its tuples, lists, sets, frozensets and mapping values redacted by span, with the identifier fields `redact` exempts kept (rule and evaluator ids, assessors, `TaxonomyRef`), mapping keys kept, and enums, times, numbers and paths unchanged; any other type raises `TypeError`, so the walk fails closed. Then `target.ref` is redacted by the `redacted`-mode redactor `HttpReporter` uses for its source |
 | `stop_messages`, `judge_stops` | `()`: never saved; the CLI prints them itself | `()` |
 | `exchanges` | redacted again span by span, as the keeper does: written beside the saved run already | `None`: the collector never receives them either |
 | `judge_usage` | as recorded | as recorded |
 
 So no output sees more than the saved run holds. A reporter receives the saved run's manifest
-with every text field redacted again, `target.ref` at `redacted` mode, and no kept exchange. No
+through the redactor's own span walk, with identifier fields exempt and a value of a type the
+walk does not know refused rather than passed on, `target.ref` at `redacted` mode, and no kept
+exchange. No
 argument asks for an unredacted result. If `outbound` raises, the output is not called
 (decisions 4 and 5).
 
@@ -238,9 +240,10 @@ A test plants one fake credential in every channel of `result`, in a stop messag
 exchange, and asserts that no built-in renderer, collector reporter, recording discovered
 renderer or recording discovered reporter sees it; a credential planted in `manifest.target.ref`
 reaches a format as saved, as the JSON report writes it, and reaches no reporter. A second test
-plants a credential in every text field of a manifest, found by the same walk the boundary
-uses, and asserts that none reaches a reporter while every enum, time and digest arrives
-unchanged.
+plants a credential in every `str` of a manifest through a walk of its own that raises on any
+type it does not know, so a new container in the manifest fails the test, and asserts by `repr`
+and by a walk over every iterable that none reaches a reporter outside the exempt identifier
+fields.
 
 `guardana.core.verify.load_verification(path) -> Verification` reads a saved run of any schema
 through `load_report`, sets `gate` from `manifest.result_summary.gate`, and leaves `exchanges`
@@ -330,9 +333,9 @@ class Delivery:
 `deliver(prepared, verification) -> Delivery` (`core/output.py`):
 
 1. Applies `outbound(..., leaves_machine=True)`. A failure raises `BoundaryError` and the
-   reporter is not called; the CLI prints `delivery: not_sent — <name> to <destination>:
-   redaction failed: <type>`, the verdict line, then `error: the run could not be redacted for
-   the reporter <name>: <type> — nothing was sent; this is a defect in Guardana`, and exits `5`
+   reporter is not called; the CLI prints the verdict line, then `error: the run could not be
+   redacted for the reporter <name>: <type> — nothing was sent; this is a defect in Guardana`,
+   then `delivery: not_sent — <name> to <destination>: redaction failed: <type>`, and exits `5`
    under the precedence of decision 4.
 2. Calls `deliverer.deliver` in a daemon thread and waits at most `DELIVERY_DEADLINE_SECONDS =
    30`. Past it: `UNKNOWN`, detail `did not finish within 30 s`. A `KeyboardInterrupt` in the
@@ -378,7 +381,10 @@ code: the receiver's state is not the run's, and that is the collector's rule fo
 rejection. `unknown` is a defect in the reporter, as a bad URL or a serialization error is a
 defect the collector path lets end the command: it ends with exit `8` under the precedence of
 decision 4, and the verdict line is printed whenever `8` replaces the verdict's code. A failure
-of Guardana's own redaction is not the reporter's defect: it exits `5` (step 1). A Python caller
+of Guardana's own redaction is not the reporter's defect: it exits `5` (step 1). Both exit-`5`
+paths, the format's (decision 4) and the reporter's, print in one order: the verdict line, then
+the `error: …` line, then the delivery line last. With `GUARDANA_DEBUG=1` the traceback of what
+the redaction raised is printed first, as for every other exit `5`. A Python caller
 reads the `Delivery`. The built-in collector keeps its messages and
 its envelope; moving it onto the delivery line would change a shipped output nobody asked to
 change.
@@ -576,12 +582,22 @@ from the destination, so withholding it never blanks the destination itself.
   `unknown`; the planted-credential test of decision 3; `load_verification` over
   `tests/saved_runs/` and each schema's migrated document, a schema-1 run raising; manifest and
   lock schema 3 round trips, the schema 2 refusals, and lock schema 2 still written without
-  outputs.
+  outputs. The span walk fails closed: a credential planted in every `str` of a manifest by a
+  walk that raises on any type it does not know, `PluginTrust.allowed` included, reaches no
+  reporter except in the exempt identifier fields; a manifest holding a container the walk does
+  not know makes `outbound` raise `TypeError` and `deliver` raise `BoundaryError` with the
+  reporter not called; a rule id holding a credential-shaped substring is not rewritten; a saved
+  manifest and the manifest of a real scan walk without raising.
 - **CLI** (`packages/guardana-cli/tests/`): exit `3` for each refusal, before any request to a
   scripted endpoint; the `unsupported` refusals; exit `8` with the verdict line printed and no
   file written for a renderer that raises or returns `""`; exit `8` for an `unknown` delivery, and
   a stopped run keeping `4`; a delivery of each other status printing its line and keeping the
-  verdict's code; `not_sent` printed on each early exit after `prepare`; `doctor` listing output
+  verdict's code; `not_sent` printed on each early exit after `prepare`; exit `5` when the
+  redaction fails for a format and for a reporter, each printing the verdict, `error: …` and the
+  delivery line in that order, and a stopped probe keeping its code over either; `warning:
+  nothing was forwarded to the collector` after a failed format or a failed redaction with the
+  collector selected, from `scan`, `probe` and `analyze-trace`; the traceback of a failed
+  redaction printed with `GUARDANA_DEBUG=1` and not without it, on both paths; `doctor` listing output
   entry points, collisions and reserved names without importing them; `pack validate` and
   `pack lock` exiting `2` on a refused output.
 - **The package** (`examples/output_pack/tests/`, isolated, installing core, rules, cli and

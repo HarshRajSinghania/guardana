@@ -11,9 +11,9 @@ field redacted again and its target ref at `redacted` mode, and no kept exchange
 import re
 import threading
 from collections.abc import Callable, Iterable, Mapping
-from dataclasses import dataclass, fields, is_dataclass, replace
-from enum import Enum, StrEnum
-from typing import Any, ClassVar, Protocol, TypeVar
+from dataclasses import dataclass, replace
+from enum import StrEnum
+from typing import Protocol, TypeVar
 
 from guardana.core.entrypoints import (
     OUTPUT_GROUPS,
@@ -579,13 +579,14 @@ def outbound(verification: Verification, *, leaves_machine: bool) -> Verificatio
     The result gets the default redactor's second pass, as the built-in renderers and the
     collector give it. Stop and judge messages are dropped: they are never saved. A format
     gets the manifest as saved and the kept exchanges redacted again by span. When the
-    output `leaves_machine`, it gets the manifest with every text field redacted again by
-    span and the target ref at `redacted` mode, and no kept exchange.
+    output `leaves_machine`, it gets the manifest through `EvidenceRedactor.redact_spans_in`,
+    which raises `TypeError` on a value it does not know, the target ref at `redacted`
+    mode, and no kept exchange.
     """
     manifest = verification.manifest
     exchanges: Recording | None
     if leaves_machine:
-        manifest = _record_spans(manifest)
+        manifest = _SECOND_PASS.redact_spans_in(manifest)
         ref = at_redacted_mode(_SECOND_PASS.policy).redact_text(manifest.target.ref)
         manifest = replace(manifest, target=replace(manifest.target, ref=ref))
         exchanges = None
@@ -599,52 +600,6 @@ def outbound(verification: Verification, *, leaves_machine: bool) -> Verificatio
         judge_stops=(),
         exchanges=exchanges,
     )
-
-
-class _Dataclass(Protocol):
-    """Any dataclass instance, as `dataclasses.fields` and `replace` accept one."""
-
-    __dataclass_fields__: ClassVar[dict[str, Any]]
-
-
-_Record = TypeVar("_Record", bound=_Dataclass)
-
-
-def _record_spans(record: _Record) -> _Record:
-    """Redact every str a dataclass holds by span, rebuilding it only over its `init` fields."""
-    changes: dict[str, object] = {}
-    for spec in fields(record):
-        if not spec.init:
-            continue
-        current = getattr(record, spec.name)
-        cleaned = _value_spans(current)
-        if cleaned is not current:
-            changes[spec.name] = cleaned
-    return replace(record, **changes) if changes else record
-
-
-def _value_spans(value: object) -> object:
-    """Redact every str inside `value`, returning the same object when nothing changed.
-
-    An `Enum` is checked first, as a `StrEnum` member is also a str.
-    """
-    if isinstance(value, Enum):
-        return value
-    if isinstance(value, str):
-        cleaned = _SECOND_PASS.redact_spans(value)
-        return value if cleaned == value else cleaned
-    if type(value) is tuple:
-        items = tuple(_value_spans(item) for item in value)
-        return value if all(a is b for a, b in zip(items, value, strict=True)) else items
-    if isinstance(value, Mapping):
-        entries = {_value_spans(key): _value_spans(item) for key, item in value.items()}
-        unchanged = len(entries) == len(value) and all(
-            key in entries and entries[key] is item for key, item in value.items()
-        )
-        return value if unchanged else entries
-    if is_dataclass(value) and not isinstance(value, type):
-        return _record_spans(value)
-    return value
 
 
 def _redacted_recording(recording: Recording | None) -> Recording | None:

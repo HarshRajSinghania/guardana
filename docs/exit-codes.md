@@ -107,11 +107,11 @@ after an alert: the alerts it printed are the record of the cycles that raised t
 distribution shipped: a format that raised or returned no text, so nothing was written,
 or a reporter whose delivery is `unknown` because it raised, returned no valid status or
 ran past its deadline. The bug report belongs to that distribution, so the code is not
-`5`. The verdict is printed before the error, `8` replaces `0`, `1` and `2`, and a run
-that stopped keeps `4`, `6` or `7`. A receiver that refused or did not answer is not
+`5`. The verdict is printed whenever `8` replaces its code; `8` replaces `0`, `1` and `2`,
+and a run that stopped keeps `4`, `6` or `7`. A receiver that refused or did not answer is not
 `8`: the delivery line says so and the verdict keeps its code, as for the collector. When
 Guardana's own redaction fails before an output is called, nothing is written or sent and the
-code is `5`, under the same precedence.
+code is `5`, under the same precedence; `GUARDANA_DEBUG=1` prints the traceback.
 
 ## Which commands produce which
 

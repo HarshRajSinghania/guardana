@@ -1,5 +1,9 @@
 """Turn a run into an exit status. One place, so every command says the same thing."""
 
+import os
+import sys
+import traceback
+
 import typer
 from guardana.cli.exit_codes import ExitCode, code_for
 from guardana.core.gate import GateOutcome
@@ -39,3 +43,12 @@ def refuse_invalid_profile(exc: ProfileError) -> typer.Exit:
     """
     typer.echo(f"error: {exc}", err=True)
     return typer.Exit(code=ExitCode.INVALID_USAGE)
+
+
+def print_debug_traceback(error: BaseException) -> None:
+    """Print `error`'s traceback to stderr when `GUARDANA_DEBUG=1`, and nothing otherwise.
+
+    Only on request, because a traceback can carry a URL or a payload from the run.
+    """
+    if os.environ.get("GUARDANA_DEBUG") == "1":
+        traceback.print_exception(error, file=sys.stderr)

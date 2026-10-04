@@ -3,16 +3,19 @@
 One fake credential is planted in every channel of a result, in the target ref, in the
 stop and judge messages and in a kept exchange. A discovered recording format and a
 discovered recording reporter are then run, and what each was handed is read where it
-arrived: inside the output's own module. A second credential is planted in every text
-field of a manifest, and none of it may reach a reporter.
+arrived: inside the output's own module. A second credential is planted in every str of
+a manifest by a walk that refuses any type it does not know, and only the rule and
+evaluator ids may carry it to a reporter.
 """
 
 import sys
-from collections.abc import Iterator, Mapping
+from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import fields, is_dataclass, replace
 from datetime import datetime
 from enum import Enum
+from functools import reduce
 from pathlib import Path
+from typing import Any, ClassVar, Protocol
 
 import pytest
 from _documents import run_manifest, scan_result
@@ -23,6 +26,7 @@ from guardana.core.gate import GateOutcome
 from guardana.core.manifest import RunManifest
 from guardana.core.manifest.usage import JudgeUsage
 from guardana.core.output import (
+    BoundaryError,
     DeliveryStatus,
     deliver,
     outbound,
@@ -214,54 +218,90 @@ _SHAPED = frozenset(
         ("FixturesRecord", "digest"),
         ("RecipeRecord", "digest"),
         ("RecipeRecord", "lock_digest"),
-        ("RunUsage", "judge"),
     }
 )
 """Fields the manifest refuses to hold anything but a fixed shape, so nothing can be planted."""
 
-_Leaf = tuple[str, str, object]
-"""Where a value sits: the owning dataclass's name, its field and the value itself."""
+_IDENTIFIERS = frozenset(
+    {
+        ("RuleRecord", "id"),
+        ("EvaluatorRecord", "id"),
+        ("SkippedRule", "rule_id"),
+        ("ResultSummary", "rules_run"),
+        ("CalibrationRecord", "assessor"),
+        ("JudgeCorrection", "assessor"),
+        ("SuiteCorrection", "assessor"),
+    }
+)
+"""Fields naming a rule or an assessor, which the boundary keeps as they are."""
 
+_KEYS = frozenset(
+    {
+        ("ToolInfo", "distribution_versions key"),
+        ("CoverageRecord", "protocols key"),
+        ("RunUsage", "judge key"),
+    }
+)
+"""Mapping keys, which name a distribution, a protocol or a judge and are never rewritten."""
 
-def _leaves(value: object, owner: tuple[str, str] = ("", "")) -> Iterator[_Leaf]:
-    """Yield every str, Enum and datetime reachable the way the boundary walks a manifest."""
-    if isinstance(value, Enum | str | datetime):
-        yield (*owner, value)
-    elif type(value) is tuple:
-        for item in value:
-            yield from _leaves(item, owner)
-    elif isinstance(value, Mapping):
-        for key, item in value.items():
-            yield from _leaves(key, owner)
-            yield from _leaves(item, owner)
-    elif is_dataclass(value) and not isinstance(value, type):
-        for spec in fields(value):
-            if spec.init:
-                yield from _leaves(getattr(value, spec.name), (type(value).__name__, spec.name))
+_UNCHANGED = (Enum, bool, int, float, datetime, type(None))
+"""Values this test leaves alone: none of them can hold a credential."""
+
+_Leaf = tuple[str, str, str]
+"""Where a str sits: the owning dataclass's name, its field and the str itself."""
 
 
 def _plant(value: object) -> object:
-    """Append `_KEY` to every str the boundary walks; a field that refuses it is left as is."""
-    if isinstance(value, Enum):
+    """Append `_KEY` to every str in a manifest; raise on a type this test does not know.
+
+    Mapping keys are not planted: they are pinned in `_KEYS`, and the boundary keeps them.
+    """
+    if isinstance(value, _UNCHANGED):
         return value
     if isinstance(value, str):
         return f"{value} {_KEY}"
-    if type(value) is tuple:
-        return tuple(_plant(item) for item in value)
-    if isinstance(value, Mapping):
-        return {_plant(key): _plant(item) for key, item in value.items()}
+    if isinstance(value, tuple | frozenset) and type(value) in (tuple, frozenset):
+        return type(value)(_plant(item) for item in value)
+    if isinstance(value, dict) and type(value) is dict:
+        return {key: _plant(item) for key, item in value.items()}
     if is_dataclass(value) and not isinstance(value, type):
-        record = value
+        return _plant_record(value)
+    raise TypeError(
+        f"the manifest holds a {type(value).__qualname__}, which this test cannot plant"
+    )
+
+
+class _Dataclass(Protocol):
+    __dataclass_fields__: ClassVar[dict[str, Any]]
+
+
+def _plant_record(record: _Dataclass) -> object:
+    planted = record
+    for spec in fields(record):
+        if not spec.init:
+            continue
+        try:
+            planted = replace(planted, **{spec.name: _plant(getattr(record, spec.name))})
+        except ValueError:
+            if (type(record).__name__, spec.name) not in _SHAPED:
+                raise
+    return planted
+
+
+def _strs(value: object, owner: tuple[str, str] = ("", "")) -> Iterator[_Leaf]:
+    """Yield every str reachable from `value`, whatever holds it, mapping keys included."""
+    if isinstance(value, str):
+        yield (*owner, value)
+    elif isinstance(value, Mapping):
+        for key, item in value.items():
+            yield from _strs(key, (owner[0], f"{owner[1]} key"))
+            yield from _strs(item, owner)
+    elif is_dataclass(value) and not isinstance(value, type):
         for spec in fields(value):
-            if not spec.init:
-                continue
-            try:
-                record = replace(record, **{spec.name: _plant(getattr(value, spec.name))})
-            except ValueError:
-                if (type(value).__name__, spec.name) not in _SHAPED:
-                    raise
-        return record
-    return value
+            yield from _strs(getattr(value, spec.name), (type(value).__name__, spec.name))
+    elif isinstance(value, Iterable) and not isinstance(value, bytes):
+        for item in value:
+            yield from _strs(item, owner)
 
 
 def _planted_manifest() -> RunManifest:
@@ -272,15 +312,19 @@ def _planted_manifest() -> RunManifest:
 
 
 def test_the_key_is_planted_in_every_text_field_of_the_manifest() -> None:
-    """Fails when a text field the boundary walks is left out of the planting."""
+    """Fails when the manifest gains a str this test does not plant."""
+    planted = _planted_manifest()
     unplanted = {
         (owner, name)
-        for owner, name, value in _leaves(_planted_manifest())
-        if isinstance(value, str) and not isinstance(value, Enum) and _KEY not in value
+        for owner, name, text in _strs(planted)
+        if not isinstance(text, Enum) and _KEY not in text
     }
 
-    assert unplanted == _SHAPED
-    assert repr(_planted_manifest()).count(_KEY) > len(fields(RunManifest))
+    assert unplanted == _SHAPED | _KEYS
+    plugins = planted.configuration.plugins
+    assert plugins is not None
+    assert any(_KEY in name for name in plugins.allowed)
+    assert repr(planted).count(_KEY) > len(fields(RunManifest))
 
 
 def test_a_reporter_gets_every_text_field_of_the_manifest_redacted_again() -> None:
@@ -290,29 +334,60 @@ def test_a_reporter_gets_every_text_field_of_the_manifest_redacted_again() -> No
     sent = outbound(given, leaves_machine=True).manifest
     kept = outbound(given, leaves_machine=False).manifest
 
-    leaked = [(o, n) for o, n, v in _leaves(sent) if isinstance(v, str) and _KEY in v]
-    assert leaked == []
-    assert _KEY not in repr(sent)
+    leaked = {(o, n) for o, n, text in _strs(sent) if _KEY in text}
+    assert leaked == _IDENTIFIERS
+    identifiers = {text for o, n, text in _strs(planted) if (o, n) in _IDENTIFIERS}
+    assert _KEY not in reduce(lambda shown, text: shown.replace(text, ""), identifiers, repr(sent))
+    assert sent.configuration.plugins is not None
+    assert sent.configuration.plugins.allowed
     assert kept == planted, "a format gets the manifest as saved"
-    assert [v for _, _, v in _leaves(sent) if isinstance(v, Enum | datetime)] == [
-        v for _, _, v in _leaves(planted) if isinstance(v, Enum | datetime)
-    ]
 
 
-def test_a_reporter_gets_identifiers_enums_and_times_unchanged() -> None:
+def test_a_reporter_gets_rule_and_evaluator_ids_unchanged_whatever_they_hold() -> None:
+    saved = run_manifest()
+    planted = replace(
+        saved,
+        rules=tuple(replace(r, id=f"acme.{_KEY}") for r in saved.rules),
+        evaluators=tuple(replace(e, id=f"acme.{_KEY}") for e in saved.evaluators),
+    )
+    given = Verification(result=scan_result(), manifest=planted, gate=GateOutcome.FAIL)
+
+    sent = outbound(given, leaves_machine=True).manifest
+
+    assert [r.id for r in sent.rules] == [r.id for r in planted.rules]
+    assert [e.id for e in sent.evaluators] == [e.id for e in planted.evaluators]
+    assert sent.rules
+
+
+class _Bag:
+    """A container the boundary does not know."""
+
+    def __init__(self, *items: str) -> None:
+        self.items = items
+
+
+def test_a_manifest_holding_a_container_the_boundary_does_not_know_is_never_sent(
+    site: FakeSite,
+) -> None:
+    module = site.module(body(RECORDING_REPORTER, "acme-webhook"))
+    site.distribution("acme-guardana-outputs", (REPORTER_GROUP, "acme-webhook", module.name))
+    saved = run_manifest()
+    odd = replace(saved, target=replace(saved.target, capabilities=_Bag(f"chat {_KEY}")))  # type: ignore[arg-type]
+    given = Verification(result=scan_result(), manifest=odd, gate=GateOutcome.FAIL)
+
+    with pytest.raises(TypeError):
+        outbound(given, leaves_machine=True)
+    with pytest.raises(BoundaryError) as refused:
+        deliver(select_reporter("acme-webhook", "x", _TRUST), given)
+
+    assert refused.value.reason == "TypeError"
+    assert sys.modules[module.name].SEEN == []
+
+
+def test_a_manifest_holding_nothing_to_redact_reaches_a_reporter_unchanged() -> None:
     saved = run_manifest()
     given = Verification(result=scan_result(), manifest=saved, gate=GateOutcome.FAIL)
 
     sent = outbound(given, leaves_machine=True).manifest
 
-    assert sent.run_id == saved.run_id
-    assert sent.created_at == saved.created_at
-    assert sent.target.kind is saved.target.kind
-    assert sent.target.fingerprint == saved.target.fingerprint
-    assert sent.target.document == saved.target.document
-    assert sent.configuration.profile_digest == saved.configuration.profile_digest
-    assert [r.digest for r in sent.rules] == [r.digest for r in saved.rules]
-    assert sent.result_summary == saved.result_summary
-    assert [v for _, _, v in _leaves(sent) if isinstance(v, Enum)] == [
-        v for _, _, v in _leaves(saved) if isinstance(v, Enum)
-    ]
+    assert sent == saved

@@ -1,12 +1,10 @@
-import os
-import sys
-import traceback
 from collections.abc import Sequence
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as distribution_version
 from typing import NoReturn
 
 import typer
+from guardana.cli._exit import print_debug_traceback
 from guardana.cli.analyze_trace import analyze_trace
 from guardana.cli.baseline import baseline_app
 from guardana.cli.calibrate import calibrate_command
@@ -175,8 +173,7 @@ def _exit_interrupted() -> NoReturn:
 
 
 def _exit_internal_error(error: Exception) -> NoReturn:
-    if os.environ.get("GUARDANA_DEBUG") == "1":
-        traceback.print_exception(error, file=sys.stderr)
+    print_debug_traceback(error)
     typer.echo(
         f"guardana: internal error ({type(error).__name__}); this is a Guardana defect, "
         "please report it. Set GUARDANA_DEBUG=1 to print the traceback.",
