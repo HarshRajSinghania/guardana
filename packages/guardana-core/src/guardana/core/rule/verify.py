@@ -17,6 +17,8 @@ from guardana.core.regression import Breach, Regraded, UnprovableError, regrade
 from guardana.core.rule.base import NOT_OFFERED_AFTER_REPORTING, NotOffered, Rule, RuleContext
 from guardana.core.rule.fixture import DEMANDED_OUTCOMES, FixtureOutcome, RuleFixture
 from guardana.core.rule.suite_rule import SuiteRule
+from guardana.core.source import UnreadSource
+from guardana.core.target.protocols import FileReader
 
 
 class FixtureVerdict(StrEnum):
@@ -114,9 +116,9 @@ def verify_rule(rule: Rule, ctx: RuleContext | None = None) -> RuleVerification:
 
     Each fixture runs in a fresh copy of the context, so what one sample recorded or
     reported never counts in another. A fixture is classified as a run reads it: a
-    finding is `finding`, a coverage shortfall or an inconclusive verdict without one
-    is `inconclusive`, and `NotOffered` raised before anything was reported is
-    `not_offered`. No rule is asked to declare a `not_offered` sample.
+    finding is `finding`, a coverage shortfall, a file the target could not read or an
+    inconclusive verdict without one is `inconclusive`, and `NotOffered` raised before
+    anything was reported is `not_offered`. No rule is asked to declare a `not_offered` sample.
 
     A suite's regression pairs are regraded with the context's evaluators, sending
     nothing; a suite whose evaluator cannot do that says so in `unprovable`.
@@ -183,9 +185,19 @@ def _run_fixture(rule: Rule, fixture: RuleFixture, ctx: RuleContext) -> FixtureR
             f"{type(exc).__name__}: {exc}",
         )
     gaps = ctx.shortfalls()
-    observed = _observed(findings, declined=bool(gaps))
+    unread = _unread(fixture.target)
+    observed = _observed(findings, declined=bool(gaps) or bool(unread))
     shortfall = f" (shortfall: {'; '.join(g.name for g in gaps)})" if gaps else ""
+    if unread:
+        shortfall += f" (unread: {'; '.join(f'{u.path.name}: {u.reason}' for u in unread)})"
     return _judged(rule, fixture, observed, shortfall)
+
+
+def _unread(target: object) -> tuple[UnreadSource, ...]:
+    """Files a sample's target was prevented from reading; a run records each as an error."""
+    if not isinstance(target, FileReader):
+        return ()
+    return tuple(target.unread_sources())
 
 
 def _judged(

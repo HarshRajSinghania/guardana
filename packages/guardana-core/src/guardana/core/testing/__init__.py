@@ -79,7 +79,12 @@ a renderer emits does not have to invent a clock, a run id and a tool version:
 """
 
 from guardana.core.testing.a2a import ScriptedA2aAgent
-from guardana.core.testing.artifacts import build_gguf, build_onnx, build_safetensors
+from guardana.core.testing.artifacts import (
+    build_gguf,
+    build_onnx,
+    build_safetensors,
+    files_target,
+)
 from guardana.core.testing.manifests import FIXED_RUN_TIME, manifest_for
 from guardana.core.testing.mcp import ScriptedMcpServer
 from guardana.core.testing.secrets import (
@@ -122,6 +127,7 @@ __all__ = [
     "fake_jwt",
     "fake_llm_key",
     "fake_secrets",
+    "files_target",
     "manifest_for",
     "seeded_target",
 ]

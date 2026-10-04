@@ -589,6 +589,10 @@ against a crafted artifact with no binary checked into the repo:
   positive one for anything reading `__metadata__`.
 - `build_onnx` — a walkable ONNX `ModelProto`, for operator-domain,
   metadata, and external-data checks.
+- `files_target` — an `ArtifactTarget` over a fresh directory holding the
+  files it is given by relative path, removed once the target is collected;
+  a rule's fixtures build their trees with it. A file the target could not
+  read makes a sample `inconclusive`, as a run reports it as an error.
 
 **Fake credentials** are assembled at run time rather than written down, so
 a redaction test does not put a secret-shaped literal in the repository:
