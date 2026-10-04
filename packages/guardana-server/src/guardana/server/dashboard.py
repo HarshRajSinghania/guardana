@@ -123,6 +123,7 @@ _PAGE = """<!doctype html>
   footer { color: var(--muted); font-size: 11px; padding: 16px 24px;
     border-top: 1px solid var(--line); max-width: 1100px; margin: 0 auto; }
   .mt { margin-top: 20px; }
+  .muted { color: var(--muted); }
   .row h2 { margin: 0; }
   #token { width: min(420px, 100%); padding: 8px; font-family: inherit; }
   /* Bounded so the page height stays stable as findings accumulate — the footer

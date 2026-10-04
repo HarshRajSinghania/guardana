@@ -105,6 +105,8 @@ def create_app(
         _refuse_a_store_no_unauthenticated_caller_can_reach(active_store)
     app = FastAPI(title="guardana-server")
     _mount_limits(app)
+    # After the limits, so it wraps them and their refusals carry the header too.
+    _mount_nosniff(app)
     _mount_health(app, database_url)
     # `Annotated`, not a `Depends` default: the parameter really is an identity at
     # run time and really is a dependency marker at definition time, and only this
@@ -323,6 +325,22 @@ def _mount_limits(app: FastAPI) -> None:
                 limiter.vouch(credential)
             else:
                 limiter.forget(credential)
+        return response
+
+
+def _mount_nosniff(app: FastAPI) -> None:
+    """Send `X-Content-Type-Options: nosniff` on every response the app produces.
+
+    Responses echo submitted text, and a browser that sniffs a JSON body as HTML
+    would render it.
+    """
+
+    @app.middleware("http")
+    async def _nosniff(
+        request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
         return response
 
 
