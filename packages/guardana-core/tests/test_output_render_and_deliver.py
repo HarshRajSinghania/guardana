@@ -241,6 +241,31 @@ def test_an_invalid_delivery_is_unknown(returned: object) -> None:
     )
 
 
+@pytest.mark.parametrize(
+    "returned",
+    [
+        Delivery(DeliveryStatus.DELIVERED),
+        Delivery(DeliveryStatus.DELIVERED, attempts=0, http_status=204),
+        Delivery(DeliveryStatus.DELIVERED, attempts=1, http_status=500),
+        Delivery(DeliveryStatus.DELIVERED, attempts=1, http_status=302),
+        Delivery(DeliveryStatus.DELIVERED, attempts=1, http_status=199),
+        Delivery(DeliveryStatus.DELIVERED, attempts=1, http_status=300),
+    ],
+    ids=["no-attempt", "no-attempt-with-204", "http-500", "http-302", "http-199", "http-300"],
+)
+def test_delivered_without_an_acknowledgement_is_unknown(returned: Delivery) -> None:
+    assert _delivered(lambda v: returned) == Delivery(
+        DeliveryStatus.UNKNOWN, detail="returned delivered without an acknowledgement"
+    )
+
+
+@pytest.mark.parametrize("http_status", [None, 200, 204, 299])
+def test_delivered_after_an_attempt_with_a_2xx_or_no_status_stands(http_status: int | None) -> None:
+    given = Delivery(DeliveryStatus.DELIVERED, attempts=1, http_status=http_status)
+
+    assert _delivered(lambda v: given) == given
+
+
 def test_a_reporter_s_detail_withholds_what_it_sends_and_drops_control_characters() -> None:
     detail = f"\x1b[2Jsent {_SECRET}\r\nwith AKIA{'Q' * 16}\x85 done"
 

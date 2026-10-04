@@ -213,7 +213,10 @@ A lock is schema 3 only when it pins a format or reporter, or lists one under `u
 as `renderer:<name>` or `reporter:<name>`; otherwise it stays schema 2, which older builds
 read. A schema 2 lock checked against a build with an installed output reports the output as
 added and asks for `guardana pack lock`. Both commands also exit `2` when trust refused an
-installed output, it failed to load, or two distributions install one output name.
+installed output, it failed to load, or two distributions install one output name. A pack pins
+only the outputs its own distribution registers: when another distribution registers one it
+declares, `--check` reports it `removed` and `pack lock` refuses to write, naming that
+distribution.
 
 `unlocked:` lists extensions registered by a package that declares **no manifest**.
 They are recorded and not attributed to a pack, and the command says so on stderr —

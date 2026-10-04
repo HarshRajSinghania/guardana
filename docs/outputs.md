@@ -48,7 +48,7 @@ them, and says whether it would be refused.
 | | Format | Reporter |
 |---|---|---|
 | findings, unverified, errors, skips, shortfalls, cases | redacted under the profile, then again as the built-in formats are | the same |
-| the run description and verdict | as saved | as saved, with every text field but rule and evaluator ids redacted again and the target's address redacted |
+| the run description and verdict | as saved | as saved, with every text field redacted for secrets again, the target's address (`target.ref`) also redacted at `redacted` mode as the collector's source is, and names and identifiers (rule, evaluator and assessor ids, mapping keys) kept |
 | kept exchanges | redacted again | never |
 
 No option hands an output an unredacted result. The verdict comes from the saved run: an
@@ -64,19 +64,22 @@ delivery: <status> — <name> to <destination>[ (HTTP <code>, <n> attempt|attemp
 
 | Status | Meaning | Exit code |
 |---|---|---|
-| `delivered` | the receiver acknowledged it | the verdict's |
+| `delivered` | the receiver acknowledged it: a 2xx answer to at least one attempt | the verdict's |
 | `rejected` | the receiver answered and did not accept it | the verdict's |
 | `unreachable` | the receiver did not answer | the verdict's |
-| `not_sent` | nothing left the machine: the run ended before its report existed, or the reporter declined to send | the verdict's |
-| `unknown` | the reporter failed, or ran past 30 seconds; whether anything left is unknown | `8` |
+| `not_sent` | nothing left the machine: the run ended before its report existed, or the reporter declined to send | the verdict's, or the code the command ended with before delivery |
+| `unknown` | the reporter failed, ran past 30 seconds, or said `delivered` with no attempt or with a status outside 2xx; whether anything left is unknown | `8` |
 
-The destination is shown without a path, query or credential. The line's prefix and status
-words are stable; a script may read them.
+The destination is shown without a path, query or credential: Guardana reduces a URL to
+`scheme://host[:port]` before printing it, whatever the reporter gave, and withholds the
+reporter's secrets from any other destination. The line's prefix and status words are stable;
+a script may read them.
 
 ## Exit code 8
 
 Exit `8` means an installed output failed: a format raised or returned no text, so nothing was
-written, or a reporter's delivery is `unknown`. The verdict is printed whenever `8` replaces its
+written, or a reporter's delivery is `unknown`. A file already at `--output` holds an earlier
+run, so a failed format removes it and says so, here and on exit `5`. The verdict is printed whenever `8` replaces its
 code, as `the run's verdict: <gate> (exit <code>)`, and a failed format's error names the distribution to report it to. A
 run its target or budget stopped keeps exit `4`, `6` or `7`. When Guardana's own redaction fails
 before an output is called, nothing is written or sent and the exit is `5`, a defect to report

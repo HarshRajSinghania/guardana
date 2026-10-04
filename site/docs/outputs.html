@@ -347,7 +347,7 @@ them, and says whether it would be refused.</p>
 <tr>
 <td>the run description and verdict</td>
 <td>as saved</td>
-<td>as saved, with every text field but rule and evaluator ids redacted again and the target's address redacted</td>
+<td>as saved, with every text field redacted for secrets again, the target's address (<code>target.ref</code>) also redacted at <code>redacted</code> mode as the collector's source is, and names and identifiers (rule, evaluator and assessor ids, mapping keys) kept</td>
 </tr>
 <tr>
 <td>kept exchanges</td>
@@ -373,7 +373,7 @@ output cannot decide that a run with open questions is clean.</p>
 <tbody>
 <tr>
 <td><code>delivered</code></td>
-<td>the receiver acknowledged it</td>
+<td>the receiver acknowledged it: a 2xx answer to at least one attempt</td>
 <td>the verdict's</td>
 </tr>
 <tr>
@@ -389,20 +389,23 @@ output cannot decide that a run with open questions is clean.</p>
 <tr>
 <td><code>not_sent</code></td>
 <td>nothing left the machine: the run ended before its report existed, or the reporter declined to send</td>
-<td>the verdict's</td>
+<td>the verdict's, or the code the command ended with before delivery</td>
 </tr>
 <tr>
 <td><code>unknown</code></td>
-<td>the reporter failed, or ran past 30 seconds; whether anything left is unknown</td>
+<td>the reporter failed, ran past 30 seconds, or said <code>delivered</code> with no attempt or with a status outside 2xx; whether anything left is unknown</td>
 <td><code>8</code></td>
 </tr>
 </tbody>
 </table></div>
-<p>The destination is shown without a path, query or credential. The line's prefix and status
-words are stable; a script may read them.</p>
+<p>The destination is shown without a path, query or credential: Guardana reduces a URL to
+<code>scheme://host[:port]</code> before printing it, whatever the reporter gave, and withholds the
+reporter's secrets from any other destination. The line's prefix and status words are stable;
+a script may read them.</p>
 <h2 id="exit-code-8">Exit code 8</h2>
 <p>Exit <code>8</code> means an installed output failed: a format raised or returned no text, so nothing was
-written, or a reporter's delivery is <code>unknown</code>. The verdict is printed whenever <code>8</code> replaces its
+written, or a reporter's delivery is <code>unknown</code>. A file already at <code>--output</code> holds an earlier
+run, so a failed format removes it and says so, here and on exit <code>5</code>. The verdict is printed whenever <code>8</code> replaces its
 code, as <code>the run's verdict: &lt;gate&gt; (exit &lt;code&gt;)</code>, and a failed format's error names the distribution to report it to. A
 run its target or budget stopped keeps exit <code>4</code>, <code>6</code> or <code>7</code>. When Guardana's own redaction fails
 before an output is called, nothing is written or sent and the exit is <code>5</code>, a defect to report

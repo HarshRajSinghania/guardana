@@ -26,6 +26,7 @@ from _output_modules import (
     RECORDING_RENDERER,
     RECORDING_REPORTER,
     SECRET_DESTINATION_PREPARE,
+    UNWITHHELD_DESTINATION_PREPARE,
     WRONG_TYPE_PROVIDER,
     body,
 )
@@ -40,9 +41,12 @@ from guardana.core.entrypoints import (
 )
 from guardana.core.origin import Origin
 from guardana.core.output import (
+    Delivery,
+    DeliveryStatus,
     OutputSelectionError,
     OutputSelectionKind,
     discover_outputs,
+    format_delivery_line,
     is_output_name,
     select_renderer,
     select_reporter,
@@ -54,6 +58,7 @@ _DIST = "acme-guardana-outputs"
 _BUILTINS = PluginTrust(mode=PluginMode.BUILTINS)
 _ADMITTED = PluginTrust(mode=PluginMode.ALLOWLIST, allowed=frozenset({_DIST}))
 _ALL = PluginTrust(mode=PluginMode.ALL)
+DELIVERED = DeliveryStatus.DELIVERED
 
 
 @pytest.fixture
@@ -392,11 +397,37 @@ def test_a_prepared_destination_withholds_what_the_deliverer_sends(site: FakeSit
     _install(site, SECRET_DESTINATION_PREPARE, group=REPORTER_GROUP, name="acme-webhook")
     token = "tok" + "e" * 12
 
-    prepared = select_reporter("acme-webhook", f"https://hooks.example.invalid/{token}", _ADMITTED)
+    prepared = select_reporter("acme-webhook", f"queue:acme/{token}", _ADMITTED)
 
     assert token not in prepared.destination
-    assert prepared.destination.startswith("https://hooks.example.invalid/")
+    assert prepared.destination.startswith("queue:acme/")
     assert prepared.secrets == (token,)
+
+
+@pytest.mark.parametrize(
+    ("locator", "shown"),
+    [
+        (
+            "https://ci-bot:s3cr3tPassw0rd@hooks.example.com/services/T0/B0/XoXoSecretPath"
+            "?token=abc123",
+            "https://hooks.example.com",
+        ),
+        ("http://hooks.example.com:8443/p#fragment", "http://hooks.example.com:8443"),
+        ("https://user@[2001:db8::1]:9000/path", "https://[2001:db8::1]:9000"),
+        ("queue:acme-alerts", "queue:acme-alerts"),
+    ],
+    ids=["credentials-path-query", "port-fragment", "ipv6", "not-a-url"],
+)
+def test_a_url_destination_is_shown_as_its_scheme_and_host_only(
+    site: FakeSite, locator: str, shown: str
+) -> None:
+    _install(site, UNWITHHELD_DESTINATION_PREPARE, group=REPORTER_GROUP, name="acme-webhook")
+
+    prepared = select_reporter("acme-webhook", locator, _ADMITTED)
+
+    assert prepared.destination == shown
+    line = format_delivery_line(prepared.name, prepared.destination, Delivery(DELIVERED))
+    assert line == f"delivery: delivered — acme-webhook to {shown}"
 
 
 def test_selecting_a_format_imports_no_reporter_of_the_same_distribution(site: FakeSite) -> None:

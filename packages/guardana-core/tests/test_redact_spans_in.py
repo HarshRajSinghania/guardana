@@ -83,9 +83,6 @@ def test_every_container_the_walk_knows_has_its_text_redacted_and_keeps_its_type
         None,
         datetime(2026, 1, 2, tzinfo=UTC),
         date(2026, 1, 2),
-        Path("keys") / "file.txt",
-        PurePosixPath("keys"),
-        b"bytes",
     ],
     ids=lambda value: type(value).__name__,
 )
@@ -95,8 +92,28 @@ def test_a_scalar_is_returned_as_it_is(scalar: object) -> None:
 
 @pytest.mark.parametrize(
     "unknown",
-    [deque([f"q {_KEY}"]), _Pair(f"p {_KEY}", "b"), _Bag(f"b {_KEY}"), object(), RunManifest],
-    ids=["deque", "namedtuple", "plain-object", "object", "a-class"],
+    [
+        deque([f"q {_KEY}"]),
+        _Pair(f"p {_KEY}", "b"),
+        _Bag(f"b {_KEY}"),
+        object(),
+        RunManifest,
+        Path("keys") / f"{_KEY}.txt",
+        PurePosixPath(f"keys/{_KEY}"),
+        f"b {_KEY}".encode(),
+        bytearray(f"b {_KEY}".encode()),
+    ],
+    ids=[
+        "deque",
+        "namedtuple",
+        "plain-object",
+        "object",
+        "a-class",
+        "path",
+        "pure-path",
+        "bytes",
+        "bytearray",
+    ],
 )
 def test_a_value_the_walk_does_not_know_is_refused(unknown: object) -> None:
     with pytest.raises(TypeError):

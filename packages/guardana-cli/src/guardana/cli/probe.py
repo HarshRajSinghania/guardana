@@ -634,21 +634,26 @@ def _finish_probe(  # noqa: PLR0913 — what the command does with a finished ru
     A judge whose own ceiling stopped the run is named here, which the exit code alone
     cannot: a judge meters its calls apart from the target's, so a run cut short by
     grading would otherwise read as the target's budget running out. A run its target
-    stopped is saved, kept and forwarded as any other, and what the target did is named.
+    stopped is saved, kept and forwarded as any other, and what the target did is named,
+    also when a failed format or reporter boundary ends the command first.
     """
     for stop in verification.judge_stops:
         typer.echo(f"warning: {stop}", err=True)
-    outputs.write(verification, output)
-    _write_exchanges(verification, output, keep=keep)
-    if collector:
-        submit_safely(
-            collector,
-            verification.result,
-            source=source,
-            deployment=deployment,
-            run=verification.manifest,
-        )
-    outputs.deliver(verification)
+    try:
+        outputs.write(verification, output)
+        _write_exchanges(verification, output, keep=keep)
+        if collector:
+            submit_safely(
+                collector,
+                verification.result,
+                source=source,
+                deployment=deployment,
+                run=verification.manifest,
+            )
+        outputs.deliver(verification)
+    except typer.Exit:
+        report_target_stop(verification)
+        raise
     report_target_stop(verification)
     outputs.end(verification)
 

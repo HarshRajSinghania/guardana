@@ -6,17 +6,18 @@ install all leave "what this build provides" unproven, so both commands exit `2`
 declares is validated and pinned like an evaluator, by name.
 """
 
+import shutil
 from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
 import yaml
-from _fake_distribution import FakeModule, FakeSite
+from _fake_distribution import MARKING_MODULE, FakeModule, FakeSite
 from _output_modules import RAISING_PROVIDER, RECORDING_RENDERER, RECORDING_REPORTER, body
 from guardana.cli import pack
 from guardana.cli.exit_codes import ExitCode
 from guardana.cli.main import app
-from guardana.core.entrypoints import RENDERER_GROUP, REPORTER_GROUP
+from guardana.core.entrypoints import RENDERER_GROUP, REPORTER_GROUP, RULE_GROUP
 from guardana.core.pack import MANIFEST_NAME, PackDiscovery
 from guardana.core.plugins import PluginTrust
 from typer.testing import CliRunner
@@ -161,6 +162,53 @@ def test_a_lock_pins_the_output_by_name_as_schema_3_and_then_matches(
     assert entry["renderers"] == ["acme-table"]
     assert entry["reporters"] == []
     assert checked.exit_code == ExitCode.OK, checked.output
+
+
+_IMPOSTER = "acme-imposter"
+
+
+def _pack_with_a_separate_renderer(site: FakeSite, renderer_from: str) -> None:
+    """Install the pack's manifest under `_DIST` and `acme-table` from `renderer_from`."""
+    package = site.module(MARKING_MODULE, package=True)
+    (package.directory / MANIFEST_NAME).write_text(_MANIFEST, encoding="utf-8")
+    renderer = site.module(body(RECORDING_RENDERER, "acme-table"))
+    if renderer_from == _DIST:
+        site.distribution(
+            _DIST,
+            (RULE_GROUP, "acme-outputs", package.name),
+            (RENDERER_GROUP, "acme-table", renderer.name),
+        )
+    else:
+        site.distribution(_DIST, (RULE_GROUP, "acme-outputs", package.name))
+        site.distribution(renderer_from, (RENDERER_GROUP, "acme-table", renderer.name))
+
+
+def test_a_pinned_output_another_distribution_now_registers_is_drift(
+    site: FakeSite, tmp_path: Path
+) -> None:
+    path = tmp_path / "guardana-lock.yaml"
+    admit = [*_ADMIT, "--allow-plugin", _IMPOSTER]
+    _pack_with_a_separate_renderer(site, _DIST)
+    written = runner.invoke(app, ["pack", "lock", str(path), *admit])
+    assert written.exit_code == ExitCode.OK, written.output
+    (entry,) = [
+        p
+        for p in yaml.safe_load(path.read_text(encoding="utf-8"))["packs"]
+        if p["name"] == "acme-outputs"
+    ]
+    assert entry["renderers"] == ["acme-table"]
+    for info in site.root.glob("*.dist-info"):
+        shutil.rmtree(info)
+    _pack_with_a_separate_renderer(site, _IMPOSTER)
+
+    checked = runner.invoke(app, ["pack", "lock", str(path), "--check", *admit])
+    rewritten = runner.invoke(app, ["pack", "lock", str(tmp_path / "again.yaml"), *admit])
+
+    assert checked.exit_code == ExitCode.POLICY_FAILED, checked.output
+    assert "removed: acme-table — renderer was locked and is gone" in checked.stdout
+    assert rewritten.exit_code == ExitCode.INDETERMINATE, rewritten.output
+    assert f"renderer acme-table, which {_IMPOSTER} registers" in rewritten.stderr
+    assert not (tmp_path / "again.yaml").exists()
 
 
 def test_a_schema_2_lock_checked_with_an_output_installed_says_to_rewrite_it(

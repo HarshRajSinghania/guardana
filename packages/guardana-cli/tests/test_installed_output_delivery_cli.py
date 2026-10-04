@@ -244,6 +244,41 @@ def test_a_failed_format_exits_8_with_the_verdict_and_writes_nothing(
     assert _delivery_lines(result.output) == []
 
 
+@pytest.mark.parametrize(
+    ("rendered", "code"),
+    [("''", ExitCode.OUTPUT_FAILED), ("'a,b'", ExitCode.INTERNAL_ERROR)],
+    ids=["format-failed", "redaction-failed"],
+)
+def test_a_failed_format_removes_an_earlier_run_at_its_output(  # noqa: PLR0913 — the matrix
+    site: FakeSite,
+    clean_tree: Path,
+    failing_tree: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    rendered: str,
+    code: ExitCode,
+) -> None:
+    saved = tmp_path / "run.json"
+    earlier = runner.invoke(
+        app, ["scan", str(clean_tree), "--format", "json", "--output", str(saved)]
+    )
+    assert earlier.exit_code == ExitCode.OK, earlier.output
+    assert saved.is_file()
+    _table(site, rendered=rendered)
+    if code is ExitCode.INTERNAL_ERROR:
+        _failing_boundary(monkeypatch)
+
+    result = runner.invoke(
+        app,
+        ["scan", str(failing_tree), "--format", "acme-table", "--output", str(saved), *_ADMIT],
+    )
+
+    assert result.exit_code == code, result.output
+    assert not saved.exists()
+    assert _lines(result.output)[-1] == f"removed {saved}: it held an earlier run, not this one"
+
+
 def test_a_failed_format_says_its_report_was_not_produced_to_the_reporter(
     site: FakeSite, clean_tree: Path
 ) -> None:
@@ -371,6 +406,40 @@ def test_a_stopped_probe_keeps_its_code_over_a_failed_format(
 
     assert result.exit_code == ExitCode.BUDGET_EXHAUSTED, result.output
     assert "the run's verdict: indeterminate (exit 6)" in _lines(result.output)
+
+
+@pytest.mark.parametrize(
+    ("arguments", "rendered", "redaction_fails"),
+    [
+        (["--format", "acme-table"], "''", False),
+        (["--format", "acme-table"], "'a,b'", True),
+        ([], "'a,b'", True),
+    ],
+    ids=["format-failed", "format-redaction-failed", "reporter-redaction-failed"],
+)
+def test_a_probe_its_target_stopped_names_the_stop_when_its_output_fails(
+    site: FakeSite,
+    monkeypatch: pytest.MonkeyPatch,
+    arguments: list[str],
+    rendered: str,
+    *,
+    redaction_fails: bool,
+) -> None:
+    monkeypatch.setattr(
+        endpoint_module,
+        "transport_factory",
+        lambda: FailingTransport(URLError(ConnectionRefusedError("refused"))),
+    )
+    _both(site, rendered=rendered, deliver="return Delivery(DeliveryStatus.DELIVERED)")
+    if redaction_fails:
+        _failing_boundary(monkeypatch)
+
+    result = _probe(*arguments, "--reporter", _HOOK, *_ADMIT)
+
+    assert result.exit_code == ExitCode.TARGET_UNAVAILABLE, result.output
+    lines = _lines(result.output)
+    assert "the run's verdict: indeterminate (exit 4)" in lines
+    assert "error: could not reach endpoint http://fake#m: <urlopen error refused>" in lines
 
 
 def test_a_format_whose_redaction_fails_exits_5_with_the_verdict_and_writes_nothing(
@@ -565,12 +634,12 @@ def test_a_run_its_target_stopped_is_delivered_and_keeps_exit_4(
         "transport_factory",
         lambda: FailingTransport(URLError(ConnectionRefusedError("refused"))),
     )
-    hook = _hook(site, "return Delivery(DeliveryStatus.DELIVERED)")
+    hook = _hook(site, "return Delivery(DeliveryStatus.DELIVERED, attempts=1)")
 
     result = _probe("--reporter", _HOOK, *_ADMIT)
 
     assert result.exit_code == ExitCode.TARGET_UNAVAILABLE, result.output
-    assert _delivery_lines(result.output) == [f"delivery: delivered — {_TO}"]
+    assert _delivery_lines(result.output) == [f"delivery: delivered — {_TO} (1 attempt)"]
     assert _seen(hook)[0].result.stopped_by is not None
 
 

@@ -405,8 +405,11 @@ select_reporter(name: str, locator: str, trust: PluginTrust) -&gt; PreparedRepor
                             # (name, spec, deliverer, origin, destination, secrets)
 </code></pre>
 <p><code>PreparedReporter.destination</code> is the deliverer's <code>destination</code> after the sanitiser of
-decision 5, and <code>secrets</code> its <code>sent_secrets()</code>, both taken once at selection; a raise there, or
-a value that is not a tuple of strings, is <code>broken</code>. Every line prints <code>prepared.destination</code>.</p>
+decision 5, then reduced to <code>scheme://host[:port]</code> when it parses as a URL with a scheme and a
+host (no userinfo, path, query or fragment; any other destination stays as sanitised), and
+<code>secrets</code> its <code>sent_secrets()</code>, both taken once at selection; a raise there, or a value that is
+not a tuple of strings, is <code>broken</code>. Every line prints <code>prepared.destination</code>, so the engine,
+not the reporter, keeps a path, query or credential off the line.</p>
 <p><code>origin</code> is <code>guardana.core.origin.Origin(distribution, version)</code>. Steps, in order:</p>
 <ol>
 <li><code>name</code> reserved → <code>reserved</code>. <code>name</code> not matching the pattern → <code>unknown</code>.</li>
@@ -489,7 +492,7 @@ verifier returned; <code>analyze-trace</code> builds <code>Verification(result=r
 <tr>
 <td><code>manifest</code></td>
 <td>as saved</td>
-<td>as saved through the redactor's own span walk, <code>EvidenceRedactor.redact_spans_in</code>: every <code>str</code> of the dataclass tree, its tuples, lists, sets, frozensets and mapping values redacted by span, with the identifier fields <code>redact</code> exempts kept (rule and evaluator ids, assessors, <code>TaxonomyRef</code>), mapping keys kept, and enums, times, numbers and paths unchanged; any other type raises <code>TypeError</code>, so the walk fails closed. Then <code>target.ref</code> is redacted by the <code>redacted</code>-mode redactor <code>HttpReporter</code> uses for its source</td>
+<td>as saved through the redactor's own span walk, <code>EvidenceRedactor.redact_spans_in</code>: every <code>str</code> of the dataclass tree, its tuples, lists, sets, frozensets and mapping values redacted for secrets by span, with names and identifiers kept (the fields <code>redact</code> exempts: rule, evaluator and assessor ids, <code>TaxonomyRef</code>; and mapping keys), and enums, times and numbers unchanged; any other type, bytes and paths included, raises <code>TypeError</code>, so the walk fails closed. Then <code>target.ref</code> is additionally redacted by the <code>redacted</code>-mode redactor <code>HttpReporter</code> uses for its source</td>
 </tr>
 <tr>
 <td><code>stop_messages</code>, <code>judge_stops</code></td>
@@ -520,8 +523,8 @@ renderer or recording discovered reporter sees it; a credential planted in <code
 reaches a format as saved, as the JSON report writes it, and reaches no reporter. A second test
 plants a credential in every <code>str</code> of a manifest through a walk of its own that raises on any
 type it does not know, so a new container in the manifest fails the test, and asserts by <code>repr</code>
-and by a walk over every iterable that none reaches a reporter outside the exempt identifier
-fields.</p>
+and by a walk over every iterable that none reaches a reporter outside the exempt identifiers
+and mapping keys. A path or bytes value in a manifest is refused as any unknown type is.</p>
 <p><code>guardana.core.verify.load_verification(path) -&gt; Verification</code> reads a saved run of any schema
 through <code>load_report</code>, sets <code>gate</code> from <code>manifest.result_summary.gate</code>, and leaves <code>exchanges</code>
 <code>None</code>. A run that records no gate raises <code>ReportLoadError(&quot;&lt;path&gt; records no gate, so its verdict cannot be read&quot;)</code>; a migrated schema-1 run is one. This is how a run is exported after the
@@ -557,8 +560,9 @@ a run that stopped keeps <code>4</code>, <code>6</code> or <code>7</code>, becau
 alike. <code>ExitCode.OUTPUT_FAILED = 8</code> joins <code>cli/exit_codes.py</code>, <code>docs/exit-codes.md</code> and its test.</p>
 <p>A <code>BoundaryError</code> is a defect in Guardana, so it exits <code>5</code> under the same precedence. The
 command prints the verdict line, then <code>error: the run could not be redacted for the format &lt;name&gt;: &lt;type&gt; — nothing was written; this is a defect in Guardana</code>, then the delivery line if
-a reporter was selected. When a failed format leaves a run with <code>--reporter</code> naming the
-built-in collector, the command prints <code>warning: nothing was forwarded to the collector: the run's report was not produced</code> before it exits.</p>
+a reporter was selected. On both exits, a file already at <code>--output</code> holds an earlier run, so
+it is removed after the <code>error: …</code> line with <code>removed &lt;path&gt;: it held an earlier run, not this one</code>; left in place it would read as this run's report. When a failed format leaves a run with
+<code>--reporter</code> naming the built-in collector, the command prints <code>warning: nothing was forwarded to the collector: the run's report was not produced</code> before it exits.</p>
 <h3 id="5-a-reporter-returns-its-delivery-status">5. A reporter returns its delivery status</h3>
 <pre><code class="language-python">@dataclass(frozen=True, slots=True)
 class ReporterSpec:
@@ -600,10 +604,12 @@ waiting thread propagates, so an interrupted run still exits <code>7</code>.</li
 <li>Any exception except <code>KeyboardInterrupt</code> (<code>SystemExit</code> included): <code>UNKNOWN</code>, detail
 <code>&lt;type&gt;: &lt;message&gt;</code>. A value that is not a <code>Delivery</code>, or one whose <code>status</code> is not a
 <code>DeliveryStatus</code>, whose <code>attempts</code> is not a non-negative <code>int</code>, whose <code>http_status</code> is
-neither <code>None</code> nor an <code>int</code>, or whose <code>detail</code> is not a <code>str</code>: <code>UNKNOWN</code>, detail <code>returned an invalid delivery</code>. <code>UNKNOWN</code> is never written as anything else.</li>
+neither <code>None</code> nor an <code>int</code>, or whose <code>detail</code> is not a <code>str</code>: <code>UNKNOWN</code>, detail <code>returned an invalid delivery</code>. A well-formed <code>DELIVERED</code> with <code>attempts == 0</code>, or with an <code>http_status</code>
+that is not <code>None</code> and not 200–299: <code>UNKNOWN</code>, detail <code>returned delivered without an acknowledgement</code>, so <code>delivered</code> always means a 2xx acknowledgement from at least one
+attempt. <code>UNKNOWN</code> is never written as anything else.</li>
 <li>Sanitises <code>destination</code> and <code>detail</code>: every <code>sent_secrets()</code> value is withheld as written,
 then <code>EvidenceRedactor().redact_text</code>, then control characters (C0, DEL, C1) are dropped, then
-<code>bounded_reason</code>. A renderer's failure reason and a <code>broken</code> reason go through the same
+<code>bounded_reason</code>; a URL destination is then reduced to <code>scheme://host[:port]</code> (decision 2). A renderer's failure reason and a <code>broken</code> reason go through the same
 sanitiser with no secrets.</li>
 </ol>
 <p><strong>The delivery line</strong> is a documented, stable contract (<code>docs/outputs.md</code>), printed once to
@@ -630,9 +636,10 @@ code: the receiver's state is not the run's, and that is the collector's rule fo
 rejection. <code>unknown</code> is a defect in the reporter, as a bad URL or a serialization error is a
 defect the collector path lets end the command: it ends with exit <code>8</code> under the precedence of
 decision 4, and the verdict line is printed whenever <code>8</code> replaces the verdict's code. A failure
-of Guardana's own redaction is not the reporter's defect: it exits <code>5</code> (step 1). Both exit-<code>5</code>
-paths, the format's (decision 4) and the reporter's, print in one order: the verdict line, then
-the <code>error: …</code> line, then the delivery line last. With <code>GUARDANA_DEBUG=1</code> the traceback of what
+of Guardana's own redaction is not the reporter's defect: it exits <code>5</code> (step 1). When a
+reporter is selected, both exit-<code>5</code> paths, the format's (decision 4) and the reporter's, print
+in one order: the verdict line, then the <code>error: …</code> line, then the delivery line last; with the
+collector selected instead, the last line is the <code>nothing was forwarded</code> warning. With <code>GUARDANA_DEBUG=1</code> the traceback of what
 the redaction raised is printed first, as for every other exit <code>5</code>. A Python caller
 reads the <code>Delivery</code>. The built-in collector keeps its messages and
 its envelope; moving it onto the delivery line would change a shipped output nobody asked to
@@ -693,6 +700,10 @@ the distribution version as the coarse pin. One spelling everywhere ids are pool
 <code>Installed.ids()</code>, <code>lock_of</code>'s declared set and <code>unlocked</code> use <code>renderer:&lt;name&gt;</code> and
 <code>reporter:&lt;name&gt;</code>. <code>_undelivered</code> covers outputs (declared and not provided raises <code>PackError</code>),
 <code>_pack_drift</code> reports <code>added</code> and <code>removed</code> outputs, <code>_READABLE_LOCK_SCHEMAS</code> becomes <code>{1, 2, 3}</code>,
+<code>Installed</code> maps each output name to the distribution registering it, and <code>lock_of</code> pins in a
+pack only the declared outputs its own distribution registers: a declared name another
+distribution registers is not pinned for that pack, so <code>pack lock --check</code> reports it <code>removed</code>
+(exit <code>1</code>) and <code>pack lock</code> raises <code>PackError</code> naming that distribution (exit <code>2</code>),
 and a schema 1 or 2 lock carrying <code>renderers</code> or <code>reporters</code> is refused. A schema 2 lock with an
 output now installed reports it as <code>added</code>, and <code>pack lock --check</code> says the lock pins no output
 and asks for <code>guardana pack lock</code>. Schema 2, of a manifest or a lock, is current rather than

@@ -65,8 +65,8 @@ def _installed() -> Installed:
         evaluators=("acme.strict_refusal",),
         targets=("AcmePromptLibraryTarget",),
         catalogues={"ACME-CONTROLS": catalogue_digest([_ACME])},
-        renderers=("acme-table",),
-        reporters=("acme-webhook",),
+        renderers={"acme-table": "acme-guardana-rules"},
+        reporters={"acme-webhook": "acme-guardana-rules"},
     )
 
 
@@ -300,7 +300,11 @@ def test_the_lock_is_written_in_a_stable_order() -> None:
 
 def test_the_same_pack_shipped_by_another_distribution_is_drift() -> None:
     """Same name, version and ids, other code: the evaluators behind those ids are not pinned."""
-    replaced = lock_of([("acme-rules-fork", "0.3.1", _manifest())], _installed())
+    fork = "acme-rules-fork"
+    installed = replace(
+        _installed(), renderers={"acme-table": fork}, reporters={"acme-webhook": fork}
+    )
+    replaced = lock_of([(fork, "0.3.1", _manifest())], installed)
 
     drift = compare(_lock(), replaced)
 

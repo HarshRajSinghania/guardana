@@ -293,8 +293,8 @@ def _rules_only() -> PackManifest:
 def _installed() -> Installed:
     return Installed(
         rules={_RULE: "1111222233334444"},
-        renderers=("acme-table",),
-        reporters=("acme-webhook",),
+        renderers={"acme-table": _DIST},
+        reporters={"acme-webhook": _DIST},
     )
 
 
@@ -306,7 +306,7 @@ def _packs() -> list[tuple[str, str, PackManifest]]:
 def test_a_lock_with_no_output_is_written_exactly_as_schema_2() -> None:
     """Byte for byte what this build wrote before outputs, so every earlier build reads it."""
     lock = lock_of(
-        [("acme-rules", "1.0", _rules_only())], replace(_installed(), renderers=(), reporters=())
+        [("acme-rules", "1.0", _rules_only())], replace(_installed(), renderers={}, reporters={})
     )
 
     written = yaml.safe_dump(lock_to_dict(lock), sort_keys=False)
@@ -353,7 +353,7 @@ def test_a_schema_3_lock_reads_back_as_the_lock_that_was_written() -> None:
 
 
 def test_an_unlocked_output_alone_makes_the_lock_schema_3() -> None:
-    lock = lock_of([("acme-rules", "1.0", _rules_only())], replace(_installed(), reporters=()))
+    lock = lock_of([("acme-rules", "1.0", _rules_only())], replace(_installed(), reporters={}))
 
     document = lock_to_dict(lock)
 
@@ -414,7 +414,7 @@ def test_a_schema_2_lock_read_with_an_output_installed_reports_it_added() -> Non
                 replace(_manifest(), renderers=(), reporters=(), output_api=None, rules=(_RULE,)),
             )
         ],
-        replace(_installed(), renderers=(), reporters=()),
+        replace(_installed(), renderers={}, reporters={}),
     )
     document = lock_to_dict(before)
     assert document["schema_version"] == 2
@@ -440,7 +440,7 @@ def test_an_output_no_longer_provided_is_reported_removed() -> None:
             ("acme-rules", "1.0", _rules_only()),
             (_DIST, "0.1.0", replace(_manifest(), reporters=())),
         ],
-        replace(_installed(), reporters=()),
+        replace(_installed(), reporters={}),
     )
 
     drift = compare(locked, now)
@@ -452,12 +452,33 @@ def test_an_output_no_longer_provided_is_reported_removed() -> None:
 @pytest.mark.parametrize("kind", ["renderer", "reporter"])
 def test_an_output_declared_and_not_installed_refuses_the_lock(kind: str) -> None:
     if kind == "renderer":
-        installed = replace(_installed(), renderers=())
+        installed = replace(_installed(), renderers={})
     else:
-        installed = replace(_installed(), reporters=())
+        installed = replace(_installed(), reporters={})
 
     with pytest.raises(PackError, match=rf"acme-outputs declares {kind} acme-"):
         lock_of(_packs(), installed)
+
+
+def test_an_output_another_distribution_registers_is_not_pinned_for_the_pack() -> None:
+    locked = lock_of(_packs(), _installed())
+    foreign = replace(_installed(), renderers={"acme-table": "acme-imposter"})
+
+    now = lock_of(_packs(), foreign)
+
+    (pack,) = [p for p in now.packs if p.name == "acme-outputs"]
+    assert pack.renderers == ()
+    assert pack.reporters == ("acme-webhook",)
+    assert now.unlocked == ("renderer:acme-table",)
+    assert (DriftKind.REMOVED, "acme-table") in {(d.kind, d.subject) for d in compare(locked, now)}
+
+
+def test_writing_a_lock_with_an_output_another_distribution_registers_is_refused() -> None:
+    foreign = replace(_installed(), reporters={"acme-webhook": None})
+
+    said = "acme-outputs declares reporter acme-webhook, which an unnamed distribution registers"
+    with pytest.raises(PackError, match=said):
+        lock_of(_packs(), foreign, writing=True)
 
 
 def test_installed_ids_spell_outputs_by_kind() -> None:

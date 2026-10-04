@@ -19,7 +19,6 @@ from dataclasses import dataclass, field, fields, is_dataclass, replace
 from datetime import date
 from enum import Enum, StrEnum
 from functools import cache
-from pathlib import PurePath
 from types import NoneType
 from typing import TYPE_CHECKING, Any, ClassVar, Protocol, TypeVar, cast
 
@@ -122,7 +121,7 @@ class _Dataclass(Protocol):
 _Record = TypeVar("_Record", bound=_Dataclass)
 _Walked = TypeVar("_Walked")
 
-_SCALARS = (int, float, NoneType, date, PurePath, bytes)
+_SCALARS = (int, float, NoneType, date)
 """Values the span walk returns as they are: none of them holds text a pattern could match.
 
 `bool` is an `int` and `datetime` a `date`; an `Enum` is checked before `str`, as a
@@ -295,8 +294,8 @@ class EvidenceRedactor:
         frozensets and mapping values; a changed mapping comes back as a `dict` and its
         keys are kept. Identifier fields and records are left alone, as `redact` leaves them, and
         nothing is emptied or truncated. Any other value that is not an `Enum`, a number,
-        `None`, a date, a path or bytes raises `TypeError`, so a container this walk does
-        not know can never pass through unredacted.
+        `None` or a date raises `TypeError`, a path and bytes included, so a value whose
+        text this walk does not read can never pass through unredacted.
         """
         return cast("_Walked", self._value(value, spans_only=True))
 

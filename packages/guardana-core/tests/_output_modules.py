@@ -170,6 +170,27 @@ def provide():
 )
 
 
+UNWITHHELD_DESTINATION_PREPARE = (
+    _MARK
+    + """
+
+class _Deliverer:
+    def __init__(self, locator):
+        self.destination = locator
+
+    def sent_secrets(self):
+        return ()
+
+    def deliver(self, verification):
+        return Delivery(DeliveryStatus.DELIVERED)
+
+
+def provide():
+    return ReporterSpec(name="NAME", summary="s", prepare=lambda r: _Deliverer(r.locator))
+"""
+)
+
+
 def body(template: str, name: str) -> str:
     """Return `template` with the output's name written in."""
     return template.replace("NAME", name)

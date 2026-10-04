@@ -522,7 +522,10 @@ teammate's lock in the older layout.</p>
 as <code>renderer:&lt;name&gt;</code> or <code>reporter:&lt;name&gt;</code>; otherwise it stays schema 2, which older builds
 read. A schema 2 lock checked against a build with an installed output reports the output as
 added and asks for <code>guardana pack lock</code>. Both commands also exit <code>2</code> when trust refused an
-installed output, it failed to load, or two distributions install one output name.</p>
+installed output, it failed to load, or two distributions install one output name. A pack pins
+only the outputs its own distribution registers: when another distribution registers one it
+declares, <code>--check</code> reports it <code>removed</code> and <code>pack lock</code> refuses to write, naming that
+distribution.</p>
 <p><code>unlocked:</code> lists extensions registered by a package that declares <strong>no manifest</strong>.
 They are recorded and not attributed to a pack, and the command says so on stderr —
 a lock that stayed silent about them would read as a fully pinned repository that

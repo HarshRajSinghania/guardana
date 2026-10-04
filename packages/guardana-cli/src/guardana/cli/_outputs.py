@@ -201,7 +201,8 @@ class RunOutputs:
 
         An installed format that fails ends the command: the verdict is printed, nothing is
         written, and the exit is `8` unless the run stopped. When Guardana's own redaction
-        fails for it, the exit is `5` unless the run stopped.
+        fails for it, the exit is `5` unless the run stopped. Either way an earlier run at
+        `output` is removed, so the path never holds a report this run did not produce.
         """
         name = self.format_name
         if isinstance(self.format, OutputFormat):
@@ -218,9 +219,10 @@ class RunOutputs:
                 f"— nothing was written; {_DEFECT}",
                 err=True,
             )
+            _remove_earlier(output)
             self._not_produced(verification, ExitCode.INTERNAL_ERROR)
         except OutputError as exc:
-            self._failed(exc, verification)
+            self._failed(exc, verification, output)
         self._emit(rendered, output, verbatim=True)
 
     def _emit(self, rendered: str, output: Path | None, *, verbatim: bool) -> None:
@@ -230,7 +232,9 @@ class RunOutputs:
             self.not_sent("the run's report could not be written")
             raise
 
-    def _failed(self, exc: OutputError, verification: Verification) -> NoReturn:
+    def _failed(
+        self, exc: OutputError, verification: Verification, output: Path | None
+    ) -> NoReturn:
         owner = exc.origin.distribution or "the distribution that installed it"
         _print_verdict(verification)
         typer.echo(
@@ -238,6 +242,7 @@ class RunOutputs:
             f"{sanitise_reason(exc.reason)} — nothing was written; report it to {owner}",
             err=True,
         )
+        _remove_earlier(output)
         self._not_produced(verification, ExitCode.OUTPUT_FAILED)
 
     def _not_produced(self, verification: Verification, code: ExitCode) -> NoReturn:
@@ -285,6 +290,22 @@ class RunOutputs:
                 _print_verdict(verification)
             raise typer.Exit(code=code)
         exit_with(verification.gate, verification.result)
+
+
+def _remove_earlier(output: Path | None) -> None:
+    """Remove the file at `output`, which holds an earlier run, and say so."""
+    if output is None or not (output.is_file() or output.is_symlink()):
+        return
+    try:
+        output.unlink()
+    except OSError as exc:
+        typer.echo(
+            f"warning: {output} still holds an earlier run, not this one: could not remove it: "
+            f"{exc}",
+            err=True,
+        )
+        return
+    typer.echo(f"removed {output}: it held an earlier run, not this one", err=True)
 
 
 def _print_verdict(verification: Verification) -> None:

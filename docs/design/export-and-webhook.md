@@ -142,8 +142,11 @@ select_reporter(name: str, locator: str, trust: PluginTrust) -> PreparedReporter
 ```
 
 `PreparedReporter.destination` is the deliverer's `destination` after the sanitiser of
-decision 5, and `secrets` its `sent_secrets()`, both taken once at selection; a raise there, or
-a value that is not a tuple of strings, is `broken`. Every line prints `prepared.destination`.
+decision 5, then reduced to `scheme://host[:port]` when it parses as a URL with a scheme and a
+host (no userinfo, path, query or fragment; any other destination stays as sanitised), and
+`secrets` its `sent_secrets()`, both taken once at selection; a raise there, or a value that is
+not a tuple of strings, is `broken`. Every line prints `prepared.destination`, so the engine,
+not the reporter, keeps a path, query or credential off the line.
 
 `origin` is `guardana.core.origin.Origin(distribution, version)`. Steps, in order:
 
@@ -224,7 +227,7 @@ gate=outcome)`.
 | Field | Renderer | Reporter |
 |---|---|---|
 | `result` | `EvidenceRedactor().redact_result(result)`: the second pass `_Redacting` and `HttpReporter` give the built-ins | the same |
-| `manifest` | as saved | as saved through the redactor's own span walk, `EvidenceRedactor.redact_spans_in`: every `str` of the dataclass tree, its tuples, lists, sets, frozensets and mapping values redacted by span, with the identifier fields `redact` exempts kept (rule and evaluator ids, assessors, `TaxonomyRef`), mapping keys kept, and enums, times, numbers and paths unchanged; any other type raises `TypeError`, so the walk fails closed. Then `target.ref` is redacted by the `redacted`-mode redactor `HttpReporter` uses for its source |
+| `manifest` | as saved | as saved through the redactor's own span walk, `EvidenceRedactor.redact_spans_in`: every `str` of the dataclass tree, its tuples, lists, sets, frozensets and mapping values redacted for secrets by span, with names and identifiers kept (the fields `redact` exempts: rule, evaluator and assessor ids, `TaxonomyRef`; and mapping keys), and enums, times and numbers unchanged; any other type, bytes and paths included, raises `TypeError`, so the walk fails closed. Then `target.ref` is additionally redacted by the `redacted`-mode redactor `HttpReporter` uses for its source |
 | `stop_messages`, `judge_stops` | `()`: never saved; the CLI prints them itself | `()` |
 | `exchanges` | redacted again span by span, as the keeper does: written beside the saved run already | `None`: the collector never receives them either |
 | `judge_usage` | as recorded | as recorded |
@@ -242,8 +245,8 @@ renderer or recording discovered reporter sees it; a credential planted in `mani
 reaches a format as saved, as the JSON report writes it, and reaches no reporter. A second test
 plants a credential in every `str` of a manifest through a walk of its own that raises on any
 type it does not know, so a new container in the manifest fails the test, and asserts by `repr`
-and by a walk over every iterable that none reaches a reporter outside the exempt identifier
-fields.
+and by a walk over every iterable that none reaches a reporter outside the exempt identifiers
+and mapping keys. A path or bytes value in a manifest is refused as any unknown type is.
 
 `guardana.core.verify.load_verification(path) -> Verification` reads a saved run of any schema
 through `load_report`, sets `gate` from `manifest.result_summary.gate`, and leaves `exchanges`
@@ -293,8 +296,10 @@ alike. `ExitCode.OUTPUT_FAILED = 8` joins `cli/exit_codes.py`, `docs/exit-codes.
 A `BoundaryError` is a defect in Guardana, so it exits `5` under the same precedence. The
 command prints the verdict line, then `error: the run could not be redacted for the format
 <name>: <type> — nothing was written; this is a defect in Guardana`, then the delivery line if
-a reporter was selected. When a failed format leaves a run with `--reporter` naming the
-built-in collector, the command prints `warning: nothing was forwarded to the collector: the
+a reporter was selected. On both exits, a file already at `--output` holds an earlier run, so
+it is removed after the `error: …` line with `removed <path>: it held an earlier run, not this
+one`; left in place it would read as this run's report. When a failed format leaves a run with
+`--reporter` naming the built-in collector, the command prints `warning: nothing was forwarded to the collector: the
 run's report was not produced` before it exits.
 
 ### 5. A reporter returns its delivery status
@@ -344,10 +349,13 @@ class Delivery:
    `<type>: <message>`. A value that is not a `Delivery`, or one whose `status` is not a
    `DeliveryStatus`, whose `attempts` is not a non-negative `int`, whose `http_status` is
    neither `None` nor an `int`, or whose `detail` is not a `str`: `UNKNOWN`, detail `returned an
-   invalid delivery`. `UNKNOWN` is never written as anything else.
+   invalid delivery`. A well-formed `DELIVERED` with `attempts == 0`, or with an `http_status`
+   that is not `None` and not 200–299: `UNKNOWN`, detail `returned delivered without an
+   acknowledgement`, so `delivered` always means a 2xx acknowledgement from at least one
+   attempt. `UNKNOWN` is never written as anything else.
 4. Sanitises `destination` and `detail`: every `sent_secrets()` value is withheld as written,
    then `EvidenceRedactor().redact_text`, then control characters (C0, DEL, C1) are dropped, then
-   `bounded_reason`. A renderer's failure reason and a `broken` reason go through the same
+   `bounded_reason`; a URL destination is then reduced to `scheme://host[:port]` (decision 2). A renderer's failure reason and a `broken` reason go through the same
    sanitiser with no secrets.
 
 **The delivery line** is a documented, stable contract (`docs/outputs.md`), printed once to
@@ -381,9 +389,10 @@ code: the receiver's state is not the run's, and that is the collector's rule fo
 rejection. `unknown` is a defect in the reporter, as a bad URL or a serialization error is a
 defect the collector path lets end the command: it ends with exit `8` under the precedence of
 decision 4, and the verdict line is printed whenever `8` replaces the verdict's code. A failure
-of Guardana's own redaction is not the reporter's defect: it exits `5` (step 1). Both exit-`5`
-paths, the format's (decision 4) and the reporter's, print in one order: the verdict line, then
-the `error: …` line, then the delivery line last. With `GUARDANA_DEBUG=1` the traceback of what
+of Guardana's own redaction is not the reporter's defect: it exits `5` (step 1). When a
+reporter is selected, both exit-`5` paths, the format's (decision 4) and the reporter's, print
+in one order: the verdict line, then the `error: …` line, then the delivery line last; with the
+collector selected instead, the last line is the `nothing was forwarded` warning. With `GUARDANA_DEBUG=1` the traceback of what
 the redaction raised is printed first, as for every other exit `5`. A Python caller
 reads the `Delivery`. The built-in collector keeps its messages and
 its envelope; moving it onto the delivery line would change a shipped output nobody asked to
@@ -461,6 +470,10 @@ the distribution version as the coarse pin. One spelling everywhere ids are pool
 `Installed.ids()`, `lock_of`'s declared set and `unlocked` use `renderer:<name>` and
 `reporter:<name>`. `_undelivered` covers outputs (declared and not provided raises `PackError`),
 `_pack_drift` reports `added` and `removed` outputs, `_READABLE_LOCK_SCHEMAS` becomes `{1, 2, 3}`,
+`Installed` maps each output name to the distribution registering it, and `lock_of` pins in a
+pack only the declared outputs its own distribution registers: a declared name another
+distribution registers is not pinned for that pack, so `pack lock --check` reports it `removed`
+(exit `1`) and `pack lock` raises `PackError` naming that distribution (exit `2`),
 and a schema 1 or 2 lock carrying `renderers` or `reporters` is refused. A schema 2 lock with an
 output now installed reports it as `added`, and `pack lock --check` says the lock pins no output
 and asks for `guardana pack lock`. Schema 2, of a manifest or a lock, is current rather than

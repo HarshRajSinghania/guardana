@@ -52,7 +52,11 @@ MAX_OUTPUT_NAME_LENGTH = 40
 DELIVERY_DEADLINE_SECONDS = 30.0
 """How long `deliver` waits for a reporter before the delivery is `unknown`."""
 
+_HTTP_OK = 200
+_HTTP_REDIRECT = 300
+
 _C0_DEL_C1 = re.compile("[\x00-\x1f\x7f-\x9f]")
+_URL_AUTHORITY = re.compile(r"([A-Za-z][A-Za-z0-9+.-]*)://([^/?#]*)")
 _SECOND_PASS = EvidenceRedactor()
 
 
@@ -96,7 +100,7 @@ class DeliveryStatus(StrEnum):
     """What became of one delivery."""
 
     DELIVERED = "delivered"
-    """The receiver acknowledged it."""
+    """The receiver acknowledged it: at least one attempt, and any HTTP status a 2xx."""
 
     REJECTED = "rejected"
     """The receiver answered and did not accept it."""
@@ -218,8 +222,9 @@ class SelectedRenderer:
 class PreparedReporter:
     """An installed reporter, imported and prepared for one destination, ready to deliver.
 
-    `destination` is the deliverer's display form already sanitised, and `secrets` what its
-    `sent_secrets()` returned when it was prepared; both are fixed at selection.
+    `destination` is the deliverer's display form already sanitised, reduced to
+    `scheme://host[:port]` when it is a URL, and `secrets` what its `sent_secrets()`
+    returned when it was prepared; both are fixed at selection.
     """
 
     name: str
@@ -539,9 +544,25 @@ def select_reporter(name: str, locator: str, trust: PluginTrust) -> PreparedRepo
         spec=spec,
         deliverer=deliverer,
         origin=_origin(entry_point),
-        destination=sanitise_reason(destination, secrets),
+        destination=_display_destination(sanitise_reason(destination, secrets)),
         secrets=secrets,
     )
+
+
+def _display_destination(sanitised: str) -> str:
+    """Reduce a URL to `scheme://host[:port]`; keep any other destination as it is.
+
+    A webhook URL often carries its credential in the userinfo, path or query, which a
+    printed line must never show.
+    """
+    match = _URL_AUTHORITY.match(sanitised)
+    if match is None:
+        return sanitised
+    scheme, authority = match.groups()
+    host = authority.rpartition("@")[2]
+    if not host or host.startswith(":"):
+        return sanitised
+    return f"{scheme}://{host}"
 
 
 def _prepared(spec: ReporterSpec, locator: str) -> tuple[Deliverer, str, tuple[str, ...]]:
@@ -667,8 +688,9 @@ def deliver(
     """Deliver `verification` with an installed reporter, through `outbound`, within `deadline`.
 
     Raises `BoundaryError` when the boundary fails, before the reporter is called. Never
-    raises for the reporter's sake: a reporter that raises, overruns the deadline or
-    returns an invalid delivery is `unknown`. A `KeyboardInterrupt` propagates. The detail
+    raises for the reporter's sake: a reporter that raises, overruns the deadline,
+    returns an invalid delivery, or returns `delivered` with no attempt or with an HTTP
+    status outside 2xx is `unknown`. A `KeyboardInterrupt` propagates. The detail
     is sanitised.
     """
     try:
@@ -701,8 +723,9 @@ def deliver(
     if secrets is None:
         return Delivery(DeliveryStatus.UNKNOWN, detail="sent_secrets() failed after the delivery")
     delivery = _valid(outcome[0] if outcome else None)
-    if delivery is None:
-        return Delivery(DeliveryStatus.UNKNOWN, detail="returned an invalid delivery")
+    refused = _refusal(delivery)
+    if delivery is None or refused is not None:
+        return Delivery(DeliveryStatus.UNKNOWN, detail=refused or "returned an invalid delivery")
     return replace(delivery, detail=sanitise_reason(delivery.detail, secrets))
 
 
@@ -739,6 +762,19 @@ def _valid(value: object) -> Delivery | None:
     except BaseException:
         return None
     return value if well_formed else None
+
+
+def _refusal(delivery: Delivery | None) -> str | None:
+    """Say why a well-formed delivery cannot stand, or None when it can.
+
+    `delivered` needs at least one attempt and, when it names an HTTP status, a 2xx one.
+    """
+    if delivery is None or delivery.status is not DeliveryStatus.DELIVERED:
+        return None
+    status = delivery.http_status
+    if delivery.attempts > 0 and (status is None or _HTTP_OK <= status < _HTTP_REDIRECT):
+        return None
+    return "returned delivered without an acknowledgement"
 
 
 def format_delivery_line(name: str, destination: str, delivery: Delivery) -> str:

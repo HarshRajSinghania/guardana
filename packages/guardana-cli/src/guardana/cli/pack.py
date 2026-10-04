@@ -91,7 +91,7 @@ def validate(
         resolved,
         consequence="a manifest cannot be checked against a registry this build did not fully load",
     )
-    # All four groups a manifest may declare. Leaving targets out made every pack
+    # All six groups a manifest may declare. Leaving targets out made every pack
     # shipping one accused of not registering it — a false red, which this project
     # treats exactly as seriously as a false green: a validator that accuses a pack
     # of a fault it does not have is a validator somebody turns off. Taxonomies were
@@ -193,7 +193,7 @@ def lock(
         )
         raise typer.Exit(code=ExitCode.INDETERMINATE)
     try:
-        present = lock_of(packs, _installed(registry, outputs))
+        present = lock_of(packs, _installed(registry, outputs), writing=not check)
     except PackError as exc:
         typer.echo(f"error: {exc}", err=True)
         raise typer.Exit(code=ExitCode.INDETERMINATE) from exc
@@ -352,8 +352,12 @@ def _installed(registry: Registry, outputs: OutputDiscovery) -> Installed:
         evaluators=tuple(sorted(registry.evaluators())),
         targets=tuple(sorted(target.__name__ for target in registry.targets())),
         catalogues={name: catalogue_digest(refs) for name, refs in extensions().items()},
-        renderers=tuple(sorted(outputs.renderers)),
-        reporters=tuple(sorted(outputs.reporters)),
+        renderers={
+            name: outputs.renderers[name].distribution for name in sorted(outputs.renderers)
+        },
+        reporters={
+            name: outputs.reporters[name].distribution for name in sorted(outputs.reporters)
+        },
     )
 
 

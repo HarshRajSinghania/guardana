@@ -158,11 +158,11 @@ class Installed:
     evaluators: tuple[str, ...] = ()
     targets: tuple[str, ...] = ()
     catalogues: Mapping[str, str] = field(default_factory=dict)
-    renderers: tuple[str, ...] = ()
-    """Every installed format that can be selected, by name."""
+    renderers: Mapping[str, str | None] = field(default_factory=dict)
+    """Every installed format that can be selected, by name, to the distribution registering it."""
 
-    reporters: tuple[str, ...] = ()
-    """Every installed reporter that can be selected, by name."""
+    reporters: Mapping[str, str | None] = field(default_factory=dict)
+    """Every installed reporter that can be selected, by name, to its registering distribution."""
 
     def ids(self) -> set[str]:
         """Every id this build registers, in one set; an output as `<kind>:<name>`."""
@@ -176,10 +176,17 @@ class Installed:
         }
 
 
-def lock_of(packs: Sequence[tuple[str, str, Any]], installed: Installed) -> Lock:
+def lock_of(
+    packs: Sequence[tuple[str, str, Any]], installed: Installed, *, writing: bool = False
+) -> Lock:
     """Pin what is installed, attributing each id to the pack whose manifest declares it.
 
     `packs` is `(distribution, version, manifest)` per installed pack.
+
+    A pack pins only the declared outputs its own distribution registers: a name another
+    distribution registers is not the pack's code, so a lock checked against this one
+    reports it `removed`. When `writing`, such a name raises `PackError` instead, since
+    the lock would otherwise be written without it.
 
     An id declared by no manifest lands in `unlocked`. That is the case worth
     designing for rather than dropping: a package registering rules without a
@@ -200,6 +207,21 @@ def lock_of(packs: Sequence[tuple[str, str, Any]], installed: Installed) -> Lock
             f"nothing registers what a pack declares, so a lock would pin a check that "
             f"does not run: {'; '.join(undelivered)}"
         )
+    foreign = {
+        (manifest.name, kind, name): registrant
+        for distribution, _version, manifest in packs
+        for kind, name, registrant in _foreign_outputs(distribution, manifest, installed)
+    }
+    if writing and foreign:
+        named = "; ".join(
+            f"{pack} declares {kind} {name}, which {registrant or 'an unnamed distribution'} "
+            f"registers"
+            for (pack, kind, name), registrant in foreign.items()
+        )
+        raise PackError(
+            f"a pack declares an output another distribution registers, so a lock would "
+            f"pin code the pack does not ship: {named}"
+        )
     locked = [
         LockedPack(
             name=manifest.name,
@@ -209,18 +231,50 @@ def lock_of(packs: Sequence[tuple[str, str, Any]], installed: Installed) -> Lock
             evaluators=tuple(manifest.evaluators),
             targets=tuple(manifest.targets),
             taxonomies={i: installed.catalogues[i] for i in manifest.taxonomies},
-            renderers=tuple(manifest.renderers),
-            reporters=tuple(manifest.reporters),
+            renderers=tuple(
+                n for n in manifest.renderers if (manifest.name, "renderer", n) not in foreign
+            ),
+            reporters=tuple(
+                n for n in manifest.reporters if (manifest.name, "reporter", n) not in foreign
+            ),
         )
         for distribution, version, manifest in packs
     ]
-    declared = {name for _, _, manifest in packs for name in manifest.provides}
+    declared = {name for pack in locked for name in _pinned_ids(pack)}
     unlocked = tuple(sorted(installed.ids() - declared))
     return Lock(
         packs=tuple(locked),
         unlocked=unlocked,
         schema_version=_written_schema(locked, unlocked),
     )
+
+
+def _foreign_outputs(
+    distribution: str, manifest: PackManifest, installed: Installed
+) -> list[tuple[str, str, str | None]]:
+    """Every declared output registered by a distribution other than the pack's own."""
+    groups = (
+        ("renderer", manifest.renderers, installed.renderers),
+        ("reporter", manifest.reporters, installed.reporters),
+    )
+    return [
+        (kind, name, present[name])
+        for kind, declared, present in groups
+        for name in declared
+        if name in present and present[name] != distribution
+    ]
+
+
+def _pinned_ids(pack: LockedPack) -> set[str]:
+    """Every id `pack` pins, an output as `<kind>:<name>`."""
+    return {
+        *pack.rules,
+        *pack.evaluators,
+        *pack.targets,
+        *pack.taxonomies,
+        *(output_id("renderer", name) for name in pack.renderers),
+        *(output_id("reporter", name) for name in pack.reporters),
+    }
 
 
 def _written_schema(packs: Iterable[LockedPack], unlocked: Iterable[str]) -> int:
