@@ -188,7 +188,14 @@ def test_every_release_says_where_each_profile_example_came_from_and_what_it_did
             assert str(example["doc"]).startswith("docs/"), where
             assert isinstance(example["block"], int), where
             assert example["block"] >= 1, where
-            if example["loaded"] is False:
+            loaded = example["loaded"]
+            assert loaded is None or isinstance(loaded, bool), f"{where}: loaded is {loaded!r}"
+            if loaded is None:
+                assert str(example["why"]).strip(), f"{where}: not tried with no reason"
+                assert "stored" not in example, f"{where}: an example not tried was stored"
+                assert "loaded_by" not in example, f"{where}: an example not tried was loaded"
+                continue
+            if loaded is False:
                 assert str(example["why"]).strip(), f"{where}: refused with no reason"
                 assert "stored" not in example, f"{where}: a refused example was stored"
                 continue

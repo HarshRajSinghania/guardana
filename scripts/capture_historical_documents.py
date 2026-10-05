@@ -14,7 +14,10 @@ tag whose top-level keys are all profile keys. Each is handed to that release's 
 --profile`, then to a `probe --profile` of the scripted endpoint when the scan refuses it;
 one either loads is kept as `profile/<release>-<n>.yaml` when no profile kept
 before declares its version with its key paths, and one it refuses is recorded with the
-reason under `profile_examples` and never stored.
+reason under `profile_examples` and never stored. An example both refuse, each saying
+that a relative file the example names and the capture does not provide is missing,
+is recorded as not tried (`"loaded": null`) with that file and what the release
+said, since the refusal says nothing about the example's shape.
 
     uv run python scripts/capture_historical_documents.py --dry-run   # the plan, no installs
     uv run python scripts/capture_historical_documents.py             # capture every release
@@ -110,6 +113,13 @@ _VERDICT_EXITS = frozenset({0, 1, 2})
 _FIELD_NAME = re.compile(r"^\$?[A-Za-z_][A-Za-z0-9_]*$")
 _VERSION = re.compile(r"^(\d+)\.(\d+)\.(\d+)(?:rc(\d+))?$")
 _NO_SUCH_COMMAND = "No such command"
+_DRIVE = re.compile(r"^[A-Za-z]:")
+_MISSING = re.compile(r"does not exist|no such file|not found", re.IGNORECASE)
+_NEW_MESSAGE = re.compile(
+    r"(?:error|warning|note)\s*:|traceback\b|\w*(?:error|exception)\s*:|[^\w\s'\"(\[{./~-]",
+    re.IGNORECASE,
+)
+"""A line that starts its own message, or a frame of a drawn box, never continues the line above."""
 
 
 class CaptureError(Exception):
@@ -539,11 +549,102 @@ def loaded_report(outcome: "Outcome") -> bool:
 
 def refusal_reason(outcome: "Outcome", local: Sequence[str]) -> str:
     """Return why a release did not load an example: its exit and its last line of output."""
-    lines = [line.strip() for line in outcome.output.splitlines() if line.strip()]
-    last = lines[-1] if lines else "no output"
+    lines = _output_lines(outcome)
+    return _reason(outcome, lines[-1] if lines else "no output", local)
+
+
+def named_files(text: str) -> list[str]:
+    """Return every relative file path a profile example names as a value, in document order.
+
+    Only a value that reads as a path counts: one starting `./` or `../` or holding a `/`,
+    with no whitespace, scheme or variable. A rule id or a glob of ids is not a file.
+    """
+    found: list[str] = []
+
+    def walk(node: object) -> None:
+        if isinstance(node, dict):
+            for value in node.values():
+                walk(value)
+        elif isinstance(node, list):
+            for item in node:
+                walk(item)
+        elif isinstance(node, str) and _is_relative_file(node) and node not in found:
+            found.append(node)
+
+    walk(yaml.safe_load(text))
+    return found
+
+
+def _is_relative_file(value: str) -> bool:
+    if not value or any(char.isspace() for char in value) or "://" in value or "$" in value:
+        return False
+    if value.startswith(("/", "\\", "~")) or _DRIVE.match(value):
+        return False
+    return value.startswith(("./", "../")) or "/" in value
+
+
+def missing_file(text: str, outcomes: Sequence["Outcome"], work: Path) -> str | None:
+    """Return the first file `text` names that `work` lacks and every refusal says is missing.
+
+    An example refused only for want of a file the capture never provides says nothing
+    about whether the release reads its shape, so it is not counted as refused. Each
+    refusal must name the file by its relative path and say it is missing, so a shape
+    error that merely mentions a similar name stays a refusal.
+    """
+    if not outcomes:
+        return None
+    for path in named_files(text):
+        if (work / path).exists():
+            continue
+        quoted = [_quoted(outcome, path) for outcome in outcomes]
+        if all(said is not None and _MISSING.search(said) for said in quoted):
+            return path
+    return None
+
+
+def missing_reason(outcome: "Outcome", path: str, local: Sequence[str]) -> str:
+    """Return what a release said about a missing file: its exit and the message saying so.
+
+    The message is the line naming the file and its wrapped continuation lines, so one a
+    terminal wrapped over two lines is quoted whole.
+    """
+    said = _quoted(outcome, path)
+    return refusal_reason(outcome, local) if said is None else _reason(outcome, said, local)
+
+
+def _quoted(outcome: "Outcome", path: str) -> str | None:
+    """Return the last message naming `path` that says it is missing, its wrapped lines joined.
+
+    A message is the line naming the file and the lines a terminal wrapped it onto; a
+    missing phrase in a later, separate message says nothing about this file.
+    """
+    lines = _output_lines(outcome)
+    relative = path.removeprefix("./")
+    pattern = re.compile(rf"(?<![\w.-]){re.escape(relative)}(?![\w/-]|\.\w)")
+    for start in reversed(range(len(lines))):
+        if not pattern.search(lines[start]):
+            continue
+        end = start + 1
+        while end < len(lines) and _continues(lines[end - 1], lines[end]):
+            end += 1
+        message = " ".join(lines[start:end])
+        if _MISSING.search(message):
+            return message
+    return None
+
+
+def _continues(previous: str, line: str) -> bool:
+    return not previous.endswith((".", "!", "?")) and _NEW_MESSAGE.match(line) is None
+
+
+def _output_lines(outcome: "Outcome") -> list[str]:
+    return [line.strip() for line in outcome.output.splitlines() if line.strip()]
+
+
+def _reason(outcome: "Outcome", said: str, local: Sequence[str]) -> str:
     for path in sorted(local, key=len, reverse=True):
-        last = last.replace(path, ".")
-    reason = f"exit {outcome.exit_code}: {last}"
+        said = said.replace(path, ".")
+    reason = f"exit {outcome.exit_code}: {said}"
     return reason if len(reason) <= _REASON_LIMIT else reason[: _REASON_LIMIT - 1] + "…"
 
 
@@ -974,12 +1075,15 @@ def _collector_handler(servers: _Servers) -> type[BaseHTTPRequestHandler]:
 class Tried:
     """What a release did with one profile example.
 
-    `loaded_by` names the command that loaded it; `refused` says why every one refused it.
+    `loaded_by` names the command that loaded it; `refused` says why every one refused it;
+    `not_tried` says which file the example names that the capture does not provide, and
+    what the release said about it, when that is why every command refused it.
     """
 
     example: Example
     refused: str | None
     loaded_by: str | None = None
+    not_tried: str | None = None
 
 
 @dataclass(slots=True)
@@ -1082,14 +1186,24 @@ def _try_example(
 ) -> Tried:
     (sandbox.work / EXAMPLE_FILE).write_text(example.text, encoding="utf-8")
     local = _local_paths(sandbox.work)
-    refusals: list[str] = []
+    refusals: list[tuple[str, Outcome]] = []
     for invocation in loaders:
         outcome = sandbox.run(invocation.bound(ports), env=example_env(example.text))
         name = " ".join(invocation.command)
         if loaded_report(outcome):
             return Tried(example, refused=None, loaded_by=name)
-        refusals.append(f"{name}: {refusal_reason(outcome, local)}")
-    return Tried(example, refused="; ".join(refusals))
+        refusals.append((name, outcome))
+    missing = missing_file(example.text, [outcome for _, outcome in refusals], sandbox.work)
+    if missing is not None:
+        said = "; ".join(f"{name}: {missing_reason(o, missing, local)}" for name, o in refusals)
+        return Tried(
+            example,
+            refused=None,
+            not_tried=f"names {missing}, which the capture does not provide; {said}",
+        )
+    return Tried(
+        example, refused="; ".join(f"{name}: {refusal_reason(o, local)}" for name, o in refusals)
+    )
 
 
 def _local_paths(work: Path) -> tuple[str, ...]:
@@ -1103,7 +1217,7 @@ def _refuse_leaks(sandbox: Sandbox, captured: Captured) -> None:
         if leaks:
             raise CaptureError(f"{sandbox.release.version}: its {kind} holds {', '.join(leaks)}")
     for tried in captured.examples:
-        leaks = leaked_markers(tried.refused or "", local)
+        leaks = leaked_markers(tried.refused or tried.not_tried or "", local)
         if leaks:
             raise CaptureError(
                 f"{sandbox.release.version}: the refusal of {tried.example.doc} block "
@@ -1280,7 +1394,11 @@ class Corpus:
         }
 
     def _examples(self, release: Release, captured: Captured) -> dict[str, object]:
-        """Record every example tried; store a loaded one whose shape no kept profile has."""
+        """Record every example handed over; store a loaded one whose shape no kept profile has.
+
+        `loaded` is true or false for a verdict the release gave, and null for an example
+        it could not be tried on.
+        """
         if captured.examples_absent is not None:
             return {"tried": False, "why": captured.examples_absent}
         entries: list[dict[str, object]] = []
@@ -1291,9 +1409,12 @@ class Corpus:
                 "tag": example.tag,
                 "doc": example.doc,
                 "block": example.block,
-                "loaded": tried.refused is None,
             }
             entries.append(entry)
+            if tried.not_tried is not None:
+                entry.update(loaded=None, why=tried.not_tried)
+                continue
+            entry["loaded"] = tried.refused is None
             if tried.refused is not None:
                 entry["why"] = tried.refused
                 continue
@@ -1433,9 +1554,16 @@ def _recorded_as_releases(record: Mapping[str, Mapping[str, object]]) -> list[Re
 
 
 def example_counts(record: Mapping[str, Mapping[str, object]]) -> dict[str, int]:
-    """Count the profile examples a record says were tried, loaded, refused and stored."""
-    counts = {"releases": 0, "tried": 0, "loaded": 0, "refused": 0, "stored": 0}
-    for entry in record.values():
+    """Count a record's profile examples: loaded, refused, not tried and stored."""
+    counts = {
+        "releases": 0,
+        "examples": 0,
+        "loaded": 0,
+        "refused": 0,
+        "not_tried": 0,
+        "stored": 0,
+    }
+    for version, entry in record.items():
         block = entry.get("profile_examples")
         examples = block.get("examples") if isinstance(block, dict) else None
         if not isinstance(examples, list):
@@ -1444,8 +1572,12 @@ def example_counts(record: Mapping[str, Mapping[str, object]]) -> dict[str, int]
         for example in examples:
             if not isinstance(example, dict):
                 continue
-            counts["tried"] += 1
-            counts["loaded" if example.get("loaded") is True else "refused"] += 1
+            counts["examples"] += 1
+            if "loaded" not in example:
+                raise CaptureError(f"{version} example {example.get('n')} records no `loaded`")
+            loaded = example["loaded"]
+            outcome = "not_tried" if loaded is None else "loaded" if loaded is True else "refused"
+            counts[outcome] += 1
             counts["stored"] += 1 if example.get("stored") else 0
     return counts
 
@@ -1471,8 +1603,8 @@ def _capture_profiles(args: argparse.Namespace) -> int:
                 corpus.add_profiles(release, capture_profiles(sandbox, servers))
                 tally = example_counts({release.version: record[release.version]})
                 print(
-                    f"✓ {release.version}: {tally['loaded']} of {tally['tried']} example(s) "
-                    f"loaded, {tally['stored']} stored",
+                    f"✓ {release.version}: {tally['loaded']} of {tally['examples']} example(s) "
+                    f"loaded, {tally['not_tried']} not tried, {tally['stored']} stored",
                     flush=True,
                 )
     finally:
@@ -1481,9 +1613,9 @@ def _capture_profiles(args: argparse.Namespace) -> int:
     corpus.write(args.out, kinds=(Kind.PROFILE,))
     counts = example_counts(corpus.releases)
     print(
-        f"✓ {counts['tried']} profile example(s) from {counts['releases']} release(s): "
-        f"{counts['loaded']} loaded, {counts['refused']} refused, {counts['stored']} stored "
-        f"→ {args.out}"
+        f"✓ {counts['examples']} profile example(s) from {counts['releases']} release(s): "
+        f"{counts['loaded']} loaded, {counts['refused']} refused, {counts['not_tried']} not "
+        f"tried, {counts['stored']} stored → {args.out}"
     )
     return 0
 

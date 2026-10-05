@@ -1887,8 +1887,8 @@
           "tag": "v0.18.0",
           "doc": "docs/usage-calibrate.md",
           "block": 1,
-          "loaded": false,
-          "why": "scan: exit 1: names cannot be recorded; probe: exit 1: names cannot be recorded"
+          "loaded": null,
+          "why": "names ./calibrations.json, which the capture does not provide; scan: exit 1: CalibrationStoreError: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 1: CalibrationStoreError: calibrations.json does not exist, so the calibrations it names cannot be recorded"
         },
         {
           "n": 9,
@@ -2036,8 +2036,8 @@
           "tag": "v0.18.1",
           "doc": "docs/usage-calibrate.md",
           "block": 1,
-          "loaded": false,
-          "why": "scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
+          "loaded": null,
+          "why": "names ./calibrations.json, which the capture does not provide; scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
         },
         {
           "n": 9,
@@ -2185,8 +2185,8 @@
           "tag": "v0.19.1",
           "doc": "docs/usage-calibrate.md",
           "block": 1,
-          "loaded": false,
-          "why": "scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
+          "loaded": null,
+          "why": "names ./calibrations.json, which the capture does not provide; scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
         },
         {
           "n": 9,
@@ -2336,8 +2336,8 @@
           "tag": "v0.20.0",
           "doc": "docs/usage-calibrate.md",
           "block": 1,
-          "loaded": false,
-          "why": "scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
+          "loaded": null,
+          "why": "names ./calibrations.json, which the capture does not provide; scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
         },
         {
           "n": 9,
@@ -2487,8 +2487,8 @@
           "tag": "v0.21.0",
           "doc": "docs/usage-calibrate.md",
           "block": 1,
-          "loaded": false,
-          "why": "scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
+          "loaded": null,
+          "why": "names ./calibrations.json, which the capture does not provide; scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
         },
         {
           "n": 9,
@@ -2638,8 +2638,8 @@
           "tag": "v0.22.0",
           "doc": "docs/usage-calibrate.md",
           "block": 1,
-          "loaded": false,
-          "why": "scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
+          "loaded": null,
+          "why": "names ./calibrations.json, which the capture does not provide; scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
         },
         {
           "n": 9,
@@ -2789,8 +2789,8 @@
           "tag": "v0.23.0",
           "doc": "docs/usage-calibrate.md",
           "block": 1,
-          "loaded": false,
-          "why": "scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
+          "loaded": null,
+          "why": "names ./calibrations.json, which the capture does not provide; scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
         },
         {
           "n": 9,
@@ -2924,8 +2924,8 @@
           "tag": "v0.24.0",
           "doc": "docs/usage-calibrate.md",
           "block": 1,
-          "loaded": false,
-          "why": "scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
+          "loaded": null,
+          "why": "names ./calibrations.json, which the capture does not provide; scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
         },
         {
           "n": 7,
@@ -3059,8 +3059,8 @@
           "tag": "v0.25.0",
           "doc": "docs/usage-calibrate.md",
           "block": 1,
-          "loaded": false,
-          "why": "scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
+          "loaded": null,
+          "why": "names ./calibrations.json, which the capture does not provide; scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
         },
         {
           "n": 7,
@@ -3194,8 +3194,8 @@
           "tag": "v0.26.0",
           "doc": "docs/usage-calibrate.md",
           "block": 1,
-          "loaded": false,
-          "why": "scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
+          "loaded": null,
+          "why": "names ./calibrations.json, which the capture does not provide; scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
         },
         {
           "n": 7,
@@ -3329,8 +3329,8 @@
           "tag": "v0.26.1",
           "doc": "docs/usage-calibrate.md",
           "block": 1,
-          "loaded": false,
-          "why": "scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
+          "loaded": null,
+          "why": "names ./calibrations.json, which the capture does not provide; scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
         },
         {
           "n": 7,
@@ -3464,8 +3464,8 @@
           "tag": "v0.27.0",
           "doc": "docs/usage-calibrate.md",
           "block": 1,
-          "loaded": false,
-          "why": "scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
+          "loaded": null,
+          "why": "names ./calibrations.json, which the capture does not provide; scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
         },
         {
           "n": 7,
@@ -3599,8 +3599,8 @@
           "tag": "v0.28.0",
           "doc": "docs/usage-calibrate.md",
           "block": 1,
-          "loaded": false,
-          "why": "scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
+          "loaded": null,
+          "why": "names ./calibrations.json, which the capture does not provide; scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
         },
         {
           "n": 7,
@@ -3740,8 +3740,8 @@
           "tag": "v0.29.0",
           "doc": "docs/usage-calibrate.md",
           "block": 1,
-          "loaded": false,
-          "why": "scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
+          "loaded": null,
+          "why": "names ./calibrations.json, which the capture does not provide; scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
         },
         {
           "n": 7,
@@ -3881,8 +3881,8 @@
           "tag": "v0.30.0",
           "doc": "docs/usage-calibrate.md",
           "block": 1,
-          "loaded": false,
-          "why": "scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
+          "loaded": null,
+          "why": "names ./calibrations.json, which the capture does not provide; scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
         },
         {
           "n": 7,
@@ -4022,8 +4022,8 @@
           "tag": "v0.31.0",
           "doc": "docs/usage-calibrate.md",
           "block": 1,
-          "loaded": false,
-          "why": "scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
+          "loaded": null,
+          "why": "names ./calibrations.json, which the capture does not provide; scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
         },
         {
           "n": 7,
@@ -4172,8 +4172,8 @@
           "tag": "v0.32.0",
           "doc": "docs/usage-calibrate.md",
           "block": 1,
-          "loaded": false,
-          "why": "scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
+          "loaded": null,
+          "why": "names ./calibrations.json, which the capture does not provide; scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
         },
         {
           "n": 8,
@@ -4331,8 +4331,8 @@
           "tag": "v0.33.0",
           "doc": "docs/usage-calibrate.md",
           "block": 1,
-          "loaded": false,
-          "why": "scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
+          "loaded": null,
+          "why": "names ./calibrations.json, which the capture does not provide; scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
         },
         {
           "n": 9,
@@ -4490,8 +4490,8 @@
           "tag": "v0.34.0",
           "doc": "docs/usage-calibrate.md",
           "block": 1,
-          "loaded": false,
-          "why": "scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
+          "loaded": null,
+          "why": "names ./calibrations.json, which the capture does not provide; scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
         },
         {
           "n": 9,
@@ -4649,8 +4649,8 @@
           "tag": "v0.35.0",
           "doc": "docs/usage-calibrate.md",
           "block": 1,
-          "loaded": false,
-          "why": "scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
+          "loaded": null,
+          "why": "names ./calibrations.json, which the capture does not provide; scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
         },
         {
           "n": 9,
@@ -4808,8 +4808,8 @@
           "tag": "v0.36.0",
           "doc": "docs/usage-calibrate.md",
           "block": 1,
-          "loaded": false,
-          "why": "scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
+          "loaded": null,
+          "why": "names ./calibrations.json, which the capture does not provide; scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
         },
         {
           "n": 9,
@@ -4966,8 +4966,8 @@
           "tag": "v0.37.0",
           "doc": "docs/usage-calibrate.md",
           "block": 1,
-          "loaded": false,
-          "why": "scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
+          "loaded": null,
+          "why": "names ./calibrations.json, which the capture does not provide; scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
         },
         {
           "n": 9,
@@ -5124,8 +5124,8 @@
           "tag": "v0.38.0",
           "doc": "docs/usage-calibrate.md",
           "block": 1,
-          "loaded": false,
-          "why": "scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
+          "loaded": null,
+          "why": "names ./calibrations.json, which the capture does not provide; scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
         },
         {
           "n": 9,
@@ -5282,8 +5282,8 @@
           "tag": "v0.39.0",
           "doc": "docs/usage-calibrate.md",
           "block": 1,
-          "loaded": false,
-          "why": "scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
+          "loaded": null,
+          "why": "names ./calibrations.json, which the capture does not provide; scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
         },
         {
           "n": 9,
@@ -5440,8 +5440,8 @@
           "tag": "v0.40.0",
           "doc": "docs/usage-calibrate.md",
           "block": 1,
-          "loaded": false,
-          "why": "scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
+          "loaded": null,
+          "why": "names ./calibrations.json, which the capture does not provide; scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
         },
         {
           "n": 9,
@@ -5616,8 +5616,8 @@
           "tag": "v0.41.0",
           "doc": "docs/usage-calibrate.md",
           "block": 1,
-          "loaded": false,
-          "why": "scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
+          "loaded": null,
+          "why": "names ./calibrations.json, which the capture does not provide; scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
         },
         {
           "n": 11,

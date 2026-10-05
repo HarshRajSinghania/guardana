@@ -91,10 +91,6 @@ left for the owner, or are design gaps already documented elsewhere.
   ruleset's bypass actor is `5` (Admin), and Maintain (2) is unconfirmed.
 - **Before 1.0.0:** `RELEASING.md` says Guardana "is **pre-1.0**", which no gate rewrites
   or checks at the final release.
-- **The capture records an example whose file is missing as refused**: the first block of
-  `docs/usage-calibrate.md` names `calibrations.json`, which the sandbox never supplies (0.18.0
-  to 0.41.0). Supplying the files an example names, or a separate "not tried" outcome, would
-  tell the two apart.
 - **An exempt console-script wrapper's content is never hashed**, so an edited
   `bin/<declared script>` pins the same as the generated one; the exemption is sound only for an
   unmodified wrapper.

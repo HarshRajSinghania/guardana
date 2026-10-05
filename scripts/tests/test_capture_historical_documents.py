@@ -527,6 +527,194 @@ def test_an_example_every_command_refuses_carries_each_reason(tmp_path: Path) ->
     )
 
 
+CALIBRATED = "name: production\ncalibrations:\n  - ./calibrations.json\n"
+_WRAPPED_MISSING = capture.Outcome(
+    1,
+    "Traceback (most recent call last):\n"
+    "│ raise CalibrationStoreError(                               │\n"
+    "CalibrationStoreError: calibrations.json does not exist, so the calibrations it \n"
+    "names cannot be recorded\n",
+    "",
+)
+
+
+def test_an_example_naming_a_file_the_sandbox_lacks_is_not_tried(tmp_path: Path) -> None:
+    sandbox = _ScriptedSandbox(
+        tmp_path / "w", {"scan": _WRAPPED_MISSING, "probe": _WRAPPED_MISSING}
+    )
+
+    tried = capture._try_example(
+        sandbox, commands_for("0.20.0").profile_example, _example(1, CALIBRATED), _PORTS
+    )
+
+    said = (
+        "exit 1: CalibrationStoreError: calibrations.json does not exist, so the calibrations "
+        "it names cannot be recorded"
+    )
+    assert tried == capture.Tried(
+        _example(1, CALIBRATED),
+        refused=None,
+        not_tried=(
+            f"names ./calibrations.json, which the capture does not provide; "
+            f"scan: {said}; probe: {said}"
+        ),
+    )
+
+
+def test_a_later_release_saying_the_file_does_not_exist_leaves_the_example_not_tried(
+    tmp_path: Path,
+) -> None:
+    said = (
+        "error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
+    )
+    missing = capture.Outcome(3, f"note: reading the profile\n{said}\n", "")
+    sandbox = _ScriptedSandbox(tmp_path / "w", {"scan": missing, "probe": missing})
+
+    tried = capture._try_example(
+        sandbox, commands_for("0.20.0").profile_example, _example(1, CALIBRATED), _PORTS
+    )
+
+    assert tried.refused is None
+    assert tried.not_tried == (
+        f"names ./calibrations.json, which the capture does not provide; "
+        f"scan: exit 3: {said}; probe: exit 3: {said}"
+    )
+
+
+@pytest.mark.parametrize(
+    ("text", "said"),
+    [
+        ("rules:\n  paths: ['./rules']\n", "error: invalid profile: unknown key 'rules.foo'"),
+        (CALIBRATED, "error: calibrations.json is not a calibration store"),
+        (CALIBRATED, "error: ./calibrations.json.bak does not exist"),
+    ],
+)
+def test_a_refusal_that_mentions_the_file_without_saying_it_is_missing_stays_refused(
+    tmp_path: Path, text: str, said: str
+) -> None:
+    refusal = capture.Outcome(3, said, "")
+    sandbox = _ScriptedSandbox(tmp_path / "w", {"scan": refusal, "probe": refusal})
+
+    tried = capture._try_example(
+        sandbox, commands_for("0.20.0").profile_example, _example(1, text), _PORTS
+    )
+
+    assert tried.not_tried is None
+    assert tried.refused == f"scan: exit 3: {said}; probe: exit 3: {said}"
+
+
+@pytest.mark.parametrize(
+    "later",
+    [
+        "error: rule id 'nope' not found in the registry",
+        "warning: the registry does not exist yet",
+        "Traceback (most recent call last): no such file",
+        "│ not found │",
+    ],
+)
+def test_a_missing_phrase_after_the_message_naming_the_file_does_not_count(
+    tmp_path: Path, later: str
+) -> None:
+    said = "note: calibrations from calibrations.json are read later"
+    refusal = capture.Outcome(3, f"{said}\n{later}\n", "")
+    sandbox = _ScriptedSandbox(tmp_path / "w", {"scan": refusal, "probe": refusal})
+
+    tried = capture._try_example(
+        sandbox, commands_for("0.20.0").profile_example, _example(1, CALIBRATED), _PORTS
+    )
+
+    assert tried.not_tried is None
+    assert tried.refused == f"scan: exit 3: {later}; probe: exit 3: {later}"
+
+
+def test_a_missing_phrase_after_a_finished_sentence_naming_the_file_does_not_count(
+    tmp_path: Path,
+) -> None:
+    refusal = capture.Outcome(
+        3, "error: calibrations.json holds an unknown class.\nthe rule was not found\n", ""
+    )
+    sandbox = _ScriptedSandbox(tmp_path / "w", {"scan": refusal, "probe": refusal})
+
+    tried = capture._try_example(
+        sandbox, commands_for("0.20.0").profile_example, _example(1, CALIBRATED), _PORTS
+    )
+
+    assert tried.not_tried is None
+
+
+def test_an_example_only_one_loader_finds_a_file_missing_for_stays_refused(
+    tmp_path: Path,
+) -> None:
+    sandbox = _ScriptedSandbox(tmp_path / "w", {"scan": _DURATION, "probe": _WRAPPED_MISSING})
+
+    tried = capture._try_example(
+        sandbox, commands_for("0.20.0").profile_example, _example(1, CALIBRATED), _PORTS
+    )
+
+    assert tried.not_tried is None
+    assert tried.refused == (
+        "scan: exit 3: error: a file scan does not interrupt itself; "
+        "probe: exit 1: names cannot be recorded"
+    )
+
+
+def test_an_example_naming_a_missing_file_the_release_does_not_mention_is_refused(
+    tmp_path: Path,
+) -> None:
+    refusal = capture.Outcome(3, "error: invalid profile: unknown key(s): calibrations", "")
+    sandbox = _ScriptedSandbox(tmp_path / "w", {"scan": refusal, "probe": refusal})
+
+    tried = capture._try_example(
+        sandbox, commands_for("0.20.0").profile_example, _example(1, CALIBRATED), _PORTS
+    )
+
+    assert tried.not_tried is None
+    assert tried.refused == (
+        "scan: exit 3: error: invalid profile: unknown key(s): calibrations; "
+        "probe: exit 3: error: invalid profile: unknown key(s): calibrations"
+    )
+
+
+def test_an_example_naming_a_file_the_sandbox_holds_is_refused_when_the_release_names_it(
+    tmp_path: Path,
+) -> None:
+    refusal = capture.Outcome(3, "error: calibrations.json is not a calibration store", "")
+    sandbox = _ScriptedSandbox(tmp_path / "w", {"scan": refusal, "probe": refusal})
+    (sandbox.work / "calibrations.json").write_text("{}", encoding="utf-8")
+
+    tried = capture._try_example(
+        sandbox, commands_for("0.20.0").profile_example, _example(1, CALIBRATED), _PORTS
+    )
+
+    assert tried.not_tried is None
+    assert tried.refused is not None
+    assert tried.refused.startswith("scan: exit 3: error: calibrations.json is not")
+
+
+def test_an_example_that_loads_stays_loaded_though_it_names_a_missing_file(
+    tmp_path: Path,
+) -> None:
+    sandbox = _ScriptedSandbox(tmp_path / "w", {"scan": _REPORT, "probe": _WRAPPED_MISSING})
+    text = "rules:\n  paths: ['./team-rules']\ncontracts: ['./contracts/checkout.yaml']\n"
+
+    tried = capture._try_example(
+        sandbox, commands_for("0.20.0").profile_example, _example(1, text), _PORTS
+    )
+
+    assert tried == capture.Tried(_example(1, text), refused=None, loaded_by="scan")
+
+
+def test_an_example_names_only_relative_paths_as_files() -> None:
+    text = (
+        "rules:\n  include: ['guardana.*', acme.strict_refusal]\n  paths: ['./team-rules']\n"
+        "contracts: ['contracts/checkout.yaml', '/etc/abs.yaml', '~/home.yaml']\n"
+        "evaluators:\n  llm_judge:\n    url: https://judge.example/v1\n"
+        "    key: ${JUDGE_KEY}/x\n    note: a sentence with/a slash\n"
+    )
+
+    assert capture.named_files(text) == ["./team-rules", "contracts/checkout.yaml"]
+
+
 def test_an_example_a_scan_loads_is_not_probed(tmp_path: Path) -> None:
     sandbox = _ScriptedSandbox(tmp_path / "w", {"scan": _REPORT, "probe": _DURATION})
 
@@ -586,6 +774,57 @@ def test_a_loaded_example_of_a_new_shape_is_stored_and_a_refused_one_only_record
         "profile/0.20.0.yaml",
     ]
     assert corpus.files["profile/0.20.0-2.yaml"] == budgets
+
+
+def test_an_example_not_tried_is_recorded_with_no_verdict_and_never_stored() -> None:
+    corpus = Corpus()
+    reason = "names ./calibrations.json, which the capture does not provide; scan: exit 3: x"
+    tried = (
+        capture.Tried(_example(1, CALIBRATED), refused=None, not_tried=reason),
+        capture.Tried(_example(2, "plugins: {mode: allowlist}\n"), "exit 3: error: bad plugins"),
+        _loaded(3, "budgets:\n  max_requests: 10\n"),
+    )
+
+    corpus.add(Release("0.20.0", "t"), commands_for("0.20.0"), _with_examples(*tried))
+
+    where = {"tag": "v0.20.0", "doc": "docs/profiles.md"}
+    assert _examples_of(corpus, "0.20.0")[0] == {
+        "n": 1,
+        **where,
+        "block": 1,
+        "loaded": None,
+        "why": reason,
+    }
+    assert not [f for f in corpus.files if f == "profile/0.20.0-1.yaml"]
+    assert capture.example_counts(corpus.releases) == {
+        "releases": 1,
+        "examples": 3,
+        "loaded": 1,
+        "refused": 1,
+        "not_tried": 1,
+        "stored": 1,
+    }
+
+
+def test_an_example_record_without_a_verdict_is_refused_when_counted() -> None:
+    record: dict[str, dict[str, object]] = {
+        "0.20.0": {"profile_examples": {"tried": True, "examples": [{"n": 1, "why": "x"}]}}
+    }
+
+    with pytest.raises(CaptureError, match=r"0\.20\.0 example 1 records no `loaded`"):
+        capture.example_counts(record)
+
+
+def test_a_local_path_in_the_reason_an_example_was_not_tried_stops_the_capture(
+    tmp_path: Path,
+) -> None:
+    sandbox = _ScriptedSandbox(tmp_path / "w", {})
+    captured = _with_examples(
+        capture.Tried(_example(1, CALIBRATED), refused=None, not_tried="/home/someone/x")
+    )
+
+    with pytest.raises(CaptureError, match="holds /home/"):
+        capture._refuse_leaks(sandbox, captured)
 
 
 def test_examples_leave_the_chain_of_init_profiles_as_it_was() -> None:
@@ -662,9 +901,10 @@ def test_a_profiles_only_capture_rewrites_profiles_and_keeps_every_other_kind(
     assert kinds[Kind.PROFILE]["stored"] == "profile/0.20.0.yaml"
     assert capture.example_counts({"0.20.0": record}) == {
         "releases": 1,
-        "tried": 1,
+        "examples": 1,
         "loaded": 1,
         "refused": 0,
+        "not_tried": 0,
         "stored": 1,
     }
 
