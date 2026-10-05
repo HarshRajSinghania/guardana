@@ -13,6 +13,7 @@ status line is the part that has to move, and this is what moves it.
 import re
 from pathlib import Path
 
+from _release_series import stable_series
 from guardana.core import __version__
 
 _STATUS = re.compile(r"^\*\*Status:\*\* (.+)$", re.MULTILINE)
@@ -62,7 +63,7 @@ def test_no_document_is_still_proposed_for_a_release_that_has_shipped() -> None:
     `superseded by` pointing at the documents that replaced it — or it was dropped,
     which is worth saying out loud.
     """
-    current = tuple(int(part) for part in __version__.split(".")[:2])
+    current = stable_series()
     stale = []
     for path in _documents():
         status = _status_of(path)

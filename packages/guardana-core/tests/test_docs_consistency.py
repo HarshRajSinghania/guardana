@@ -20,6 +20,7 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
+from _release_series import stable_series
 from guardana.core import __version__
 
 _MARKDOWN_LINK = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
@@ -38,13 +39,11 @@ def _read(relative: str) -> str:
     return (_repo() / relative).read_text(encoding="utf-8")
 
 
-def _minor(version: str) -> str:
-    major, minor, *_rest = version.split(".")
-    return f"{major}.{minor}"
-
-
 def test_the_roadmap_describes_the_released_version() -> None:
-    match = re.search(r"## What ships today \((\d+\.\d+\.\d+)\)", _read("ROADMAP.md"))
+    match = re.search(
+        r"## What ships today \((\d+\.\d+\.\d+(?:(?:a|b|rc)\d+|\.post\d+|\.dev\d+)?)\)",
+        _read("ROADMAP.md"),
+    )
     assert match is not None, "ROADMAP.md no longer states which version ships today"
     assert match.group(1) == __version__, (
         f"ROADMAP.md says {match.group(1)} ships today; the packages are at {__version__}"
@@ -59,7 +58,8 @@ def test_the_changelog_has_an_entry_for_the_released_version() -> None:
 
 def test_documented_action_pins_track_the_released_minor() -> None:
     """A pin one minor behind sends users at a tag that predates the docs beside it."""
-    expected = f"guardana/guardana@v{_minor(__version__)}"
+    major, minor = stable_series()
+    expected = f"guardana/guardana@v{major}.{minor}"
     for relative in ("README.md", "docs/integrations.md", "site/index.html"):
         pins = set(re.findall(r"guardana/guardana@v\d+\.\d+", _read(relative)))
         assert pins == {expected}, f"{relative} pins {sorted(pins)}, expected {expected}"
@@ -237,7 +237,8 @@ def test_no_tracked_file_pins_a_version_from_another_series(kind: str) -> None:
     pattern = getattr(bump, kind)
     # The script's patterns capture the prefix so a rewrite can keep it, which
     # makes the rest of the match the series this file names.
-    expected = _minor(__version__)
+    major, minor = stable_series()
+    expected = f"{major}.{minor}"
     stale = {
         f"{path}: {match.group(0)}"
         for path in bump.pin_bearing_files(pattern)
@@ -300,7 +301,7 @@ def test_no_page_promises_a_milestone_that_has_already_shipped(pattern: re.Patte
     `CHANGELOG.md` and `docs/design/` are exempt for the reason they always are —
     both are records of what was true when written.
     """
-    released = tuple(int(part) for part in __version__.split(".")[:2])
+    released = stable_series()
     stale = [
         f"{path.relative_to(_repo())}: {match.group(0)}"
         for path in _product_prose()

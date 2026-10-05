@@ -105,17 +105,20 @@ def pin_bearing_files(pattern: re.Pattern[str]) -> tuple[Path, ...]:
 # 0.3 through the 0.4.0 release, because only the Action pins were automated —
 # the same staleness one file over. Each is `(pattern, replacement template)`,
 # rewritten in the same pass and checked by the same pre-flight.
-_SITE_VERSION_RE = re.compile(r'(<span class="ver mono">)v\d+\.\d+\.\d+')
+# A PEP 440 pre-, post- or dev-release suffix, so a marker that already names one is
+# replaced whole rather than left with the old suffix behind the new version.
+_SUFFIX = r"(?:(?:a|b|rc)\d+|\.post\d+|\.dev\d+)?"
+_SITE_VERSION_RE = re.compile(rf'(<span class="ver mono">)v\d+\.\d+\.\d+{_SUFFIX}')
 _SITE_LD_VERSION_RE = re.compile(
     r'("name": "Guardana", [^}]*?"softwareVersion": ")\d+\.\d+\.\d+[^"]*(")'
 )
 # The Action's own CLI pin: `guardana/guardana@vX.Y` must install the CLI that tag
 # ships, or a workflow nobody edited changes engine on the next release.
-_ACTION_CLI_RE = re.compile(r'(default: ")\d+\.\d+\.\d+(?:(?:a|b|rc)\d+|\.post\d+|\.dev\d+)?(")')
+_ACTION_CLI_RE = re.compile(rf'(default: ")\d+\.\d+\.\d+{_SUFFIX}(")')
 _SECURITY_VERSION_RE = re.compile(r"(pre-1\.0 )\(\d+\.\d+\.x\)")
 # The roadmap's own "what ships today" heading. Rewritten by hand until 0.22.0,
 # where forgetting it aborted the release after the bump.
-_ROADMAP_SHIPS_RE = re.compile(r"(## What ships today \()\d+\.\d+\.\d+(\))")
+_ROADMAP_SHIPS_RE = re.compile(rf"(## What ships today \()\d+\.\d+\.\d+{_SUFFIX}(\))")
 # The prose beside the moving Action pin. Rewriting the pin and leaving the
 # sentence that explains it is how README and integrations.md shipped 0.5.0
 # telling readers the tag points at "the latest 0.3.x".
@@ -125,7 +128,7 @@ _PIN_PROSE_RE = re.compile(r"(latest )\d+\.\d+(\.x)")
 _CORE_RE = re.compile(r"^(\d+)\.(\d+)\.(\d+)")
 # An explicit target: a plain X.Y.Z, optionally with a PEP 440 pre/post/dev
 # marker (`1.0.0rc1`, `1.0.0b2`, `1.0.0.post1`, `1.0.0.dev3`).
-_EXPLICIT_RE = re.compile(r"^\d+\.\d+\.\d+(?:(?:a|b|rc)\d+|\.post\d+|\.dev\d+)?$")
+_EXPLICIT_RE = re.compile(rf"^\d+\.\d+\.\d+{_SUFFIX}$")
 
 
 def _pyproject(package: str) -> Path:
@@ -184,14 +187,21 @@ _VERSION_MARKERS: tuple[tuple[Path, re.Pattern[str]], ...] = (
 
 
 def _documented_versions(new: str) -> tuple[tuple[Path, re.Pattern[str], str], ...]:
-    """Pair every prose version marker with what this release turns it into."""
+    """Pair every prose version marker with what this release turns it into.
+
+    A pre-release keeps the series markers (the supported line in the security policy and
+    the prose beside the moving Action pin): it moves no stable tag, so they still name
+    the last final release.
+    """
     major, minor, _ = _core(new)
+    kept = r"\g<0>"
+    prerelease = Version(new).is_prerelease
     replacements = (
         rf"\g<1>v{new}",
         rf"\g<1>{new}\g<2>",
-        rf"\g<1>({major}.{minor}.x)",
-        rf"\g<1>{major}.{minor}\g<2>",
-        rf"\g<1>{major}.{minor}\g<2>",
+        kept if prerelease else rf"\g<1>({major}.{minor}.x)",
+        kept if prerelease else rf"\g<1>{major}.{minor}\g<2>",
+        kept if prerelease else rf"\g<1>{major}.{minor}\g<2>",
         rf"\g<1>{new}\g<2>",
         rf"\g<1>{new}\g<2>",
     )

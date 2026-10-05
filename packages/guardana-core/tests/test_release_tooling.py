@@ -14,6 +14,7 @@ from pathlib import Path
 import guardana.core
 import pytest
 import yaml
+from _release_series import stable_series
 
 
 def _repo_root() -> Path:
@@ -421,7 +422,7 @@ def test_documented_versions_match_the_released_one() -> None:
     # release — the same staleness the pin check was added to prevent, one file
     # over. Every one of these is rewritten by `bump_version.py`.
     current = _BUMP._current_version()
-    major, minor, _ = _BUMP._core(current)
+    major, minor = stable_series()
     for relative, pattern, expected in (
         (Path("site/index.html"), _BUMP._SITE_VERSION_RE, f"v{current}"),
         (Path("SECURITY.md"), _BUMP._SECURITY_VERSION_RE, f"({major}.{minor}.x)"),
@@ -437,6 +438,36 @@ def test_documented_versions_match_the_released_one() -> None:
         assert expected in found.group(0), (
             f"{relative} says {found.group(0)!r}, expected {expected}"
         )
+
+
+def _marked(path: str, text: str, new: str) -> str:
+    """Apply every version marker `bump_version` keeps for `path` to `text`."""
+    for relative, pattern, replacement in _BUMP._documented_versions(new):
+        if relative == Path(path):
+            text = pattern.sub(replacement, text)
+    return text
+
+
+def test_a_prerelease_keeps_the_series_the_stable_pins_follow() -> None:
+    """The moving pin stays on the last final release, so the prose beside it does too."""
+    security = "Guardana is pre-1.0 (0.41.x). Security fixes land"
+    prose = "uses: guardana/guardana@v0.41   # moving tag → latest 0.41.x"
+
+    assert _marked("SECURITY.md", security, "1.0.0rc1") == security
+    assert _marked("README.md", prose, "1.0.0rc1") == prose
+    assert _marked("README.md", prose, "1.0.0") == prose.replace("latest 0.41.x", "latest 1.0.x")
+
+
+def test_a_version_marker_naming_a_prerelease_is_replaced_whole() -> None:
+    """The next candidate must not read `v1.0.0rc2rc1`."""
+    site = '<span class="ver mono">v1.0.0rc1</span>'
+    roadmap = "## What ships today (1.0.0rc1)\n"
+
+    assert _marked("site/index.html", site, "1.0.0rc2") == '<span class="ver mono">v1.0.0rc2</span>'
+    assert _marked("ROADMAP.md", roadmap, "1.0.0") == "## What ships today (1.0.0)\n"
+    assert _marked("ROADMAP.md", "## What ships today (0.41.0)\n", "1.0.0rc1") == (
+        "## What ships today (1.0.0rc1)\n"
+    )
 
 
 def test_a_missing_pin_aborts_before_anything_is_written(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -487,9 +518,11 @@ def test_core_ignores_a_prerelease_suffix() -> None:
 def test_main_accepts_a_pep440_prerelease_in_dry_run(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    monkeypatch.setattr(sys, "argv", ["bump_version.py", "1.0.0rc1", "--dry-run"])
+    major, _, _ = _BUMP._core(_BUMP._current_version())
+    candidate = f"{major + 1}.0.0rc1"
+    monkeypatch.setattr(sys, "argv", ["bump_version.py", candidate, "--dry-run"])
     assert _BUMP.main() == 0
-    assert "1.0.0rc1" in capsys.readouterr().out
+    assert candidate in capsys.readouterr().out
 
 
 def test_main_refuses_a_downgrade(monkeypatch: pytest.MonkeyPatch) -> None:
