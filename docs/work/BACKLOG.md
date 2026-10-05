@@ -117,17 +117,25 @@ left for the owner, or are design gaps already documented elsewhere.
   are not checked against `--output`; only files named on the command line are.
 - **Probe inputs:** `probe` checks none of `--profile`, `--rules`, `--system-prompt-file`,
   `--fixtures`, `--mcp-pin` or `--mcp-registry-entry` against `--output`.
-- **Recipe artifact:** `recipe run` replaces its artifact directory before reading a
-  recording; a `recording:` inside that artifact is deleted, then reported missing.
 - **Baseline output:** `scan --write-baseline` writes nothing at `--output` and leaves an
   earlier run there with exit `0`; neither path is checked against the other, the sidecar
   path or the inputs.
 - **Digest sidecar:** A run migrated to another `--output` records an exchanges digest whose
   sidecar stays beside the original. The same holds for a current-schema run copied there.
+- **Profile inputs:** `recipe run` checks only files the recipe itself names against its
+  `output.directory`, not files its profile names (`rules.paths`, `calibrations:`,
+  `contracts:`). Only files sharing a name the artifact's marker lists can be lost,
+  since `claim` refuses any other file.
+- **Unreadable recipe:** An unreadable recipe marks its earlier artifact refused without
+  knowing its inputs. If it names that artifact's own `junit.xml` or `report.txt`, that
+  file is rewritten.
 - **Migrate file metadata:** `run migrate` writes through a temporary file and a rename.
   This breaks a hard link to the old file and keeps only its mode, not its owner, ACLs or
   extended attributes. A writable file in a directory this process cannot write is now
   refused.
+- **Self-input refusal:** When a recipe names the artifact's own `guardana-artifact.json` as an
+  input, the in-place refusal touches nothing. The earlier marker and `junit.xml` stay green;
+  only exit code `3` reports the refusal.
 - **An installed format's text written with `newline=""` is not tested on Windows.**
 
 ## Left by protocol conformance (0.39.0)

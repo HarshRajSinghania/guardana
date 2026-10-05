@@ -1171,3 +1171,188 @@ def test_kept_exchanges_in_the_artifact_match_their_digest_where_text_gets_crlf(
     kept = (_artifact(recipe) / "run.exchanges.jsonl").read_bytes()
     run = json.loads((_artifact(recipe) / "run.json").read_text(encoding="utf-8"))["run"]
     assert run["exchanges"]["digest"] == f"sha256:{hashlib.sha256(kept).hexdigest()}"
+
+
+def _artifact_bytes(directory: Path) -> dict[str, bytes]:
+    return {path.name: path.read_bytes() for path in sorted(directory.iterdir())}
+
+
+def _grading(recipe: Path, recording: str) -> None:
+    """Point the recipe's subject at `recording`, keeping its `output:`."""
+    text = recipe.read_text(encoding="utf-8")
+    end = text.index("    model: support-bot\n") + len("    model: support-bot\n")
+    recipe.write_text(
+        text.replace(text[text.index("  connection:") : end], f"  recording: {recording}\n"),
+        encoding="utf-8",
+    )
+
+
+_RED = ("guardana-artifact.json", "junit.xml", "report.txt")
+
+
+@dataclass(frozen=True)
+class _Earlier:
+    """An earlier run's artifact as it was: every file's bytes and mode."""
+
+    out: Path
+    files: dict[str, bytes]
+    modes: dict[str, int]
+
+    @classmethod
+    def of(cls, out: Path) -> Self:
+        modes = {path.name: path.stat().st_mode for path in out.iterdir()}
+        return cls(out, _artifact_bytes(out), modes)
+
+
+def _marked_refused(earlier: _Earlier, *, kept: Sequence[str]) -> None:
+    """The artifact holds a red marker and reports, and of the earlier run only `kept`."""
+    out = earlier.out
+    after = _artifact_bytes(out)
+    assert set(after) == {*_RED, *kept}
+    for name in kept:
+        assert after[name] == earlier.files[name], name
+    for name in set(_RED) - set(kept):
+        assert after[name] != earlier.files[name], name
+        assert (out / name).stat().st_mode == earlier.modes[name], name
+    index = json.loads(after[MARKER])
+    assert index["status"] == "refused"
+    assert index["files"] == sorted(set(after) - {MARKER})
+    if "junit.xml" not in kept:
+        suite = fromstring(after["junit.xml"])  # noqa: S314 — our own output
+        assert suite.get("errors") == "1"
+    if "report.txt" not in kept:
+        assert after["report.txt"].decode("utf-8").startswith("the run did not start:")
+    assert [p.name for p in out.parent.iterdir() if p.name.startswith(f".{out.name}")] == []
+
+
+def test_a_recording_inside_the_artifact_directory_is_refused_and_both_are_kept(
+    tmp_path: Path, wire: _Wire
+) -> None:
+    kept = _kept_artifact(tmp_path, wire)
+    earlier = _Earlier.of(kept)
+    sent = len(wire.requests)
+    recipe = tmp_path / "guardana-recipe.yaml"
+    _grading(recipe, "guardana-artifact/run.exchanges.jsonl")
+    _locked(recipe)
+
+    result = _invoke("run", str(recipe))
+
+    assert result.exit_code == ExitCode.INVALID_USAGE, result.output
+    said = normalised(result.output)
+    assert "error:" in said
+    assert "run.exchanges.jsonl" in said
+    assert str(kept) in said
+    assert "still holds an earlier run's run.exchanges.jsonl, not this run's" in said
+    _marked_refused(earlier, kept=("run.exchanges.jsonl",))
+    assert len(wire.requests) == sent
+
+
+def test_a_profile_inside_the_artifact_directory_is_refused_before_it_is_claimed(
+    tmp_path: Path, wire: _Wire
+) -> None:
+    recipe = _team(tmp_path, wire.url)
+    _locked(recipe)
+    assert _invoke("run", str(recipe)).exit_code == ExitCode.OK
+    earlier = _Earlier.of(_artifact(recipe))
+    recipe.write_text(
+        recipe.read_text(encoding="utf-8").replace(
+            "profile: guardana.yaml", "profile: guardana-artifact/x.yaml"
+        ),
+        encoding="utf-8",
+    )
+
+    result = _invoke("run", str(recipe))
+
+    assert result.exit_code == ExitCode.INVALID_USAGE, result.output
+    assert "x.yaml" in normalised(result.output)
+    assert str(earlier.out) in normalised(result.output)
+    _marked_refused(earlier, kept=())
+
+
+def test_a_report_the_recipe_reads_is_kept_while_the_rest_turns_red(
+    tmp_path: Path, wire: _Wire
+) -> None:
+    recipe = _team(tmp_path, wire.url)
+    _locked(recipe)
+    assert _invoke("run", str(recipe)).exit_code == ExitCode.OK
+    earlier = _Earlier.of(_artifact(recipe))
+    sent = len(wire.requests)
+    recipe.write_text(
+        recipe.read_text(encoding="utf-8").replace(
+            "profile: guardana.yaml", "profile: guardana-artifact/report.txt"
+        ),
+        encoding="utf-8",
+    )
+
+    result = _invoke("run", str(recipe))
+
+    assert result.exit_code == ExitCode.INVALID_USAGE, result.output
+    assert "is a file the recipe reads, so it was left as it is" in normalised(result.output)
+    _marked_refused(earlier, kept=("report.txt",))
+    assert len(wire.requests) == sent
+
+
+def test_an_unreadable_recipe_keeps_the_recording_it_names_and_drops_the_earlier_verdict(
+    tmp_path: Path, wire: _Wire
+) -> None:
+    kept = _kept_artifact(tmp_path, wire)
+    earlier = _Earlier.of(kept)
+    sent = len(wire.requests)
+    recipe = tmp_path / "guardana-recipe.yaml"
+    _grading(recipe, "guardana-artifact/run.exchanges.jsonl")
+    recipe.write_text(recipe.read_text(encoding="utf-8") + "unexpected: 1\n", encoding="utf-8")
+
+    result = _invoke("run", str(recipe))
+
+    assert result.exit_code == ExitCode.INVALID_USAGE, result.output
+    _marked_refused(
+        earlier,
+        kept=("run.exchanges.jsonl", "guardana-recipe.yaml", "guardana-recipe.lock.yaml"),
+    )
+    assert len(wire.requests) == sent
+
+
+def test_a_recording_beside_the_artifact_directory_under_a_longer_name_still_runs(
+    tmp_path: Path, wire: _Wire
+) -> None:
+    kept = _kept_artifact(tmp_path, wire)
+    elsewhere = tmp_path / "guardana-artifact-earlier"
+    elsewhere.mkdir()
+    for name in ("run.json", "run.exchanges.jsonl"):
+        (elsewhere / name).write_bytes((kept / name).read_bytes())
+    recipe = tmp_path / "guardana-recipe.yaml"
+    _grading(recipe, "guardana-artifact-earlier/run.exchanges.jsonl")
+    _locked(recipe)
+
+    result = _invoke("run", str(recipe))
+
+    assert result.exit_code == ExitCode.OK, result.output
+    run = json.loads((kept / "run.json").read_text(encoding="utf-8"))["run"]
+    assert run["recipe"]["source"] == "recording"
+
+
+def test_marking_refused_never_removes_a_listed_name_outside_the_directory(
+    tmp_path: Path,
+) -> None:
+    directory = tmp_path / "guardana-artifact"
+    directory.mkdir()
+    beside = tmp_path / "beside.txt"
+    absolute = tmp_path / "absolute.txt"
+    for kept in (beside, absolute):
+        kept.write_text("kept\n", encoding="utf-8")
+    (directory / "run.json").write_text("{}\n", encoding="utf-8")
+    (directory / "nested").mkdir()
+    listed = ["run.json", "junit.xml", "report.txt", "../beside.txt", str(absolute), "nested"]
+    marker = {"schema_version": 1, "status": "complete", "files": listed}
+    (directory / MARKER).write_text(json.dumps(marker), encoding="utf-8")
+
+    recipe_cli._mark_refused_in_place(directory, "a reason", inputs=[], removes=lambda _name: True)
+
+    assert beside.read_text(encoding="utf-8") == "kept\n"
+    assert absolute.read_text(encoding="utf-8") == "kept\n"
+    assert not (directory / "run.json").exists()
+    assert (directory / "nested").is_dir()
+    assert 'errors="1"' in (directory / "junit.xml").read_text(encoding="utf-8")
+    index = json.loads((directory / MARKER).read_text(encoding="utf-8"))
+    assert index["status"] == "refused"
+    assert sorted(index["files"]) == ["junit.xml", "nested", "report.txt"]

@@ -1,13 +1,22 @@
 """`guardana recipe lock|run` — a team's checks, pinned in its repository and run the same way."""
 
 import json
-from collections.abc import Callable
+import os
+import shutil
+import tempfile
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Annotated
 
 import typer
-from guardana.cli._artifact import MARKER, ArtifactRefusedError, claim, publish
+from guardana.cli._artifact import (
+    ARTIFACT_SCHEMA_VERSION,
+    MARKER,
+    ArtifactRefusedError,
+    claim,
+    publish,
+)
 from guardana.cli._connection import endpoint_for, read_system_prompt, seeded_endpoint
 from guardana.cli._errors import (
     remedies_for,
@@ -21,6 +30,7 @@ from guardana.cli._plugins import hint_refused_plugins, resolve_trust
 from guardana.cli._profile import resolve_profile
 from guardana.cli._rules_loading import load_custom_rules
 from guardana.cli._run_meta import calibrations_or_exit, detect_source
+from guardana.cli._sidecar import same_file
 from guardana.cli._target_locator import resolve_target
 from guardana.cli.exit_codes import ExitCode
 from guardana.cli.plan import recorded_target_or_exit, system_prompt_the_probe_will_send
@@ -84,6 +94,7 @@ recipe_app = typer.Typer(
 RecipeArgument = Annotated[Path, typer.Argument(help="The recipe file.", show_default=True)]
 
 _DEFAULT_CONCURRENCY = 4
+_VERDICT = "run.json"
 _SPELLING = Spelling(
     url="subject.connection.url",
     provider="subject.connection.provider",
@@ -193,6 +204,18 @@ def run(
         typer.echo(f"error: {refused.reason}", err=True)
         raise typer.Exit(code=refused.code) from None
     loaded = read.recipe
+    inputs = _inputs(read)
+    try:
+        _refuse_reading_from_the_artifact(loaded, inputs)
+    except _Refusal as refused:
+        typer.echo(f"error: {refused.reason}", err=True)
+        _mark_refused_in_place(
+            loaded.output,
+            refused.reason,
+            inputs=[path for _, path in inputs],
+            removes=lambda _name: True,
+        )
+        raise typer.Exit(code=refused.code) from None
     try:
         claim(loaded.output, loaded.name)
     except ArtifactRefusedError as exc:
@@ -241,30 +264,153 @@ def _load(path: Path) -> _Read:
     return _Read(recipe, text, fixtures)
 
 
+def _inputs(read: _Read) -> list[tuple[str, Path]]:
+    """Return every file the recipe names for its run to read, each with the key naming it."""
+    recipe = read.recipe
+    named: list[tuple[str, Path | None]] = [
+        ("the recipe", recipe.path),
+        ("the recipe lock", recipe.lock_path),
+        ("profile", recipe.profile),
+        ("subject.recording", recipe.recording),
+        ("subject.fixtures", recipe.fixtures),
+        ("subject.connection.adapter", recipe.subject_file("adapter")),
+        ("subject.connection.system_prompt_file", recipe.subject_file("system_prompt_file")),
+    ]
+    if read.fixtures is not None:
+        named.extend(
+            (f"the adapter of fixtures tenant {tenant.name}", tenant.adapter)
+            for tenant in read.fixtures.tenants
+        )
+    return [(role, path) for role, path in named if path is not None]
+
+
+def _refuse_reading_from_the_artifact(recipe: Recipe, inputs: list[tuple[str, Path]]) -> None:
+    """Refuse a recipe that reads a file inside the artifact directory every run replaces.
+
+    Claiming the directory would remove the file before the run reads it, and the earlier
+    artifact with it, so nothing is claimed.
+    """
+    for role, path in inputs:
+        if _inside(path, recipe.output):
+            raise _Refusal(
+                f"{recipe.path}: {role} {path} lies inside {recipe.output}, the artifact "
+                f"directory every run replaces; move the file or name another "
+                f"output.directory. Nothing was sent"
+            )
+
+
+def _mark_refused_in_place(
+    directory: Path,
+    reason: str,
+    *,
+    inputs: Sequence[Path],
+    removes: Callable[[str], bool],
+) -> None:
+    """Turn an earlier run's artifact red without replacing the directory a recipe reads from.
+
+    The marker, `junit.xml` and `report.txt` are rewritten by a rename onto their names, so
+    a link there is replaced rather than written through; each listed file `removes` names
+    is deleted unless the recipe reads it. The marker lists the refusal before anything is
+    removed and exactly what remains at the end, so no later run finds a file it did not list.
+    """
+    if directory.is_symlink() or not directory.is_dir() or not (directory / MARKER).is_file():
+        return
+    if _read_by_the_recipe(directory / MARKER, inputs, warn=True):
+        return
+    listed = [name for name in _indexed_files(directory) if name != MARKER]
+    reports = {
+        "junit.xml": unfinished_document("guardana.recipe", "the run did not start", reason),
+        "report.txt": f"the run did not start: {reason}\n",
+    }
+    written: list[str] = []
+    removed: list[str] = []
+    try:
+        _stage_into(directory, MARKER, _refused_marker({*listed, *reports}))
+        for name, text in reports.items():
+            if not _read_by_the_recipe(directory / name, inputs, warn=True):
+                _stage_into(directory, name, text)
+                written.append(name)
+        for name in listed:
+            listed_path = directory / name
+            if name in reports or not removes(name) or _a_directory(listed_path):
+                continue
+            if not _read_by_the_recipe(listed_path, inputs, warn=False):
+                listed_path.unlink(missing_ok=True)
+                removed.append(name)
+        remaining = [name for name in {*listed, *written} if os.path.lexists(directory / name)]
+        _stage_into(directory, MARKER, _refused_marker(remaining))
+    except OSError as exc:
+        typer.echo(f"warning: could not mark {directory} as refused: {exc}", err=True)
+        return
+    _say_marked(directory, written, removed, sorted(set(remaining) - set(written)))
+
+
+def _say_marked(
+    directory: Path, written: list[str], removed: list[str], earlier: list[str]
+) -> None:
+    """Say what an artifact marked refused in place now holds, and what is still not this run's."""
+    said = [f"{', '.join([MARKER, *written])} now say this run was refused"]
+    if removed:
+        said.append(f"removed the earlier run's {', '.join(sorted(removed))}")
+    if earlier:
+        said.append(f"it still holds an earlier run's {', '.join(earlier)}, not this run's")
+    typer.echo(f"warning: in {directory}, {'; '.join(said)}", err=True)
+
+
+def _read_by_the_recipe(path: Path, inputs: Sequence[Path], *, warn: bool) -> bool:
+    """Whether `path` is one of the recipe's inputs, saying it is kept when `warn` is set."""
+    if not any(same_file(path, given) for given in inputs):
+        return False
+    if warn:
+        typer.echo(f"warning: {path} is a file the recipe reads, so it was left as it is", err=True)
+    return True
+
+
+def _refused_marker(files: Iterable[str]) -> str:
+    """Render an artifact marker saying the run was refused, listing `files`."""
+    marker = {
+        "schema_version": ARTIFACT_SCHEMA_VERSION,
+        "status": "refused",
+        "files": sorted(files),
+    }
+    return json.dumps(marker, indent=2) + "\n"
+
+
+def _stage_into(directory: Path, name: str, text: str) -> None:
+    """Write `text` beside `directory`, as `publish` writes a file, then rename it in as `name`.
+
+    Staged outside the directory, so an interrupted write leaves nothing in it a later run
+    would refuse as a file no run wrote.
+    """
+    staging = Path(tempfile.mkdtemp(prefix=f".{directory.name}.", dir=directory.parent))
+    try:
+        staged = staging / name
+        staged.write_bytes(text.encode("utf-8"))
+        staged.replace(directory / name)
+    finally:
+        shutil.rmtree(staging, ignore_errors=True)
+
+
+def _inside(path: Path, directory: Path) -> bool:
+    """Whether `path` is `directory` or lies under it, through a symlink or another case too."""
+    try:
+        resolved = path.resolve()
+    except (OSError, RuntimeError):
+        resolved = path.absolute()
+    return any(same_file(ancestor, directory) for ancestor in (resolved, *resolved.parents))
+
+
 def _refuse_unreadable(path: Path, reason: str) -> None:
     """Mark the artifact an unreadable recipe names as refused, when an earlier run wrote one.
 
     Only a directory whose index lists this recipe's own copy is touched: a mistyped path
-    creates nothing and marks no other recipe's artifact, and a directory a run never wrote
-    is never replaced.
+    creates nothing and marks no other recipe's artifact. The files the recipe reads are
+    unknown here, so only the earlier verdict is removed and the directory is never replaced.
     """
     directory = artifact_directory_of(path)
     if not path.is_file() or path.name not in _indexed_files(directory):
         return
-    try:
-        claim(directory, path.name)
-        publish(
-            directory,
-            {
-                "report.txt": f"the run did not start: {reason}\n",
-                "junit.xml": unfinished_document(
-                    "guardana.recipe", "the run did not start", reason
-                ),
-            },
-            status="refused",
-        )
-    except (ArtifactRefusedError, OSError) as exc:
-        typer.echo(f"warning: could not mark {directory} as refused: {exc}", err=True)
+    _mark_refused_in_place(directory, reason, inputs=[path], removes=lambda name: name == _VERDICT)
 
 
 def _indexed_files(directory: Path) -> list[str]:
@@ -274,7 +420,18 @@ def _indexed_files(directory: Path) -> list[str]:
     except (OSError, ValueError):
         return []
     files = index.get("files") if isinstance(index, dict) else None
-    return [name for name in files if isinstance(name, str)] if isinstance(files, list) else []
+    if not isinstance(files, list):
+        return []
+    return [name for name in files if isinstance(name, str) and _plain_name(name)]
+
+
+def _a_directory(path: Path) -> bool:
+    return path.is_dir() and not path.is_symlink()
+
+
+def _plain_name(name: str) -> bool:
+    """Whether an index entry names a file directly inside the directory, never beside it."""
+    return name not in {"", ".", ".."} and "/" not in name and "\\" not in name
 
 
 def _lock_text(recipe: Recipe) -> tuple[str, Path]:
