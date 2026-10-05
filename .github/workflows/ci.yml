@@ -108,7 +108,7 @@ jobs:
       # `scan .` would fail by design: examples/vulnerable-model is deliberately
       # malicious. Guardana scans its own source instead, and must stay clean.
       - name: Dogfood (Guardana scans its own source)
-        run: uv run guardana scan packages
+        run: uv run guardana scan packages --profile scripts/dogfood.yaml
 
   images:
     # The images are built on every push, not first at the tag. An entrypoint, a

@@ -490,10 +490,10 @@ counts a file as read by reporting on it, or by calling <code>ctx.examined(path)
 (<a href="writing-rules.html">writing rules</a>).</p>
 <p>Guardana dogfoods itself in CI by scanning its own source, which must stay
 clean:</p>
-<pre><code class="language-console">$ guardana scan packages
+<pre><code class="language-console">$ guardana scan packages --profile scripts/dogfood.yaml
 ✓ No findings.
 
-0 finding(s); 19 rule(s) run, 0 skipped. 6 component(s) observed.
+0 finding(s); 19 rule(s) run, 0 skipped. 8 component(s) observed.
 </code></pre>
 <p>Note the path: in this repository, <code>guardana scan .</code> exits <code>1</code> by design —
 <a href="https://github.com/guardana/guardana/tree/main/examples/vulnerable-model"><code>examples/vulnerable-model/</code></a> is deliberately

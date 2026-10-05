@@ -111,10 +111,10 @@ Guardana dogfoods itself in CI by scanning its own source, which must stay
 clean:
 
 ```console
-$ guardana scan packages
+$ guardana scan packages --profile scripts/dogfood.yaml
 ✓ No findings.
 
-0 finding(s); 19 rule(s) run, 0 skipped. 6 component(s) observed.
+0 finding(s); 19 rule(s) run, 0 skipped. 8 component(s) observed.
 ```
 
 Note the path: in this repository, `guardana scan .` exits `1` by design —

@@ -98,6 +98,12 @@ def _preflight() -> None:
         _fail("local main is not in sync with origin/main — pull/push first")
 
 
+DOGFOOD_PROFILE = "scripts/dogfood.yaml"
+"""The profile every dogfood run passes, so none of them gates at a lower bar."""
+
+_DOGFOOD = ["uv", "run", "guardana", "scan", "packages", "--profile", DOGFOOD_PROFILE]
+
+
 def _gate() -> None:
     print("running the gate (ruff, format, mypy, lint-imports, pytest, dogfood, clean install)…")
     for cmd in (
@@ -106,7 +112,7 @@ def _gate() -> None:
         ["uv", "run", "mypy", "--strict", "."],
         ["uv", "run", "lint-imports"],
         ["uv", "run", "pytest", "-q"],
-        ["uv", "run", "guardana", "scan", "packages"],
+        _DOGFOOD,
         # Last, because it is the only one that runs where a user runs. Every
         # gate above passes in an environment where an undeclared module is
         # installed for some other reason; that is how 0.9.0 was tagged with a
@@ -202,7 +208,7 @@ def main(argv: list[str]) -> None:
         return
 
     _run(["uv", "run", "pytest", "-q"])  # re-gate after the bump touched pyprojects/lock
-    _run(["uv", "run", "guardana", "scan", "packages"])
+    _run(_DOGFOOD)
     _stage_release(bumped)
     _run(["git", "commit", "-m", f"chore(release): {tag}"])
     # The tag does not exist until CI is green, and the branch push never carries one:

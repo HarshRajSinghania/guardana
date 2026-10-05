@@ -321,9 +321,6 @@ the 0.26 measurement audit.)
 ## Tooling debt
 
 - `site/og.png` is rendered by hand from `scripts/og_card.html` and nothing checks the two agree.
-- **`ci_local.sh`'s Dogfood step passes while `guardana scan packages` reports a finding below
-  the profile's `fail_on` bar**; `CLAUDE.md` asks for zero findings, and only the step's verdict
-  line shows the count.
 - **CI is pinned to `ubuntu-24.04`.** On `ubuntu-26.04` the images, the clean install and the
   example suites pass, but the `test` job cannot install `postgresql-client-16`, which
   `pg_dump` needs to match the `postgres:16` service. Moving means the PGDG apt repository or

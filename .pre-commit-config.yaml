@@ -70,7 +70,7 @@ repos:
 
       - id: dogfood
         name: guardana scans its own source
-        entry: uv run guardana scan packages
+        entry: uv run guardana scan packages --profile scripts/dogfood.yaml
         language: system
         pass_filenames: false
         stages: [pre-push]

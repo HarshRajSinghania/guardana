@@ -96,7 +96,7 @@ uv run ruff check . && uv run ruff format --check .
 uv run mypy --strict .
 uv run lint-imports
 uv run pytest --cov
-uv run guardana scan packages          # dogfood: must be 0 findings
+uv run guardana scan packages --profile scripts/dogfood.yaml  # dogfood: must be 0 findings
 uv run python scripts/clean_install_check.py   # the five packages in an EMPTY venv
 
 # 2. Bump all five packages + pins + lock (see the table above for which part).
@@ -111,7 +111,7 @@ $EDITOR ROADMAP.md   # "## What ships today (X.Y.Z)"
 $EDITOR CHANGELOG.md
 
 # 5. Re-run the gate — the bump changed pyprojects and the lock.
-uv run pytest -q && uv run guardana scan packages
+uv run pytest -q && uv run guardana scan packages --profile scripts/dogfood.yaml
 
 # 6. Commit the release as ONE conventional commit, staging only the paths the
 #    release wrote. Never `git add -A`: other sessions work in this tree, and

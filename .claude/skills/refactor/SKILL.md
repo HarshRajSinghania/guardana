@@ -47,8 +47,8 @@ Low reference count on a recent file means "new", not "dead" — check `git log 
 
 ## 4. Prove nothing moved
 
-Full gate green; the before/after artifact diff empty; `guardana scan packages` still at zero
-findings. Then `/review`.
+Full gate green; the before/after artifact diff empty;
+`guardana scan packages --profile scripts/dogfood.yaml` still at zero findings. Then `/review`.
 
 ## 5. Report
 

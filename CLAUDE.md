@@ -36,7 +36,7 @@ No broad corpora, new protocols or new modalities while a milestone item is open
 uv sync                                        # the workspace, dev and docs groups
 uv run pytest <path>[::test] -q                # one test while iterating (--cov stays off)
 scripts/ci_local.sh --quiet                    # every CI job + the setup checks; --fast skips the slow ones as NOT RUN
-uv run guardana scan packages                  # dogfood: must stay at zero findings (never `scan .`)
+uv run guardana scan packages --profile scripts/dogfood.yaml  # dogfood: must stay at zero findings (never `scan .`)
 uv run python scripts/generate_docs.py         # after a rule/evaluator/taxonomy change; never edit docs/generated/
 ```
 

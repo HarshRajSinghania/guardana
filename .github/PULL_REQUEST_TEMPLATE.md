@@ -26,7 +26,7 @@
       uv run mypy --strict .
       uv run lint-imports
       uv run pytest --cov
-      uv run guardana scan packages
+      uv run guardana scan packages --profile scripts/dogfood.yaml
       ```
 - [ ] Docs updated alongside the code change (`CLAUDE.md`, `CONTRIBUTING.md`,
       or `docs/`, as applicable) — not deferred to a follow-up.

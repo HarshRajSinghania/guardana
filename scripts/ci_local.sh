@@ -103,7 +103,7 @@ if [ "$skip_audit" -eq 0 ]; then
 else
   skip "Dependency audit" "--skip-audit"
 fi
-step "Dogfood"             uv run guardana scan packages
+step "Dogfood"             uv run guardana scan packages --profile scripts/dogfood.yaml
 
 step "Generated docs"      uv run python scripts/generate_docs.py --check
 step "Landing counts"      uv run python scripts/sync_site.py --check

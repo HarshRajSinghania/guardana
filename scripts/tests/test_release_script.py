@@ -487,3 +487,43 @@ def test_the_reference_pack_check_runs_before_the_gate(monkeypatch: pytest.Monke
         release.main(["patch"])
 
     assert order == ["pack", "gate"]
+
+
+# Records and prose that name the command without running it.
+_DOGFOOD_DESCRIBED = frozenset(
+    {"CHANGELOG.md", "SECURITY.md", "scripts/tests/test_release_script.py"}
+)
+
+
+def test_every_dogfood_run_passes_the_dogfood_profile() -> None:
+    """Without the profile a dogfood run gates at the default HIGH bar and passes lower findings."""
+    root = release._ROOT
+    command = "guardana scan packages"
+    with_profile = f"{command} --profile {release.DOGFOOD_PROFILE}"
+    listed = subprocess.run(
+        ["git", "ls-files", "-z"],  # noqa: S607 — git on this clone
+        cwd=root,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.split("\0")
+    running = []
+    for name in listed:
+        if name in _DOGFOOD_DESCRIBED or name.startswith("site/"):
+            continue
+        if not name:
+            continue
+        try:
+            text = (root / name).read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            continue
+        if command in text:
+            running.append(name)
+            assert text.count(command) == text.count(with_profile), name
+    assert {".github/workflows/ci.yml", "scripts/ci_local.sh", ".pre-commit-config.yaml"} <= set(
+        running
+    )
+    assert release._DOGFOOD[-2:] == ["--profile", release.DOGFOOD_PROFILE]
+    source = (root / "scripts" / "release.py").read_text(encoding="utf-8")
+    assert source.count('"scan", "packages"') == 1
+    assert (root / release.DOGFOOD_PROFILE).is_file()

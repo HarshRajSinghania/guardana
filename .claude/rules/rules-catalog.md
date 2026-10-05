@@ -31,6 +31,7 @@ Procedure: the `add-a-rule` skill. Why: `docs/maintainers/lessons.md` § Rules a
   run.
 - After any change here: `uv run python scripts/generate_docs.py` (never edit
   `docs/generated/`), `FEATURES.md` if the surface moved (a registry test refuses a built-in
-  missing from it), and `uv run guardana scan packages` stays at zero findings.
+  missing from it), and `uv run guardana scan packages --profile scripts/dogfood.yaml` stays at
+  zero findings.
 - Test the example in isolation: `uv run --isolated --no-cache --with … pytest
   examples/custom_rule/tests -q`; `--no-cache` is load-bearing (`scripts/ci_local.sh` runs it).

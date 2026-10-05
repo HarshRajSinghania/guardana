@@ -49,7 +49,7 @@ uv run ruff format --check .   # formatting
 uv run mypy --strict .         # types — the whole repo, tests included
 uv run lint-imports            # architecture: the engine must not import the collector
 uv run pytest --cov            # tests + the 90% branch-coverage gate
-uv run guardana scan packages  # dogfood: Guardana scans its own source
+uv run guardana scan packages --profile scripts/dogfood.yaml  # dogfood: Guardana scans its own source
 ```
 
 One more runs in CI on every push, and you want it locally whenever you touch a
