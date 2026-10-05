@@ -132,7 +132,6 @@ def _line_pattern(template: str) -> str:
     )
 
 
-_SECURITY_LINE_RE = re.compile(_line_pattern(_SECURITY_LINE))
 _SECURITY_VERSION_RE = re.compile(
     f"{_line_pattern(_SECURITY_PRE_1_LINE)}|{_line_pattern(_SECURITY_LINE)}"
 )

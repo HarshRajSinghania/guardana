@@ -497,7 +497,8 @@ def _security_line_mismatch(version: str, text: str) -> str | None:
     major, _, _ = _BUMP._core(version)
     if major >= 1 and not Version(version).is_prerelease and "pre-1.0" in text:
         return f"SECURITY.md still says pre-1.0 at the final release {version}"
-    if major == 0 and _BUMP._SECURITY_LINE_RE.search(text) is not None:
+    supported = re.compile(_BUMP._line_pattern(_BUMP._SECURITY_LINE))
+    if major == 0 and supported.search(text) is not None:
         return f"SECURITY.md announces a supported 1.x line at {version}"
     return None
 
