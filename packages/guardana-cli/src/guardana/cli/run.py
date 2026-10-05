@@ -298,9 +298,9 @@ def _replace(destination: Path, document: bytes) -> None:
     if mode is not None and not os.access(target, os.W_OK):
         raise PermissionError(errno.EACCES, os.strerror(errno.EACCES), str(destination))
     staged = target.with_name(f".{target.name}.{secrets.token_hex(8)}.tmp")
-    descriptor = os.open(staged, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o666)
+    handle = staged.open("xb")
     try:
-        with os.fdopen(descriptor, "wb") as handle:
+        with handle:
             handle.write(document)
             handle.flush()
             os.fsync(handle.fileno())
