@@ -5,12 +5,15 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
+from guardana.cli._outputs import remove_earlier_exchanges
+from guardana.cli._sidecar import refuse_writing_over_an_input, same_file
 from guardana.core.manifest import RunManifest
 from guardana.core.manifest.load import ManifestLoadError
 from guardana.core.manifest.serialize import manifest_to_dict
 from guardana.core.report import ReportLoadError, load_report
 from guardana.core.report.load import MIGRATABLE_VERSIONS, migrate_forward
 from guardana.core.report.run import REPORT_SCHEMA_VERSION
+from guardana.core.verify import exchanges_path
 
 _INVALID_USAGE = 3
 _UNKNOWN = "not recorded"
@@ -199,8 +202,10 @@ def migrate(
 
     Not required to compare runs — `guardana diff` migrates older documents in
     memory as it reads them — but useful for anyone who wants the richer document
-    on disk without paying to re-run.
+    on disk without paying to re-run. Exchanges an earlier run kept beside another
+    `--output` are removed; the migrated run's own stay where they are.
     """
+    refuse_writing_over_an_input(output, [path], in_place=True)
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError, UnicodeDecodeError) as exc:
@@ -235,6 +240,8 @@ def migrate(
     destination = output if output is not None else path
     destination.write_text(json.dumps(migrated, indent=2), encoding="utf-8")
     typer.echo(f"migrated {path} from schema {version} to {REPORT_SCHEMA_VERSION} → {destination}")
+    if not same_file(exchanges_path(destination), exchanges_path(path)):
+        remove_earlier_exchanges(destination)
 
 
 run_app.command(name="inspect")(inspect)

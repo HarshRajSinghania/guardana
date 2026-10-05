@@ -200,13 +200,16 @@ class Verification:
     def save(self, path: Path) -> None:
         """Write the saved-run document to `path`, as `--format json --output` does.
 
-        Kept exchanges go to `exchanges_path(path)` beside it; a file there from an earlier
-        run is removed when this one kept none, so it never reads as this run's.
+        Kept exchanges go to `exchanges_path(path)` beside it, replacing a link there rather
+        than writing through it; a file there from an earlier run is removed when this one
+        kept none, so it never reads as this run's.
         """
         path.write_text(json.dumps(self.document(), indent=2) + "\n", encoding="utf-8")
         sidecar = exchanges_path(path)
         if self.exchanges is not None:
-            sidecar.write_text(render_recording(self.exchanges), encoding="utf-8")
+            if sidecar.is_symlink():
+                sidecar.unlink()
+            sidecar.write_bytes(render_recording(self.exchanges).encode("utf-8"))
         elif sidecar.exists():
             sidecar.unlink()
 

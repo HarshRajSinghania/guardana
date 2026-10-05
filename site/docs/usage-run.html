@@ -420,6 +420,10 @@ does not have stays titleless, because nothing here knows what it was called.</p
 <pre><code class="language-bash">guardana run migrate old-run.json --output new-run.json
 guardana run migrate old-run.json          # in place
 </code></pre>
+<p>Migrating to another <code>--output</code> removes an earlier <code>&lt;stem&gt;.exchanges.jsonl</code> beside
+that output and says so on stderr; the migrated run's own sidecar stays when migrated
+in place or from <code>run.json</code> to <code>run</code>, which share one. An <code>--output</code> whose sidecar
+path is the input file is refused with exit <code>3</code> before anything is written.</p>
 <p>This is a convenience, not a requirement. Nothing needs migrating to be compared.</p>
 <p>A file that says it is already at the current schema is read the way <code>run inspect</code>
 reads it before migrate answers &quot;nothing to do&quot;: an object that only claims the version

@@ -1086,3 +1086,88 @@ def test_a_target_that_connects_while_it_is_built_and_fails_is_unavailable(
     assert _status(recipe) == "refused"
     report = (_artifact(recipe) / "report.txt").read_text(encoding="utf-8")
     assert "could not be reached" in report
+
+
+def _write_text_as_windows(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Make every text write translate newlines to CRLF, as `write_text` does on Windows."""
+    write_text = Path.write_text
+
+    def translating(
+        path: Path,
+        data: str,
+        encoding: str | None = None,
+        errors: str | None = None,
+        newline: str | None = None,
+    ) -> int:
+        if newline is None:
+            data, newline = data.replace("\n", "\r\n"), ""
+        return write_text(path, data, encoding, errors, newline)
+
+    monkeypatch.setattr(Path, "write_text", translating)
+
+
+def _kept_artifact(tmp_path: Path, wire: _Wire) -> Path:
+    """Run a recipe that keeps exchanges and return the artifact holding them."""
+    recipe = _team(tmp_path, wire.url, extra="privacy:\n  keep_exchanges: true\n")
+    recipe.write_text(
+        recipe.read_text(encoding="utf-8") + "output:\n  exchanges: true\n", encoding="utf-8"
+    )
+    _locked(recipe)
+    result = _invoke("run", str(recipe))
+    assert result.exit_code == ExitCode.OK, result.output
+    return _artifact(recipe)
+
+
+def _warnings(output: str) -> list[str]:
+    lines = (" ".join(_ANSI.sub("", line).split()) for line in output.splitlines())
+    return [line for line in lines if line.startswith("warning:")]
+
+
+@pytest.mark.parametrize("edited", [False, True], ids=["matching", "edited"])
+def test_a_recipe_grading_a_sidecar_warns_as_grade_does(
+    tmp_path: Path, wire: _Wire, *, edited: bool
+) -> None:
+    (tmp_path / "probe").mkdir()
+    kept = _kept_artifact(tmp_path / "probe", wire)
+    graded = tmp_path / "grade"
+    graded.mkdir()
+    for name in ("run.json", "run.exchanges.jsonl"):
+        (graded / name).write_bytes((kept / name).read_bytes())
+    sidecar = graded / "run.exchanges.jsonl"
+    if edited:
+        sidecar.write_bytes(sidecar.read_bytes() + b"\n")
+    recipe = _team(graded, "http://127.0.0.1:9")
+    text = recipe.read_text(encoding="utf-8")
+    recipe.write_text(
+        text.replace(text[text.index("  connection:") :], "  recording: run.exchanges.jsonl\n"),
+        encoding="utf-8",
+    )
+    _locked(recipe)
+
+    result = _invoke("run", str(recipe))
+
+    assert result.exit_code == ExitCode.OK, result.output
+    warnings = _warnings(result.output)
+    if edited:
+        assert len(warnings) == 1, result.output
+        assert "is not the exchanges" in warnings[0]
+    else:
+        assert warnings == []
+
+
+def test_kept_exchanges_in_the_artifact_match_their_digest_where_text_gets_crlf(
+    tmp_path: Path, wire: _Wire, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    recipe = _team(tmp_path, wire.url, extra="privacy:\n  keep_exchanges: true\n")
+    recipe.write_text(
+        recipe.read_text(encoding="utf-8") + "output:\n  exchanges: true\n", encoding="utf-8"
+    )
+    _locked(recipe)
+    _write_text_as_windows(monkeypatch)
+
+    result = _invoke("run", str(recipe))
+
+    assert result.exit_code == ExitCode.OK, result.output
+    kept = (_artifact(recipe) / "run.exchanges.jsonl").read_bytes()
+    run = json.loads((_artifact(recipe) / "run.json").read_text(encoding="utf-8"))["run"]
+    assert run["exchanges"]["digest"] == f"sha256:{hashlib.sha256(kept).hexdigest()}"

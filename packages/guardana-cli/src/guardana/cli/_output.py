@@ -44,7 +44,7 @@ def emit(
     try:
         output.write_text(rendered, encoding="utf-8", newline="" if verbatim else None)
     except OSError as exc:
-        # Loud, and exit 2: a run the user believes was saved but was not is a
+        # Loud, and exit 3: a run the user believes was saved but was not is a
         # comparison that silently never happens.
         typer.echo(f"error: could not write the report to {output}: {exc}", err=True)
         raise typer.Exit(code=ExitCode.INVALID_USAGE) from exc

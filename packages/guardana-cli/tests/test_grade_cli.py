@@ -2,7 +2,7 @@
 
 import json
 import re
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 from urllib.error import URLError
@@ -536,3 +536,295 @@ def test_plan_grade_refuses_a_recording_kept_from_a_stopped_run(tmp_path: Path) 
     assert "run-7" in _plain(refused.stderr)
     assert "budget_exhausted" in _plain(refused.stderr)
     assert planned.exit_code == ExitCode.OK, planned.output
+
+
+def _grade_quietly(tmp_path: Path, recording: Path) -> Any:  # noqa: ANN401 — typer's Result
+    return runner.invoke(
+        app,
+        [
+            "grade",
+            str(recording),
+            "--rules",
+            str(_rules(tmp_path)),
+            "--profile",
+            str(_profile(tmp_path)),
+        ],
+    )
+
+
+def _warnings(stderr: str) -> list[str]:
+    lines = (" ".join(_ANSI.sub("", line).split()) for line in stderr.splitlines())
+    return [line for line in lines if line.startswith("warning:")]
+
+
+def _edit_the_sidecar(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, run: Path) -> None:
+    sidecar = tmp_path / "run.exchanges.jsonl"
+    sidecar.write_text(sidecar.read_text("utf-8") + "\n", encoding="utf-8")
+
+
+def _save_a_run_that_kept_none(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, run: Path) -> None:
+    sidecar = tmp_path / "run.exchanges.jsonl"
+    kept = sidecar.read_bytes()
+    monkeypatch.setattr(endpoint_module, "transport_factory", _App)
+    later = runner.invoke(
+        app,
+        [
+            "probe",
+            "--url",
+            _TARGET,
+            "--model",
+            "m",
+            "--rules",
+            str(_rules(tmp_path)),
+            "--profile",
+            str(_profile(tmp_path)),
+            "--format",
+            "json",
+            "--output",
+            str(run),
+        ],
+    )
+    assert later.exit_code == ExitCode.OK, later.output
+    sidecar.write_bytes(kept)
+
+
+def _spoil_the_run(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, run: Path) -> None:
+    run.write_text("not a run\n", encoding="utf-8")
+
+
+@pytest.mark.parametrize(
+    ("change", "said"),
+    [
+        (_edit_the_sidecar, "is not the exchanges"),
+        (_save_a_run_that_kept_none, "records no exchanges"),
+        (_spoil_the_run, "could not be checked against"),
+    ],
+    ids=["another digest", "no digest", "unreadable run"],
+)
+@pytest.mark.parametrize("saved_as", ["run.json", "run"])
+def test_a_sidecar_its_run_does_not_vouch_for_is_graded_with_a_warning(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    change: Callable[[pytest.MonkeyPatch, Path, Path], None],
+    said: str,
+    saved_as: str,
+) -> None:
+    run = tmp_path / saved_as
+    kept = _probe_keeping(monkeypatch, tmp_path, "--format", "json", "--output", str(run))
+    assert kept.exit_code == ExitCode.OK, kept.output
+    sidecar = tmp_path / "run.exchanges.jsonl"
+    change(monkeypatch, tmp_path, run)
+
+    result = _grade_quietly(tmp_path, sidecar)
+
+    assert result.exit_code == ExitCode.OK, result.output
+    warnings = _warnings(result.stderr)
+    assert len(warnings) == 1, result.stderr
+    assert said in warnings[0]
+    assert str(sidecar) in warnings[0]
+    assert warnings[0].endswith("grading it as given")
+
+
+def test_a_sidecar_its_run_recorded_is_graded_without_a_warning(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    sidecar = _kept(monkeypatch, tmp_path)
+
+    result = _grade_quietly(tmp_path, sidecar)
+
+    assert result.exit_code == ExitCode.OK, result.output
+    assert _warnings(result.stderr) == []
+
+
+def test_a_sidecar_with_no_run_beside_it_is_graded_without_a_warning(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    sidecar = _kept(monkeypatch, tmp_path)
+    sidecar.write_text(sidecar.read_text("utf-8") + "\n", encoding="utf-8")
+    (tmp_path / "run.json").unlink()
+
+    result = _grade_quietly(tmp_path, sidecar)
+
+    assert result.exit_code == ExitCode.OK, result.output
+    assert _warnings(result.stderr) == []
+
+
+@pytest.mark.parametrize("saved_as", ["run.json", "run"])
+def test_grade_refuses_a_report_that_would_remove_the_recording_it_grades(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, saved_as: str
+) -> None:
+    run = tmp_path / saved_as
+    kept = _probe_keeping(monkeypatch, tmp_path, "--format", "json", "--output", str(run))
+    assert kept.exit_code == ExitCode.OK, kept.output
+    sidecar = tmp_path / "run.exchanges.jsonl"
+    before = {path: path.read_bytes() for path in (run, sidecar)}
+    monkeypatch.chdir(tmp_path)
+
+    result = runner.invoke(
+        app,
+        [
+            "grade",
+            str(sidecar),
+            "--rules",
+            str(_rules(tmp_path)),
+            "--profile",
+            str(_profile(tmp_path)),
+            "--format",
+            "json",
+            "--output",
+            saved_as,
+        ],
+    )
+
+    assert result.exit_code == ExitCode.INVALID_USAGE, result.output
+    error = _plain(result.stderr)
+    assert f"error: {sidecar} is where a run saved at {saved_as} keeps its exchanges" in error
+    assert {path: path.read_bytes() for path in before} == before
+
+
+def test_grade_refuses_a_report_that_would_replace_the_recording_it_grades(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    sidecar = _kept(monkeypatch, tmp_path)
+    before = sidecar.read_bytes()
+
+    result = runner.invoke(
+        app,
+        [
+            "grade",
+            str(sidecar),
+            "--rules",
+            str(_rules(tmp_path)),
+            "--profile",
+            str(_profile(tmp_path)),
+            "--format",
+            "json",
+            "--output",
+            str(sidecar),
+        ],
+    )
+
+    assert result.exit_code == ExitCode.INVALID_USAGE, result.output
+    assert f"error: --output {sidecar} is the recording being graded" in _plain(result.stderr)
+    assert sidecar.read_bytes() == before
+
+
+def test_grade_refuses_an_output_whose_sidecar_is_the_recording_under_another_name(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    sidecar = _kept(monkeypatch, tmp_path)
+    linked = tmp_path / "linked.jsonl"
+    linked.hardlink_to(sidecar)
+    before = sidecar.read_bytes()
+
+    result = runner.invoke(
+        app,
+        [
+            "grade",
+            str(linked),
+            "--rules",
+            str(_rules(tmp_path)),
+            "--profile",
+            str(_profile(tmp_path)),
+            "--format",
+            "json",
+            "--output",
+            str(tmp_path / "run.json"),
+        ],
+    )
+
+    assert result.exit_code == ExitCode.INVALID_USAGE, result.output
+    assert "would remove the recording being graded" in _plain(result.stderr)
+    assert sidecar.read_bytes() == before
+
+
+def _plan_quietly(tmp_path: Path, recording: Path) -> Any:  # noqa: ANN401 — typer's Result
+    return runner.invoke(
+        app,
+        [
+            "plan",
+            "grade",
+            str(recording),
+            "--rules",
+            str(_rules(tmp_path)),
+            "--profile",
+            str(_profile(tmp_path)),
+        ],
+    )
+
+
+@pytest.mark.parametrize("edited", [False, True], ids=["matching", "edited"])
+def test_plan_grade_warns_of_a_sidecar_its_run_did_not_record_as_grade_does(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, *, edited: bool
+) -> None:
+    sidecar = _kept(monkeypatch, tmp_path)
+    if edited:
+        sidecar.write_text(sidecar.read_text("utf-8") + "\n", encoding="utf-8")
+
+    planned = _plan_quietly(tmp_path, sidecar)
+
+    assert planned.exit_code == ExitCode.OK, planned.output
+    warnings = _warnings(planned.stderr)
+    if edited:
+        assert len(warnings) == 1, planned.stderr
+        assert "is not the exchanges" in warnings[0]
+    else:
+        assert warnings == []
+
+
+def test_a_sidecar_named_in_another_case_is_checked_where_the_filesystem_ignores_case(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    sidecar = _kept(monkeypatch, tmp_path)
+    sidecar.write_text(sidecar.read_text("utf-8") + "\n", encoding="utf-8")
+    renamed = sidecar.rename(tmp_path / "run.Exchanges.JSONL")
+    ignores_case = (tmp_path / "RUN.JSON").exists()
+
+    result = _grade_quietly(tmp_path, renamed)
+
+    assert result.exit_code == ExitCode.OK, result.output
+    warnings = _warnings(result.stderr)
+    if ignores_case:
+        assert len(warnings) == 1, result.stderr
+        assert "is not the exchanges" in warnings[0]
+    else:
+        assert warnings == [], "a case-sensitive filesystem keeps run.json's sidecar apart"
+
+
+def test_a_run_spelled_otherwise_on_disk_is_not_paired_with_the_sidecar(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    sidecar = _kept(monkeypatch, tmp_path)
+    sidecar.write_text(sidecar.read_text("utf-8") + "\n", encoding="utf-8")
+    (tmp_path / "run.json").rename(tmp_path / "RUN.JSON")
+
+    result = _grade_quietly(tmp_path, sidecar)
+
+    assert result.exit_code == ExitCode.OK, result.output
+    assert _warnings(result.stderr) == []
+
+
+@pytest.mark.parametrize("vouched", [True, False], ids=["run vouches", "neither vouches"])
+def test_a_sidecar_either_run_beside_it_recorded_is_graded_without_a_warning(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, *, vouched: bool
+) -> None:
+    bare = tmp_path / "run"
+    kept = _probe_keeping(monkeypatch, tmp_path, "--format", "json", "--output", str(bare))
+    assert kept.exit_code == ExitCode.OK, kept.output
+    sidecar = tmp_path / "run.exchanges.jsonl"
+    named = tmp_path / "run.json"
+    recorded_none = json.loads(bare.read_text("utf-8"))
+    recorded_none["run"]["exchanges"] = None
+    named.write_text(json.dumps(recorded_none), encoding="utf-8")
+    if not vouched:
+        sidecar.write_text(sidecar.read_text("utf-8") + "\n", encoding="utf-8")
+
+    result = _grade_quietly(tmp_path, sidecar)
+
+    assert result.exit_code == ExitCode.OK, result.output
+    warnings = _warnings(result.stderr)
+    if vouched:
+        assert warnings == []
+    else:
+        assert len(warnings) == 1, result.stderr
+        assert warnings[0].startswith(f"warning: {named} records no exchanges")

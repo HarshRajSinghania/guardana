@@ -25,6 +25,7 @@ from guardana.cli._profile import PRESET_HELP, resolve_profile
 from guardana.cli._reporting import installed_reporter_or_check, submit_safely
 from guardana.cli._rules_loading import load_custom_rules
 from guardana.cli._run_meta import build_manifest, detect_deployment, target_identity
+from guardana.cli._sidecar import refuse_writing_over_an_input, same_file
 from guardana.cli._target_locator import resolve_target
 from guardana.cli._trace_input import (
     describe_coverage,
@@ -42,10 +43,10 @@ from guardana.core.report import ScanResult
 from guardana.core.runner import Runner
 from guardana.core.target import Target, TargetKind, TraceReader, TraceTarget
 from guardana.core.trace import Dialect, TraceRead, serialize_trace
-from guardana.core.verify import Verification
+from guardana.core.verify import Verification, exchanges_path
 
 
-def analyze_trace(  # noqa: C901, PLR0913, PLR0917 — Typer surface plus two target sources
+def analyze_trace(  # noqa: C901, PLR0913, PLR0915, PLR0917 — Typer surface plus two target sources
     trace: Annotated[Path | None, typer.Argument(help="JSONL trace file to grade")] = None,
     dialect: Annotated[
         Dialect | None,
@@ -112,6 +113,9 @@ def analyze_trace(  # noqa: C901, PLR0913, PLR0917 — Typer surface plus two ta
     ] = [],  # noqa: B006 — typer builds the option from a literal default
 ) -> None:
     """Grade a recorded agent execution (JSONL, OpenTelemetry GenAI or Guardana native)."""
+    inputs = [trace, profile, *rules, *contract]
+    refuse_writing_over_an_input(output, inputs)
+    _refuse_writing_the_trace_over(write_trace, output, inputs)
     installed_reporter = installed_reporter_or_check(reporter)
     prof = resolve_profile(profile, preset)
     warn_without_a_reporter(prof.delivery_required, reporter)
@@ -225,6 +229,34 @@ def analyze_trace(  # noqa: C901, PLR0913, PLR0917 — Typer surface plus two ta
             delivery_required=prof.delivery_required,
             collector_acknowledged=acknowledged,
         )
+
+
+def _refuse_writing_the_trace_over(
+    write_trace: Path | None, output: Path | None, inputs: list[Path | None]
+) -> None:
+    """Exit `3` when `--write-trace` names the report, the exchanges beside it, or an input."""
+    if write_trace is None:
+        return
+    problem = None
+    if output is not None and same_file(write_trace, output):
+        problem = f"is --output {output}, and one would replace the other"
+    elif output is not None and same_file(write_trace, exchanges_path(output)):
+        problem = (
+            f"is where a run saved at {output} keeps its exchanges, and writing the report "
+            f"would remove it"
+        )
+    else:
+        given = next(
+            (path for path in inputs if path is not None and same_file(write_trace, path)), None
+        )
+        if given is not None:
+            problem = f"is {given}, which this command reads, and writing it would replace it"
+    if problem is not None:
+        typer.echo(
+            f"error: --write-trace {write_trace} {problem} — choose another --write-trace",
+            err=True,
+        )
+        raise typer.Exit(code=ExitCode.INVALID_USAGE)
 
 
 def _write_native(read: TraceRead, destination: Path) -> None:

@@ -41,9 +41,9 @@ from guardana.cli._mcp_run import (
 from guardana.cli._output import refuse_incomparable_output
 from guardana.cli._outputs import (
     RunOutputs,
+    recorded_by_partner,
     refuse_collector_beside,
     refuse_installed_output_beside,
-    remove_earlier_exchanges,
     select_outputs,
     warn_without_a_reporter,
 )
@@ -601,9 +601,9 @@ def _keeping(
     """Turn `--keep-exchanges` into the profile switch and refuse what it cannot honour.
 
     Kept exchanges are written beside the saved run, so a run that writes none would keep
-    them nowhere; and an MCP server or an A2A agent (`protocol`) has no chat exchanges to
-    keep. A `--target` is checked once it is built, since only a target built on the
-    endpoint keeps them.
+    them nowhere, and never over exchanges the run sharing that sidecar recorded; an MCP
+    server or an A2A agent (`protocol`) has no chat exchanges to keep. A `--target` is
+    checked once it is built, since only a target built on the endpoint keeps them.
     """
     if flag:
         if prof.privacy.mode is EvidenceMode.METADATA_ONLY:
@@ -624,6 +624,15 @@ def _keeping(
         raise typer.BadParameter(
             "kept exchanges are written beside the saved run: pass --format json --output run.json"
         )
+    sidecar = exchanges_path(output)
+    partner = recorded_by_partner(output, sidecar)
+    if partner is not None:
+        typer.echo(
+            f"error: {sidecar} holds the exchanges {partner} recorded, and keeping this run's "
+            f"beside {output} would replace them — choose another --output",
+            err=True,
+        )
+        raise typer.Exit(code=ExitCode.INVALID_USAGE)
     return prof
 
 
@@ -654,8 +663,8 @@ def _finish_probe(  # noqa: PLR0913 — what the command does with a finished ru
     for stop in verification.judge_stops:
         typer.echo(f"warning: {stop}", err=True)
     try:
-        outputs.write(verification, output)
-        _write_exchanges(verification, output, keep=keep)
+        outputs.write(verification, output, keeps_exchanges=_keeps(verification, output))
+        _write_exchanges(verification, output, keep=keep, outputs=outputs)
         acknowledged = None
         if collector:
             acknowledged = submit_safely(
@@ -678,15 +687,27 @@ def _finish_probe(  # noqa: PLR0913 — what the command does with a finished ru
     )
 
 
-def _write_exchanges(verification: Verification, output: Path | None, *, keep: bool) -> None:
-    """Write the exchanges the run kept beside its saved run, and say where and how many."""
+def _keeps(verification: Verification, output: Path | None) -> bool:
+    """Whether this run writes exchanges of its own beside the run saved at `output`."""
+    return (
+        output is not None
+        and verification.exchanges is not None
+        and verification.manifest.exchanges is not None
+    )
+
+
+def _write_exchanges(
+    verification: Verification, output: Path | None, *, keep: bool, outputs: RunOutputs
+) -> None:
+    """Write the exchanges the run kept beside its saved run, and say where and how many.
+
+    A run that keeps none leaves nothing there: `RunOutputs.write` removed what an earlier
+    run kept. Exchanges that cannot be written end the command with exit `3`, unless the
+    run stopped. A link at their path is replaced, never written through.
+    """
     kept = verification.exchanges
     record = verification.manifest.exchanges
     if output is None or kept is None or record is None:
-        if output is not None:
-            # The run beside it was just overwritten; left in place, the old exchanges
-            # would read as this run's.
-            remove_earlier_exchanges(output)
         if keep and output is not None:
             typer.echo(
                 "warning: nothing was kept — no rule finished a chat exchange in the plain pass",
@@ -694,7 +715,14 @@ def _write_exchanges(verification: Verification, output: Path | None, *, keep: b
             )
         return
     path = exchanges_path(output)
-    path.write_text(render_recording(kept), encoding="utf-8")
+    try:
+        if path.is_symlink():
+            path.unlink()
+        # Bytes, so no platform translates line endings away from what the digest covers.
+        path.write_bytes(render_recording(kept).encode("utf-8"))
+    except OSError as exc:
+        typer.echo(f"error: could not write the kept exchanges to {path}: {exc}", err=True)
+        outputs.end_unwritten(verification, "the run's kept exchanges could not be written")
     altered = (
         f"; {record.altered} reply(ies) changed by redaction, which `guardana grade` will not grade"
         if record.altered

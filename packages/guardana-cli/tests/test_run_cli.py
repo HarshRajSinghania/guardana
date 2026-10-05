@@ -9,6 +9,7 @@ eventually reads the output and decides something.
 import json
 from pathlib import Path
 
+import pytest
 from guardana.cli.main import app
 from guardana.core.report import load_report
 from guardana.core.report.run import REPORT_SCHEMA_VERSION
@@ -186,3 +187,33 @@ def test_migrate_refuses_an_object_that_only_claims_the_current_schema(tmp_path:
     assert inspected.exit_code == _INVALID_USAGE
     assert migrated.exit_code == _INVALID_USAGE, migrated.output
     assert "already" not in migrated.output
+
+
+def test_migrate_to_another_output_removes_the_exchanges_an_earlier_run_kept_there(
+    tmp_path: Path,
+) -> None:
+    out = tmp_path / "new.json"
+    earlier = tmp_path / "new.exchanges.jsonl"
+    earlier.write_text("kept by an earlier run\n", encoding="utf-8")
+
+    result = runner.invoke(app, ["run", "migrate", str(_write_v1(tmp_path)), "--output", str(out)])
+
+    assert result.exit_code == 0, result.output
+    assert not earlier.exists()
+    assert f"removed {earlier}, which an earlier run at this path kept" in result.stderr
+
+
+@pytest.mark.parametrize("output", [None, "old"], ids=["in place", "run.json to run"])
+def test_migrate_keeps_the_exchanges_the_migrated_run_kept(
+    tmp_path: Path, output: str | None
+) -> None:
+    path = _write_v1(tmp_path)
+    own = tmp_path / "old.exchanges.jsonl"
+    own.write_text("kept by this run\n", encoding="utf-8")
+    where = [] if output is None else ["--output", str(tmp_path / output)]
+
+    result = runner.invoke(app, ["run", "migrate", str(path), *where])
+
+    assert result.exit_code == 0, result.output
+    assert own.read_text(encoding="utf-8") == "kept by this run\n"
+    assert "removed" not in result.stderr

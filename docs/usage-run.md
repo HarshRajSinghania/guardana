@@ -163,6 +163,11 @@ guardana run migrate old-run.json --output new-run.json
 guardana run migrate old-run.json          # in place
 ```
 
+Migrating to another `--output` removes an earlier `<stem>.exchanges.jsonl` beside
+that output and says so on stderr; the migrated run's own sidecar stays when migrated
+in place or from `run.json` to `run`, which share one. An `--output` whose sidecar
+path is the input file is refused with exit `3` before anything is written.
+
 This is a convenience, not a requirement. Nothing needs migrating to be compared.
 
 A file that says it is already at the current schema is read the way `run inspect`

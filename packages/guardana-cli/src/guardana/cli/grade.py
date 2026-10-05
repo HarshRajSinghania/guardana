@@ -22,6 +22,7 @@ from guardana.cli._plugins import (
 from guardana.cli._profile import PRESET_HELP, resolve_profile
 from guardana.cli._rules_loading import load_custom_rules
 from guardana.cli._run_meta import calibrations_or_exit, detect_source
+from guardana.cli._sidecar import refuse_writing_over_an_input
 from guardana.cli.exit_codes import ExitCode
 from guardana.cli.plan import judge_traffic, recorded_target_or_exit
 from guardana.core.budget import BudgetExhausted
@@ -100,6 +101,8 @@ def grade(  # noqa: PLR0913, PLR0917 — Typer surface
 ) -> None:
     """Grade the answers a recording holds with your rules, sending nothing to the target."""
     refuse_incomparable_output(output, format)
+    refuse_writing_over_an_input(output, [recording], what="the recording being graded")
+    refuse_writing_over_an_input(output, [profile, *rules])
     prof = resolve_profile(profile, preset)
     prof = replace(
         prof,

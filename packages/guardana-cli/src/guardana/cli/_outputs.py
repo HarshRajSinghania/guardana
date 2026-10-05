@@ -5,6 +5,7 @@ exit `3` that cost nothing. From the moment a reporter is prepared, `RunOutputs`
 its delivery line: the command prints exactly one, whether it delivered or ended first.
 """
 
+import hashlib
 from pathlib import Path
 from types import TracebackType
 from typing import NoReturn, Self
@@ -15,6 +16,7 @@ from guardana.cli._formats import OutputFormat, format_name, is_built_in_format,
 from guardana.cli._output import emit
 from guardana.cli._plugins import admission_forms
 from guardana.cli._reporting import split_reporter
+from guardana.cli._sidecar import same_file
 from guardana.cli.exit_codes import ExitCode, code_for
 from guardana.core.budget import BudgetExhausted
 from guardana.core.gate import GateOutcome
@@ -35,6 +37,7 @@ from guardana.core.output import (
     select_reporter,
 )
 from guardana.core.plugins import PluginTrust
+from guardana.core.report import ReportLoadError, load_report
 from guardana.core.verify import UnenforceableBudgetError, Verification, exchanges_path
 from guardana.report import get_renderer
 
@@ -218,22 +221,44 @@ class RunOutputs:
             line = format_delivery_line(self.reporter.name, self.reporter.destination, delivery)
             typer.echo(line, err=True)
 
-    def write(self, verification: Verification, output: Path | None) -> None:
+    def write(
+        self, verification: Verification, output: Path | None, *, keeps_exchanges: bool = False
+    ) -> None:
         """Render the run in the selected format and print it or write it to `output`.
 
+        Once the report is written, exchanges an earlier run kept beside `output` are
+        removed, unless `keeps_exchanges` says the caller writes this run's own there.
         An installed format that fails ends the command: the verdict is printed, nothing is
         written, and the exit is `8` unless the run stopped. When Guardana's own redaction
         fails for it, the exit is `5` unless the run stopped. Either way an earlier run at
         `output`, and the exchanges kept beside it, are removed, so the path never holds a
-        report this run did not produce.
+        report this run did not produce. A report that cannot be written exits `3` and
+        removes nothing.
         """
         name = self.format_name
         if isinstance(self.format, OutputFormat):
             renderer = get_renderer(name, run=verification.manifest)
-            self._emit(renderer.render(verification.result), output, verbatim=False)
-            return
+            rendered, verbatim = renderer.render(verification.result), False
+        else:
+            rendered, verbatim = self._rendered(self.format, verification, output), True
         try:
-            rendered = render(self.format, verification)
+            emit_report(
+                rendered,
+                output,
+                self.format_name,
+                verbatim=verbatim,
+                keeps_exchanges=keeps_exchanges,
+            )
+        except typer.Exit:
+            self.not_sent("the run's report could not be written")
+            raise
+
+    def _rendered(
+        self, chosen: SelectedRenderer, verification: Verification, output: Path | None
+    ) -> str:
+        """Render the run in the installed format, or end the command as `write` says."""
+        try:
+            rendered = render(chosen, verification)
         except BoundaryError as exc:
             print_debug_traceback(exc.__cause__ or exc)
             _print_verdict(verification)
@@ -246,14 +271,7 @@ class RunOutputs:
             self._not_produced(verification, ExitCode.INTERNAL_ERROR)
         except OutputError as exc:
             self._failed(exc, verification, output)
-        self._emit(rendered, output, verbatim=True)
-
-    def _emit(self, rendered: str, output: Path | None, *, verbatim: bool) -> None:
-        try:
-            emit(rendered, output, self.format_name, verbatim=verbatim)
-        except typer.Exit:
-            self.not_sent("the run's report could not be written")
-            raise
+        return rendered
 
     def _failed(
         self, exc: OutputError, verification: Verification, output: Path | None
@@ -267,6 +285,11 @@ class RunOutputs:
         )
         _remove_earlier(output)
         self._not_produced(verification, ExitCode.OUTPUT_FAILED)
+
+    def end_unwritten(self, verification: Verification, why: str) -> NoReturn:
+        """Say nothing was sent because `why`, then exit `3` unless the run stopped."""
+        self.not_sent(why)
+        raise typer.Exit(code=_unless_stopped(verification, ExitCode.INVALID_USAGE))
 
     def _not_produced(self, verification: Verification, code: ExitCode) -> NoReturn:
         """Say the report was not produced to the reporter or collector, then exit with `code`."""
@@ -331,6 +354,25 @@ class RunOutputs:
         exit_with(verification.gate, verification.result)
 
 
+def emit_report(
+    rendered: str,
+    output: Path | None,
+    output_format: str,
+    *,
+    verbatim: bool = False,
+    keeps_exchanges: bool = False,
+) -> None:
+    """Print a run's report or write it to `output`, beside no other run's exchanges.
+
+    Once written, exchanges an earlier run kept beside `output` are removed unless
+    `keeps_exchanges` says the caller writes this run's own there. A write that fails
+    exits `3` as `emit` does and removes nothing, since what is at `output` may be no run.
+    """
+    emit(rendered, output, output_format, verbatim=verbatim)
+    if output is not None and not keeps_exchanges:
+        remove_earlier_exchanges(output)
+
+
 def _remove_earlier(output: Path | None) -> None:
     """Remove the earlier run at `output` and the exchanges kept beside it, and say so."""
     if output is None:
@@ -344,13 +386,40 @@ def _remove_earlier(output: Path | None) -> None:
 
 
 def remove_earlier_exchanges(output: Path) -> None:
-    """Remove the exchanges an earlier run kept beside `output`, or warn that they remain."""
+    """Remove the exchanges an earlier run kept beside `output`, or warn that they remain.
+
+    `run` and `run.json` share one sidecar, so exchanges the other of the two recorded are
+    kept, and said to be.
+    """
     sidecar = exchanges_path(output)
+    partner = recorded_by_partner(output, sidecar)
+    if partner is not None:
+        typer.echo(f"warning: kept {sidecar}: it holds the exchanges {partner} recorded", err=True)
+        return
     _remove(
         sidecar,
         removed=f"removed {sidecar}, which an earlier run at this path kept",
         kept=f"{sidecar} still holds exchanges an earlier run kept, not this run's",
     )
+
+
+def recorded_by_partner(output: Path, sidecar: Path) -> Path | None:
+    """Return the run sharing `output`'s sidecar that recorded exactly its bytes, if any."""
+    if not sidecar.is_file():
+        return None
+    name = output.stem if output.suffix == ".json" else f"{output.name}.json"
+    partner = output.with_name(name)
+    if exchanges_path(partner) != sidecar or not partner.is_file():
+        return None
+    if same_file(partner, output):
+        return None
+    try:
+        record = load_report(partner).manifest.exchanges
+        with sidecar.open("rb") as handle:
+            digest = f"sha256:{hashlib.file_digest(handle, 'sha256').hexdigest()}"
+    except (ReportLoadError, OSError):
+        return None
+    return partner if record is not None and record.digest == digest else None
 
 
 def _remove(path: Path, *, removed: str, kept: str) -> None:
@@ -394,6 +463,7 @@ __all__ = [
     "MONITOR_REFUSAL",
     "NOT_PRODUCED",
     "RunOutputs",
+    "emit_report",
     "print_verdict",
     "refuse_collector_beside",
     "refuse_installed_output_beside",

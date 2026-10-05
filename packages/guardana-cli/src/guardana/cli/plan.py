@@ -47,6 +47,7 @@ from guardana.cli._profile import PRESET_HELP, resolve_profile
 from guardana.cli._rules_loading import load_custom_rules
 from guardana.cli._run_meta import calibrations_or_exit
 from guardana.cli._safety_flags import parse_impact
+from guardana.cli._sidecar import warn_unless_its_run_recorded
 from guardana.cli._target_locator import resolve_target
 from guardana.cli.exit_codes import ExitCode
 from guardana.core.budget import BudgetExhausted, Budgets
@@ -702,12 +703,18 @@ def _retries_per_request(target: Target) -> int:
 
 
 def recorded_target_or_exit(path: Path) -> RecordedTarget:
-    """Read a recording into a target, or exit `3` naming what makes it unreadable."""
+    """Read a recording into a target, or exit `3` naming what makes it unreadable.
+
+    A probe's sidecar whose run beside it records other exchanges, or none, is read with
+    a warning.
+    """
     try:
-        return RecordedTarget(read_recording(path))
+        recording = read_recording(path)
     except RecordingError as exc:
         typer.echo(f"error: {exc}", err=True)
         raise typer.Exit(code=ExitCode.INVALID_USAGE) from exc
+    warn_unless_its_run_recorded(path, recording)
+    return RecordedTarget(recording)
 
 
 def judge_traffic(registry: Registry, profile: Profile, target: Target) -> list[str]:

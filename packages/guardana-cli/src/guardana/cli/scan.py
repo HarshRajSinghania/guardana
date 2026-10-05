@@ -21,6 +21,7 @@ from guardana.cli._profile import PRESET_HELP, resolve_profile
 from guardana.cli._reporting import installed_reporter_or_check, submit_safely
 from guardana.cli._rules_loading import load_custom_rules
 from guardana.cli._run_meta import calibrations_or_exit, detect_deployment, detect_source
+from guardana.cli._sidecar import refuse_writing_over_an_input
 from guardana.cli._target_locator import resolve_target
 from guardana.cli.baseline import refuse_an_incomplete_baseline
 from guardana.cli.exit_codes import ExitCode
@@ -187,6 +188,7 @@ def scan(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; this is t
         raise typer.BadParameter("pass either --baseline or --write-baseline, not both")
     if target is not None and path is not None:
         raise typer.BadParameter("pass either a path or --target, not both")
+    refuse_writing_over_an_input(output, [path, baseline, profile, *rules])
     installed_reporter = installed_reporter_or_check(reporter)
     refuse_installed_output_beside("--write-baseline", write_baseline, format, installed_reporter)
     collector = installed_reporter is None and bool(reporter)

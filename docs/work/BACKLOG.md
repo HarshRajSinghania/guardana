@@ -106,10 +106,30 @@ left for the owner, or are design gaps already documented elsewhere.
 
 ## Left by the export and webhook release (0.40.0)
 
-- **A later `scan`, `grade` or `analyze-trace` at an `--output` an earlier probe used** leaves that
-  probe's `<output>.exchanges.jsonl` beside it, and a built-in format whose write fails removes
-  neither the earlier report nor the sidecar. `guardana grade` reads a sidecar without comparing
-  it with the digest the run records.
+- **`guardana grade` warns when a sidecar's saved run records another digest.**
+  `docs/design/regrading-stored-exchanges.md` specifies refusal; the exit change waits for 1.x.
+- **A probe keeps its saved run when its sidecar cannot be written.** It exits `3`, while the
+  run still records the digest of exchanges that were not written.
+- **Sidecar mismatch:** `grade`, `plan grade` and `recipe run` warn only on stderr; the
+  saved report records the recording's own origin and digest but not the disagreement
+  with the run beside it.
+- **Unwritable built-in report:** An earlier report and its sidecar remain at `--output`;
+  removing them needs a way to distinguish an earlier run from a user-protected file,
+  such as a read-only one.
+- **Failed installed format or redaction:** Removes whatever file is at `--output`, including
+  a read-only or non-run file, and says it held an earlier run.
+- **Profile files:** Files named by `contracts:`, `rules.paths`, `calibrations:` or an adapter
+  are not checked against `--output`; only files named on the command line are.
+- **Probe inputs:** `probe` checks none of `--profile`, `--rules`, `--system-prompt-file`,
+  `--fixtures`, `--mcp-pin` or `--mcp-registry-entry` against `--output`.
+- **Recipe artifact:** `recipe run` replaces its artifact directory before reading a
+  recording; a `recording:` inside that artifact is deleted, then reported missing.
+- **Baseline output:** `scan --write-baseline` writes nothing at `--output` and leaves an
+  earlier run there with exit `0`; neither path is checked against the other, the sidecar
+  path or the inputs.
+- **Migration write:** A failed `run migrate` write exits `5` as an internal error; a run
+  migrated to another `--output` records an exchanges digest whose sidecar stays beside
+  the original.
 - **An installed format's text written with `newline=""` is not tested on Windows.**
 
 ## Left by protocol conformance (0.39.0)

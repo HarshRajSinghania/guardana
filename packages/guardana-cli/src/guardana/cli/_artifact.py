@@ -54,7 +54,8 @@ def publish(directory: Path, files: Mapping[str, str], status: str) -> None:
     parent.mkdir(parents=True, exist_ok=True)
     staging = Path(tempfile.mkdtemp(prefix=f".{directory.name}.", dir=parent))
     for name, text in files.items():
-        (staging / name).write_text(text, encoding="utf-8")
+        # Bytes, so no platform translates line endings away from what a digest covers.
+        (staging / name).write_bytes(text.encode("utf-8"))
     marker = {"schema_version": ARTIFACT_SCHEMA_VERSION, "status": status, "files": sorted(files)}
     (staging / MARKER).write_text(json.dumps(marker, indent=2) + "\n", encoding="utf-8")
     if not directory.exists():

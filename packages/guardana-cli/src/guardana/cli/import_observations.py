@@ -13,9 +13,9 @@ from typing import Annotated
 
 import typer
 from guardana.cli._formats import OutputFormat
-from guardana.cli._output import emit
 from guardana.cli._outputs import (
     IMPORT_REFUSAL,
+    emit_report,
     print_verdict,
     refuse_installed_reporter,
     warn_without_a_reporter,
@@ -23,6 +23,7 @@ from guardana.cli._outputs import (
 from guardana.cli._profile import PRESET_HELP, resolve_profile
 from guardana.cli._reporting import check_reporter_url, submit_safely
 from guardana.cli._run_meta import build_manifest, detect_deployment
+from guardana.cli._sidecar import refuse_writing_over_an_input
 from guardana.cli.exit_codes import ExitCode
 from guardana.core.gate import gate_outcome
 from guardana.core.manifest import SourceKind, TargetIdentity
@@ -87,6 +88,7 @@ def import_observations(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI 
     `guardana.cli._plugins.resolve_trust`.
     """
     refuse_installed_reporter(reporter, IMPORT_REFUSAL)
+    refuse_writing_over_an_input(output, [results, profile])
     check_reporter_url(reporter)
     prof = resolve_profile(profile, preset)
     warn_without_a_reporter(prof.delivery_required, reporter)
@@ -129,7 +131,7 @@ def import_observations(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI 
         deployment=deployment,
         source_kind=SourceKind.IMPORTED_TRACE,
     )
-    emit(get_renderer(format.value, run=run).render(result), output, format.value)
+    emit_report(get_renderer(format.value, run=run).render(result), output, format.value)
     if reporter:
         acknowledged = submit_safely(
             reporter,

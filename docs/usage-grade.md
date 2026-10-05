@@ -26,6 +26,14 @@ guardana grade run.exchanges.jsonl --rules rules/ --format json --output regrade
 guardana plan grade answers.jsonl --rules rules/      # what it would cost: judge calls only
 ```
 
+For a probe's `<stem>.exchanges.jsonl`, `guardana grade`, `guardana plan grade` and
+`guardana recipe run` compare the recording with the exchanges digest recorded by a saved
+run beside it (`<stem>.json`, then `<stem>`). A different digest, no recorded exchanges
+or an unreadable run warns on stderr; the recording is read as given and the exit code
+does not change. With no saved run beside it, the recording is read as any recording.
+An `--output` that is the recording or whose sidecar path is the recording is refused
+with exit `3` before grading, because the report would replace or remove it.
+
 ## A recording
 
 A recording is a JSONL file. Its first non-blank line is the header; every other non-blank
@@ -186,7 +194,7 @@ Worth knowing
 | `0` | The gate passed. |
 | `1` | The gate failed. |
 | `2` | Indeterminate: a check errored, a suite declined, nothing was graded, the recording's origin was stopped, or `--preset release` met a skip. |
-| `3` | Invalid usage: an unreadable recording, other trials than the probe kept, a bad profile or flag. |
+| `3` | Invalid usage: an unreadable recording, other trials than the probe kept, a bad profile or flag, or an `--output` that would replace or remove the recording. |
 | `4` | A judge configured under `evaluators:` could not be reached. |
 | `5` | An internal error. |
 | `6` | A judge's budget ran out. |

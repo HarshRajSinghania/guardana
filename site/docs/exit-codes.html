@@ -451,10 +451,20 @@ for &quot;one of them never finished&quot;. <code>run inspect</code>, <code>run 
 <code>trace inspect</code> and <code>plan</code> produce <code>0</code> or <code>3</code> — <code>plan</code> exits <code>3</code> when the target or a
 judge meter could exceed the request budget — <code>trace inspect</code> grades nothing, so
 it has no verdict to report and says what is missing in its output instead.
-<code>grade</code> uses the codes <code>probe</code> uses, with no target to be unavailable: <code>3</code> also covers
-a recording that cannot be read and one a probe kept at other trials per case than the
-run grades, <code>4</code> a judge that cannot be reached, and <code>2</code> a run that graded nothing
-(<a href="usage-grade.html"><code>usage-grade.md</code></a>). <code>analyze-trace</code> adds one route to <code>2</code> the others do not have: demanded coverage that
+<code>grade</code> uses the codes <code>probe</code> uses, with no target to be unavailable: <code>3</code> also covers a
+recording that cannot be read, one a probe kept at other trials per case than the run
+grades, and an <code>--output</code> that would replace or remove the recording, <code>4</code> a judge that
+cannot be reached, and <code>2</code> a run that graded nothing
+(<a href="usage-grade.html"><code>usage-grade.md</code></a>). Before reading anything, <code>scan</code>, <code>analyze-trace</code>
+and <code>import-observations</code> exit <code>3</code> when <code>--output</code> or its sidecar path
+(<code>&lt;stem&gt;.exchanges.jsonl</code>) is a file named on their command line (the scanned file,
+recording, trace or results file, <code>--profile</code>, a <code>--rules</code> file, <code>--baseline</code>, a
+<code>--contract</code>); <code>analyze-trace</code> also exits <code>3</code> when <code>--write-trace</code> is <code>--output</code>, its
+sidecar path or such a file. <code>run migrate</code> exits <code>3</code> when the sidecar path of <code>--output</code>
+is its input; writing over the input itself is migrating in place.
+<code>probe --keep-exchanges</code> exits <code>3</code> before sending anything when its sidecar path holds
+exchanges the other saved run of the pair (<code>&lt;stem&gt;</code> or <code>&lt;stem&gt;.json</code>) records.
+<code>analyze-trace</code> adds one route to <code>2</code> the others do not have: demanded coverage that
 was not available, and a security contract that turned out to be about a different
 AI system than the one under test. <code>baseline create</code>, <code>baseline update</code> and
 <code>scan --write-baseline</code> write nothing and produce <code>2</code> when the run is not entitled

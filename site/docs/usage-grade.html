@@ -316,6 +316,13 @@ measures the grading on the very same replies.</li>
 guardana grade run.exchanges.jsonl --rules rules/ --format json --output regraded.json
 guardana plan grade answers.jsonl --rules rules/      # what it would cost: judge calls only
 </code></pre>
+<p>For a probe's <code>&lt;stem&gt;.exchanges.jsonl</code>, <code>guardana grade</code>, <code>guardana plan grade</code> and
+<code>guardana recipe run</code> compare the recording with the exchanges digest recorded by a saved
+run beside it (<code>&lt;stem&gt;.json</code>, then <code>&lt;stem&gt;</code>). A different digest, no recorded exchanges
+or an unreadable run warns on stderr; the recording is read as given and the exit code
+does not change. With no saved run beside it, the recording is read as any recording.
+An <code>--output</code> that is the recording or whose sidecar path is the recording is refused
+with exit <code>3</code> before grading, because the report would replace or remove it.</p>
 <h2 id="a-recording">A recording</h2>
 <p>A recording is a JSONL file. Its first non-blank line is the header; every other non-blank
 line answers one question. The <a href="https://guardana.dev/schemas/recording/v3.schema.json">JSON Schema</a>
@@ -545,7 +552,7 @@ Worth knowing
 </tr>
 <tr>
 <td><code>3</code></td>
-<td>Invalid usage: an unreadable recording, other trials than the probe kept, a bad profile or flag.</td>
+<td>Invalid usage: an unreadable recording, other trials than the probe kept, a bad profile or flag, or an <code>--output</code> that would replace or remove the recording.</td>
 </tr>
 <tr>
 <td><code>4</code></td>

@@ -102,6 +102,48 @@ def _probe(tmp_path: Path, profile: Profile, transport: _ByQuestion) -> Path:
     return run
 
 
+def test_a_saved_sidecar_matches_its_digest_where_text_gets_crlf(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    write_text = Path.write_text
+
+    def as_windows(
+        path: Path,
+        data: str,
+        encoding: str | None = None,
+        errors: str | None = None,
+        newline: str | None = None,
+    ) -> int:
+        if newline is None:
+            data, newline = data.replace("\n", "\r\n"), ""
+        return write_text(path, data, encoding, errors, newline)
+
+    monkeypatch.setattr(Path, "write_text", as_windows)
+
+    run = _probe(tmp_path, _profile(), _ByQuestion(_ANSWERS))
+
+    assert b"\r\n" in run.read_bytes(), "the run went through the translating write"
+    manifest = load_report(run).manifest
+    assert manifest.exchanges is not None
+    kept = exchanges_path(run).read_bytes()
+    assert manifest.exchanges.digest == "sha256:" + hashlib.sha256(kept).hexdigest()
+
+
+def test_a_saved_sidecar_replaces_a_link_and_never_writes_through_it(tmp_path: Path) -> None:
+    elsewhere = tmp_path / "elsewhere.txt"
+    elsewhere.write_text("not exchanges\n", encoding="utf-8")
+    exchanges_path(tmp_path / "run.json").symlink_to(elsewhere)
+
+    run = _probe(tmp_path, _profile(), _ByQuestion(_ANSWERS))
+
+    sidecar = exchanges_path(run)
+    assert elsewhere.read_text(encoding="utf-8") == "not exchanges\n"
+    assert not sidecar.is_symlink()
+    manifest = load_report(run).manifest
+    assert manifest.exchanges is not None
+    assert manifest.exchanges.digest == "sha256:" + hashlib.sha256(sidecar.read_bytes()).hexdigest()
+
+
 def test_a_kept_sidecar_is_the_file_the_manifest_digests(tmp_path: Path) -> None:
     run = _probe(tmp_path, _profile(), _ByQuestion(_ANSWERS))
     sidecar = exchanges_path(run)

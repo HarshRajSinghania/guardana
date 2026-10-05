@@ -392,6 +392,57 @@ def test_a_probe_that_cannot_remove_an_earlier_sidecar_warns_and_keeps_its_verdi
     ) in _lines(result.output)
 
 
+@pytest.mark.parametrize(
+    ("budget", "code"),
+    [((), ExitCode.INVALID_USAGE), (("--max-requests", "1"), ExitCode.BUDGET_EXHAUSTED)],
+    ids=["finished", "stopped"],
+)
+def test_exchanges_that_cannot_be_written_send_nothing_and_remove_nothing(  # noqa: PLR0913 — the matrix
+    site: FakeSite,
+    endpoint: RefusingTransport,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    budget: tuple[str, ...],
+    code: ExitCode,
+) -> None:
+    hook = _hook(site, "return Delivery(DeliveryStatus.DELIVERED)")
+    saved = tmp_path / "run.json"
+    sidecar = exchanges_path(saved)
+    write_bytes = Path.write_bytes
+
+    def fill_the_disk(path: Path, data: bytes) -> int:
+        if path == sidecar:
+            write_bytes(path, data[:10])
+            raise OSError("No space left on device")
+        return write_bytes(path, data)
+
+    monkeypatch.setattr(Path, "write_bytes", fill_the_disk)
+
+    result = _probe(
+        "--keep-exchanges",
+        "--format",
+        "json",
+        "--output",
+        str(saved),
+        "--reporter",
+        _HOOK,
+        *budget,
+        *_ADMIT,
+    )
+
+    assert result.exit_code == code, result.output
+    lines = _lines(result.output)
+    assert (
+        f"error: could not write the kept exchanges to {sidecar}: No space left on device"
+    ) in lines
+    assert not any(line.startswith("removed ") for line in lines)
+    assert _delivery_lines(result.output) == [
+        f"delivery: not_sent — {_TO}: the run's kept exchanges could not be written"
+    ]
+    assert _seen(hook) == []
+
+
 def test_a_failed_format_says_its_report_was_not_produced_to_the_reporter(
     site: FakeSite, clean_tree: Path
 ) -> None:
