@@ -24,6 +24,10 @@ Why: `docs/maintainers/lessons.md` § CLI and outputs. Contract: `docs/exit-code
   `--reporter`, refused with exit `3` before anything is sent, and a failure of its code is
   exit `8`, never `5`; a failure of Guardana's own redaction before it is `5`
   (`BoundaryError`, `core/output.py`, `cli/_outputs.py`).
+- **A file beside `--output` is removed only when it is an earlier run's.** Every command that
+  writes a report passes the files named on its command line to `refuse_writing_over_an_input`
+  before reading anything; `remove_earlier_exchanges` keeps a sidecar the partner run (`run` /
+  `run.json`) records; a failed write removes nothing (`cli/_sidecar.py`, `cli/_outputs.py`).
 - **Styled output is normalised in tests** — assert on the normalised text, never on escape
   sequences or column widths that differ between a laptop and a CI runner.
 - A new command or flag: `docs/usage-<command>.md`, `docs/index.md`, `FEATURES.md`,
