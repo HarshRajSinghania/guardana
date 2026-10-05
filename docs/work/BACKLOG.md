@@ -122,9 +122,12 @@ left for the owner, or are design gaps already documented elsewhere.
 - **Baseline output:** `scan --write-baseline` writes nothing at `--output` and leaves an
   earlier run there with exit `0`; neither path is checked against the other, the sidecar
   path or the inputs.
-- **Migration write:** A failed `run migrate` write exits `5` as an internal error; a run
-  migrated to another `--output` records an exchanges digest whose sidecar stays beside
-  the original.
+- **Digest sidecar:** A run migrated to another `--output` records an exchanges digest whose
+  sidecar stays beside the original. The same holds for a current-schema run copied there.
+- **Migrate file metadata:** `run migrate` writes through a temporary file and a rename.
+  This breaks a hard link to the old file and keeps only its mode, not its owner, ACLs or
+  extended attributes. A writable file in a directory this process cannot write is now
+  refused.
 - **An installed format's text written with `newline=""` is not tested on Windows.**
 
 ## Left by protocol conformance (0.39.0)

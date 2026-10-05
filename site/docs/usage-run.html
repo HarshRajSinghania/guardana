@@ -427,7 +427,12 @@ path is the input file is refused with exit <code>3</code> before anything is wr
 <p>This is a convenience, not a requirement. Nothing needs migrating to be compared.</p>
 <p>A file that says it is already at the current schema is read the way <code>run inspect</code>
 reads it before migrate answers &quot;nothing to do&quot;: an object that only claims the version
-is not a run, and exits <code>3</code>.</p>
+is not a run, and exits <code>3</code>. Given another <code>--output</code>, such a run is copied there byte
+for byte, and stdout says so. Migrate writes a temporary file beside the destination
+and renames it over. A failed write leaves the destination as it was, prints an error
+and exits <code>3</code>; nothing is removed. A destination this process cannot write, a directory
+where it cannot create the temporary file, or an <code>--output</code> that is the input's own
+<code>&lt;stem&gt;.exchanges.jsonl</code> is refused the same way.</p>
 <p><strong>A migration that cannot carry a field refuses, and writes nothing.</strong> The default
 destination is the file itself, so a half-done migration would overwrite the only copy
 of the evidence. In 0.7.0 a version-1 run that never recorded its target kind was

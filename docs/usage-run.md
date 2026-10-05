@@ -172,7 +172,12 @@ This is a convenience, not a requirement. Nothing needs migrating to be compared
 
 A file that says it is already at the current schema is read the way `run inspect`
 reads it before migrate answers "nothing to do": an object that only claims the version
-is not a run, and exits `3`.
+is not a run, and exits `3`. Given another `--output`, such a run is copied there byte
+for byte, and stdout says so. Migrate writes a temporary file beside the destination
+and renames it over. A failed write leaves the destination as it was, prints an error
+and exits `3`; nothing is removed. A destination this process cannot write, a directory
+where it cannot create the temporary file, or an `--output` that is the input's own
+`<stem>.exchanges.jsonl` is refused the same way.
 
 **A migration that cannot carry a field refuses, and writes nothing.** The default
 destination is the file itself, so a half-done migration would overwrite the only copy

@@ -1,6 +1,10 @@
 """Read a saved run: describe it, or bring an older one up to the current schema."""
 
+import errno
 import json
+import os
+import secrets
+import stat
 from pathlib import Path
 from typing import Annotated
 
@@ -202,12 +206,21 @@ def migrate(
 
     Not required to compare runs — `guardana diff` migrates older documents in
     memory as it reads them — but useful for anyone who wants the richer document
-    on disk without paying to re-run. Exchanges an earlier run kept beside another
+    on disk without paying to re-run. A run already at the current schema is copied
+    unchanged to another `--output`. Exchanges an earlier run kept beside another
     `--output` are removed; the migrated run's own stay where they are.
     """
     refuse_writing_over_an_input(output, [path], in_place=True)
+    if output is not None and same_file(output, exchanges_path(path)):
+        typer.echo(
+            f"error: --output {output} is where {path} keeps its exchanges, and the run "
+            f"would replace them — choose another --output",
+            err=True,
+        )
+        raise typer.Exit(code=_INVALID_USAGE)
     try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
+        data = path.read_bytes()
+        raw = json.loads(data.decode("utf-8"))
     except (OSError, json.JSONDecodeError, UnicodeDecodeError) as exc:
         typer.echo(f"error: {path} is not a readable Guardana run: {exc}", err=True)
         raise typer.Exit(code=_INVALID_USAGE) from exc
@@ -220,7 +233,16 @@ def migrate(
     version = raw["schema_version"]
     if version == REPORT_SCHEMA_VERSION:
         _load(path)
-        typer.echo(f"{path} is already at schema {REPORT_SCHEMA_VERSION}; nothing to do")
+        if output is None or same_file(output, path):
+            typer.echo(f"{path} is already at schema {REPORT_SCHEMA_VERSION}; nothing to do")
+            return
+        _write(
+            path,
+            output,
+            data,
+            said=f"{path} is already at schema {REPORT_SCHEMA_VERSION}; "
+            f"copied it unchanged → {output}",
+        )
         return
     if version not in MIGRATABLE_VERSIONS:
         typer.echo(
@@ -238,10 +260,56 @@ def migrate(
         typer.echo(f"error: {path} cannot be migrated: {exc}", err=True)
         raise typer.Exit(code=_INVALID_USAGE) from exc
     destination = output if output is not None else path
-    destination.write_text(json.dumps(migrated, indent=2), encoding="utf-8")
-    typer.echo(f"migrated {path} from schema {version} to {REPORT_SCHEMA_VERSION} → {destination}")
+    _write(
+        path,
+        destination,
+        json.dumps(migrated, indent=2).encode("utf-8"),
+        said=f"migrated {path} from schema {version} to {REPORT_SCHEMA_VERSION} → {destination}",
+    )
+
+
+def _write(path: Path, destination: Path, document: bytes, *, said: str) -> None:
+    """Write the run read from `path` to `destination`, say `said`, then remove stale exchanges.
+
+    A failed write exits `3` and changes nothing: the file at `destination` is replaced
+    whole or not at all, and the sidecar beside it still belongs to whatever run is there.
+    """
+    try:
+        _replace(destination, document)
+    except OSError as exc:
+        typer.echo(f"error: could not write {destination}: {exc}", err=True)
+        raise typer.Exit(code=_INVALID_USAGE) from exc
+    typer.echo(said)
     if not same_file(exchanges_path(destination), exchanges_path(path)):
         remove_earlier_exchanges(destination)
+
+
+def _replace(destination: Path, document: bytes) -> None:
+    """Put `document` at `destination` through a file beside it, so a failed write leaves no half.
+
+    A file this process may not write is refused rather than replaced, and the new file gets
+    the mode a plain write would leave: the existing file's, or the umask's for a new one.
+    """
+    target = Path(os.path.realpath(destination))
+    try:
+        mode: int | None = stat.S_IMODE(target.stat().st_mode)
+    except FileNotFoundError:
+        mode = None
+    if mode is not None and not os.access(target, os.W_OK):
+        raise PermissionError(errno.EACCES, os.strerror(errno.EACCES), str(destination))
+    staged = target.with_name(f".{target.name}.{secrets.token_hex(8)}.tmp")
+    descriptor = os.open(staged, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o666)
+    try:
+        with os.fdopen(descriptor, "wb") as handle:
+            handle.write(document)
+            handle.flush()
+            os.fsync(handle.fileno())
+        if mode is not None:
+            staged.chmod(mode)
+        staged.replace(target)
+    except BaseException:
+        staged.unlink(missing_ok=True)
+        raise
 
 
 run_app.command(name="inspect")(inspect)
