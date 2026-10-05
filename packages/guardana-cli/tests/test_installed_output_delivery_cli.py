@@ -276,7 +276,44 @@ def test_a_failed_format_removes_an_earlier_run_at_its_output(  # noqa: PLR0913 
 
     assert result.exit_code == code, result.output
     assert not saved.exists()
-    assert _lines(result.output)[-1] == f"removed {saved}: it held an earlier run, not this one"
+    assert _lines(result.output)[-1] == f"removed {saved}: this run did not write it"
+
+
+@pytest.mark.parametrize(
+    ("rendered", "code"),
+    [("''", ExitCode.OUTPUT_FAILED), ("'a,b'", ExitCode.INTERNAL_ERROR)],
+    ids=["format-failed", "redaction-failed"],
+)
+def test_a_failed_format_keeps_a_read_only_file_at_its_output(  # noqa: PLR0913 — the matrix
+    site: FakeSite,
+    failing_tree: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    rendered: str,
+    code: ExitCode,
+) -> None:
+    """A file this process may not write to is one the user protected, run or not."""
+    notes = tmp_path / "notes.txt"
+    notes.write_text("notes\n", encoding="utf-8")
+    notes.chmod(0o444)
+    _table(site, rendered=rendered)
+    if code is ExitCode.INTERNAL_ERROR:
+        _failing_boundary(monkeypatch)
+
+    result = runner.invoke(
+        app,
+        ["scan", str(failing_tree), "--format", "acme-table", "--output", str(notes), *_ADMIT],
+    )
+
+    assert result.exit_code == code, result.output
+    assert notes.read_text(encoding="utf-8") == "notes\n"
+    lines = _lines(result.output)
+    assert lines[-1] == (
+        f"warning: kept {notes}: it is not writable, so it still holds what was there "
+        f"before this run"
+    )
+    assert not [line for line in lines if line.startswith("removed ")]
 
 
 def _probe_that_kept_exchanges(saved: Path) -> Path:
@@ -315,8 +352,29 @@ def test_a_failed_format_removes_the_exchanges_an_earlier_probe_kept_at_its_outp
     assert not saved.exists()
     assert not sidecar.exists()
     assert _lines(result.output)[-2:] == [
-        f"removed {saved}: it held an earlier run, not this one",
+        f"removed {saved}: this run did not write it",
         f"removed {sidecar}, which an earlier run at this path kept",
+    ]
+
+
+def test_a_failed_format_keeps_a_read_only_sidecar_beside_its_output(
+    site: FakeSite, endpoint: RefusingTransport, tmp_path: Path
+) -> None:
+    saved = tmp_path / "run.json"
+    sidecar = _probe_that_kept_exchanges(saved)
+    kept = sidecar.read_bytes()
+    sidecar.chmod(0o444)
+    _table(site, rendered="''")
+
+    result = _probe("--format", "acme-table", "--output", str(saved), *_ADMIT)
+
+    assert result.exit_code == ExitCode.OUTPUT_FAILED, result.output
+    assert not saved.exists()
+    assert sidecar.read_bytes() == kept
+    assert _lines(result.output)[-2:] == [
+        f"removed {saved}: this run did not write it",
+        f"warning: kept {sidecar}: it is not writable, so it still holds what was there "
+        f"before this run",
     ]
 
 

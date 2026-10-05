@@ -6,6 +6,7 @@ its delivery line: the command prints exactly one, whether it delivered or ended
 """
 
 import hashlib
+import os
 from pathlib import Path
 from types import TracebackType
 from typing import NoReturn, Self
@@ -113,6 +114,21 @@ def refuse_collector_beside(flag: str, given: object, *, collector: bool) -> Non
         raise _unsupported(
             "server", f"the collector needs the run's report, which {flag} does not produce"
         )
+
+
+def refuse_output_beside(flag: str, given: object, output: Path | None) -> None:
+    """Exit `3` when `flag` was `given` beside `--output`, which the flag never writes.
+
+    The flag ends the command before a report exists, so an earlier run left at `output`
+    would later be read as this one.
+    """
+    if given is not None and output is not None:
+        typer.echo(
+            f"error: {flag} writes no report, so --output {output} would be left as it is "
+            f"— pass one or the other",
+            err=True,
+        )
+        raise typer.Exit(code=ExitCode.INVALID_USAGE)
 
 
 def warn_without_a_reporter(delivery_required: bool, reporter: str | None) -> None:
@@ -230,10 +246,10 @@ class RunOutputs:
         removed, unless `keeps_exchanges` says the caller writes this run's own there.
         An installed format that fails ends the command: the verdict is printed, nothing is
         written, and the exit is `8` unless the run stopped. When Guardana's own redaction
-        fails for it, the exit is `5` unless the run stopped. Either way an earlier run at
-        `output`, and the exchanges kept beside it, are removed, so the path never holds a
-        report this run did not produce. A report that cannot be written exits `3` and
-        removes nothing.
+        fails for it, the exit is `5` unless the run stopped. Either way the file at
+        `output`, and the exchanges kept beside it, are removed unless this process may not
+        write to them, which keeps them with a warning. A report that cannot be written
+        exits `3` and removes nothing.
         """
         name = self.format_name
         if isinstance(self.format, OutputFormat):
@@ -374,33 +390,57 @@ def emit_report(
 
 
 def _remove_earlier(output: Path | None) -> None:
-    """Remove the earlier run at `output` and the exchanges kept beside it, and say so."""
+    """Remove what this run did not write at `output` and beside it, and say so.
+
+    A file this process may not write to is kept, with a warning: it was protected, and
+    nothing says it holds a run.
+    """
     if output is None:
+        return
+    if _protected(output):
         return
     _remove(
         output,
-        removed=f"removed {output}: it held an earlier run, not this one",
-        kept=f"{output} still holds an earlier run, not this one",
+        removed=f"removed {output}: this run did not write it",
+        kept=f"{output} still holds what was there before this run",
     )
-    remove_earlier_exchanges(output)
+    remove_earlier_exchanges(output, keep_protected=True)
 
 
-def remove_earlier_exchanges(output: Path) -> None:
+def remove_earlier_exchanges(output: Path, *, keep_protected: bool = False) -> None:
     """Remove the exchanges an earlier run kept beside `output`, or warn that they remain.
 
     `run` and `run.json` share one sidecar, so exchanges the other of the two recorded are
-    kept, and said to be.
+    kept, and said to be. With `keep_protected`, a sidecar this process may not write to is
+    kept too, with a warning.
     """
     sidecar = exchanges_path(output)
     partner = recorded_by_partner(output, sidecar)
     if partner is not None:
         typer.echo(f"warning: kept {sidecar}: it holds the exchanges {partner} recorded", err=True)
         return
+    if keep_protected and _protected(sidecar):
+        return
     _remove(
         sidecar,
         removed=f"removed {sidecar}, which an earlier run at this path kept",
         kept=f"{sidecar} still holds exchanges an earlier run kept, not this run's",
     )
+
+
+def _protected(path: Path) -> bool:
+    """Return whether `path` is an existing file this process may not write to, warning if so.
+
+    Removing a file needs only the directory's permission, so the file's own decides.
+    """
+    if not path.is_file() or os.access(path, os.W_OK):
+        return False
+    typer.echo(
+        f"warning: kept {path}: it is not writable, so it still holds what was there "
+        f"before this run",
+        err=True,
+    )
+    return True
 
 
 def recorded_by_partner(output: Path, sidecar: Path) -> Path | None:

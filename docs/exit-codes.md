@@ -150,7 +150,12 @@ and `import-observations` exit `3` when `--output` or its sidecar path
 recording, trace or results file, `--profile`, a `--rules` file, `--baseline`, a
 `--contract`); `analyze-trace` also exits `3` when `--write-trace` is `--output`, its
 sidecar path or such a file. `run migrate` exits `3` when the sidecar path of `--output`
-is its input; writing over the input itself is migrating in place.
+is its input; writing over the input itself is migrating in place. It also exits `3`
+when `--output` is the input's own sidecar or the destination cannot be written; the
+destination is then left as it was. `scan --write-baseline` and
+`probe --mcp … --write-mcp-pin` exit `3` beside `--output` or when their file cannot be
+written; `probe` exits `3` for an MCP-only flag without `--mcp`; `recipe run` exits `3`
+for a recipe that names a file inside its own `output.directory`.
 `probe --keep-exchanges` exits `3` before sending anything when its sidecar path holds
 exchanges the other saved run of the pair (`<stem>` or `<stem>.json`) records.
 `analyze-trace` adds one route to `2` the others do not have: demanded coverage that

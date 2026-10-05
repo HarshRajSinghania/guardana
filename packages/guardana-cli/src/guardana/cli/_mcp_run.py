@@ -194,7 +194,7 @@ def write_pin(connection: McpConnection, path: Path) -> int:
 
     A server that cannot be read exits `TARGET_UNAVAILABLE` with one line that withholds
     the token and the session ids sent to it, and no pin is written: an approval of a
-    manifest nobody received is not an approval.
+    manifest nobody received is not an approval. A pin that cannot be written exits `3`.
     """
     target = started(connection)
     try:
@@ -208,9 +208,13 @@ def write_pin(connection: McpConnection, path: Path) -> int:
                 said = describe_failure(exc, target.ref, quoting, _REMEDIES)
             typer.echo(f"error: {said}", err=True)
             raise typer.Exit(code=ExitCode.TARGET_UNAVAILABLE) from exc
-        path.write_text(
-            json.dumps(pin_document(target.ref, tools), indent=2) + "\n", encoding="utf-8"
-        )
+        try:
+            path.write_text(
+                json.dumps(pin_document(target.ref, tools), indent=2) + "\n", encoding="utf-8"
+            )
+        except OSError as exc:
+            typer.echo(f"error: could not write the pin to {path}: {exc}", err=True)
+            raise typer.Exit(code=ExitCode.INVALID_USAGE) from exc
     finally:
         target.close()
     return len(tools)

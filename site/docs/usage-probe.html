@@ -419,7 +419,7 @@ instead of a model.</p>
 <tr>
 <td><code>--mcp TEXT</code></td>
 <td>none</td>
-<td>Examine an <strong>MCP server</strong> instead of a chat model — see <a href="#probing-an-mcp-server">Probing an MCP server</a>. Refused with <code>--url</code>, <code>--model</code>, <code>--provider</code>, <code>--api-key-env</code>, <code>--adapter</code>, <code>--system-prompt-file</code> or <code>--a2a</code>, which configure another target (exit <code>3</code>)</td>
+<td>Examine an <strong>MCP server</strong> instead of a chat model — see <a href="#probing-an-mcp-server">Probing an MCP server</a>. Refused with <code>--url</code>, <code>--model</code>, <code>--provider</code>, <code>--api-key-env</code>, <code>--adapter</code>, <code>--system-prompt-file</code> or <code>--a2a</code>, which configure another target (exit <code>3</code>). <code>--mcp-token-env</code>, <code>--mcp-pin</code>, <code>--write-mcp-pin</code>, <code>--mcp-registry-entry</code> and <code>--allow-exec</code> are refused without <code>--mcp</code> (exit <code>3</code>).</td>
 </tr>
 <tr>
 <td><code>--mcp-token-env TEXT</code></td>
@@ -434,7 +434,7 @@ instead of a model.</p>
 <tr>
 <td><code>--write-mcp-pin PATH</code></td>
 <td>none</td>
-<td>Write the server's current manifest as approved, and exit without reporting. It produces no report to forward, so any <code>--reporter</code> beside it is refused with exit <code>3</code> before anything is sent</td>
+<td>Write the server's current manifest as approved, and exit without reporting. It produces no report, so <code>--output</code> or any <code>--reporter</code> beside it is refused with exit <code>3</code> before anything is sent.</td>
 </tr>
 <tr>
 <td><code>--mcp-registry-entry PATH</code></td>

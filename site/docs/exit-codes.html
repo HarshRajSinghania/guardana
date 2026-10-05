@@ -461,7 +461,12 @@ and <code>import-observations</code> exit <code>3</code> when <code>--output</co
 recording, trace or results file, <code>--profile</code>, a <code>--rules</code> file, <code>--baseline</code>, a
 <code>--contract</code>); <code>analyze-trace</code> also exits <code>3</code> when <code>--write-trace</code> is <code>--output</code>, its
 sidecar path or such a file. <code>run migrate</code> exits <code>3</code> when the sidecar path of <code>--output</code>
-is its input; writing over the input itself is migrating in place.
+is its input; writing over the input itself is migrating in place. It also exits <code>3</code>
+when <code>--output</code> is the input's own sidecar or the destination cannot be written; the
+destination is then left as it was. <code>scan --write-baseline</code> and
+<code>probe --mcp … --write-mcp-pin</code> exit <code>3</code> beside <code>--output</code> or when their file cannot be
+written; <code>probe</code> exits <code>3</code> for an MCP-only flag without <code>--mcp</code>; <code>recipe run</code> exits <code>3</code>
+for a recipe that names a file inside its own <code>output.directory</code>.
 <code>probe --keep-exchanges</code> exits <code>3</code> before sending anything when its sidecar path holds
 exchanges the other saved run of the pair (<code>&lt;stem&gt;</code> or <code>&lt;stem&gt;.json</code>) records.
 <code>analyze-trace</code> adds one route to <code>2</code> the others do not have: demanded coverage that

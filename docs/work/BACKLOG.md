@@ -111,17 +111,15 @@ left for the owner, or are design gaps already documented elsewhere.
 - **Unwritable built-in report:** An earlier report and its sidecar remain at `--output`;
   removing them needs a way to distinguish an earlier run from a user-protected file,
   such as a read-only one.
-- **Failed installed format or redaction:** Removes whatever file is at `--output`, including
-  a read-only or non-run file, and says it held an earlier run.
 - **Profile files:** Files named by `contracts:`, `rules.paths`, `calibrations:` or an adapter
   are not checked against `--output`; only files named on the command line are.
 - **Probe inputs:** `probe` checks none of `--profile`, `--rules`, `--system-prompt-file`,
   `--fixtures`, `--mcp-pin` or `--mcp-registry-entry` against `--output`.
-- **Baseline output:** `scan --write-baseline` writes nothing at `--output` and leaves an
-  earlier run there with exit `0`; neither path is checked against the other, the sidecar
-  path or the inputs.
 - **Digest sidecar:** A run migrated to another `--output` records an exchanges digest whose
   sidecar stays beside the original. The same holds for a current-schema run copied there.
+- **Baseline input checks:** `scan --write-baseline` refuses only the scanned file, `--profile`
+  and a `--rules` file. A file inside a scanned or `--rules` directory, a profile's
+  `rules.paths` entry and `.guardanaignore` are not checked.
 - **Profile inputs:** `recipe run` checks only files the recipe itself names against its
   `output.directory`, not files its profile names (`rules.paths`, `calibrations:`,
   `contracts:`). Only files sharing a name the artifact's marker lists can be lost,
@@ -129,6 +127,9 @@ left for the owner, or are design gaps already documented elsewhere.
 - **Unreadable recipe:** An unreadable recipe marks its earlier artifact refused without
   knowing its inputs. If it names that artifact's own `junit.xml` or `report.txt`, that
   file is rewritten.
+- **Unchecked writes:** `recipe lock`, `analyze-trace --write-trace` and
+  `rule test --write-corpus` write their files without the error handling `run migrate`,
+  `--write-baseline` and `--write-mcp-pin` now have; an unwritable path there is unchecked.
 - **Migrate file metadata:** `run migrate` writes through a temporary file and a rename.
   This breaks a hard link to the old file and keeps only its mode, not its owner, ACLs or
   extended attributes. A writable file in a directory this process cannot write is now
@@ -136,6 +137,11 @@ left for the owner, or are design gaps already documented elsewhere.
 - **Self-input refusal:** When a recipe names the artifact's own `guardana-artifact.json` as an
   input, the in-place refusal touches nothing. The earlier marker and `junit.xml` stay green;
   only exit code `3` reports the refusal.
+- **MCP flag conflict:** `probe --target … --mcp-pin …` (or `--a2a`) advises adding `--mcp`.
+  Following that advice meets a second refusal. The MCP flags in the `--target` and `--a2a`
+  conflict lists fire only when `--mcp` is given.
+- **Pin write failure:** `--write-mcp-pin` uses `write_text`. A write that fails part-way leaves
+  the earlier approved pin truncated; `run migrate`'s temporary-file write would not.
 - **An installed format's text written with `newline=""` is not tested on Windows.**
 
 ## Left by protocol conformance (0.39.0)

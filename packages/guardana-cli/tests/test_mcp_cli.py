@@ -33,7 +33,7 @@ from guardana.core.target import (
 from guardana.core.target._mcp_client import HttpMcpTransport, open_conversation
 from guardana.core.target._mcp_http import RawReply
 from guardana.core.target._mcp_wire import result_of
-from guardana.core.testing import ScriptedMcpServer
+from guardana.core.testing import RefusingTransport, ScriptedMcpServer
 
 _TOOLS = {"tools": [{"name": "read_file", "description": "Read a file."}]}
 
@@ -470,6 +470,165 @@ def test_an_stdio_command_without_allow_exec_is_a_usage_error_and_starts_nothing
     assert result.exit_code == 3, result.output
     assert "--allow-exec" in _plain(result.output)
     assert not marker.exists()
+
+
+def _files_under(root: Path) -> dict[str, bytes]:
+    return {
+        str(path.relative_to(root)): path.read_bytes()
+        for path in sorted(root.rglob("*"))
+        if path.is_file()
+    }
+
+
+def _pin_server(monkeypatch: pytest.MonkeyPatch) -> list[McpConnection]:
+    """Answer `--mcp` with a scripted server and return the connections built to it."""
+    server = ScriptedMcpServer(
+        "https://93.184.215.14/mcp", tools=[{"name": "read", "description": "Read."}]
+    )
+    built: list[McpConnection] = []
+
+    def build(connection: McpConnection) -> McpServerTarget:
+        built.append(connection)
+        return McpServerTarget(server.url, sender=server, discovery_sender=server)
+
+    monkeypatch.setattr("guardana.cli._mcp_run.build_mcp_target", build)
+    return built
+
+
+def test_writing_a_pin_refuses_an_output_it_would_never_write(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An earlier run left at `--output` would later be read as this probe's report."""
+    from guardana.cli.main import app  # noqa: PLC0415
+    from typer.testing import CliRunner  # noqa: PLC0415
+
+    built = _pin_server(monkeypatch)
+    earlier_run = tmp_path / "run.json"
+    earlier_run.write_text('{"an": "earlier run"}\n', encoding="utf-8")
+    earlier_pin = tmp_path / "pin.json"
+    earlier_pin.write_text('{"an": "earlier pin"}\n', encoding="utf-8")
+    before = _files_under(tmp_path)
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "probe",
+            "--mcp",
+            "https://93.184.215.14/mcp",
+            "--write-mcp-pin",
+            str(earlier_pin),
+            "--format",
+            "json",
+            "--output",
+            str(earlier_run),
+        ],
+    )
+
+    assert result.exit_code == 3, result.output
+    assert (
+        f"error: --write-mcp-pin writes no report, so --output {earlier_run} "
+        f"would be left as it is — pass one or the other"
+    ) in _plain(result.output)
+    assert built == []
+    assert _files_under(tmp_path) == before
+
+
+def test_writing_a_pin_without_an_output_still_writes_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from guardana.cli.main import app  # noqa: PLC0415
+    from typer.testing import CliRunner  # noqa: PLC0415
+
+    built = _pin_server(monkeypatch)
+    pin = tmp_path / "pin.json"
+
+    result = CliRunner().invoke(
+        app, ["probe", "--mcp", "https://93.184.215.14/mcp", "--write-mcp-pin", str(pin)]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert len(built) == 1
+    assert set(json.loads(pin.read_text(encoding="utf-8"))["tools"]) == {"read"}
+
+
+@pytest.mark.parametrize(
+    "flag",
+    [
+        ["--write-mcp-pin", "pin.json"],
+        ["--mcp-pin", "pin.json"],
+        ["--mcp-token-env", "ACME_MCP_TOKEN"],
+        ["--allow-exec"],
+    ],
+    ids=["write-mcp-pin", "mcp-pin", "mcp-token-env", "allow-exec"],
+)
+def test_an_mcp_flag_without_mcp_is_a_usage_error_and_sends_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, flag: list[str]
+) -> None:
+    from guardana.cli.main import app  # noqa: PLC0415
+    from typer.testing import CliRunner  # noqa: PLC0415
+
+    model = RefusingTransport()
+    monkeypatch.setattr("guardana.cli._endpoint.transport_factory", lambda: model)
+    built = _pin_server(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+
+    result = CliRunner().invoke(
+        app, ["probe", "--url", "http://192.0.2.1", "--model", "m", *flag, "--output", "run.json"]
+    )
+
+    assert result.exit_code == 3, result.output
+    assert f"{flag[0]} applies only to the MCP server --mcp names; pass --mcp too" in _plain(
+        result.output
+    )
+    assert model.seen == []
+    assert built == []
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_every_mcp_flag_without_mcp_is_named_at_once(monkeypatch: pytest.MonkeyPatch) -> None:
+    from guardana.cli.main import app  # noqa: PLC0415
+    from typer.testing import CliRunner  # noqa: PLC0415
+
+    model = RefusingTransport()
+    monkeypatch.setattr("guardana.cli._endpoint.transport_factory", lambda: model)
+
+    result = CliRunner().invoke(
+        app,
+        ["probe", "--url", "http://192.0.2.1", "--model", "m", "--mcp-pin", "p", "--allow-exec"],
+    )
+
+    assert result.exit_code == 3, result.output
+    assert "--mcp-pin, --allow-exec apply only to the MCP server --mcp names" in _plain(
+        result.output
+    )
+    assert model.seen == []
+
+
+@pytest.mark.parametrize("unwritable", ["read-only directory", "directory"])
+def test_a_pin_that_cannot_be_written_is_a_usage_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, unwritable: str
+) -> None:
+    from guardana.cli.main import app  # noqa: PLC0415
+    from typer.testing import CliRunner  # noqa: PLC0415
+
+    _pin_server(monkeypatch)
+    locked = tmp_path / "locked"
+    locked.mkdir()
+    pin = locked / "pin.json" if unwritable == "read-only directory" else locked
+    before = _files_under(tmp_path)
+    locked.chmod(0o500)
+    try:
+        result = CliRunner().invoke(
+            app, ["probe", "--mcp", "https://93.184.215.14/mcp", "--write-mcp-pin", str(pin)]
+        )
+    finally:
+        locked.chmod(0o700)
+
+    assert result.exit_code == 3, result.output
+    assert f"error: could not write the pin to {pin}: " in _plain(result.output)
+    assert "Traceback" not in result.output
+    assert "approved tool description" not in result.output
+    assert _files_under(tmp_path) == before
 
 
 def _registry_entry(tmp_path: Path, document: object) -> Path:

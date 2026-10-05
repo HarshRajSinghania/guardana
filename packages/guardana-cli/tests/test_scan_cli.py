@@ -229,3 +229,150 @@ def test_scanning_a_single_file_still_works(tmp_path: Path) -> None:
     result = runner.invoke(app, ["scan", str(target)])
 
     assert result.exit_code == ExitCode.OK
+
+
+_ENDPOINT_RULE = (
+    "id: acme.prompt.demo\n"
+    "title: demo\n"
+    "severity: high\n"
+    "target_kind: endpoint\n"
+    "evaluator: keyword\n"
+    "requires: [chat]\n"
+    "prompts: ['hi']\n"
+    "expect: {goal: 'complied'}\n"
+)
+
+
+def _files_under(root: Path) -> dict[str, bytes]:
+    return {
+        str(path.relative_to(root)): path.read_bytes()
+        for path in sorted(root.rglob("*"))
+        if path.is_file()
+    }
+
+
+def _scan_inputs(tmp_path: Path) -> tuple[Path, Path, Path]:
+    tree = tmp_path / "tree"
+    tree.mkdir()
+    (tree / "app.py").write_text("print('hello')\n", encoding="utf-8")
+    profile = tmp_path / "guardana.yaml"
+    profile.write_text("name: audit\n", encoding="utf-8")
+    rule = tmp_path / "rule.yaml"
+    rule.write_text(_ENDPOINT_RULE, encoding="utf-8")
+    return tree, profile, rule
+
+
+@pytest.mark.parametrize("output_format", ["human", "json"])
+def test_write_baseline_refuses_an_output_it_would_never_write(
+    tmp_path: Path, output_format: str
+) -> None:
+    """An earlier run left at `--output` would later be read as this scan's report."""
+    tree, _, _ = _scan_inputs(tmp_path)
+    earlier_run = tmp_path / "old.json"
+    earlier_run.write_text('{"an": "earlier run"}\n', encoding="utf-8")
+    earlier_baseline = tmp_path / "b.yaml"
+    earlier_baseline.write_text("an earlier baseline\n", encoding="utf-8")
+    before = _files_under(tmp_path)
+
+    result = runner.invoke(
+        app,
+        [
+            "scan",
+            str(tree),
+            "--format",
+            output_format,
+            "--output",
+            str(earlier_run),
+            "--write-baseline",
+            str(earlier_baseline),
+        ],
+    )
+
+    assert result.exit_code == ExitCode.INVALID_USAGE, result.output
+    assert (
+        f"error: --write-baseline writes no report, so --output {earlier_run} "
+        f"would be left as it is — pass one or the other"
+    ) in result.output
+    assert _files_under(tmp_path) == before
+
+
+@pytest.mark.parametrize("read", ["scanned file", "profile", "rules file", "hard link"])
+def test_write_baseline_refuses_a_file_the_scan_reads(tmp_path: Path, read: str) -> None:
+    tree, profile, rule = _scan_inputs(tmp_path)
+    scanned = tree / "app.py"
+    linked = tmp_path / "linked.yaml"
+    linked.hardlink_to(profile)
+    written = {
+        "scanned file": scanned,
+        "profile": profile,
+        "rules file": rule,
+        "hard link": linked,
+    }[read]
+    before = _files_under(tmp_path)
+
+    result = runner.invoke(
+        app,
+        [
+            "scan",
+            str(scanned),
+            "--profile",
+            str(profile),
+            "--rules",
+            str(rule),
+            "--write-baseline",
+            str(written),
+        ],
+    )
+
+    assert result.exit_code == ExitCode.INVALID_USAGE, result.output
+    assert f"error: --write-baseline {written} is " in result.output
+    assert (
+        "which this command reads, and the baseline would replace it — "
+        "choose another --write-baseline"
+    ) in result.output
+    assert _files_under(tmp_path) == before
+
+
+def test_write_baseline_beside_the_files_it_reads_still_writes(tmp_path: Path) -> None:
+    tree, profile, rule = _scan_inputs(tmp_path)
+    written = tmp_path / "baseline.yaml"
+
+    result = runner.invoke(
+        app,
+        [
+            "scan",
+            str(tree / "app.py"),
+            "--profile",
+            str(profile),
+            "--rules",
+            str(rule),
+            "--write-baseline",
+            str(written),
+        ],
+    )
+
+    assert result.exit_code == ExitCode.OK, result.output
+    assert "wrote baseline waiving 0 finding(s)" in result.output
+    assert written.is_file()
+
+
+@pytest.mark.parametrize("unwritable", ["read-only directory", "directory"])
+def test_a_baseline_that_cannot_be_written_is_a_usage_error(
+    tmp_path: Path, unwritable: str
+) -> None:
+    tree, _, _ = _scan_inputs(tmp_path)
+    locked = tmp_path / "locked"
+    locked.mkdir()
+    written = locked / "baseline.yaml" if unwritable == "read-only directory" else locked
+    before = _files_under(tmp_path)
+    locked.chmod(0o500)
+    try:
+        result = runner.invoke(app, ["scan", str(tree), "--write-baseline", str(written)])
+    finally:
+        locked.chmod(0o700)
+
+    assert result.exit_code == ExitCode.INVALID_USAGE, result.output
+    assert f"error: could not write the baseline to {written}: " in result.output
+    assert "Traceback" not in result.output
+    assert "wrote baseline" not in result.output
+    assert _files_under(tmp_path) == before

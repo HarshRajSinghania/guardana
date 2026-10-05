@@ -44,6 +44,7 @@ from guardana.cli._outputs import (
     recorded_by_partner,
     refuse_collector_beside,
     refuse_installed_output_beside,
+    refuse_output_beside,
     select_outputs,
     warn_without_a_reporter,
 )
@@ -256,10 +257,20 @@ def probe(  # noqa: C901, PLR0913, PLR0915, PLR0917 — Typer surface, target mo
     ] = False,
 ) -> None:
     """Run dynamic security checks against a live model endpoint, an MCP server or an A2A agent."""
+    _refuse_lone_mcp_flags(
+        mcp,
+        {
+            "--write-mcp-pin": write_mcp_pin,
+            "--mcp-pin": mcp_pin,
+            "--mcp-token-env": mcp_token_env,
+            "--allow-exec": True if allow_exec else None,
+        },
+    )
     installed_reporter = installed_reporter_or_check(reporter)
     refuse_installed_output_beside("--write-mcp-pin", write_mcp_pin, format, installed_reporter)
     collector = reporter if installed_reporter is None else None
     refuse_collector_beside("--write-mcp-pin", write_mcp_pin, collector=bool(collector))
+    refuse_output_beside("--write-mcp-pin", write_mcp_pin, output)
     refuse_incomparable_output(output, format)
     _refuse_lone_a2a_flags(a2a, a2a_token_env, a2a_other_token_env)
     if mcp_registry_entry is not None and mcp is None:
@@ -545,6 +556,16 @@ def _refuse_lone_a2a_flags(
     ]
     if given and a2a is None:
         raise typer.BadParameter(f"{', '.join(given)} names a credential for --a2a; pass --a2a URL")
+
+
+def _refuse_lone_mcp_flags(mcp: str | None, flags: dict[str, object]) -> None:
+    """Refuse a flag that configures the MCP server given without `--mcp`; nothing would read it."""
+    used = [name for name, value in flags.items() if value is not None]
+    if used and mcp is None:
+        raise typer.BadParameter(
+            f"{', '.join(used)} {'applies' if len(used) == 1 else 'apply'} only to the MCP "
+            f"server --mcp names; pass --mcp too"
+        )
 
 
 def _refuse_beside_a2a(flags: dict[str, object]) -> None:

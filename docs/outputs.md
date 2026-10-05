@@ -33,7 +33,7 @@ guardana probe --url https://api.example.com --model m \
 
 `monitor` and `import-observations` take only the built-in forms, and refuse an installed one
 with exit `3`. So do `scan --write-baseline` and `probe --write-mcp-pin`, which produce no
-report for an output to receive; they refuse a collector `--reporter` the same way.
+report; they refuse a collector `--reporter` or an `--output` with exit `3`.
 
 Every command starts with Guardana's own distributions only, so an installed output is
 refused until you admit its distribution: `--plugins allowlist --allow-plugin <distribution>`
@@ -85,8 +85,9 @@ reporter can return it, and a job that delivered nothing must not pass.
 
 Exit `8` means an installed output failed: a format raised or returned no text, so nothing was
 written, or a reporter's delivery is `unknown` — or, under `delivery.required`, anything but
-`delivered`. A file already at `--output` holds an earlier
-run, so a failed format removes it and says so, here and on exit `5`. The verdict is printed whenever `8` replaces its
+`delivered`. When a format fails (exit `8`) or Guardana's redaction fails (exit `5`), a file
+already at `--output` that this process can write is removed, and stderr says so.
+One it cannot write is kept with a warning. The verdict is printed whenever `8` replaces its
 code, as `the run's verdict: <gate> (exit <code>)`, and a failed format's error names the distribution to report it to. A
 run its target or budget stopped keeps exit `4`, `6` or `7`. When Guardana's own redaction fails
 before an output is called, nothing is written or sent and the exit is `5`, a defect to report
