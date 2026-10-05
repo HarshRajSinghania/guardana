@@ -73,6 +73,18 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
+      # Every later step names the release after the tag, so a tag that differs from the
+      # packaged version (a typo, another spelling of a pre-release) stops before a build.
+      - name: The tag names the version the packages carry
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          packaged=$(sed -n 's/^version = "\(.*\)"$/\1/p' packages/guardana-core/pyproject.toml)
+          if [ -z "$packaged" ] || [ "${TAG#v}" != "$packaged" ]; then
+            echo "::error::The tag $TAG does not name the packaged version '${packaged:-unreadable}'."
+            exit 1
+          fi
+
       - name: Install uv
         uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
@@ -139,7 +151,11 @@ jobs:
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "release $TAG already exists — leaving its notes as they are"
           else
-            gh release create "$TAG" --title "Guardana $TAG" --notes-file notes.md --verify-tag
+            # A PEP 440 pre-release (aN, bN, rcN, .devN) must not become the release the
+            # Releases page and the Marketplace call latest; a .postN release may.
+            flags=()
+            case "$version" in *a[0-9]*|*b[0-9]*|*rc[0-9]*|*.dev[0-9]*) flags+=(--prerelease) ;; esac
+            gh release create "$TAG" --title "Guardana $TAG" --notes-file notes.md --verify-tag "${flags[@]}"
           fi
           gh release upload "$TAG" sbom/*.cdx.json --clobber
 
@@ -253,14 +269,16 @@ jobs:
       # Tag maths belongs in a tool, not in shell: `latest` and the moving
       # `X.Y` tag must not move for a prerelease, which is exactly the case a
       # hand-rolled `${TAG#v}` gets wrong once and nobody notices until it has.
+      # `pep440`, not `semver`: a tag like v1.0.0rc1 is not semver, and a semver
+      # rule would give the image no tag at all.
       - name: Work out the CLI image's tags
         id: cli-meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
         with:
           images: ghcr.io/guardana/guardana
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
+            type=pep440,pattern={{version}}
+            type=pep440,pattern={{major}}.{{minor}}
 
       - name: Work out the collector image's tags
         id: collector-meta
@@ -268,8 +286,8 @@ jobs:
         with:
           images: ghcr.io/guardana/guardana-collector
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
+            type=pep440,pattern={{version}}
+            type=pep440,pattern={{major}}.{{minor}}
 
       # `sbom` and `provenance` are what make these images answerable in somebody
       # else's audit: both attestations are pushed alongside the image and can be

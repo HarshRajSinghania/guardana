@@ -8,6 +8,7 @@ import re
 import sys
 import tomllib
 import types
+from fnmatch import fnmatch
 from pathlib import Path
 
 import guardana.core
@@ -362,6 +363,46 @@ def test_a_prerelease_does_not_move_the_documented_image_tag() -> None:
         _BUMP._rewrite_image_pin(text, "0.10.0")
         == "docker run ghcr.io/guardana/guardana:0.10 scan ."
     )
+
+
+@pytest.mark.parametrize("step", ["cli-meta", "collector-meta"])
+def test_image_tags_are_worked_out_from_the_pep440_version(step: str) -> None:
+    """A release tag such as v1.0.0rc1 is PEP 440 and not semver; a semver rule tags nothing."""
+    steps = _steps(_workflow("release.yml"), "images")
+    meta = next(s for s in steps if s.get("id") == step)
+    options = meta["with"]
+    assert isinstance(options, dict)
+    rules = [line.strip() for line in str(options["tags"]).splitlines() if line.strip()]
+
+    assert rules, f"{step} works out no tags"
+    assert all(rule.startswith("type=pep440,") for rule in rules), rules
+
+
+def test_a_tag_publishes_only_the_version_the_packages_carry() -> None:
+    """The release is named after the tag, so a tag naming another version stops first."""
+    steps = _steps(_workflow("release.yml"), "publish")
+    check = _index_of(steps, "packages/guardana-core/pyproject.toml")
+    command = str(steps[check]["run"])
+
+    assert check < _index_of(steps, "uv build")
+    assert check < _index_of(steps, "pypa/gh-action-pypi-publish")
+    assert '"${TAG#v}" != "$packaged"' in command
+    assert '[ -z "$packaged" ]' in command
+    assert "exit 1" in command
+
+
+def test_a_prerelease_tag_creates_a_github_prerelease() -> None:
+    """The Releases page and the Marketplace must not call a candidate the latest release."""
+    steps = _steps(_workflow("release.yml"), "publish")
+    command = str(steps[_index_of(steps, "gh release create")]["run"])
+
+    assert "--prerelease" in command
+    marked = re.search(r'case "\$version" in (\S+)\)', command)
+    assert marked is not None, "no pre-release pattern"
+    for version in ("1.0.0a1", "1.0.0b2", "1.0.0rc1", "1.0.0.dev3"):
+        assert any(fnmatch(version, p) for p in marked.group(1).split("|")), version
+    for version in ("1.0.0", "0.41.0", "1.0.0.post1"):
+        assert not any(fnmatch(version, p) for p in marked.group(1).split("|")), version
 
 
 def test_every_required_action_pin_file_actually_carries_a_pin() -> None:
