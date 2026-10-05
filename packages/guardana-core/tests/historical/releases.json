@@ -5472,5 +5472,181 @@
         }
       ]
     }
+  },
+  "0.41.0": {
+    "exclude_newer": "2026-10-04T18:16:50Z",
+    "extras": [],
+    "kinds": {
+      "run": {
+        "produced": true,
+        "schema_version": 17,
+        "stored": null
+      },
+      "probe-run": {
+        "produced": true,
+        "schema_version": 17,
+        "stored": null
+      },
+      "envelope": {
+        "produced": true,
+        "schema_version": 8,
+        "stored": null
+      },
+      "profile": {
+        "produced": true,
+        "schema_version": null,
+        "stored": null
+      },
+      "pack-manifest": {
+        "produced": true,
+        "schema_version": 2,
+        "stored": null
+      },
+      "pack-lock": {
+        "produced": true,
+        "schema_version": 2,
+        "stored": null
+      },
+      "dataset": {
+        "produced": true,
+        "schema_version": [
+          1,
+          2
+        ],
+        "refused": {},
+        "stored": null
+      }
+    },
+    "extension_api_version": 2,
+    "output_api_version": 1,
+    "pack_schema_version": 3,
+    "collector_migrations": 7,
+    "requires_python": ">=3.11",
+    "python_classifiers": [
+      "3.11",
+      "3.12",
+      "3.13"
+    ],
+    "profile_examples": {
+      "tried": true,
+      "examples": [
+        {
+          "n": 1,
+          "tag": "v0.41.0",
+          "doc": "docs/design/one-zero-readiness.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": "profile/0.41.0-1.yaml"
+        },
+        {
+          "n": 2,
+          "tag": "v0.41.0",
+          "doc": "docs/design/security-contracts.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 3,
+          "tag": "v0.41.0",
+          "doc": "docs/privacy.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 4,
+          "tag": "v0.41.0",
+          "doc": "docs/profiles.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 5,
+          "tag": "v0.41.0",
+          "doc": "docs/profiles.md",
+          "block": 2,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": "profile/0.41.0-5.yaml"
+        },
+        {
+          "n": 6,
+          "tag": "v0.41.0",
+          "doc": "docs/profiles.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 7,
+          "tag": "v0.41.0",
+          "doc": "docs/profiles.md",
+          "block": 4,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 8,
+          "tag": "v0.41.0",
+          "doc": "docs/profiles.md",
+          "block": 5,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 9,
+          "tag": "v0.41.0",
+          "doc": "docs/profiles.md",
+          "block": 6,
+          "loaded": true,
+          "loaded_by": "probe",
+          "stored": null
+        },
+        {
+          "n": 10,
+          "tag": "v0.41.0",
+          "doc": "docs/usage-calibrate.md",
+          "block": 1,
+          "loaded": false,
+          "why": "scan: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded; probe: exit 3: error: calibrations.json does not exist, so the calibrations it names cannot be recorded"
+        },
+        {
+          "n": 11,
+          "tag": "v0.41.0",
+          "doc": "docs/usage-contracts.md",
+          "block": 3,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 12,
+          "tag": "v0.41.0",
+          "doc": "docs/usage-target.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        },
+        {
+          "n": 13,
+          "tag": "v0.41.0",
+          "doc": "docs/usage-trace-inspect.md",
+          "block": 1,
+          "loaded": true,
+          "loaded_by": "scan",
+          "stored": null
+        }
+      ]
+    }
   }
 }

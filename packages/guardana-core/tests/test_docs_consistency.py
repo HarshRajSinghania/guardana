@@ -12,6 +12,7 @@ derives from it or is checked against it here.
 """
 
 import importlib.util
+import json
 import re
 import subprocess
 import sys
@@ -54,6 +55,21 @@ def test_the_changelog_has_an_entry_for_the_released_version() -> None:
     assert f"## [{__version__}]" in _read("CHANGELOG.md"), (
         f"CHANGELOG.md has no released section for {__version__}"
     )
+
+
+def test_the_stated_historical_range_is_the_corpus_range() -> None:
+    """The releases whose documents current tests read are named from the corpus, not recalled."""
+    releases = json.loads(
+        (_repo() / "packages/guardana-core/tests/historical/releases.json").read_text("utf-8")
+    )
+    ordered = sorted(releases, key=_capture_script().version_key)
+    expected = (ordered[0], ordered[-1])
+    for relative in ("FEATURES.md", "ROADMAP.md"):
+        stated = re.findall(
+            r"(\d+\.\d+\.\d+(?:rc\d+)?) through (\d+\.\d+\.\d+(?:rc\d+)?)", _read(relative)
+        )
+        assert stated, f"{relative} no longer states which releases' documents are read"
+        assert set(stated) == {expected}, f"{relative} states {stated}; the corpus holds {expected}"
 
 
 def test_documented_action_pins_track_the_released_minor() -> None:
@@ -204,6 +220,18 @@ def test_generated_truth_is_current(script: str) -> None:
         check=False,
     )
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def _capture_script() -> types.ModuleType:
+    """Load `scripts/capture_historical_documents.py`, which owns how release versions order."""
+    spec = importlib.util.spec_from_file_location(
+        "capture_historical_documents", _repo() / "scripts" / "capture_historical_documents.py"
+    )
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def _bump_script() -> types.ModuleType:

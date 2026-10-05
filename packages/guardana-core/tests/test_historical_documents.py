@@ -53,10 +53,6 @@ _ACCEPTED: dict[str, frozenset[int]] = {
 """Every version each persisted kind's reader accepts."""
 
 NOT_EXERCISED: dict[tuple[str, int], str] = {
-    ("profile", 1): (
-        "no release has written `schema_version` into a profile; a profile without the key "
-        "reads as 1, which is what every stored profile is"
-    ),
     ("envelope", 6): "no release on PyPI wrote it: 0.8.0 writes 5 and 0.9.1 writes 7",
     ("pack-manifest", 1): (
         "no release with schema 1 has `pack lock` to accept a pack; the hand-written 0.19.1 "
