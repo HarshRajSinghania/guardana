@@ -16,6 +16,7 @@ for the changelog roll, tag, and push.
 
 import argparse
 import re
+import string
 import subprocess
 import sys
 from pathlib import Path
@@ -115,7 +116,34 @@ _SITE_LD_VERSION_RE = re.compile(
 # The Action's own CLI pin: `guardana/guardana@vX.Y` must install the CLI that tag
 # ships, or a workflow nobody edited changes engine on the next release.
 _ACTION_CLI_RE = re.compile(rf'(default: ")\d+\.\d+\.\d+{_SUFFIX}(")')
-_SECURITY_VERSION_RE = re.compile(r"(pre-1\.0 )\(\d+\.\d+\.x\)")
+# The security policy's supported-versions line, rendered from one of two templates: a 0.x
+# series is named pre-1.0, and the first final release with major >= 1 replaces that line
+# with the supported one, whose series every later final release rewrites.
+_SECURITY_PRE_1_LINE = "Guardana is pre-1.0 ({series}.x)"
+_SECURITY_LINE = "Guardana supports major {major} ({series}.x)"
+_LINE_FIELDS = {"major": r"\d+", "series": r"\d+\.\d+"}
+
+
+def _line_pattern(template: str) -> str:
+    """Return a regex matching every line `template` can render."""
+    return "".join(
+        re.escape(literal) + ("" if field is None else _LINE_FIELDS[field])
+        for literal, field, _, _ in string.Formatter().parse(template)
+    )
+
+
+_SECURITY_LINE_RE = re.compile(_line_pattern(_SECURITY_LINE))
+_SECURITY_VERSION_RE = re.compile(
+    f"{_line_pattern(_SECURITY_PRE_1_LINE)}|{_line_pattern(_SECURITY_LINE)}"
+)
+
+
+def _security_line(major: int, minor: int) -> str:
+    """Return the supported-versions line for the final release series `major.minor`."""
+    template = _SECURITY_PRE_1_LINE if major == 0 else _SECURITY_LINE
+    return template.format(major=major, series=f"{major}.{minor}")
+
+
 # The roadmap's own "what ships today" heading. Rewritten by hand until 0.22.0,
 # where forgetting it aborted the release after the bump.
 _ROADMAP_SHIPS_RE = re.compile(rf"(## What ships today \()\d+\.\d+\.\d+{_SUFFIX}(\))")
@@ -199,7 +227,7 @@ def _documented_versions(new: str) -> tuple[tuple[Path, re.Pattern[str], str], .
     replacements = (
         rf"\g<1>v{new}",
         rf"\g<1>{new}\g<2>",
-        kept if prerelease else rf"\g<1>({major}.{minor}.x)",
+        kept if prerelease else _security_line(major, minor).replace("\\", r"\\"),
         kept if prerelease else rf"\g<1>{major}.{minor}\g<2>",
         kept if prerelease else rf"\g<1>{major}.{minor}\g<2>",
         rf"\g<1>{new}\g<2>",

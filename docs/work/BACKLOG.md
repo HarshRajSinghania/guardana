@@ -89,9 +89,8 @@ left for the owner, or are design gaps already documented elsewhere.
   commit; `check_repo_settings.py` reports it ABSENT until the owner enables "Restrict updates".
   GitHub documents no built-in `RepositoryRole` ids (github/rest-api-description#4406); the live
   ruleset's bypass actor is `5` (Admin), and Maintain (2) is unconfirmed.
-- **Before 1.0.0: the security policy's `pre-1.0 (X.Y.x)` line.** `bump_version.py` rewrites
-  only the bracket, so the final bump would write "pre-1.0 (1.0.x)"; the 1.x support line needs
-  its own wording and a test that refuses `pre-1.0` once the major version is 1.
+- **Before 1.0.0:** `RELEASING.md` says Guardana "is **pre-1.0**", which no gate rewrites
+  or checks at the final release.
 - **The capture records an example whose file is missing as refused**: the first block of
   `docs/usage-calibrate.md` names `calibrations.json`, which the sandbox never supplies (0.18.0
   to 0.41.0). Supplying the files an example names, or a separate "not tried" outcome, would

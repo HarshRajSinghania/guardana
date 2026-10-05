@@ -15,6 +15,7 @@ import guardana.core
 import pytest
 import yaml
 from _release_series import stable_series
+from packaging.version import Version
 
 
 def _repo_root() -> Path:
@@ -425,7 +426,7 @@ def test_documented_versions_match_the_released_one() -> None:
     major, minor = stable_series()
     for relative, pattern, expected in (
         (Path("site/index.html"), _BUMP._SITE_VERSION_RE, f"v{current}"),
-        (Path("SECURITY.md"), _BUMP._SECURITY_VERSION_RE, f"({major}.{minor}.x)"),
+        (Path("SECURITY.md"), _BUMP._SECURITY_VERSION_RE, _BUMP._security_line(major, minor)),
         # The sentence beside the moving Action pin. 0.5.0 shipped with the pin
         # rewritten to @v0.5 and the prose next to it still saying "the latest
         # 0.3.x" — the pin automation moved the tag and left its explanation.
@@ -456,6 +457,64 @@ def test_a_prerelease_keeps_the_series_the_stable_pins_follow() -> None:
     assert _marked("SECURITY.md", security, "1.0.0rc1") == security
     assert _marked("README.md", prose, "1.0.0rc1") == prose
     assert _marked("README.md", prose, "1.0.0") == prose.replace("latest 0.41.x", "latest 1.0.x")
+
+
+_SECURITY_PRE_1 = "Guardana is pre-1.0 (0.41.x). Security fixes land"
+
+
+def _supported(major: int, series: str) -> str:
+    """The security policy's supported line for a final 1.x release, from the script's template."""
+    template: str = _BUMP._SECURITY_LINE
+    return template.format(major=major, series=series)
+
+
+def test_the_first_final_1x_bump_writes_the_1x_security_line() -> None:
+    marked = _marked("SECURITY.md", _SECURITY_PRE_1, "1.0.0")
+
+    assert marked == f"{_supported(1, '1.0')}. Security fixes land"
+    assert "pre-1.0" not in marked
+
+
+def test_a_later_final_bump_rewrites_the_series_in_the_1x_security_line() -> None:
+    first = _marked("SECURITY.md", _SECURITY_PRE_1, "1.0.0")
+
+    assert _marked("SECURITY.md", first, "1.1.0") == f"{_supported(1, '1.1')}. Security fixes land"
+    assert _marked("SECURITY.md", first, "1.1.0rc1") == first
+
+
+def test_a_release_candidate_keeps_the_pre_1_security_line() -> None:
+    assert _marked("SECURITY.md", _SECURITY_PRE_1, "1.0.0rc2") == _SECURITY_PRE_1
+
+
+def test_the_marker_check_accepts_either_security_line() -> None:
+    for text in (_SECURITY_PRE_1, _marked("SECURITY.md", _SECURITY_PRE_1, "1.0.0")):
+        assert _BUMP._SECURITY_VERSION_RE.search(text) is not None, text
+    assert _BUMP._SECURITY_VERSION_RE.search("Guardana is supported.") is None
+
+
+def _security_line_mismatch(version: str, text: str) -> str | None:
+    """Say why `text` is the wrong supported line for a repository at `version`, or None."""
+    major, _, _ = _BUMP._core(version)
+    if major >= 1 and not Version(version).is_prerelease and "pre-1.0" in text:
+        return f"SECURITY.md still says pre-1.0 at the final release {version}"
+    if major == 0 and _BUMP._SECURITY_LINE_RE.search(text) is not None:
+        return f"SECURITY.md announces a supported 1.x line at {version}"
+    return None
+
+
+def test_the_security_policy_names_the_line_the_version_belongs_to() -> None:
+    text = (_repo_root() / "SECURITY.md").read_text(encoding="utf-8")
+    assert _security_line_mismatch(_BUMP._current_version(), text) is None
+
+
+def test_the_security_line_check_refuses_a_line_from_the_other_side_of_1_0() -> None:
+    supported = _marked("SECURITY.md", _SECURITY_PRE_1, "1.0.0")
+
+    assert _security_line_mismatch("1.0.0", _SECURITY_PRE_1) is not None
+    assert _security_line_mismatch("0.42.0", supported) is not None
+    assert _security_line_mismatch("1.0.0rc2", _SECURITY_PRE_1) is None
+    assert _security_line_mismatch("1.0.0", supported) is None
+    assert _security_line_mismatch("0.42.0", _SECURITY_PRE_1) is None
 
 
 def test_a_version_marker_naming_a_prerelease_is_replaced_whole() -> None:
