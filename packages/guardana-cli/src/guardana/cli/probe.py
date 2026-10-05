@@ -43,6 +43,7 @@ from guardana.cli._outputs import (
     RunOutputs,
     refuse_collector_beside,
     refuse_installed_output_beside,
+    remove_earlier_exchanges,
     select_outputs,
     warn_without_a_reporter,
 )
@@ -682,14 +683,10 @@ def _write_exchanges(verification: Verification, output: Path | None, *, keep: b
     kept = verification.exchanges
     record = verification.manifest.exchanges
     if output is None or kept is None or record is None:
-        if output is not None and exchanges_path(output).exists():
+        if output is not None:
             # The run beside it was just overwritten; left in place, the old exchanges
             # would read as this run's.
-            exchanges_path(output).unlink()
-            typer.echo(
-                f"removed {exchanges_path(output)}, which an earlier run at this path kept",
-                err=True,
-            )
+            remove_earlier_exchanges(output)
         if keep and output is not None:
             typer.echo(
                 "warning: nothing was kept — no rule finished a chat exchange in the plain pass",

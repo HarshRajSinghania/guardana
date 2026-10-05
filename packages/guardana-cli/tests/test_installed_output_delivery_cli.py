@@ -364,6 +364,34 @@ def test_a_probe_whose_format_succeeds_removes_an_earlier_sidecar_once(
     assert removed == [f"removed {sidecar}, which an earlier run at this path kept"]
 
 
+def test_a_probe_that_cannot_remove_an_earlier_sidecar_warns_and_keeps_its_verdict(
+    site: FakeSite,
+    endpoint: RefusingTransport,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    saved = tmp_path / "run.json"
+    sidecar = _probe_that_kept_exchanges(saved)
+    _table(site)
+    unlink = Path.unlink
+
+    def refuse_the_sidecar(path: Path, missing_ok: bool = False) -> None:
+        if path == sidecar:
+            raise PermissionError("read-only")
+        unlink(path, missing_ok=missing_ok)
+
+    monkeypatch.setattr(Path, "unlink", refuse_the_sidecar)
+
+    result = _probe("--format", "acme-table", "--output", str(saved), *_ADMIT)
+
+    assert result.exit_code == ExitCode.OK, result.output
+    assert sidecar.is_file()
+    assert (
+        f"warning: {sidecar} still holds exchanges an earlier run kept, not this run's: "
+        f"could not remove it: read-only"
+    ) in _lines(result.output)
+
+
 def test_a_failed_format_says_its_report_was_not_produced_to_the_reporter(
     site: FakeSite, clean_tree: Path
 ) -> None:

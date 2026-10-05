@@ -340,6 +340,11 @@ def _remove_earlier(output: Path | None) -> None:
         removed=f"removed {output}: it held an earlier run, not this one",
         kept=f"{output} still holds an earlier run, not this one",
     )
+    remove_earlier_exchanges(output)
+
+
+def remove_earlier_exchanges(output: Path) -> None:
+    """Remove the exchanges an earlier run kept beside `output`, or warn that they remain."""
     sidecar = exchanges_path(output)
     _remove(
         sidecar,
