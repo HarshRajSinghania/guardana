@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0rc1] - 2026-10-05 — the first release candidate
+
 ### Fixed
 
 - **Unhandled collector errors return HTTP 500 with `X-Content-Type-Options: nosniff` and a generic JSON body.** Exception text stays out of the response; the traceback goes to the collector log.

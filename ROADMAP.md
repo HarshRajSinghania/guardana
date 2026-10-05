@@ -24,9 +24,9 @@ explains this order.
 7. Results explain their source, coverage, execution cost and comparability.
 8. The collector is optional; local files and Python deliver independent value.
 
-## What ships today (0.41.0)
+## What ships today (1.0.0rc1)
 
-This beta scans offline artifacts; probes endpoints, MCP servers in `2025-11-25` and `2026-07-28`, and A2A v1 agents; analyzes traces; compares regressions; gates policy and baselines; supports extension packs; and offers an optional authenticated PostgreSQL collector. MCP and A2A probes are checked against servers built on their protocol owners' SDKs. MCP checks cover task listings and an operator-supplied registry entry; A2A checks cover cards, callers without a credential and one caller's view of another's tasks. `guardana.core.verify` returns the failed, indeterminate and stopped outcomes of `guardana scan` and `guardana probe` as typed data. Empty scans, unreadable components and ungraded rules cause shortfalls; part-way target failures save runs, including on MCP and A2A. A rule for a protocol the target does not speak is `not_applicable`; an absent capability within that protocol remains a gap, and `not_offered` still records a surface absent when a rule runs. A rule demanded by id remains a `demanded_check` shortfall.
+The first release candidate, 1.0.0rc1, scans offline artifacts; probes endpoints, MCP servers in `2025-11-25` and `2026-07-28`, and A2A v1 agents; analyzes traces; compares regressions; gates policy and baselines; supports extension packs; and offers an optional authenticated PostgreSQL collector. MCP and A2A probes are checked against servers built on their protocol owners' SDKs. MCP checks cover task listings and an operator-supplied registry entry; A2A checks cover cards, callers without a credential and one caller's view of another's tasks. `guardana.core.verify` returns the failed, indeterminate and stopped outcomes of `guardana scan` and `guardana probe` as typed data. Empty scans, unreadable components and ungraded rules cause shortfalls; part-way target failures save runs, including on MCP and A2A. A rule for a protocol the target does not speak is `not_applicable`; an absent capability within that protocol remains a gap, and `not_offered` still records a surface absent when a rule runs. A rule demanded by id remains a `demanded_check` shortfall.
 
 Adapters identify guard declines, copy bounded metadata and set retry statuses; built-in provider transports do not carry those adapter fields. Evaluators grade declines or leave them inconclusive, and recordings retain them for `guardana grade`. Rate budgets pace targets and judges. Suites grade versioned datasets and gate pass rates; plans and runs track judge calls, budgets and stopped suites. Judge-graded suites and judge-error correction remain experimental: matching calibrations correct trial and suite rates, and reports flag their absence. Mid-run judge failures keep no partial run. Agent checks catch cross-turn canary leaks, require payload proof and argument allowlists, and refuse truncated runs. Runs and messages hide credentials. Human, JSON, SARIF and JUnit agree on nonpassing runs. `--preset release` rejects skipped or ungraded selected checks, and `plan` rejects them before sending.
 
@@ -43,12 +43,11 @@ rule, evaluator and target contracts, the output contracts, the CLI flags and ex
 profile schema and the collector envelope. From 1.0 on, a breaking change needs a major
 version ([RELEASING.md](RELEASING.md)).
 
-The readiness release has shipped. Two release candidates remain, alongside F2's five first-run sessions and F6's two independent teams:
+The readiness release and first release candidate have shipped. F2's five first-run sessions and F6's two independent teams remain alongside the second candidate and stable release:
 
 | Target | Delivers |
 |---|---|
-
-| **v1.0.0rc1**, **v1.0.0rc2** | the frozen surface with fixes only, at least two weeks apart |
+| **v1.0.0rc2** | fixes only, at least two weeks after the first candidate |
 | **v1.0.0** | the first stable release |
 
 The target is the first quarter of 2027. External evidence sets that date more than the code
@@ -71,7 +70,7 @@ targets; the documentation tests refuse a target that has already shipped.
 - security and recovery runbooks are exercised;
 - two release candidates ship without unplanned public API changes.
 
-0.41.0 met the compatibility-matrix and deprecation-policy criterion, published the conformance kit, added finding, clean and inconclusive fixtures for every built-in rule, published the versioned collector envelope, exercised migrations with documents written by older releases, and exercised collector runbooks. The five first-run sessions, two independent teams and recorded third-party customization are not done; application measures remain "not measured". The reference pack is attached to the GitHub Release but is not on PyPI. The security runbook drill and two release candidates are also not done.
+0.41.0 met the compatibility-matrix and deprecation-policy criterion, published the conformance kit, added finding, clean and inconclusive fixtures for every built-in rule, published the versioned collector envelope, exercised migrations with documents written by older releases, and exercised collector runbooks. 1.0.0rc1 shipped the 0.41.0 supported surface unchanged, with fixes only. The five first-run sessions, two independent teams, recorded third-party customization, the security runbook drill and the second release candidate are not done; application measures remain "not measured". The reference pack is attached to the GitHub Release but is not on PyPI.
 
 1.0 does not wait for M1, the M3 measurement queries or anything under "Later": each extends a
 versioned contract in a 1.x release. Until 1.0, beta does not require an API freeze. It
