@@ -41,14 +41,14 @@ Found by the pre-ship review and the false-green hunt on 2026-09-30; each was re
 A code sweep for the `know_common_errors` attestation on 2026-09-30. The first three were
 reproduced; the rest are the sweep's reading with its anchors, not yet reproduced.
 
-- `analyze-trace --write-trace` writes the trace unredacted (`cli/analyze_trace.py:208`).
 - A symlinked file inside a scanned directory is read even when it points outside the root
-  (bounded by the reader caps).
-- The dashboard cookie is `Secure` only when the app itself sees `https`
-  (`server/app.py:394`), and an unknown key prefix returns before hashing
-  (`server/auth.py:200`), which tells a caller whether a prefix exists.
+  (bounded by the reader caps; `open_regular` refuses FIFOs and devices). Refusing it would leave
+  every Hugging Face snapshot (`snapshots/<rev>/x -> ../../blobs/<sha>`) `indeterminate`; it needs
+  a design that names the directories a link may lead to.
+- The dashboard cookie is `Secure` only when the app itself sees `https`; behind a proxy that
+  uvicorn does not trust, it never does. `docs/deployment.md` names `FORWARDED_ALLOW_IPS`; a
+  setting of Guardana's own would add an environment variable to the supported surface.
 - `llm_judge` places the transcript into its prompt unfenced (`core/evaluator/llm_judge.py:26`).
-- Container base images are pinned by tag, not by digest (`deploy/docker/cli.Dockerfile:12`).
 
 ## From the codex review of 0.36.0
 
@@ -74,35 +74,31 @@ left for the owner, or are design gaps already documented elsewhere.
   without system-prompt planting, and any target without seeded fixtures, still leaves
   `probe --preset release` `indeterminate`; only a protocol the target does not speak is
   `not_applicable`. The seeded rules require `seeded_data` alone, which names no protocol.
-- **`_unreadable_applicability` still asks `not_applicable_to` of rules `protocol_refusal`
-  skips**; it matters only for a target declaring a capability of a protocol it says it does not
-  speak.
 - **Some inconclusive samples write 16 or 64 MiB files** to pass a rule's own read bound
   (`prompt.mcp_tool_poisoning`, `supply_chain.remote_code_config`, `saved_model_ops`,
   `hardcoded_secret`, `provenance`), each time the samples are built; a rule's bound is its own
   constant. Samples the target declines use `files_target(source_read_limit=…)` and stay small.
-- **`guardana rule test --write-corpus` counts artifact and trace samples** under "a rule that
-  declares no expectation or more than one", not under a reason naming them; the exit code is
-  right.
-- **The collector's unhandled 500 carries no `nosniff`** (it is produced outside the app's
-  middleware), and `HEAD /` answers `405`.
+  `files_target` is supported surface, so the fix needs a seam on the rule's bound, after 1.0.
 - **The reference pack is not on PyPI** until the owner registers its pending trusted publisher
   and sets `REFERENCE_PACK_PYPI`; it is attached to the GitHub Release.
 - **The security runbook is not exercised**: `check_repo_settings.py` reads the settings it
   relies on, and `docs/maintainers/drills.md` records no drill. The two ghcr packages read as
   NOT CHECKED without a `read:packages` token.
-- **The stored profile corpus is thin**: every release's `guardana init` writes the same
-  six-line profile, so no older `budgets`, `privacy`, `evaluators`, `plugins` or `trace` block is
-  read from a document a release wrote. The example profiles in each release's own docs are the
-  next source to capture.
 - **The tag ruleset does not restrict updates**: "Protect release tags" has `creation`,
   `deletion` and `non_fast_forward`, so a write user can move a `v*` tag forward to a descendant
   commit; `check_repo_settings.py` reports it ABSENT until the owner enables "Restrict updates".
-  The `RepositoryRole` id for Maintain (2) is taken from memory, not from GitHub's documentation.
-- **A reference pack built again at the same version replaces the GitHub Release asset**
-  (`--clobber`) while PyPI keeps the first upload (`skip-existing`); `release.py` refuses a
-  changed pack at an unchanged version, but a rebuild of identical sources can still differ in
-  its sdist bytes.
+  GitHub documents no built-in `RepositoryRole` ids (github/rest-api-description#4406); the live
+  ruleset's bypass actor is `5` (Admin), and Maintain (2) is unconfirmed.
+- **Before 1.0.0: the security policy's `pre-1.0 (X.Y.x)` line.** `bump_version.py` rewrites
+  only the bracket, so the final bump would write "pre-1.0 (1.0.x)"; the 1.x support line needs
+  its own wording and a test that refuses `pre-1.0` once the major version is 1.
+- **The capture records an example whose file is missing as refused**: the first block of
+  `docs/usage-calibrate.md` names `calibrations.json`, which the sandbox never supplies (0.18.0
+  to 0.41.0). Supplying the files an example names, or a separate "not tried" outcome, would
+  tell the two apart.
+- **An exempt console-script wrapper's content is never hashed**, so an edited
+  `bin/<declared script>` pins the same as the generated one; the exemption is sound only for an
+  unmodified wrapper.
 - **The largest classes carry several reasons to change**: `_Probe` (MCP authorization,
   discovery and tasks), `Verifier` (running a check and assembling its result), then `Registry`
   and `Runner`. Split them behind behaviour tests, without a line-count target and without moving
@@ -110,8 +106,10 @@ left for the owner, or are design gaps already documented elsewhere.
 
 ## Left by the export and webhook release (0.40.0)
 
-- **A probe whose installed format fails leaves an earlier `<output>.exchanges.jsonl`** in
-  place; the format path removes only the earlier report.
+- **A later `scan`, `grade` or `analyze-trace` at an `--output` an earlier probe used** leaves that
+  probe's `<output>.exchanges.jsonl` beside it, and a built-in format whose write fails removes
+  neither the earlier report nor the sidecar. `guardana grade` reads a sidecar without comparing
+  it with the digest the run records.
 - **An installed format's text written with `newline=""` is not tested on Windows.**
 
 ## Left by protocol conformance (0.39.0)
@@ -141,15 +139,13 @@ left for the owner, or are design gaps already documented elsewhere.
 - **`recipe lock` plans with `build_plan`**, not with the probe's canary passes, so how the
   lock prices a canary pass can differ from the run.
 - **Source pins:** a `.pyc` under `__pycache__/` is left out, so an unchecked-hash or
-  timestamp-matching bytecode file can run code the pin does not cover; `_generated_script`
-  matches an outside file by its base name rather than within the scripts directory; a
-  distribution installed with `pip --target`, on `PYTHONPATH` or by a system package without a
-  `RECORD` is always unpinned (fail-closed, noisy); a `RECORD` path outside the install root is
-  opened to be hashed, so a crafted one could name a FIFO.
+  timestamp-matching bytecode file can run code the pin does not cover; a distribution installed
+  with `pip --target`, on `PYTHONPATH` or by a system package without a `RECORD` is always
+  unpinned (fail-closed, noisy); `open_regular` checks a file's type before it opens it, so a file
+  swapped for a FIFO between the two can still block.
 - **Withheld values:** a placeholder key of four or more characters (`EMPTY`, `ollama`) is
-  withheld wherever it appears, which can mark kept replies altered so `grade` skips them; the
-  adapter's credential-named headers miss `apikey`-style names (a `${VAR}` value is always
-  withheld); `target`'s locator failure is quoted under the `redacted` policy rather than the
+  withheld wherever it appears, which can mark kept replies altered so `grade` skips them;
+  `target`'s locator failure is quoted under the `redacted` policy rather than the
   profile's; `--write-mcp-pin` keys tools by name, so a token a server puts in a tool name
   reaches the pin file.
 - **A first monitor cycle its target stopped** alerts on what it proved and still exits `4`,
@@ -254,8 +250,6 @@ Reproduced, deliberately not fixed in this pass, or found while fixing.
   `git --help push` now reads as a push (it asks).
 - The safetensors reader does not check that `dtype` and `shape` match the offsets or that
   tensor ranges do not overlap; the trace ceilings count characters, not bytes.
-- `ci-passed` in `release.yml` was tested against a fake `gh`, not the real API; the first
-  release with it is the test.
 - An stdio MCP server's `stdin.write` has no deadline; the selector-based read is POSIX-only.
 - Agent and tool rules stop a token-bounded run on any transport whose tool replies carry no
   usage (scripted doubles; LangChain carries it since 0.36.0).
@@ -312,6 +306,9 @@ the 0.26 measurement audit.)
 ## Tooling debt
 
 - `site/og.png` is rendered by hand from `scripts/og_card.html` and nothing checks the two agree.
+- **`ci_local.sh`'s Dogfood step passes while `guardana scan packages` reports a finding below
+  the profile's `fail_on` bar**; `CLAUDE.md` asks for zero findings, and only the step's verdict
+  line shows the count.
 - **CI is pinned to `ubuntu-24.04`.** On `ubuntu-26.04` the images, the clean install and the
   example suites pass, but the `test` job cannot install `postgresql-client-16`, which
   `pg_dump` needs to match the `postgres:16` service. Moving means the PGDG apt repository or
@@ -363,17 +360,6 @@ Found on 2026-09-26 while building and reviewing the suites
   stdin) becomes Typer's `Abort` and exits `1` too.
 - **`dataset_integrity` still misses** a module aliased by assignment (`ds = datasets`), a
   loader wrapped in `functools.partial`, and `importlib.import_module("datasets")`.
-
-## From the quality and extensibility review (0.31.0)
-
-An independent review (codex, read-only, 2026-09-30) found these; each was checked in the code.
-Its JUnit finding shipped in 0.31.0, and its two documentation findings were corrected.
-
-- **A trace's `document_digest` identifies name and size, not content** — B16, shipped in 0.32.0.
-- **Built-in three-outcome fixtures are a ratchet at 12 of 51 rules** — B21, a 1.0 criterion.
-- **A strict CI policy is one profile away, not a preset** — B17, shipped in 0.32.0.
-- Its claim that generated-documentation checks run only locally was refuted: pytest runs
-  every generator's `--check`, and CI runs pytest.
 
 ## Guardana Control on guardana.dev, and the product line
 

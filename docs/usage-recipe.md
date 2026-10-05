@@ -152,15 +152,19 @@ imports it is.
   installed file, with one exception: where its first line names the running environment's
   interpreter after `#!` (or in the `/bin/sh` launcher an installer writes for a long path),
   that path is hashed as a placeholder and any arguments after it as written. Any other first
-  line is hashed as written. A console or GUI script the installer generated from `entry_points.txt` is left
-  out, since that file already pins what it calls. Installing the same code again, into any
-  environment, pins the same.
+  line is hashed as written. A console or GUI script the installer generated from `entry_points.txt` is left out only
+  when it sits directly in this installation's scripts directory (`bin/` or `Scripts/`),
+  since `entry_points.txt` already pins what it calls; a file with the same name elsewhere
+  is hashed. Installing the same code again into an environment this interpreter's
+  `sysconfig` describes pins the same. An installation none of its schemes describes
+  (`pip install --target` or `--prefix`, or another environment's `site-packages` on the
+  path) has its generated scripts hashed too, so its pin can differ by installer.
 
 A distribution stays under `unpinned`, with the reason, when it holds more than 20,000 files or
 256 MiB, when a symlink leads outside its directory, when its editable install loads code from
 outside its directory or maps its packages in a way Guardana cannot read, when it has no
 `RECORD` to read, when its `RECORD` lists an entry inside the install root without a hash, or
-when a file it installed outside the install root cannot be read. `unpinned` maps each
+when a file it installed outside the install root cannot be read or is not a regular file (a FIFO, a device, a socket). `unpinned` maps each
 `rule:<id>`, `evaluator:<id>` and `target:<scheme>` it registers — or `distribution:<name>`
 when it registers none of them — to that reason. `recipe run` computes the lock again on every
 run, so it hashes each editable tree again, within the same bounds.

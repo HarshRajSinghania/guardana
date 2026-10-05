@@ -393,6 +393,7 @@ TLS with whatever you already run:</p>
     reverse_proxy 127.0.0.1:8000
 }
 </code></pre>
+<p>If the proxy connects from outside loopback, set <code>FORWARDED_ALLOW_IPS</code> in the collector's environment to the client address shown in its access log for a forwarded request. Uvicorn trusts <code>X-Forwarded-Proto</code> and <code>X-Forwarded-For</code> only from those addresses; the default is <code>127.0.0.1,::1</code>. This applies to a proxy in another container or a host proxy reaching a Compose published port through Docker's gateway. Without that trust, the dashboard session cookie lacks <code>Secure</code> and per-address limits count requests as coming from the proxy. Never use <code>*</code> on a port others can reach, since callers could claim <code>https</code> and any client address.</p>
 <p>Then point pipelines at the public name — the URL keeps its own scheme, and a
 bare <code>host:port</code> is refused rather than guessed:</p>
 <pre><code class="language-bash">export GUARDANA_COLLECTOR_TOKEN=gdn_…     # a masked/secret CI variable

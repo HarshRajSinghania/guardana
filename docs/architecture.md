@@ -380,7 +380,8 @@ version names a tenant: the project comes from the API key.
 (`guardana.server.postgres_store.PostgresStore`). It exposes `POST /findings`,
 `GET /findings`, `GET /trend`, `GET /healthz`, `GET /readyz`, and `GET /catalog`.
 The health endpoints distinguish a running process from readiness; the catalog
-returns the build's rule catalog. It validates submissions with Pydantic models
+returns the build's rule catalog. `/`, `/healthz` and `/readyz` also answer `HEAD`.
+An unhandled error returns `500` with `X-Content-Type-Options: nosniff` and a JSON body without exception text; its traceback goes to the collector's log. It validates submissions with Pydantic models
 (`guardana.server.envelope.Submission`), so a malformed POST or an unsupported
 `schema_version` is rejected with `422`. Scoped API keys are hashed at rest and
 pinned to one project and optionally one environment. An **opt-in dashboard**

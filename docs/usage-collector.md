@@ -557,7 +557,7 @@ curl -s localhost:8000/readyz    # the schema this build expects is the one pres
 
 `/readyz` returns `503` while a migration is pending, so a rolling deploy does not
 send traffic at a schema that is not there yet — and returns `503` again after a
-rollback, which is the direction that matters during an incident.
+rollback, which is the direction that matters during an incident. `/`, `/healthz` and `/readyz` also answer `HEAD` with the status and headers `GET` gives and no body, so a `HEAD` monitor sees the same `503`.
 
 Under `GUARDANA_STORAGE=memory` it reports `"storage": "memory"` rather than a
 plain "ready". A fleet view that cannot tell durable from ephemeral will read one

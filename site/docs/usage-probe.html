@@ -1275,6 +1275,10 @@ declined line holds no reply and is never <code>altered</code>.</li>
 <li>Keeping is off by default. The file holds every reply, passes included, so it widens
 what a leaked run exposes; the collector never receives it. See <a href="privacy.html">privacy</a>.</li>
 <li>A probe that kept nothing writes no file and says so on stderr.</li>
+<li>A probe at an existing <code>--output</code> removes earlier kept exchanges, including when an installed
+<code>--format</code> or redaction fails and writes nothing new; stderr says <code>removed …</code>. If removal
+fails, it warns without changing the run's exit code. <code>guardana grade</code> reads a sidecar as
+given; only <code>guardana diff</code> checks it against the run's digest.</li>
 </ul>
 <h2 id="seeded-data-and-tenants">Seeded data and tenants</h2>
 <p>With <code>--fixtures</code>, the probe also builds one endpoint per tenant the file declares: the run's

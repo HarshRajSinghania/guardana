@@ -101,6 +101,8 @@ collector.example.com {
 }
 ```
 
+If the proxy connects from outside loopback, set `FORWARDED_ALLOW_IPS` in the collector's environment to the client address shown in its access log for a forwarded request. Uvicorn trusts `X-Forwarded-Proto` and `X-Forwarded-For` only from those addresses; the default is `127.0.0.1,::1`. This applies to a proxy in another container or a host proxy reaching a Compose published port through Docker's gateway. Without that trust, the dashboard session cookie lacks `Secure` and per-address limits count requests as coming from the proxy. Never use `*` on a port others can reach, since callers could claim `https` and any client address.
+
 Then point pipelines at the public name — the URL keeps its own scheme, and a
 bare `host:port` is refused rather than guessed:
 

@@ -253,7 +253,7 @@ the rule sends one prompt or its evaluator does not read the prompt; an
 
 Everything else is left out and counted by reason. A scenario of several steps is
 graded on a part of the conversation only the rule knows, and an agent run is
-graded on its tool calls, which a corpus row has no place for. A fixture the rule
+graded on its tool calls, which a corpus row has no place for. Artifact and trace samples have no corpus row because the corpus holds model replies, and are counted under a reason that names them. A fixture the rule
 classified wrongly carries a label one of the two disagrees with.
 
 ## Built-in coverage, stated plainly

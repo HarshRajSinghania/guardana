@@ -479,15 +479,19 @@ code that runs. A file installed outside the install root (<code>../../../bin/�
 installed file, with one exception: where its first line names the running environment's
 interpreter after <code>#!</code> (or in the <code>/bin/sh</code> launcher an installer writes for a long path),
 that path is hashed as a placeholder and any arguments after it as written. Any other first
-line is hashed as written. A console or GUI script the installer generated from <code>entry_points.txt</code> is left
-out, since that file already pins what it calls. Installing the same code again, into any
-environment, pins the same.</li>
+line is hashed as written. A console or GUI script the installer generated from <code>entry_points.txt</code> is left out only
+when it sits directly in this installation's scripts directory (<code>bin/</code> or <code>Scripts/</code>),
+since <code>entry_points.txt</code> already pins what it calls; a file with the same name elsewhere
+is hashed. Installing the same code again into an environment this interpreter's
+<code>sysconfig</code> describes pins the same. An installation none of its schemes describes
+(<code>pip install --target</code> or <code>--prefix</code>, or another environment's <code>site-packages</code> on the
+path) has its generated scripts hashed too, so its pin can differ by installer.</li>
 </ul>
 <p>A distribution stays under <code>unpinned</code>, with the reason, when it holds more than 20,000 files or
 256 MiB, when a symlink leads outside its directory, when its editable install loads code from
 outside its directory or maps its packages in a way Guardana cannot read, when it has no
 <code>RECORD</code> to read, when its <code>RECORD</code> lists an entry inside the install root without a hash, or
-when a file it installed outside the install root cannot be read. <code>unpinned</code> maps each
+when a file it installed outside the install root cannot be read or is not a regular file (a FIFO, a device, a socket). <code>unpinned</code> maps each
 <code>rule:&lt;id&gt;</code>, <code>evaluator:&lt;id&gt;</code> and <code>target:&lt;scheme&gt;</code> it registers — or <code>distribution:&lt;name&gt;</code>
 when it registers none of them — to that reason. <code>recipe run</code> computes the lock again on every
 run, so it hashes each editable tree again, within the same bounds.</p>

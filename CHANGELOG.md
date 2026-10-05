@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Unhandled collector errors return HTTP 500 with `X-Content-Type-Options: nosniff` and a generic JSON body.** Exception text stays out of the response; the traceback goes to the collector log.
+- **`/`, `/healthz` and `/readyz` answer `HEAD` with the status and headers of `GET` and no body.** A monitor using `HEAD /readyz` sees `503` when the collector is not ready. Routes that need a key still do not answer `HEAD`.
+- **Unknown API key prefixes take the same digest and constant-time comparison as known prefixes with a wrong secret.** Both receive `unknown API key`, so response time no longer reveals whether a prefix exists.
+- **`guardana probe` removes an earlier run and its `<stem>.exchanges.jsonl` sidecar when an installed `--format` or redaction fails.** It reports each removal on stderr, so old exchanges do not appear to belong to the failed run. A sidecar removal failure warns without changing the run's exit code.
+- **`guardana rule test --write-corpus` counts artifact and trace samples under their own reason.** The corpus holds model replies only; these samples no longer count as rules with no single expectation. The exit code is unchanged.
+- **`guardana recipe lock` never opens a non-regular file named by a distribution's `RECORD`.** The distribution stays `unpinned`, so a FIFO cannot stall the lock. Generated scripts are excluded only directly under that installation's `bin/` or `Scripts/`; same-named files elsewhere are hashed. Locks written for installations outside the running interpreter's `sysconfig` schemes now hash generated scripts, so `recipe run` reports drift until the lock is written again.
+- **Adapter credential header checks treat `_` as `-` and withhold names ending in `apikey`.** Values from `apikey`, `X-ApiKey`, `api_key`, `X-API_KEY`, `access_token` and `Client_Secret` stay out of findings, recorded failures and kept exchanges.
+- **Candidate releases get an exact image tag and a GitHub Release marked as a pre-release.** For `v1.0.0rc1`, the image tag is `1.0.0rc1`; `latest` and the moving `X.Y` tag stay on the current release. A release rerun keeps the first reference pack attachment, and both images pin `python:3.13-slim-bookworm` by digest.
+- **Migration tests read 22 stored profiles from earlier releases.** They cover each release's `guardana init` profile and documentation examples that release loaded, including older `budgets`, `privacy`, `evaluators`, `plugins` and `trace` blocks. Examples that did not load are recorded with the reason and are not stored, whether the release refused them or the capture lacked a file they name.
+
 ## [0.41.0] - 2026-10-04 — 1.0 readiness
 
 ### Added

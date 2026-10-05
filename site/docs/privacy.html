@@ -387,7 +387,7 @@ fragment and with its query replaced by a placeholder, whatever the scheme.</p>
 <p>A run also withholds the values its target sends to authenticate, which no pattern may
 recognise: the API key, an adapter's values read from <code>${VAR}</code>, the value of each
 adapter header named for a credential (<code>Authorization</code>, <code>Proxy-Authorization</code>, <code>Cookie</code>,
-<code>*-Key</code>, <code>*-Token</code>, <code>*-Secret</code>) with the token after a scheme word such as <code>Bearer</code>, the
+<code>*-Key</code>, <code>*-Token</code>, <code>*-Secret</code>, <code>*ApiKey</code>, compared case-insensitively with <code>_</code> read as <code>-</code>) with the token after a scheme word such as <code>Bearer</code>, the
 MCP bearer token from <code>--mcp-token-env</code>, what an installed target declares with <a href="extending.html#adding-a-target"><code>sent_secrets()</code></a>, and
 what the command resolved or the Python API's <code>secrets</code> name. Each value of four
 characters or more is shown as <code>[redacted:credential]</code> in findings, rationales, every

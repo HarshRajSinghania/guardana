@@ -226,7 +226,7 @@ PyPI would skip the upload and the change would never ship.
 
 **After a release that changes a document** (a saved run, the envelope, a profile, a pack
 manifest or lock, a dataset), run `uv run python scripts/capture_historical_documents.py` once
-it is on PyPI and commit `packages/guardana-core/tests/historical/`.
+it is on PyPI and commit `packages/guardana-core/tests/historical/`. `--profiles-only` re-reads only the profiles from releases already in `releases.json`: each release's `guardana init` profile and the examples its own docs showed. It leaves every other document as it is.
 
 ### The clean-install check, and why it is in the gate
 
@@ -280,8 +280,7 @@ it.
 
 `v*` still matches, so the candidate publishes to PyPI, where it's marked a
 pre-release and won't be installed by a plain `pip install guardana-cli` (only
-with `--pre` or an explicit `==1.0.0rc1`). Mark the GitHub Release as a
-**pre-release** too. When it's proven, release the final `1.0.0`.
+with `--pre` or an explicit `==1.0.0rc1`). `release.yml` marks a GitHub Release whose version contains anything but digits and dots as a pre-release. Candidate images get only the exact tag (`1.0.0rc1`); `latest` and the moving `X.Y` tag stay on the last final release. `bump_version.py` leaves the moving Action pin, documented image tags, security policy's supported line and prose beside the pin on the last final release, while updating the landing page version, Action CLI default and roadmap heading. `scripts/release.py 1.0.0rc1` runs the candidate like any release and refuses it if `docs/generated/api-surface.json` moved since the previous tag without a Changed, Deprecated or Removed section in `[Unreleased]`. When it's proven, release the final `1.0.0`.
 
 ## First-time PyPI setup (once, before the first release)
 

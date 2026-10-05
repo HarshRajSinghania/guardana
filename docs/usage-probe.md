@@ -835,6 +835,10 @@ records the file's SHA-256, its line count and how many replies redaction change
 - Keeping is off by default. The file holds every reply, passes included, so it widens
   what a leaked run exposes; the collector never receives it. See [privacy](privacy.md).
 - A probe that kept nothing writes no file and says so on stderr.
+- A probe at an existing `--output` removes earlier kept exchanges, including when an installed
+  `--format` or redaction fails and writes nothing new; stderr says `removed …`. If removal
+  fails, it warns without changing the run's exit code. `guardana grade` reads a sidecar as
+  given; only `guardana diff` checks it against the run's digest.
 
 ## Seeded data and tenants
 
