@@ -19,12 +19,30 @@ runs, but nothing compares its answer to the page a rule lands on, so a wrong
 bucket renders exactly as cleanly as a right one — a declared `0` filed next to a
 declared `3` looks like an ordinary page, not a defect. Pinned directly against
 the function, below.
+
+The stylesheet is pinned for what a reader of a wide page needs and no built page
+can show to a test: a scroll cue that stays visible, and headings that break inside
+a long code span.
 """
+
+import re
 
 import pytest
 
 from sitegen import explorer, render
 from sitegen.build import _tables
+from sitegen.theme import CSS
+
+
+def _declarations(selector: str) -> str:
+    """Join every declaration block of the stylesheet whose selector list names `selector`."""
+    uncommented = re.sub(r"/\*.*?\*/", "", CSS, flags=re.DOTALL)
+    blocks = re.findall(r"([^{}]+)\{([^{}]*)\}", uncommented)
+    return ";".join(
+        body
+        for selectors, body in blocks
+        if selector in (part.strip() for part in selectors.split(","))
+    ).replace(" ", "")
 
 
 def test_a_heading_with_a_link_stays_in_the_body_rather_than_losing_its_rewrite() -> None:
@@ -130,3 +148,24 @@ def test_a_rule_entry_without_a_detection_reads_as_undeclared() -> None:
     del entry["detection"]
 
     assert "<li><b>Detection</b>undeclared</li>" in explorer.rule_properties(entry, "")
+
+
+@pytest.mark.parametrize("box", ["pre", ".table-wrap"])
+def test_a_wide_block_scrolls_in_its_own_box_with_a_cue_that_stays_visible(box: str) -> None:
+    """An overlay scrollbar is drawn only while scrolling, so a cut-off line reads as complete.
+
+    The scrollbar is styled so WebKit and Blink keep it drawn, and an edge shadow that
+    the content covers once scrolled to that end marks the side with more to read in
+    browsers that keep overlay scrollbars.
+    """
+    assert "overflow-x:auto" in _declarations(box)
+    assert "height:" in _declarations(f"{box}::-webkit-scrollbar")
+    assert "background:" in _declarations(f"{box}::-webkit-scrollbar-thumb")
+    assert "no-repeatlocal" in _declarations(box)
+    assert "no-repeatscroll" in _declarations(box)
+
+
+@pytest.mark.parametrize("heading", ["main h1", "main h2", "main h3", "main h4"])
+def test_a_long_code_span_in_a_heading_wraps_instead_of_leaving_the_column(heading: str) -> None:
+    """A dotted id or a signature has no space to break at, so the heading must break inside it."""
+    assert "overflow-wrap:anywhere" in _declarations(heading)

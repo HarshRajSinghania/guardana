@@ -11,9 +11,13 @@ not tell anyone else who is reading it. No script either, so the narrow-screen m
 """
 
 CSS = """\
-:root{--code:#F3F4F8; --code-line:#E4E6EE}
+:root{
+  --code:#F3F4F8; --code-line:#E4E6EE;
+  --edge:color-mix(in srgb, var(--ink) 14%, transparent);
+  --faint:#6B7280;
+}
 @media (prefers-color-scheme:dark){
-  :root{--code:#151923; --code-line:#262C3B}
+  :root{--code:#151923; --code-line:#262C3B; --faint:#8189A0}
 }
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%; scroll-behavior:smooth; scroll-padding-top:76px}
@@ -98,6 +102,11 @@ main h2 a.anchor,main h3 a.anchor{
   opacity:0; text-decoration:none; margin-left:8px; transition:opacity .15s
 }
 main h2:hover a.anchor,main h3:hover a.anchor{opacity:.45}
+main h1,main h2,main h3,main h4{overflow-wrap:anywhere}
+main h1 code,main h2 code,main h3 code,main h4 code{
+  font-size:.84em; padding:0 .22em;
+  -webkit-box-decoration-break:clone; box-decoration-break:clone;
+}
 main p,main li{overflow-wrap:break-word}
 main ul,main ol{padding-left:22px}
 main li{margin:5px 0}
@@ -114,15 +123,44 @@ code{
   padding:.12em .38em; border-radius:5px; border:1px solid var(--code-line);
 }
 pre{
-  background:var(--code); border:1px solid var(--code-line); border-radius:10px;
+  --cover:var(--code);
+  border:1px solid var(--code-line); border-radius:10px;
   padding:15px 17px; overflow-x:auto; line-height:1.55; margin:18px 0;
 }
 pre code{background:none; padding:0; border:0; font-size:13.5px}
 
-.table-wrap{overflow-x:auto; margin:20px 0; border:1px solid var(--line); border-radius:10px}
+.table-wrap{
+  --cover:var(--bg);
+  overflow-x:auto; margin:20px 0; border:1px solid var(--line); border-radius:10px;
+}
+/* The covers scroll with the content and the shadows stay put, so a shadow shows
+   only on a side that still has content beyond the edge. */
+pre,.table-wrap{
+  background:
+    linear-gradient(to right, var(--cover) 40%, transparent) left / 36px 100% no-repeat local,
+    linear-gradient(to left, var(--cover) 40%, transparent) right / 36px 100% no-repeat local,
+    linear-gradient(to right, var(--edge), transparent) left / 14px 100% no-repeat scroll,
+    linear-gradient(to left, var(--edge), transparent) right / 14px 100% no-repeat scroll,
+    var(--cover);
+}
+/* A styled WebKit scrollbar stays drawn where the platform default is an overlay
+   that appears only while scrolling. */
+pre::-webkit-scrollbar,.table-wrap::-webkit-scrollbar{height:10px}
+pre::-webkit-scrollbar-track,.table-wrap::-webkit-scrollbar-track{background:transparent}
+pre::-webkit-scrollbar-thumb,.table-wrap::-webkit-scrollbar-thumb{
+  background:var(--faint); border:2px solid transparent; border-radius:10px;
+  background-clip:padding-box;
+}
+@supports not selector(::-webkit-scrollbar){
+  pre,.table-wrap{scrollbar-width:thin; scrollbar-color:var(--faint) transparent}
+}
 table{border-collapse:collapse; width:100%; font-size:14.5px}
 th,td{text-align:left; padding:9px 13px; border-bottom:1px solid var(--line); vertical-align:top}
 tr:last-child td{border-bottom:0}
+/* A URL or dotted id in a description may break so the table fits the column; the
+   first column, a flag or a rule id, stays whole and scrolls instead. */
+td:not(:first-child) code{overflow-wrap:anywhere}
+td:last-child:not(:first-child){min-width:14em}
 th{
   font-weight:600; white-space:nowrap; color:var(--muted); background:var(--code);
   font-size:12px; text-transform:uppercase; letter-spacing:.06em;

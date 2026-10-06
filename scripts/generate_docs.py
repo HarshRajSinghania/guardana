@@ -65,7 +65,7 @@ _FRONTMATTER: dict[str, tuple[str, int, str]] = {
     "rule-catalog.md": (
         "Rule catalog",
         20,
-        "Every built-in rule, its severity, the surface it runs on, and what it maps to.",
+        "Every built-in rule, its severity, surface, target, maturity, and what it maps to.",
     ),
     "evaluator-catalog.md": (
         "Evaluator catalog",
@@ -151,15 +151,19 @@ def _summary(rules: list[Rule]) -> str:
 def _catalog(rules: list[Rule]) -> str:
     lines = [
         _HEADER,
-        "Every built-in rule, its severity, the surface it runs on, and the",
-        "frameworks it maps to. A rule without a mapping does not ship.\n",
-        "| Rule | Severity | Surface | Maps to |",
-        "|---|---|---|---|",
+        "Every built-in rule, its severity, the surface it runs on, the kind of",
+        "target it reads, its maturity, and the frameworks it maps to. A rule",
+        "without a mapping does not ship.\n",
+        "| Rule | Severity | Surface | Target | Maturity | Maps to |",
+        "|---|---|---|---|---|---|",
     ]
     for rule in rules:
         meta = rule.meta
         taxonomy = ", ".join(f"`{t.reference}`" for t in meta.taxonomy) or "—"
-        lines.append(f"| `{meta.id}` | {meta.severity.name} | {meta.surface.value} | {taxonomy} |")
+        lines.append(
+            f"| `{meta.id}` | {meta.severity.name} | {meta.surface.value} "
+            f"| {meta.target_kind} | {meta.maturity} | {taxonomy} |"
+        )
     return "\n".join(lines) + "\n"
 
 
@@ -280,7 +284,7 @@ def _rule_entry(rule: Rule) -> dict[str, object]:
 def _rules_json(rules: list[Rule]) -> str:
     """Render the same registry walk as `rule-catalog.md`, for a build rather than a reader.
 
-    The markdown table answers "what ships" in four columns because that is what a
+    The markdown table answers "what ships" in six columns because that is what a
     page of prose can carry. The site's rule explorer needs the other facets too —
     what a rule costs, what it does to the target, which capabilities it needs —
     and inventing a second walk to get them is how the explorer would start
