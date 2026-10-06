@@ -21,9 +21,13 @@ from guardana.cli._outputs import (
     warn_without_a_reporter,
 )
 from guardana.cli._profile import PRESET_HELP, resolve_profile
+from guardana.cli._profile_files import profile_file_inputs
 from guardana.cli._reporting import check_reporter_url, submit_safely
 from guardana.cli._run_meta import build_manifest, detect_deployment
-from guardana.cli._sidecar import refuse_writing_over_an_input
+from guardana.cli._sidecar import (
+    refuse_writing_over_an_input,
+    refuse_writing_over_named_inputs,
+)
 from guardana.cli.exit_codes import ExitCode
 from guardana.core.gate import gate_outcome
 from guardana.core.manifest import SourceKind, TargetIdentity
@@ -91,6 +95,7 @@ def import_observations(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI 
     refuse_writing_over_an_input(output, [results, profile])
     check_reporter_url(reporter)
     prof = resolve_profile(profile, preset)
+    refuse_writing_over_named_inputs(output, profile_file_inputs(prof))
     warn_without_a_reporter(prof.delivery_required, reporter)
     read = _read_or_exit(results, producer)
     started_at = datetime.now(UTC)

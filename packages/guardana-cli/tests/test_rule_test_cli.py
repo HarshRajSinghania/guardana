@@ -6,6 +6,8 @@ false greens must not print "ok" over an empty set of cases in its own output.
 """
 
 import re
+import subprocess
+import sys
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -464,6 +466,75 @@ def test_an_artifact_or_trace_sample_is_left_out_under_its_own_reason(
 
 def _plain(text: str) -> str:
     return " ".join(_ANSI.sub("", text).split())
+
+
+@pytest.mark.parametrize("unwritable", ["read-only directory", "directory"])
+def test_a_corpus_that_cannot_be_written_is_a_usage_error_that_changes_nothing(
+    tmp_path: Path, unwritable: str
+) -> None:
+    rules = _rules_dir(tmp_path, _ALL_THREE)
+    locked = tmp_path / "locked"
+    locked.mkdir()
+    corpus = locked / "mine.jsonl" if unwritable == "read-only directory" else locked
+    locked.chmod(0o500)
+    try:
+        result = _run("acme.*", "--rules", str(rules), "--write-corpus", str(corpus))
+    finally:
+        locked.chmod(0o700)
+
+    assert result.exit_code == 3, result.output
+    assert f"error: could not write the corpus to {corpus}: " in _plain(result.output)
+    assert not isinstance(result.exception, OSError)
+    assert list(locked.iterdir()) == []
+
+
+def test_a_corpus_replaces_an_earlier_one_whole_and_keeps_its_mode(tmp_path: Path) -> None:
+    rules = _rules_dir(tmp_path, _ALL_THREE)
+    corpus = tmp_path / "out" / "mine.jsonl"
+    corpus.parent.mkdir()
+    corpus.write_text("an earlier corpus\n" * 200, encoding="utf-8")
+    corpus.chmod(0o640)
+
+    result = _run("acme.*", "--rules", str(rules), "--write-corpus", str(corpus))
+
+    assert result.exit_code == 0, result.output
+    assert len(load_corpus(corpus)) == 2
+    assert corpus.stat().st_mode & 0o777 == 0o640
+    assert list(corpus.parent.iterdir()) == [corpus]
+
+
+_UNDER_A_FILE_SIZE_LIMIT = """
+import resource, sys
+from guardana.cli.main import app
+
+limit = int(sys.argv[1])
+resource.setrlimit(resource.RLIMIT_FSIZE, (limit, limit))
+app(sys.argv[2:])
+"""
+
+
+def test_a_corpus_whose_write_fails_part_way_leaves_the_earlier_one_as_it_was(
+    tmp_path: Path,
+) -> None:
+    rules = _rules_dir(tmp_path, _ALL_THREE)
+    corpus = tmp_path / "out" / "mine.jsonl"
+    corpus.parent.mkdir()
+    corpus.write_text('{"an": "earlier corpus"}\n', encoding="utf-8")
+    before = corpus.read_bytes()
+    command = ["rule", "test", "acme.*", "--rules", str(rules), "--write-corpus", str(corpus)]
+
+    # The limit lets the corpus start to land and stops it part-way.
+    result = subprocess.run(  # noqa: S603 — this interpreter, a script defined above
+        [sys.executable, "-c", _UNDER_A_FILE_SIZE_LIMIT, str(len(before)), *command],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 3, result.stdout + result.stderr
+    assert f"error: could not write the corpus to {corpus}: " in _plain(result.stderr)
+    assert corpus.read_bytes() == before
+    assert list(corpus.parent.iterdir()) == [corpus]
 
 
 @pytest.fixture

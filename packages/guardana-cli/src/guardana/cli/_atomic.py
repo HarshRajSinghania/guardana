@@ -1,0 +1,37 @@
+"""Writing a file whole or not at all, for the files a command replaces in place."""
+
+import errno
+import os
+import secrets
+import stat
+from pathlib import Path
+
+
+def write_whole(destination: Path, document: bytes) -> None:
+    """Put `document` at `destination` through a file beside it, so a failed write leaves no half.
+
+    A file this process may not write is refused rather than replaced, and the new file gets
+    the mode a plain write would leave: the existing file's, or the umask's for a new one. A
+    link at `destination` is followed, so the file it names is the one replaced. Raises
+    `OSError` with the file at `destination` as it was.
+    """
+    target = Path(os.path.realpath(destination))
+    try:
+        mode: int | None = stat.S_IMODE(target.stat().st_mode)
+    except FileNotFoundError:
+        mode = None
+    if mode is not None and not os.access(target, os.W_OK):
+        raise PermissionError(errno.EACCES, os.strerror(errno.EACCES), str(destination))
+    staged = target.with_name(f".{target.name}.{secrets.token_hex(8)}.tmp")
+    handle = staged.open("xb")
+    try:
+        with handle:
+            handle.write(document)
+            handle.flush()
+            os.fsync(handle.fileno())
+        if mode is not None:
+            staged.chmod(mode)
+        staged.replace(target)
+    except BaseException:
+        staged.unlink(missing_ok=True)
+        raise

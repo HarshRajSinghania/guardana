@@ -7,6 +7,8 @@ otherwise look like a server with nothing to poison.
 
 import json
 import re
+import subprocess
+import sys
 from collections.abc import Iterator, Mapping
 from pathlib import Path
 from urllib.error import URLError
@@ -577,9 +579,10 @@ def test_an_mcp_flag_without_mcp_is_a_usage_error_and_sends_nothing(
     )
 
     assert result.exit_code == 3, result.output
-    assert f"{flag[0]} applies only to the MCP server --mcp names; pass --mcp too" in _plain(
-        result.output
-    )
+    assert (
+        f"{flag[0]} applies only to the MCP server --mcp names; --mcp cannot be combined "
+        f"with --url, --model; drop {flag[0]}"
+    ) in _plain(result.output)
     assert model.seen == []
     assert built == []
     assert list(tmp_path.iterdir()) == []
@@ -629,6 +632,99 @@ def test_a_pin_that_cannot_be_written_is_a_usage_error(
     assert "Traceback" not in result.output
     assert "approved tool description" not in result.output
     assert _files_under(tmp_path) == before
+
+
+def test_a_read_only_pin_is_refused_rather_than_replaced(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from guardana.cli.main import app  # noqa: PLC0415
+    from typer.testing import CliRunner  # noqa: PLC0415
+
+    _pin_server(monkeypatch)
+    pin = tmp_path / "pin.json"
+    pin.write_text('{"approved": "earlier"}\n', encoding="utf-8")
+    pin.chmod(0o444)
+    before = _files_under(tmp_path)
+
+    try:
+        result = CliRunner().invoke(
+            app, ["probe", "--mcp", "https://93.184.215.14/mcp", "--write-mcp-pin", str(pin)]
+        )
+    finally:
+        pin.chmod(0o644)
+
+    assert result.exit_code == 3, result.output
+    assert f"error: could not write the pin to {pin}: " in _plain(result.output)
+    assert _files_under(tmp_path) == before
+
+
+def test_a_new_pin_replaces_the_approved_one_whole_and_keeps_its_mode(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from guardana.cli.main import app  # noqa: PLC0415
+    from typer.testing import CliRunner  # noqa: PLC0415
+
+    _pin_server(monkeypatch)
+    pin = tmp_path / "pin.json"
+    pin.write_text('{"approved": "earlier", "padding": "' + "x" * 4096 + '"}\n', encoding="utf-8")
+    pin.chmod(0o640)
+
+    result = CliRunner().invoke(
+        app, ["probe", "--mcp", "https://93.184.215.14/mcp", "--write-mcp-pin", str(pin)]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert set(json.loads(pin.read_text(encoding="utf-8"))["tools"]) == {"read"}
+    assert pin.stat().st_mode & 0o777 == 0o640
+    assert sorted(tmp_path.iterdir()) == [pin]
+
+
+_PIN_UNDER_A_FILE_SIZE_LIMIT = """
+import resource, sys
+import guardana.cli._mcp_run as mcp_run
+from guardana.cli.main import app
+from guardana.core.target import McpServerTarget
+from guardana.core.testing import ScriptedMcpServer
+
+server = ScriptedMcpServer(
+    "https://93.184.215.14/mcp",
+    tools=[{"name": f"tool{n}", "description": "Reads a file. " * 8} for n in range(8)],
+)
+mcp_run.build_mcp_target = lambda connection: McpServerTarget(
+    server.url, sender=server, discovery_sender=server
+)
+limit = int(sys.argv[1])
+resource.setrlimit(resource.RLIMIT_FSIZE, (limit, limit))
+app(["probe", "--mcp", server.url, "--write-mcp-pin", sys.argv[2]])
+"""
+
+
+def test_a_pin_whose_write_fails_part_way_keeps_the_approved_pin(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from guardana.cli.main import app  # noqa: PLC0415
+    from typer.testing import CliRunner  # noqa: PLC0415
+
+    _pin_server(monkeypatch)
+    pin = tmp_path / "pin.json"
+    approved = CliRunner().invoke(
+        app, ["probe", "--mcp", "https://93.184.215.14/mcp", "--write-mcp-pin", str(pin)]
+    )
+    assert approved.exit_code == 0, approved.output
+    before = pin.read_bytes()
+
+    # The limit lets the larger manifest start to land and stops it part-way.
+    result = subprocess.run(  # noqa: S603 — this interpreter, a script defined above
+        [sys.executable, "-c", _PIN_UNDER_A_FILE_SIZE_LIMIT, str(len(before)), str(pin)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 3, result.stdout + result.stderr
+    assert f"error: could not write the pin to {pin}: " in _plain(result.stderr)
+    assert pin.read_bytes() == before
+    assert sorted(tmp_path.iterdir()) == [pin]
 
 
 def _registry_entry(tmp_path: Path, document: object) -> Path:

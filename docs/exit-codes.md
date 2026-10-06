@@ -144,11 +144,15 @@ it has no verdict to report and says what is missing in its output instead.
 recording that cannot be read, one a probe kept at other trials per case than the run
 grades, and an `--output` that would replace or remove the recording, `4` a judge that
 cannot be reached, and `2` a run that graded nothing
-([`usage-grade.md`](usage-grade.md)). Before reading anything, `scan`, `analyze-trace`
-and `import-observations` exit `3` when `--output` or its sidecar path
-(`<stem>.exchanges.jsonl`) is a file named on their command line (the scanned file,
-recording, trace or results file, `--profile`, a `--rules` file, `--baseline`, a
-`--contract`); `analyze-trace` also exits `3` when `--write-trace` is `--output`, its
+([`usage-grade.md`](usage-grade.md)). Before reading anything, `scan`, `probe`, `grade`,
+`analyze-trace` and `import-observations` exit `3` when `--output` or its sidecar path
+(`<stem>.exchanges.jsonl`) is a file they read: one named on the command line (the scanned
+file, recording, trace or results file, `--profile`, a `--rules` file or a rule file in a
+`--rules` directory, `--baseline`, a `--contract`, and for `probe` `--system-prompt-file`,
+`--fixtures` and its tenants' adapters, `--adapter`, `--mcp-pin` and `--mcp-registry-entry`)
+or one the profile names under `rules.paths`, `contracts:`, `calibrations:` or a judge's or
+guard's `adapter`; `recipe run` refuses the same profile files inside its
+`output.directory`; `analyze-trace` also exits `3` when `--write-trace` is `--output`, its
 sidecar path or such a file. `run migrate` exits `3` when the sidecar path of `--output`
 is its input; writing over the input itself is migrating in place. It also exits `3`
 when `--output` is the input's own sidecar or the destination cannot be written; the

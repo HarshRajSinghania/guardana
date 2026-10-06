@@ -16,6 +16,7 @@ from typing import Annotated
 
 import typer
 import yaml
+from guardana.cli._atomic import write_whole
 from guardana.cli._plugins import (
     AllowPluginOption,
     PluginsOption,
@@ -147,6 +148,16 @@ def validate(
     raise typer.Exit(code=ExitCode.OK)
 
 
+def _write_lock(path: Path, present: Lock) -> None:
+    """Write `present` to `path` whole or not at all; a lock that cannot be written exits `3`."""
+    document = yaml.safe_dump(lock_to_dict(present), sort_keys=False)
+    try:
+        write_whole(path, document.encode("utf-8"))
+    except OSError as exc:
+        typer.echo(f"error: could not write the lock to {path}: {exc}", err=True)
+        raise typer.Exit(code=ExitCode.INVALID_USAGE) from exc
+
+
 @pack_app.command("lock")
 def lock(
     path: Annotated[
@@ -201,7 +212,7 @@ def lock(
         raise typer.Exit(code=ExitCode.INDETERMINATE) from exc
 
     if not check:
-        path.write_text(yaml.safe_dump(lock_to_dict(present), sort_keys=False), encoding="utf-8")
+        _write_lock(path, present)
         typer.echo(f"pinned {len(present.packs)} pack(s) to {path}")
         _warn_about_unpinnable(present)
         raise typer.Exit(code=ExitCode.OK)

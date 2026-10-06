@@ -11,6 +11,8 @@ So these tests write a lock from the live registry and read the file.
 """
 
 import re
+import subprocess
+import sys
 from dataclasses import replace
 from pathlib import Path
 
@@ -331,3 +333,79 @@ def test_full_trust_still_checks_clean_after_the_refusal_fix(tmp_path: Path) -> 
 
     assert result.exit_code == 0, result.output
     assert "match" in result.output
+
+
+@pytest.mark.parametrize("unwritable", ["read-only directory", "directory", "read-only file"])
+def test_a_lock_that_cannot_be_written_is_a_usage_error_that_changes_nothing(
+    tmp_path: Path, unwritable: str
+) -> None:
+    locked = tmp_path / "locked"
+    locked.mkdir()
+    path = locked if unwritable == "directory" else locked / "guardana-lock.yaml"
+    if unwritable == "read-only file":
+        path.write_text("an earlier lock\n", encoding="utf-8")
+        path.chmod(0o444)
+    else:
+        locked.chmod(0o500)
+    before = {kept.name: kept.read_bytes() for kept in locked.iterdir()}
+    try:
+        result = runner.invoke(app, ["pack", "lock", str(path)])
+    finally:
+        locked.chmod(0o700)
+        if path.is_file():
+            path.chmod(0o644)
+
+    assert result.exit_code == ExitCode.INVALID_USAGE, result.output
+    assert f"error: could not write the lock to {path}: " in " ".join(result.output.split())
+    assert not isinstance(result.exception, OSError)
+    assert {kept.name: kept.read_bytes() for kept in locked.iterdir()} == before
+
+
+def test_a_lock_replaces_an_earlier_one_whole_and_keeps_its_mode(tmp_path: Path) -> None:
+    folder = tmp_path / "out"
+    folder.mkdir()
+    path = folder / "guardana-lock.yaml"
+    path.write_text("# an earlier lock\n" * 2000, encoding="utf-8")
+    path.chmod(0o640)
+
+    result = runner.invoke(app, ["pack", "lock", str(path)])
+
+    assert result.exit_code == ExitCode.OK, result.output
+    assert "# an earlier lock" not in path.read_text(encoding="utf-8")
+    assert path.stat().st_mode & 0o777 == 0o640
+    assert list(folder.iterdir()) == [path]
+    assert runner.invoke(app, ["pack", "lock", str(path), "--check"]).exit_code == ExitCode.OK
+
+
+_UNDER_A_FILE_SIZE_LIMIT = """
+import resource, sys
+from guardana.cli.main import app
+
+limit = int(sys.argv[1])
+resource.setrlimit(resource.RLIMIT_FSIZE, (limit, limit))
+app(sys.argv[2:])
+"""
+
+
+def test_a_lock_whose_write_fails_part_way_leaves_the_earlier_lock_as_it_was(
+    tmp_path: Path,
+) -> None:
+    folder = tmp_path / "out"
+    folder.mkdir()
+    path = folder / "guardana-lock.yaml"
+    path.write_text("# an earlier lock\n", encoding="utf-8")
+    before = path.read_bytes()
+    command = ["pack", "lock", str(path)]
+
+    # The limit lets the lock start to land and stops it part-way.
+    result = subprocess.run(  # noqa: S603 — this interpreter, a script defined above
+        [sys.executable, "-c", _UNDER_A_FILE_SIZE_LIMIT, str(len(before)), *command],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == ExitCode.INVALID_USAGE, result.stdout + result.stderr
+    assert f"error: could not write the lock to {path}: " in " ".join(result.stderr.split())
+    assert path.read_bytes() == before
+    assert list(folder.iterdir()) == [path]

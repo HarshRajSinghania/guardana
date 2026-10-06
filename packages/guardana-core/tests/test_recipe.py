@@ -38,6 +38,7 @@ from guardana.core.recipe import (
     lock_of,
     lock_to_dict,
     parse_lock,
+    paths_named_leniently,
     read_lock,
     render_lock,
 )
@@ -695,3 +696,43 @@ def test_a_lock_carrying_a_key_of_another_schema_is_refused(tmp_path: Path) -> N
         parse_lock(yaml.safe_dump(v1), tmp_path / "v1.yaml")
     with pytest.raises(RecipeError, match="missing key"):
         parse_lock(yaml.safe_dump(v2), tmp_path / "v2.yaml")
+
+
+def test_an_invalid_recipe_names_every_string_it_holds_as_a_path_beside_it(
+    tmp_path: Path,
+) -> None:
+    recipe = tmp_path / "guardana-recipe.yaml"
+    recipe.write_text(
+        "unexpected: 1\n"
+        "profile: out/report.txt\n"
+        "subject:\n"
+        "  connection: {adapter: out/junit.xml, retries: 3}\n"
+        '  list: [a, [out/run.json], "with\\0null"]\n'
+        "loop: &loop [*loop, out/nested.txt]\n",
+        encoding="utf-8",
+    )
+
+    named = paths_named_leniently(recipe)
+
+    assert named is not None
+    assert set(named) >= {
+        tmp_path / "out" / "report.txt",
+        tmp_path / "out" / "junit.xml",
+        tmp_path / "out" / "run.json",
+        tmp_path / "out" / "nested.txt",
+        tmp_path / "a",
+    }
+    assert all("\0" not in str(path) for path in named)
+
+
+@pytest.mark.parametrize(
+    "content", [b"profile: [unclosed\n", b"\xff\xfe not text\n"], ids=["yaml", "bytes"]
+)
+def test_a_recipe_that_does_not_parse_names_nothing_that_can_be_known(
+    tmp_path: Path, content: bytes
+) -> None:
+    recipe = tmp_path / "guardana-recipe.yaml"
+    recipe.write_bytes(content)
+
+    assert paths_named_leniently(recipe) is None
+    assert paths_named_leniently(tmp_path / "missing.yaml") is None

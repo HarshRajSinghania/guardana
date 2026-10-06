@@ -52,6 +52,15 @@ def refuse_writing_over_an_input(
         raise typer.Exit(code=ExitCode.INVALID_USAGE)
 
 
+def refuse_writing_over_named_inputs(
+    output: Path | None, named: Iterable[tuple[str, Path | None]]
+) -> None:
+    """Exit `3` as `refuse_writing_over_an_input` does, naming the flag or key behind each file."""
+    for name, given in named:
+        if given is not None:
+            refuse_writing_over_an_input(output, [given], what=f"{given}, which {name} names")
+
+
 def runs_beside(recording: Path) -> tuple[Path, ...]:
     """Return the saved runs a probe could have kept `recording` beside, `run.json` first.
 

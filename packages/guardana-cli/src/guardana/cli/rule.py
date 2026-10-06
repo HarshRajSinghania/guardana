@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
+from guardana.cli._atomic import write_whole
 from guardana.cli._evaluators import wire_config_evaluators
 from guardana.cli._exit import refuse_invalid_profile, refuse_unenforceable_budget
 from guardana.cli._plugins import (
@@ -246,6 +247,8 @@ def _write_corpus(
     the fixture's outcome for the rule as a whole, which is exact for a rule that
     sends one prompt and for an evaluator that does not read the prompt. A suite's
     outcome is about a rate over many cases, so no fixture of one labels a reply.
+
+    A corpus that cannot be written exits `3` and leaves the file at `destination` as it was.
     """
     samples: list[CalibrationSample] = []
     left_out = dict.fromkeys(_LEFT_OUT, 0)
@@ -269,7 +272,11 @@ def _write_corpus(
                         attack_succeeded=fixture.outcome is FixtureOutcome.FINDING,
                     )
                 )
-    destination.write_text(dump_corpus(samples), encoding="utf-8")
+    try:
+        write_whole(destination, dump_corpus(samples).encode("utf-8"))
+    except OSError as exc:
+        typer.echo(f"error: could not write the corpus to {destination}: {exc}", err=True)
+        raise typer.Exit(code=ExitCode.INVALID_USAGE) from exc
     reasons = ", ".join(f"{count} {reason}" for reason, count in left_out.items() if count)
     typer.echo(
         f"wrote {len(samples)} labelled sample(s) to {destination}"

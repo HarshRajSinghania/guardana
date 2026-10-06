@@ -225,6 +225,38 @@ def test_exchanges_that_cannot_be_written_end_the_probe_with_exit_3(tmp_path: Pa
     )
 
 
+def test_a_run_whose_exchanges_could_not_be_written_records_none(tmp_path: Path) -> None:
+    saved = tmp_path / "run.json"
+    exchanges_path(saved).mkdir()
+
+    result = _probe("--keep-exchanges", "--format", "json", "--output", str(saved))
+
+    assert result.exit_code == ExitCode.INVALID_USAGE, result.output
+    assert json.loads(saved.read_text(encoding="utf-8"))["run"]["exchanges"] is None
+
+
+def test_exchanges_written_part_way_leave_neither_a_sidecar_nor_a_digest_of_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    saved = tmp_path / "run.json"
+    sidecar = exchanges_path(saved)
+    write_bytes = Path.write_bytes
+
+    def fill_the_disk(path: Path, data: bytes) -> int:
+        if path == sidecar:
+            write_bytes(path, data[:10])
+            raise OSError("No space left on device")
+        return write_bytes(path, data)
+
+    monkeypatch.setattr(Path, "write_bytes", fill_the_disk)
+
+    result = _probe("--keep-exchanges", "--format", "json", "--output", str(saved))
+
+    assert result.exit_code == ExitCode.INVALID_USAGE, result.output
+    assert json.loads(saved.read_text(encoding="utf-8"))["run"]["exchanges"] is None
+    assert not sidecar.exists()
+
+
 def _write_text_as_windows(monkeypatch: pytest.MonkeyPatch) -> None:
     """Make every text write translate newlines to CRLF, as `write_text` does on Windows."""
     write_text = Path.write_text

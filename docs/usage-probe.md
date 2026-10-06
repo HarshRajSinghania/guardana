@@ -65,7 +65,7 @@ guardana probe (--url <base-url> --model <name> | --target <scheme://locator> | 
 | `--ai-system TEXT` | none | Which AI system this run verifies, e.g. `support-agent`. Never guessed. |
 | `--environment TEXT` | none | Where it runs, e.g. `production`. Never guessed from a branch name. |
 | `--deployment-id TEXT` | none | Which version of it, if you have an identifier. |
-| `--output PATH` | stdout | Write the report to a file instead of stdout — needed by `guardana diff`. See [Saving a run for comparison](#saving-a-run-for-comparison) |
+| `--output PATH` | stdout | Write the report to a file instead of stdout — needed by `guardana diff`. A `PATH` that is, or whose `<stem>.exchanges.jsonl` is, a file the probe reads — `--profile`, a `--rules` file, `--system-prompt-file`, `--fixtures` or a tenant's adapter, `--adapter`, `--mcp-pin`, `--mcp-registry-entry`, or a file the profile names — is refused with exit `3` before anything is sent. See [Saving a run for comparison](#saving-a-run-for-comparison) |
 | `--keep-exchanges` | off (or `privacy.keep_exchanges`) | Keep every chat exchange of the plain pass, redacted, beside the saved run so [`guardana grade`](usage-grade.md) can grade it again without calling the endpoint — see [Keeping the exchanges](#keeping-the-exchanges). Needs `--format json --output`; refused with `--mcp` and `--a2a`, with a `--target` not built on the built-in endpoint, and with `privacy.evidence_mode: metadata_only` (exit `3`) |
 
 `--target` is mutually exclusive with `--url`, `--model`, provider, adapter, credential,
@@ -807,7 +807,9 @@ on the other end cannot parse that.
 
 `--keep-exchanges`, or `privacy.keep_exchanges: true` in the profile, keeps every chat
 exchange of the probe beside the saved run, so the same replies can be graded again with
-a new rule, a sharper expectation or another judge, without a second request:
+a new rule, a sharper expectation or another judge, without a second request. When the
+sidecar cannot be written, the probe removes what it wrote of it, saves the run with
+`exchanges: null` and exits `3`, so no saved run names exchanges that are not there:
 
 ```bash
 guardana probe --url … --model … --keep-exchanges --format json --output run.json

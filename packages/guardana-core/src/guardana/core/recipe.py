@@ -316,6 +316,31 @@ def artifact_directory_of(path: Path) -> Path:
         return path.parent / _DEFAULT_OUTPUT
 
 
+def paths_named_leniently(path: Path) -> tuple[Path, ...] | None:
+    """Return every string value in a recipe that is invalid, each as a path beside the recipe.
+
+    More than the files the recipe reads, so a run refusing it can leave every one of them
+    alone; None when the file does not parse, since nothing it names can be known then.
+    """
+    try:
+        raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, yaml.YAMLError):
+        return None
+    named: list[Path] = []
+    pending: list[object] = [raw]
+    seen: set[int] = set()
+    while pending:
+        value = pending.pop()
+        if isinstance(value, str):
+            if value and "\0" not in value:
+                named.append(path.parent / value)
+        elif isinstance(value, dict | list) and id(value) not in seen:
+            # An alias can make a node hold itself, so each node is walked once.
+            seen.add(id(value))
+            pending.extend(value.values() if isinstance(value, dict) else value)
+    return tuple(named)
+
+
 class LockDriftKind(StrEnum):
     """How the configuration of a run differs from the lock its recipe carries."""
 

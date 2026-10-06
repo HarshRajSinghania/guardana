@@ -1,14 +1,12 @@
 """Read a saved run: describe it, or bring an older one up to the current schema."""
 
-import errno
+import hashlib
 import json
-import os
-import secrets
-import stat
 from pathlib import Path
 from typing import Annotated
 
 import typer
+from guardana.cli._atomic import write_whole
 from guardana.cli._outputs import remove_earlier_exchanges
 from guardana.cli._sidecar import refuse_writing_over_an_input, same_file
 from guardana.core.manifest import RunManifest
@@ -207,8 +205,10 @@ def migrate(
     Not required to compare runs — `guardana diff` migrates older documents in
     memory as it reads them — but useful for anyone who wants the richer document
     on disk without paying to re-run. A run already at the current schema is copied
-    unchanged to another `--output`. Exchanges an earlier run kept beside another
-    `--output` are removed; the migrated run's own stay where they are.
+    unchanged to another `--output`. A run that kept exchanges has them copied beside
+    another `--output`, and is refused when other exchanges are already there; otherwise
+    exchanges an earlier run kept there are removed. The migrated run's own stay where
+    they are.
     """
     refuse_writing_over_an_input(output, [path], in_place=True)
     if output is not None and same_file(output, exchanges_path(path)):
@@ -242,6 +242,7 @@ def migrate(
             data,
             said=f"{path} is already at schema {REPORT_SCHEMA_VERSION}; "
             f"copied it unchanged → {output}",
+            run=raw,
         )
         return
     if version not in MIGRATABLE_VERSIONS:
@@ -265,51 +266,92 @@ def migrate(
         destination,
         json.dumps(migrated, indent=2).encode("utf-8"),
         said=f"migrated {path} from schema {version} to {REPORT_SCHEMA_VERSION} → {destination}",
+        run=migrated,
     )
 
 
-def _write(path: Path, destination: Path, document: bytes, *, said: str) -> None:
-    """Write the run read from `path` to `destination`, say `said`, then remove stale exchanges.
+def _write(
+    path: Path, destination: Path, document: bytes, *, said: str, run: dict[str, object]
+) -> None:
+    """Write the run read from `path` to `destination` with its exchanges, and say `said`.
 
-    A failed write exits `3` and changes nothing: the file at `destination` is replaced
-    whole or not at all, and the sidecar beside it still belongs to whatever run is there.
+    `run` is the document being written. When it records exchanges and `destination` keeps
+    its own elsewhere, the sidecar beside `path` is copied there first, so the copy never
+    names exchanges that are not beside it; otherwise exchanges an earlier run kept there
+    are removed. A failed write exits `3` and changes nothing: the file at `destination` is
+    replaced whole or not at all, and the sidecar beside it still belongs to whatever run
+    is there.
     """
+    own, beside = exchanges_path(path), exchanges_path(destination)
+    shared = same_file(beside, own)
+    copy = None if shared else _exchanges_to_copy(path, destination, _recorded_digest(run))
+    if isinstance(copy, bytes):
+        try:
+            write_whole(beside, copy)
+        except OSError as exc:
+            typer.echo(f"error: could not write {beside}: {exc}", err=True)
+            raise typer.Exit(code=_INVALID_USAGE) from exc
     try:
-        _replace(destination, document)
+        write_whole(destination, document)
     except OSError as exc:
+        if isinstance(copy, bytes):
+            beside.unlink(missing_ok=True)
         typer.echo(f"error: could not write {destination}: {exc}", err=True)
         raise typer.Exit(code=_INVALID_USAGE) from exc
     typer.echo(said)
-    if not same_file(exchanges_path(destination), exchanges_path(path)):
+    if isinstance(copy, bytes):
+        typer.echo(f"copied the exchanges {path} records → {beside}", err=True)
+    elif copy is None and not shared:
         remove_earlier_exchanges(destination)
 
 
-def _replace(destination: Path, document: bytes) -> None:
-    """Put `document` at `destination` through a file beside it, so a failed write leaves no half.
+def _recorded_digest(run: dict[str, object]) -> str | None:
+    """Return the exchanges digest the saved run `run` records, or None when it records none."""
+    manifest = run.get("run")
+    exchanges = manifest.get("exchanges") if isinstance(manifest, dict) else None
+    digest = exchanges.get("digest") if isinstance(exchanges, dict) else None
+    return digest if isinstance(digest, str) else None
 
-    A file this process may not write is refused rather than replaced, and the new file gets
-    the mode a plain write would leave: the existing file's, or the umask's for a new one.
+
+def _exchanges_to_copy(path: Path, destination: Path, digest: str | None) -> bytes | bool | None:
+    """Decide what a run recording `digest` needs beside `destination`, before anything is written.
+
+    Returns the bytes to copy there, True when the exchanges there already are these, or
+    None when nothing is to be copied, saying why when the run records exchanges. Exits `3`
+    when other exchanges are there: replacing them would break the run they belong to.
     """
-    target = Path(os.path.realpath(destination))
+    if digest is None:
+        return None
+    own, beside = exchanges_path(path), exchanges_path(destination)
     try:
-        mode: int | None = stat.S_IMODE(target.stat().st_mode)
-    except FileNotFoundError:
-        mode = None
-    if mode is not None and not os.access(target, os.W_OK):
-        raise PermissionError(errno.EACCES, os.strerror(errno.EACCES), str(destination))
-    staged = target.with_name(f".{target.name}.{secrets.token_hex(8)}.tmp")
-    handle = staged.open("xb")
+        kept: bytes | None = own.read_bytes()
+    except OSError:
+        kept = None
+    if kept is None or _digest_of(kept) != digest:
+        typer.echo(
+            f"warning: {own} is not the exchanges {path} records, so none were copied "
+            f"beside {destination}",
+            err=True,
+        )
+        return None
+    if not (beside.exists() or beside.is_symlink()):
+        return kept
     try:
-        with handle:
-            handle.write(document)
-            handle.flush()
-            os.fsync(handle.fileno())
-        if mode is not None:
-            staged.chmod(mode)
-        staged.replace(target)
-    except BaseException:
-        staged.unlink(missing_ok=True)
-        raise
+        there = beside.read_bytes() if beside.is_file() else None
+    except OSError:
+        there = None
+    if there is not None and _digest_of(there) == digest:
+        return True
+    typer.echo(
+        f"error: {beside} holds other exchanges than the ones {path} records, and the copy "
+        f"at {destination} would claim them — choose another --output",
+        err=True,
+    )
+    raise typer.Exit(code=_INVALID_USAGE)
+
+
+def _digest_of(data: bytes) -> str:
+    return f"sha256:{hashlib.sha256(data).hexdigest()}"
 
 
 run_app.command(name="inspect")(inspect)

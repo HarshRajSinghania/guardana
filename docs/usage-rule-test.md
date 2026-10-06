@@ -270,7 +270,7 @@ gate lists it as exempt with the reason it can never decline.
 | `[selector]` | rule id or glob; defaults to every discovered rule |
 | `--rules PATH` | directory or file of custom YAML rules; repeatable |
 | `--profile PATH` | resolve `rules.paths` and evaluator config from a `guardana.yaml` |
-| `--write-corpus PATH` | write the fixtures out as a labelled corpus |
+| `--write-corpus PATH` | write the fixtures out as a labelled corpus, whole: through a temporary file and a rename, so a failed write leaves an earlier corpus as it was and exits `3` |
 | `--unsampled-ok` | do not go indeterminate over unsampled rules; says so in the output |
 | `--plugins`, `--allow-plugin` | the usual plugin-trust controls; `builtins` unless the flag or the profile's `plugins:` says otherwise. While an installed pack is refused, every selector exits `2`, so a pack author admits their own distribution: `--plugins allowlist --allow-plugin <distribution>` |
 

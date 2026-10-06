@@ -17,6 +17,7 @@ from guardana.cli._artifact import (
     claim,
     publish,
 )
+from guardana.cli._atomic import write_whole
 from guardana.cli._connection import endpoint_for, read_system_prompt, seeded_endpoint
 from guardana.cli._errors import (
     remedies_for,
@@ -28,6 +29,7 @@ from guardana.cli._evaluators import judge_endpoint, wire_config_evaluators
 from guardana.cli._exit import exit_with, refuse_invalid_profile, refuse_unenforceable_budget
 from guardana.cli._plugins import hint_refused_plugins, resolve_trust
 from guardana.cli._profile import resolve_profile
+from guardana.cli._profile_files import profile_file_inputs
 from guardana.cli._rules_loading import load_custom_rules
 from guardana.cli._run_meta import calibrations_or_exit, detect_source
 from guardana.cli._sidecar import same_file
@@ -42,7 +44,7 @@ from guardana.core.fixtures import Fixtures, FixturesError, ResolvedTenant, load
 from guardana.core.manifest import DeploymentRef, RecipeRecord, SubjectKind
 from guardana.core.plan import build_plan
 from guardana.core.plugins import PluginTrust
-from guardana.core.profile import Profile, ProfileError
+from guardana.core.profile import Profile, ProfileError, load_profile
 from guardana.core.recipe import (
     RECIPE_NAME,
     LockDrift,
@@ -57,6 +59,7 @@ from guardana.core.recipe import (
     moves_under_one_version,
     parse_lock,
     parse_recipe,
+    paths_named_leniently,
     read_text,
     render_lock,
 )
@@ -180,7 +183,11 @@ def lock(
         typer.echo(f"every pin in {prepared.recipe.lock_path.name} holds")
         _exit_if_unpinned(current)
         return
-    prepared.recipe.lock_path.write_text(render_lock(current), encoding="utf-8")
+    try:
+        write_whole(prepared.recipe.lock_path, render_lock(current).encode("utf-8"))
+    except OSError as exc:
+        typer.echo(f"error: could not write {prepared.recipe.lock_path}: {exc}", err=True)
+        raise typer.Exit(code=ExitCode.INVALID_USAGE) from exc
     sources = f", {len(current.sources)} source pin(s)" if current.sources else ""
     typer.echo(
         f"wrote {prepared.recipe.lock_path}: {len(current.rules)} rule(s), "
@@ -281,6 +288,14 @@ def _inputs(read: _Read) -> list[tuple[str, Path]]:
             (f"the adapter of fixtures tenant {tenant.name}", tenant.adapter)
             for tenant in read.fixtures.tenants
         )
+    if recipe.profile is not None:
+        try:
+            profile = load_profile(recipe.profile)
+        except ProfileError:
+            # The run refuses this profile later, with the loader's reason.
+            profile = None
+        if profile is not None:
+            named.extend(profile_file_inputs(profile))
     return [(role, path) for role, path in named if path is not None]
 
 
@@ -310,46 +325,62 @@ def _mark_refused_in_place(
 
     The marker, `junit.xml` and `report.txt` are rewritten by a rename onto their names, so
     a link there is replaced rather than written through; each listed file `removes` names
-    is deleted unless the recipe reads it. The marker lists the refusal before anything is
-    removed and exactly what remains at the end, so no later run finds a file it did not list.
+    is deleted. A file the recipe reads is never rewritten or deleted, the marker included;
+    under a kept marker only the reports it already lists are rewritten, so no later run
+    finds a file it does not list. A rewritten marker lists the refusal before anything is
+    removed and exactly what remains at the end.
     """
     if directory.is_symlink() or not directory.is_dir() or not (directory / MARKER).is_file():
         return
-    if _read_by_the_recipe(directory / MARKER, inputs, warn=True):
-        return
+    marking = not _read_by_the_recipe(directory / MARKER, inputs, warn=True)
     listed = [name for name in _indexed_files(directory) if name != MARKER]
     reports = {
         "junit.xml": unfinished_document("guardana.recipe", "the run did not start", reason),
         "report.txt": f"the run did not start: {reason}\n",
     }
+    if not marking:
+        reports = {name: text for name, text in reports.items() if name in listed}
     written: list[str] = []
-    removed: list[str] = []
     try:
-        _stage_into(directory, MARKER, _refused_marker({*listed, *reports}))
+        if marking:
+            _stage_into(directory, MARKER, _refused_marker({*listed, *reports}))
         for name, text in reports.items():
             if not _read_by_the_recipe(directory / name, inputs, warn=True):
                 _stage_into(directory, name, text)
                 written.append(name)
-        for name in listed:
-            listed_path = directory / name
-            if name in reports or not removes(name) or _a_directory(listed_path):
-                continue
-            if not _read_by_the_recipe(listed_path, inputs, warn=False):
-                listed_path.unlink(missing_ok=True)
-                removed.append(name)
+        removed = _remove_listed(
+            directory,
+            [name for name in listed if name not in reports and removes(name)],
+            inputs,
+        )
         remaining = [name for name in {*listed, *written} if os.path.lexists(directory / name)]
-        _stage_into(directory, MARKER, _refused_marker(remaining))
+        if marking:
+            _stage_into(directory, MARKER, _refused_marker(remaining))
     except OSError as exc:
         typer.echo(f"warning: could not mark {directory} as refused: {exc}", err=True)
         return
-    _say_marked(directory, written, removed, sorted(set(remaining) - set(written)))
+    marked = [MARKER, *written] if marking else written
+    _say_marked(directory, marked, removed, sorted(set(remaining) - set(written)))
 
 
-def _say_marked(
-    directory: Path, written: list[str], removed: list[str], earlier: list[str]
-) -> None:
+def _remove_listed(directory: Path, names: list[str], inputs: Sequence[Path]) -> list[str]:
+    """Delete each named file in `directory` the recipe does not read, returning those removed."""
+    removed: list[str] = []
+    for name in names:
+        listed_path = directory / name
+        if _a_directory(listed_path) or _read_by_the_recipe(listed_path, inputs, warn=False):
+            continue
+        listed_path.unlink(missing_ok=True)
+        removed.append(name)
+    return removed
+
+
+def _say_marked(directory: Path, marked: list[str], removed: list[str], earlier: list[str]) -> None:
     """Say what an artifact marked refused in place now holds, and what is still not this run's."""
-    said = [f"{', '.join([MARKER, *written])} now say this run was refused"]
+    if marked:
+        said = [f"{', '.join(marked)} now say this run was refused"]
+    else:
+        said = ["no file in it could be marked refused"]
     if removed:
         said.append(f"removed the earlier run's {', '.join(sorted(removed))}")
     if earlier:
@@ -404,13 +435,25 @@ def _refuse_unreadable(path: Path, reason: str) -> None:
     """Mark the artifact an unreadable recipe names as refused, when an earlier run wrote one.
 
     Only a directory whose index lists this recipe's own copy is touched: a mistyped path
-    creates nothing and marks no other recipe's artifact. The files the recipe reads are
-    unknown here, so only the earlier verdict is removed and the directory is never replaced.
+    creates nothing and marks no other recipe's artifact. Every string the recipe holds
+    counts as a file it reads and only the earlier verdict is removed; a recipe that does
+    not parse could read any file there, so nothing is touched.
     """
     directory = artifact_directory_of(path)
     if not path.is_file() or path.name not in _indexed_files(directory):
         return
-    _mark_refused_in_place(directory, reason, inputs=[path], removes=lambda name: name == _VERDICT)
+    named = paths_named_leniently(path)
+    if named is None:
+        typer.echo(
+            f"warning: {path} does not parse, so the files it reads are unknown and "
+            f"{directory} was left as it is; it still holds an earlier run's files, not "
+            f"this run's",
+            err=True,
+        )
+        return
+    _mark_refused_in_place(
+        directory, reason, inputs=[path, *named], removes=lambda name: name == _VERDICT
+    )
 
 
 def _indexed_files(directory: Path) -> list[str]:

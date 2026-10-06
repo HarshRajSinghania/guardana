@@ -16,6 +16,7 @@ from pathlib import Path
 from urllib.error import HTTPError
 
 import typer
+from guardana.cli._atomic import write_whole
 from guardana.cli._errors import EndpointFlag, remedies_for
 from guardana.cli._evaluators import judge_endpoint
 from guardana.cli.exit_codes import ExitCode
@@ -194,7 +195,8 @@ def write_pin(connection: McpConnection, path: Path) -> int:
 
     A server that cannot be read exits `TARGET_UNAVAILABLE` with one line that withholds
     the token and the session ids sent to it, and no pin is written: an approval of a
-    manifest nobody received is not an approval. A pin that cannot be written exits `3`.
+    manifest nobody received is not an approval. A pin that cannot be written exits `3`
+    and leaves the approved pin at `path` as it was.
     """
     target = started(connection)
     try:
@@ -209,9 +211,8 @@ def write_pin(connection: McpConnection, path: Path) -> int:
             typer.echo(f"error: {said}", err=True)
             raise typer.Exit(code=ExitCode.TARGET_UNAVAILABLE) from exc
         try:
-            path.write_text(
-                json.dumps(pin_document(target.ref, tools), indent=2) + "\n", encoding="utf-8"
-            )
+            document = json.dumps(pin_document(target.ref, tools), indent=2) + "\n"
+            write_whole(path, document.encode("utf-8"))
         except OSError as exc:
             typer.echo(f"error: could not write the pin to {path}: {exc}", err=True)
             raise typer.Exit(code=ExitCode.INVALID_USAGE) from exc

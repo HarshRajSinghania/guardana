@@ -3,6 +3,7 @@
 Requests are counted at a local server, so "nothing was sent" is measured at the wire.
 """
 
+import errno
 import hashlib
 import json
 import re
@@ -139,6 +140,25 @@ def _locked(recipe: Path) -> None:
 
 def _artifact(recipe: Path) -> Path:
     return recipe.parent / "guardana-artifact"
+
+
+def test_a_rule_file_the_profile_reads_from_the_artifact_directory_is_refused_before_sending(
+    tmp_path: Path, wire: _Wire
+) -> None:
+    recipe = _team(tmp_path, wire.url)
+    inside = _artifact(recipe) / "rules"
+    inside.mkdir(parents=True)
+    (inside / "refuses.yaml").write_text(_RULE, encoding="utf-8")
+    (tmp_path / "guardana.yaml").write_text(
+        "rules:\n  paths: [guardana-artifact/rules]\n  include: ['acme.*']\n", encoding="utf-8"
+    )
+
+    result = _invoke("run", str(recipe))
+
+    assert result.exit_code == ExitCode.INVALID_USAGE, result.output
+    assert "the profile's rules.paths" in normalised(result.output)
+    assert wire.requests == []
+    assert (inside / "refuses.yaml").read_text(encoding="utf-8") == _RULE
 
 
 def test_a_lock_matches_until_a_rule_changes_and_check_never_writes(
@@ -1356,3 +1376,154 @@ def test_marking_refused_never_removes_a_listed_name_outside_the_directory(
     index = json.loads((directory / MARKER).read_text(encoding="utf-8"))
     assert index["status"] == "refused"
     assert sorted(index["files"]) == ["junit.xml", "nested", "report.txt"]
+
+
+def _ran(tmp_path: Path, wire: _Wire) -> tuple[Path, _Earlier]:
+    """Run a recipe once and return it with the green artifact it left."""
+    recipe = _team(tmp_path, wire.url)
+    _locked(recipe)
+    assert _invoke("run", str(recipe)).exit_code == ExitCode.OK
+    return recipe, _Earlier.of(_artifact(recipe))
+
+
+def _naming(recipe: Path, *, profile: str | None = None, prompt: str | None = None) -> None:
+    """Point the recipe's profile or system-prompt file at another path."""
+    text = recipe.read_text(encoding="utf-8")
+    if profile is not None:
+        text = text.replace("profile: guardana.yaml", f"profile: {profile}")
+    if prompt is not None:
+        text = text.replace(
+            "    model: support-bot\n",
+            f"    model: support-bot\n    system_prompt_file: {prompt}\n",
+        )
+    recipe.write_text(text, encoding="utf-8")
+
+
+def _red(out: Path, name: str) -> bool:
+    text = (out / name).read_text(encoding="utf-8")
+    if name == "report.txt":
+        return text.startswith("the run did not start:")
+    return fromstring(text).get("errors") == "1"  # noqa: S314 — our own output
+
+
+def test_a_recipe_reading_its_own_marker_keeps_it_and_turns_the_reports_red(
+    tmp_path: Path, wire: _Wire
+) -> None:
+    recipe, earlier = _ran(tmp_path, wire)
+    sent = len(wire.requests)
+    _naming(recipe, profile="guardana-artifact/guardana-artifact.json")
+
+    result = _invoke("run", str(recipe))
+
+    assert result.exit_code == ExitCode.INVALID_USAGE, result.output
+    out = earlier.out
+    assert (out / MARKER).read_bytes() == earlier.files[MARKER]
+    assert _red(out, "junit.xml")
+    assert _red(out, "report.txt")
+    assert not (out / "run.json").exists()
+    said = normalised(result.output)
+    assert f"{out / MARKER} is a file the recipe reads, so it was left as it is" in said
+    assert "junit.xml, report.txt now say this run was refused" in said
+    assert len(wire.requests) == sent
+
+
+def test_a_recipe_reading_its_marker_and_its_report_keeps_both_and_turns_junit_red(
+    tmp_path: Path, wire: _Wire
+) -> None:
+    recipe, earlier = _ran(tmp_path, wire)
+    _naming(
+        recipe,
+        profile="guardana-artifact/guardana-artifact.json",
+        prompt="guardana-artifact/report.txt",
+    )
+
+    result = _invoke("run", str(recipe))
+
+    assert result.exit_code == ExitCode.INVALID_USAGE, result.output
+    out = earlier.out
+    assert (out / MARKER).read_bytes() == earlier.files[MARKER]
+    assert (out / "report.txt").read_bytes() == earlier.files["report.txt"]
+    assert _red(out, "junit.xml")
+    assert f"{out / 'report.txt'} is a file the recipe reads" in normalised(result.output)
+
+
+@pytest.mark.parametrize("named", ["junit.xml", "report.txt"])
+def test_an_unreadable_recipe_never_rewrites_a_file_it_names(
+    tmp_path: Path, wire: _Wire, named: str
+) -> None:
+    recipe, earlier = _ran(tmp_path, wire)
+    recipe.write_text(
+        recipe.read_text(encoding="utf-8") + f"notes: guardana-artifact/{named}\n",
+        encoding="utf-8",
+    )
+
+    result = _invoke("run", str(recipe))
+
+    assert result.exit_code == ExitCode.INVALID_USAGE, result.output
+    out = earlier.out
+    assert (out / named).read_bytes() == earlier.files[named]
+    other = "report.txt" if named == "junit.xml" else "junit.xml"
+    assert _red(out, other)
+    assert _status(recipe) == "refused"
+    assert not (out / "run.json").exists()
+    assert f"{out / named} is a file the recipe reads" in normalised(result.output)
+
+
+def test_a_recipe_that_does_not_parse_leaves_its_artifact_as_it_is_and_says_so(
+    tmp_path: Path, wire: _Wire
+) -> None:
+    recipe, earlier = _ran(tmp_path, wire)
+    recipe.write_text(recipe.read_text(encoding="utf-8") + "notes: [unclosed\n", encoding="utf-8")
+
+    result = _invoke("run", str(recipe))
+
+    assert result.exit_code == ExitCode.INVALID_USAGE, result.output
+    assert _artifact_bytes(earlier.out) == earlier.files
+    said = normalised(result.output)
+    assert f"warning: {recipe} does not parse, so the files it reads are unknown" in said
+    assert f"{earlier.out} was left as it is" in said
+
+
+def test_a_lock_whose_write_fails_part_way_keeps_the_earlier_lock(
+    tmp_path: Path, wire: _Wire, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    recipe = _team(tmp_path, wire.url)
+    lock = tmp_path / "guardana-recipe.lock.yaml"
+    lock.write_text("an earlier lock\n", encoding="utf-8")
+    before = {path.name: path.read_bytes() for path in tmp_path.iterdir() if path.is_file()}
+
+    def no_space(_fd: int) -> None:
+        raise OSError(errno.ENOSPC, "No space left on device")
+
+    monkeypatch.setattr("guardana.cli._atomic.os.fsync", no_space)
+    result = _invoke("lock", str(recipe))
+
+    assert result.exit_code == ExitCode.INVALID_USAGE, result.output
+    assert f"error: could not write {lock}: " in normalised(result.output)
+    assert {path.name: path.read_bytes() for path in tmp_path.iterdir() if path.is_file()} == before
+
+
+@pytest.mark.parametrize("locked", ["file", "directory"], ids=["read-only lock", "read-only dir"])
+def test_a_lock_that_cannot_be_written_is_a_usage_error_not_a_traceback(
+    tmp_path: Path, wire: _Wire, locked: str
+) -> None:
+    recipe = _team(tmp_path, wire.url)
+    lock = tmp_path / "guardana-recipe.lock.yaml"
+    if locked == "file":
+        lock.write_text("an earlier lock\n", encoding="utf-8")
+        lock.chmod(0o444)
+    else:
+        tmp_path.chmod(0o555)
+    before = {path.name: path.read_bytes() for path in tmp_path.iterdir() if path.is_file()}
+
+    try:
+        result = _invoke("lock", str(recipe))
+    finally:
+        tmp_path.chmod(0o755)
+        if lock.exists():
+            lock.chmod(0o644)
+
+    assert result.exit_code == ExitCode.INVALID_USAGE, result.output
+    assert f"error: could not write {lock}: " in normalised(result.output)
+    assert not isinstance(result.exception, OSError)
+    assert {path.name: path.read_bytes() for path in tmp_path.iterdir() if path.is_file()} == before

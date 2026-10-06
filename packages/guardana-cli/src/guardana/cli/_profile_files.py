@@ -4,13 +4,18 @@
 can call a profile valid whose contracts, calibrations or rules a run then refuses.
 """
 
+from collections.abc import Iterable
 from dataclasses import dataclass
+from pathlib import Path
 
-from guardana.cli._contracts import ReadContracts, contract_paths, read_contracts
+from guardana.cli._contracts import ReadContracts, contract_files, contract_paths, read_contracts
 from guardana.cli._rules_loading import rule_path_problems
 from guardana.core.manifest.build import ProfileCalibrations, read_profile_calibrations
 from guardana.core.profile import Profile
-from guardana.core.registry import Registry
+from guardana.core.registry import Registry, yaml_rule_files
+
+NamedFile = tuple[str, Path]
+"""A file a command reads, and the flag or profile key that names it, for a message."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -56,4 +61,35 @@ def read_profile_files(profile: Profile, registry: Registry) -> ProfileFiles:
         contracts=read_contracts(contract_paths(profile, [])),
         calibrations=read_profile_calibrations(profile),
         rule_paths=tuple(rule_path_problems(profile, registry)),
+    )
+
+
+def profile_file_inputs(profile: Profile) -> tuple[NamedFile, ...]:
+    """Name every file `profile` points a run at, each with the key that names it.
+
+    A directory stands for the files a run reads from it, expanded as its loader expands
+    it; an adapter written relative to the profile is read beside it, as the judges read it.
+    """
+    named: list[NamedFile] = []
+    for entry in profile.rule_paths:
+        named.extend(("the profile's rules.paths", file) for file in yaml_rule_files(Path(entry)))
+    for entry in profile.contract_paths:
+        named.extend(("the profile's contracts", file) for file in contract_files(Path(entry)))
+    named.extend(("the profile's calibrations", Path(entry)) for entry in profile.calibration_paths)
+    for block, config in sorted(profile.evaluator_config.items()):
+        written = config.get("adapter")
+        if isinstance(written, str) and written:
+            adapter = Path(written)
+            if profile.source is not None and not adapter.is_absolute():
+                adapter = profile.source.parent / adapter
+            named.append((f"the profile's evaluators.{block}.adapter", adapter))
+    return tuple(named)
+
+
+def rule_flag_inputs(rules: Iterable[Path]) -> tuple[NamedFile, ...]:
+    """Name every rule file the `--rules` flags make a run read, a directory's included."""
+    return tuple(
+        ("--rules" if not path.is_dir() else f"--rules {path}", file)
+        for path in rules
+        for file in yaml_rule_files(path)
     )

@@ -20,9 +20,13 @@ from guardana.cli._plugins import (
     resolve_trust,
 )
 from guardana.cli._profile import PRESET_HELP, resolve_profile
+from guardana.cli._profile_files import profile_file_inputs, rule_flag_inputs
 from guardana.cli._rules_loading import load_custom_rules
 from guardana.cli._run_meta import calibrations_or_exit, detect_source
-from guardana.cli._sidecar import refuse_writing_over_an_input
+from guardana.cli._sidecar import (
+    refuse_writing_over_an_input,
+    refuse_writing_over_named_inputs,
+)
 from guardana.cli.exit_codes import ExitCode
 from guardana.cli.plan import judge_traffic, recorded_target_or_exit
 from guardana.core.budget import BudgetExhausted
@@ -103,7 +107,9 @@ def grade(  # noqa: PLR0913, PLR0917 — Typer surface
     refuse_incomparable_output(output, format)
     refuse_writing_over_an_input(output, [recording], what="the recording being graded")
     refuse_writing_over_an_input(output, [profile, *rules])
+    refuse_writing_over_named_inputs(output, rule_flag_inputs(rules))
     prof = resolve_profile(profile, preset)
+    refuse_writing_over_named_inputs(output, profile_file_inputs(prof))
     prof = replace(
         prof,
         budgets=override(

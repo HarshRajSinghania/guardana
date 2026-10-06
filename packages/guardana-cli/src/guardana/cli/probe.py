@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from contextlib import suppress
 from dataclasses import replace
 from pathlib import Path
 from typing import Annotated, TypeVar
@@ -55,10 +56,12 @@ from guardana.cli._plugins import (
     resolve_trust,
 )
 from guardana.cli._profile import PRESET_HELP, resolve_profile
+from guardana.cli._profile_files import profile_file_inputs, rule_flag_inputs
 from guardana.cli._reporting import installed_reporter_or_check, submit_safely
 from guardana.cli._rules_loading import load_custom_rules
 from guardana.cli._run_meta import calibrations_or_exit, detect_deployment, detect_source
 from guardana.cli._safety_flags import parse_impact
+from guardana.cli._sidecar import refuse_writing_over_named_inputs
 from guardana.cli._target_locator import resolve_target
 from guardana.cli.exit_codes import ExitCode
 from guardana.core.budget import BudgetExhausted
@@ -257,14 +260,27 @@ def probe(  # noqa: C901, PLR0913, PLR0915, PLR0917 — Typer surface, target mo
     ] = False,
 ) -> None:
     """Run dynamic security checks against a live model endpoint, an MCP server or an A2A agent."""
-    _refuse_lone_mcp_flags(
-        mcp,
-        {
-            "--write-mcp-pin": write_mcp_pin,
-            "--mcp-pin": mcp_pin,
-            "--mcp-token-env": mcp_token_env,
-            "--allow-exec": True if allow_exec else None,
-        },
+    chat_flags: dict[str, object] = {
+        "--url": url,
+        "--model": model,
+        "--api-key-env": api_key_env,
+        "--provider": provider,
+        "--adapter": adapter,
+        "--system-prompt-file": system_prompt_file,
+    }
+    mcp_flags: dict[str, object] = {
+        "--mcp-token-env": mcp_token_env,
+        "--mcp-pin": mcp_pin,
+        "--mcp-registry-entry": mcp_registry_entry,
+        "--write-mcp-pin": write_mcp_pin,
+        "--allow-exec": True if allow_exec else None,
+    }
+    a2a_flags: dict[str, object] = {
+        "--a2a-token-env": a2a_token_env,
+        "--a2a-other-token-env": a2a_other_token_env,
+    }
+    _refuse_flags_of_another_target(
+        target, a2a, mcp, chat=chat_flags, mcp_flags=mcp_flags, a2a_flags=a2a_flags
     )
     installed_reporter = installed_reporter_or_check(reporter)
     refuse_installed_output_beside("--write-mcp-pin", write_mcp_pin, format, installed_reporter)
@@ -272,14 +288,26 @@ def probe(  # noqa: C901, PLR0913, PLR0915, PLR0917 — Typer surface, target mo
     refuse_collector_beside("--write-mcp-pin", write_mcp_pin, collector=bool(collector))
     refuse_output_beside("--write-mcp-pin", write_mcp_pin, output)
     refuse_incomparable_output(output, format)
-    _refuse_lone_a2a_flags(a2a, a2a_token_env, a2a_other_token_env)
-    if mcp_registry_entry is not None and mcp is None:
-        raise typer.BadParameter(
-            "--mcp-registry-entry describes the MCP server --mcp names; pass --mcp too"
-        )
+    refuse_writing_over_named_inputs(
+        output,
+        [
+            ("--profile", profile),
+            *rule_flag_inputs(rules),
+            ("--adapter", adapter),
+            ("--system-prompt-file", system_prompt_file),
+            ("--fixtures", fixtures),
+            ("--mcp-pin", mcp_pin),
+            ("--mcp-registry-entry", mcp_registry_entry),
+        ],
+    )
     seeded = _fixtures(fixtures, elsewhere=target is not None or mcp is not None or a2a is not None)
+    if seeded is not None:
+        refuse_writing_over_named_inputs(
+            output, [(f"--fixtures tenant {t.name}", t.adapter) for t in seeded.tenants]
+        )
     deployment = detect_deployment(ai_system, environment, deployment_id)
     prof = resolve_profile(profile, preset)
+    refuse_writing_over_named_inputs(output, profile_file_inputs(prof))
     warn_without_a_reporter(prof.delivery_required, reporter)
     prof = replace(
         prof,
@@ -336,30 +364,6 @@ def probe(  # noqa: C901, PLR0913, PLR0915, PLR0917 — Typer surface, target mo
             )
 
         if target is not None:
-            conflicting = {
-                "--url": url,
-                "--model": model,
-                "--api-key-env": api_key_env,
-                "--provider": provider,
-                "--adapter": adapter,
-                "--system-prompt-file": system_prompt_file,
-                "--mcp": mcp,
-                "--mcp-token-env": mcp_token_env,
-                "--mcp-pin": mcp_pin,
-                "--mcp-registry-entry": mcp_registry_entry,
-                "--write-mcp-pin": write_mcp_pin,
-                "--a2a": a2a,
-                "--a2a-token-env": a2a_token_env,
-                "--a2a-other-token-env": a2a_other_token_env,
-            }
-            used = [name for name, value in conflicting.items() if value is not None]
-            if allow_exec:
-                used.append("--allow-exec")
-            if used:
-                raise typer.BadParameter(
-                    f"--target cannot be combined with {', '.join(used)}; pass target-specific "
-                    "configuration through --target-option"
-                )
             selected = resolve_target(
                 registry,
                 locator=target,
@@ -396,22 +400,6 @@ def probe(  # noqa: C901, PLR0913, PLR0915, PLR0917 — Typer surface, target mo
             raise typer.BadParameter("--target-option needs --target scheme://locator")
 
         if a2a is not None:
-            _refuse_beside_a2a(
-                {
-                    "--url": url,
-                    "--model": model,
-                    "--api-key-env": api_key_env,
-                    "--provider": provider,
-                    "--adapter": adapter,
-                    "--system-prompt-file": system_prompt_file,
-                    "--mcp": mcp,
-                    "--mcp-token-env": mcp_token_env,
-                    "--mcp-pin": mcp_pin,
-                    "--mcp-registry-entry": mcp_registry_entry,
-                    "--write-mcp-pin": write_mcp_pin,
-                    "--allow-exec": True if allow_exec else None,
-                }
-            )
             agent = connection_from(a2a, a2a_token_env, a2a_other_token_env)
             examined_agent = run_judged(
                 lambda: _carried_out(
@@ -438,14 +426,6 @@ def probe(  # noqa: C901, PLR0913, PLR0915, PLR0917 — Typer surface, target mo
             return
 
         if mcp is not None:
-            chat_flags = {
-                "--url": url,
-                "--model": model,
-                "--api-key-env": api_key_env,
-                "--provider": provider,
-                "--adapter": adapter,
-                "--system-prompt-file": system_prompt_file,
-            }
             chat = [name for name, value in chat_flags.items() if value is not None]
             if chat:
                 raise typer.BadParameter(
@@ -542,40 +522,76 @@ def _fixtures(path: Path | None, *, elsewhere: bool) -> Fixtures | None:
     return read_fixtures(path)
 
 
-def _refuse_lone_a2a_flags(
-    a2a: str | None, token_env: str | None, other_token_env: str | None
+def _given(flags: dict[str, object]) -> list[str]:
+    return [name for name, value in flags.items() if value is not None]
+
+
+def _refuse_flags_of_another_target(  # noqa: PLR0913 — the target selectors and their flags
+    target: str | None,
+    a2a: str | None,
+    mcp: str | None,
+    *,
+    chat: dict[str, object],
+    mcp_flags: dict[str, object],
+    a2a_flags: dict[str, object],
 ) -> None:
-    """Refuse an A2A credential flag given without `--a2a`, which nothing would read."""
-    given = [
-        name
-        for name, value in (
-            ("--a2a-token-env", token_env),
-            ("--a2a-other-token-env", other_token_env),
+    """Refuse every flag that configures a target other than the one this probe examines.
+
+    Decided once, before anything else, so the advice names every conflicting flag at once
+    and following it leads to a command no other target check refuses.
+    """
+    if target is not None:
+        used = _given({**chat, "--mcp": mcp, **mcp_flags, "--a2a": a2a, **a2a_flags})
+        if used:
+            raise typer.BadParameter(
+                f"--target cannot be combined with {', '.join(used)}; pass target-specific "
+                "configuration through --target-option"
+            )
+        return
+    if a2a is not None:
+        used = _given({**chat, "--mcp": mcp, **mcp_flags})
+        if used:
+            raise typer.BadParameter(
+                f"--a2a probes an A2A agent; {', '.join(used)} configure another target and "
+                f"would be ignored"
+            )
+        return
+    _refuse_flags_without_their_target(mcp, _given(chat), _given(mcp_flags), _given(a2a_flags))
+
+
+def _refuse_flags_without_their_target(
+    mcp: str | None, chat: list[str], mcp_given: list[str], a2a_given: list[str]
+) -> None:
+    """Refuse a flag of `--mcp` or `--a2a` given without it; nothing would read it."""
+    lone_mcp = mcp_given if mcp is None else []
+    if not lone_mcp and not a2a_given:
+        return
+    said = []
+    if lone_mcp:
+        verb = "applies" if len(lone_mcp) == 1 else "apply"
+        said.append(f"{', '.join(lone_mcp)} {verb} only to the MCP server --mcp names")
+    if a2a_given:
+        verb = "names" if len(a2a_given) == 1 else "name"
+        said.append(f"{', '.join(a2a_given)} {verb} a credential for --a2a")
+    beside = [*chat, *([] if mcp is None else ["--mcp"])]
+    if beside:
+        wanted = " and ".join(
+            flag for flag, lone in (("--mcp", lone_mcp), ("--a2a", a2a_given)) if lone
         )
-        if value is not None
-    ]
-    if given and a2a is None:
-        raise typer.BadParameter(f"{', '.join(given)} names a credential for --a2a; pass --a2a URL")
-
-
-def _refuse_lone_mcp_flags(mcp: str | None, flags: dict[str, object]) -> None:
-    """Refuse a flag that configures the MCP server given without `--mcp`; nothing would read it."""
-    used = [name for name, value in flags.items() if value is not None]
-    if used and mcp is None:
-        raise typer.BadParameter(
-            f"{', '.join(used)} {'applies' if len(used) == 1 else 'apply'} only to the MCP "
-            f"server --mcp names; pass --mcp too"
+        remedy = (
+            f"{wanted} cannot be combined with {', '.join(beside)}; "
+            f"drop {', '.join([*lone_mcp, *a2a_given])}"
         )
-
-
-def _refuse_beside_a2a(flags: dict[str, object]) -> None:
-    """Refuse the flags that configure another target beside `--a2a`; they would be ignored."""
-    used = [name for name, value in flags.items() if value is not None]
-    if used:
-        raise typer.BadParameter(
-            f"--a2a probes an A2A agent; {', '.join(used)} configure another target and "
-            f"would be ignored"
+    elif lone_mcp and a2a_given:
+        remedy = (
+            f"--mcp cannot be combined with --a2a; pass --mcp and drop {', '.join(a2a_given)}, "
+            f"or pass --a2a URL and drop {', '.join(lone_mcp)}"
         )
+    elif lone_mcp:
+        remedy = "pass --mcp too"
+    else:
+        remedy = "pass --a2a URL"
+    raise typer.BadParameter(f"{', and '.join(said)}; {remedy}")
 
 
 def _seeded(
@@ -724,7 +740,8 @@ def _write_exchanges(
 
     A run that keeps none leaves nothing there: `RunOutputs.write` removed what an earlier
     run kept. Exchanges that cannot be written end the command with exit `3`, unless the
-    run stopped. A link at their path is replaced, never written through.
+    run stopped, and the saved run is written again recording none, so it never claims a
+    sidecar that is not there. A link at their path is replaced, never written through.
     """
     kept = verification.exchanges
     record = verification.manifest.exchanges
@@ -743,6 +760,10 @@ def _write_exchanges(
         path.write_bytes(render_recording(kept).encode("utf-8"))
     except OSError as exc:
         typer.echo(f"error: could not write the kept exchanges to {path}: {exc}", err=True)
+        if path.is_file() or path.is_symlink():
+            with suppress(OSError):
+                path.unlink()
+        _save_without_exchanges(verification, output, outputs)
         outputs.end_unwritten(verification, "the run's kept exchanges could not be written")
     altered = (
         f"; {record.altered} reply(ies) changed by redaction, which `guardana grade` will not grade"
@@ -750,3 +771,16 @@ def _write_exchanges(
         else ""
     )
     typer.echo(f"kept {record.count} exchange(s) in {path}{altered}", err=True)
+
+
+def _save_without_exchanges(verification: Verification, output: Path, outputs: RunOutputs) -> None:
+    """Write the saved run again recording no kept exchanges, or remove it if that fails."""
+    unkept = replace(
+        verification, manifest=replace(verification.manifest, exchanges=None), exchanges=None
+    )
+    try:
+        outputs.write(unkept, output, keeps_exchanges=True)
+    except typer.Exit:
+        with suppress(OSError):
+            output.unlink()
+        raise

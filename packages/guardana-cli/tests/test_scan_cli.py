@@ -376,3 +376,118 @@ def test_a_baseline_that_cannot_be_written_is_a_usage_error(
     assert "Traceback" not in result.output
     assert "wrote baseline" not in result.output
     assert _files_under(tmp_path) == before
+
+
+def _tree_read_through_profile_and_rules(tmp_path: Path) -> dict[str, Path]:
+    """Lay out a scanned tree, a `--rules` directory and a profile naming `rules.paths`."""
+    tree = tmp_path / "tree"
+    tree.mkdir()
+    (tree / "app.py").write_text("print('hello')\n", encoding="utf-8")
+    ignore = tree / ".guardanaignore"
+    ignore.write_text("# nothing excluded yet\n", encoding="utf-8")
+    rules = tmp_path / "rules"
+    rules.mkdir()
+    (rules / "rule.yaml").write_text(_ENDPOINT_RULE, encoding="utf-8")
+    beside = tmp_path / "profile-rules"
+    beside.mkdir()
+    (beside / "rule.yaml").write_text(_ENDPOINT_RULE.replace("demo", "beside"), encoding="utf-8")
+    profile = tmp_path / "guardana.yaml"
+    profile.write_text("name: audit\nrules:\n  paths: [profile-rules]\n", encoding="utf-8")
+    return {
+        "tree": tree,
+        "profile": profile,
+        "rules": rules,
+        ".guardanaignore": ignore,
+        "--rules directory": rules / "rule.yaml",
+        "rules.paths": beside / "rule.yaml",
+        "scanned file in the tree": tree / "app.py",
+    }
+
+
+@pytest.mark.parametrize(
+    "read", [".guardanaignore", "--rules directory", "rules.paths", "scanned file in the tree"]
+)
+def test_write_baseline_refuses_a_file_the_scan_reads_inside_a_directory(
+    tmp_path: Path, read: str
+) -> None:
+    laid_out = _tree_read_through_profile_and_rules(tmp_path)
+    written = laid_out[read]
+    before = _files_under(tmp_path)
+
+    result = runner.invoke(
+        app,
+        [
+            "scan",
+            str(laid_out["tree"]),
+            "--profile",
+            str(laid_out["profile"]),
+            "--rules",
+            str(laid_out["rules"]),
+            "--write-baseline",
+            str(written),
+        ],
+    )
+
+    assert result.exit_code == ExitCode.INVALID_USAGE, result.output
+    said = " ".join(result.output.split())
+    assert f"error: --write-baseline {written} is " in said
+    assert "and the baseline would replace it — choose another --write-baseline" in said
+    assert _files_under(tmp_path) == before
+
+
+def test_the_documented_baseline_snapshot_can_be_taken_again_over_the_last_one(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / "app.py").write_text("print('hello')\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    first = runner.invoke(app, ["scan", ".", "--write-baseline", "guardana-baseline.yaml"])
+    assert first.exit_code == ExitCode.OK, first.output
+    (tmp_path / "guardana-baseline.yaml").write_text("waivers: []\n", encoding="utf-8")
+
+    again = runner.invoke(app, ["scan", ".", "--write-baseline", "guardana-baseline.yaml"])
+
+    assert again.exit_code == ExitCode.OK, again.output
+    rewritten = (tmp_path / "guardana-baseline.yaml").read_text(encoding="utf-8")
+    assert "Guardana baseline" in rewritten
+
+
+def test_a_report_never_replaces_a_file_the_scan_read(tmp_path: Path) -> None:
+    project = tmp_path / "proj"
+    project.mkdir()
+    requirements = project / "requirements.txt"
+    requirements.write_text("requests==2.0.0\n", encoding="utf-8")
+
+    result = runner.invoke(
+        app, ["scan", str(project), "--format", "json", "--output", str(requirements)]
+    )
+
+    assert result.exit_code == ExitCode.INVALID_USAGE, result.output
+    assert "which this scan read" in " ".join(result.output.split())
+    assert requirements.read_text(encoding="utf-8") == "requests==2.0.0\n"
+
+
+def test_a_saved_run_inside_the_scanned_tree_is_replaced_on_the_next_run(tmp_path: Path) -> None:
+    project = tmp_path / "proj"
+    project.mkdir()
+    (project / "app.py").write_text("print('hello')\n", encoding="utf-8")
+    run = project / "run.json"
+    command = ["scan", str(project), "--format", "json", "--output", str(run)]
+
+    first = runner.invoke(app, command)
+    second = runner.invoke(app, command)
+
+    assert first.exit_code == ExitCode.OK, first.output
+    assert second.exit_code == ExitCode.OK, second.output
+    assert run.is_file()
+
+
+def test_a_baseline_never_replaces_a_scanned_file_that_only_looks_like_one(tmp_path: Path) -> None:
+    project = tmp_path / "proj"
+    project.mkdir()
+    lookalike = project / "waivers.yaml"
+    lookalike.write_text("waivers: [the team's own list]\n", encoding="utf-8")
+
+    result = runner.invoke(app, ["scan", str(project), "--write-baseline", str(lookalike)])
+
+    assert result.exit_code == ExitCode.INVALID_USAGE, result.output
+    assert lookalike.read_text(encoding="utf-8") == "waivers: [the team's own list]\n"

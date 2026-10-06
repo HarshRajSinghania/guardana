@@ -113,7 +113,9 @@ def test_an_a2a_credential_flag_without_a2a_is_a_usage_error(tokens: None) -> No
     )
 
     assert result.exit_code == ExitCode.INVALID_USAGE
-    assert "pass --a2a URL" in _plain(result.output)
+    assert "--a2a cannot be combined with --url, --model; drop --a2a-token-env" in _plain(
+        result.output
+    )
 
 
 def test_a_probe_saves_the_run_with_the_protocol_and_without_any_credential_or_task_id(

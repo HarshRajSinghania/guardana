@@ -173,6 +173,9 @@ guardana pack lock                # write ./guardana-lock.yaml
 guardana pack lock --check        # in CI: fail if the build has drifted
 ```
 
+The lock is written whole, through a temporary file and a rename: a write that fails
+part-way leaves the earlier lock as it was, and a lock that cannot be written exits `3`.
+
 ```yaml
 schema_version: 2
 extension_api: 2

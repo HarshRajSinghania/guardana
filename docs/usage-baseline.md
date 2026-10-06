@@ -92,6 +92,11 @@ finding is fixed by not seeing it, and a check that did not run produces exactly
 that absence. Until 0.7.1 one broken rule deleted the waiver, the reason and the
 approver, printed "is fixed", and exited `0`.
 
+`create` and `update` write the file whole, through a temporary file and a rename, so a
+write that fails part-way leaves the approved baseline as it was and exits `3`. `create`
+refuses an `--output` that is a file the scan reads: `.guardanaignore`, the profile or
+anything it names, a rule file, or a scanned file that is not an earlier baseline.
+
 ## A typo is refused, never read around
 
 Unknown keys raise — at the top level and inside a waiver. The reason is one letter

@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
+from guardana.cli._atomic import write_whole
 from guardana.cli._exit import refuse_unenforceable_budget
 from guardana.cli._formats import FORMAT_HELP
 from guardana.cli._outputs import (
@@ -19,12 +20,22 @@ from guardana.cli._plugins import (
     resolve_trust,
 )
 from guardana.cli._profile import PRESET_HELP, resolve_profile
+from guardana.cli._profile_files import NamedFile, profile_file_inputs, rule_flag_inputs
 from guardana.cli._reporting import installed_reporter_or_check, submit_safely
 from guardana.cli._rules_loading import load_custom_rules
 from guardana.cli._run_meta import calibrations_or_exit, detect_deployment, detect_source
-from guardana.cli._sidecar import refuse_writing_over_an_input, same_file
+from guardana.cli._sidecar import (
+    refuse_writing_over_an_input,
+    refuse_writing_over_named_inputs,
+)
 from guardana.cli._target_locator import resolve_target
-from guardana.cli.baseline import refuse_an_incomplete_baseline
+from guardana.cli.baseline import (
+    ignore_file_of,
+    refuse_a_baseline_over_a_scanned_file,
+    refuse_a_baseline_over_an_input,
+    refuse_a_report_over_a_scanned_file,
+    refuse_an_incomplete_baseline,
+)
 from guardana.cli.exit_codes import ExitCode
 from guardana.core.registry import Registry
 from guardana.core.report import (
@@ -89,19 +100,21 @@ def _path_to_scan(path: Path | None) -> Path:
     return path
 
 
-def _refuse_a_baseline_over_an_input(written: Path | None, inputs: list[Path | None]) -> None:
-    """Exit `3` when `--write-baseline` names a file this scan reads; a directory is not one."""
-    if written is None:
-        return
-    for given in inputs:
-        if given is None or given.is_dir() or not same_file(written, given):
-            continue
-        typer.echo(
-            f"error: --write-baseline {written} is {given}, which this command reads, and the "
-            f"baseline would replace it — choose another --write-baseline",
-            err=True,
-        )
-        raise typer.Exit(code=ExitCode.INVALID_USAGE)
+def _refuse_writing_over_an_input(
+    output: Path | None,
+    write_baseline: Path | None,
+    read: list[Path | None],
+    named: tuple[NamedFile, ...],
+) -> None:
+    """Exit `3` when the report or the baseline would replace a file this scan reads.
+
+    `read` holds the files the command reads as given or of its own accord, such as a
+    scanned directory's `.guardanaignore`; `named` each file with the flag or key naming it.
+    """
+    refuse_a_baseline_over_an_input("--write-baseline", write_baseline, [(None, f) for f in read])
+    refuse_a_baseline_over_an_input("--write-baseline", write_baseline, named)
+    refuse_writing_over_an_input(output, read)
+    refuse_writing_over_named_inputs(output, named)
 
 
 _NAMED_LOCAL_RULES = 3
@@ -205,13 +218,18 @@ def scan(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; this is t
     if target is not None and path is not None:
         raise typer.BadParameter("pass either a path or --target, not both")
     refuse_output_beside("--write-baseline", write_baseline, output)
-    _refuse_a_baseline_over_an_input(write_baseline, [path, profile, *rules])
-    refuse_writing_over_an_input(output, [path, baseline, profile, *rules])
+    _refuse_writing_over_an_input(
+        output,
+        write_baseline,
+        [path, baseline, profile, *rules, ignore_file_of(path)],
+        rule_flag_inputs(rules),
+    )
     installed_reporter = installed_reporter_or_check(reporter)
     refuse_installed_output_beside("--write-baseline", write_baseline, format, installed_reporter)
     collector = installed_reporter is None and bool(reporter)
     refuse_collector_beside("--write-baseline", write_baseline, collector=collector)
     prof = resolve_profile(profile, preset)
+    _refuse_writing_over_an_input(output, write_baseline, [], profile_file_inputs(prof))
     warn_without_a_reporter(prof.delivery_required, reporter)
     # --no-plugins resolves to `--plugins disabled`: discovery below still runs,
     # refuses every entry point, and records each refusal in `errors` (see
@@ -266,9 +284,10 @@ def scan(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; this is t
         result = verification.result
 
         if write_baseline is not None:
+            refuse_a_baseline_over_a_scanned_file("--write-baseline", write_baseline, result.scope)
             refuse_an_incomplete_baseline(result, prof.policy, write_baseline)
             try:
-                write_baseline.write_text(serialize_baseline(result), encoding="utf-8")
+                write_whole(write_baseline, serialize_baseline(result).encode("utf-8"))
             except OSError as exc:
                 typer.echo(
                     f"error: could not write the baseline to {write_baseline}: {exc}", err=True
@@ -283,6 +302,7 @@ def scan(  # noqa: PLR0913, PLR0917 — one typer.Option per CLI flag; this is t
             # today's findings is the whole point of this flag.
             raise typer.Exit(code=ExitCode.OK)
 
+        refuse_a_report_over_a_scanned_file("--output", output, result.scope)
         outputs.write(verification, output)
         acknowledged = None
         if reporter and collector:

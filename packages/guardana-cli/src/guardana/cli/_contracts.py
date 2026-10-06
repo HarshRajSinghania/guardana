@@ -94,6 +94,11 @@ def load_contracts_or_exit(paths: list[Path]) -> list[SecurityContract]:
     return list(read.contracts)
 
 
+def contract_files(path: Path) -> list[Path]:
+    """Return the contract files a run reads for one configured path; none for a missing one."""
+    return _files(path)[0]
+
+
 def _files(path: Path) -> tuple[list[Path], str | None]:
     """Expand a directory of contracts, and refuse a path that is not there at all.
 

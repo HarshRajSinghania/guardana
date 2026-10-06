@@ -6,16 +6,20 @@ screen, because the whole reason the loader keeps them apart is that somebody
 eventually reads the output and decides something.
 """
 
+import hashlib
 import json
 import os
 import subprocess
 import sys
 from pathlib import Path
 
+import guardana.cli._endpoint as endpoint_module
 import pytest
 from guardana.cli.main import app
 from guardana.core.report import load_report
 from guardana.core.report.run import REPORT_SCHEMA_VERSION
+from guardana.core.testing import RefusingTransport
+from guardana.core.verify import exchanges_path
 from typer.testing import CliRunner
 
 runner = CliRunner()
@@ -399,3 +403,144 @@ def test_migrate_to_a_directory_is_a_usage_error_that_leaves_nothing_behind(
     assert sorted(tmp_path.iterdir()) == before
     assert out.is_dir()
     assert not any(out.iterdir())
+
+
+def _probe_that_kept_exchanges(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, schema: int = REPORT_SCHEMA_VERSION
+) -> tuple[Path, Path]:
+    """Save a probe that kept its exchanges at `schema`; return the run and its sidecar."""
+    monkeypatch.setattr(endpoint_module, "transport_factory", RefusingTransport)
+    path = tmp_path / "probe.json"
+    result = runner.invoke(
+        app,
+        [
+            "probe",
+            *("--url", "http://fake", "--model", "m", "--keep-exchanges"),
+            *("--format", "json", "--output", str(path)),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    if schema != REPORT_SCHEMA_VERSION:
+        document = json.loads(path.read_text(encoding="utf-8"))
+        path.write_text(json.dumps({**document, "schema_version": schema}), encoding="utf-8")
+    sidecar = exchanges_path(path)
+    assert sidecar.is_file(), result.output
+    return path, sidecar
+
+
+def _recorded(run: Path) -> str:
+    return str(json.loads(run.read_text(encoding="utf-8"))["run"]["exchanges"]["digest"])
+
+
+def _digest(path: Path) -> str:
+    return "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+@pytest.mark.parametrize("schema", [REPORT_SCHEMA_VERSION, REPORT_SCHEMA_VERSION - 1])
+def test_migrate_to_another_output_copies_the_sidecar_its_run_records(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, schema: int
+) -> None:
+    path, sidecar = _probe_that_kept_exchanges(tmp_path, monkeypatch, schema=schema)
+    before = sidecar.read_bytes()
+    out = tmp_path / "copy" / "run.json"
+    out.parent.mkdir()
+
+    result = runner.invoke(app, ["run", "migrate", str(path), "--output", str(out)])
+
+    assert result.exit_code == 0, result.output
+    assert exchanges_path(out).read_bytes() == before
+    assert _recorded(out) == _digest(exchanges_path(out))
+    assert sidecar.read_bytes() == before
+    assert f"copied the exchanges {path} records → {exchanges_path(out)}" in result.stderr
+
+
+def test_migrate_refuses_an_output_whose_sidecar_holds_other_exchanges(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path, _sidecar = _probe_that_kept_exchanges(tmp_path, monkeypatch)
+    out = tmp_path / "again.json"
+    out.write_text("an earlier run\n", encoding="utf-8")
+    beside = exchanges_path(out)
+    beside.write_text("kept by an earlier run\n", encoding="utf-8")
+    before = {kept: kept.read_bytes() for kept in tmp_path.iterdir()}
+
+    result = runner.invoke(app, ["run", "migrate", str(path), "--output", str(out)])
+
+    assert result.exit_code == _INVALID_USAGE, result.output
+    assert (
+        f"error: {beside} holds other exchanges than the ones {path} records, and the copy at "
+        f"{out} would claim them — choose another --output"
+    ) in " ".join(result.stderr.split())
+    assert {kept: kept.read_bytes() for kept in tmp_path.iterdir()} == before
+
+
+def test_migrate_to_an_output_whose_sidecar_already_holds_these_exchanges_keeps_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path, sidecar = _probe_that_kept_exchanges(tmp_path, monkeypatch)
+    out = tmp_path / "again.json"
+    exchanges_path(out).write_bytes(sidecar.read_bytes())
+
+    result = runner.invoke(app, ["run", "migrate", str(path), "--output", str(out)])
+
+    assert result.exit_code == 0, result.output
+    assert _recorded(out) == _digest(exchanges_path(out))
+    assert "removed" not in result.stderr
+
+
+@pytest.mark.parametrize("sidecar_state", ["missing", "other bytes"])
+def test_migrate_of_a_run_without_its_sidecar_copies_nothing_and_says_so(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, sidecar_state: str
+) -> None:
+    path, sidecar = _probe_that_kept_exchanges(tmp_path, monkeypatch)
+    if sidecar_state == "missing":
+        sidecar.unlink()
+    else:
+        sidecar.write_bytes(sidecar.read_bytes() + b"\n")
+    out = tmp_path / "copy" / "run.json"
+    out.parent.mkdir()
+
+    result = runner.invoke(app, ["run", "migrate", str(path), "--output", str(out)])
+
+    assert result.exit_code == 0, result.output
+    assert not exchanges_path(out).exists()
+    assert (
+        f"warning: {sidecar} is not the exchanges {path} records, so none were copied beside {out}"
+    ) in " ".join(result.stderr.split())
+
+
+def test_migrate_whose_run_cannot_be_written_removes_the_sidecar_it_copied(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path, _sidecar = _probe_that_kept_exchanges(tmp_path, monkeypatch)
+    folder = tmp_path / "copy"
+    folder.mkdir()
+    out = folder / "run.json"
+    out.write_text("an earlier run\n", encoding="utf-8")
+    out.chmod(0o444)
+
+    try:
+        result = runner.invoke(app, ["run", "migrate", str(path), "--output", str(out)])
+    finally:
+        out.chmod(0o644)
+
+    assert result.exit_code == _INVALID_USAGE, result.output
+    assert f"error: could not write {out}: " in result.stderr
+    assert sorted(folder.iterdir()) == [out]
+    assert out.read_text(encoding="utf-8") == "an earlier run\n"
+
+
+def test_migrate_in_place_of_a_run_that_kept_exchanges_leaves_them_alone(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path, sidecar = _probe_that_kept_exchanges(
+        tmp_path, monkeypatch, schema=REPORT_SCHEMA_VERSION - 1
+    )
+    before = sidecar.read_bytes()
+
+    result = runner.invoke(app, ["run", "migrate", str(path)])
+
+    assert result.exit_code == 0, result.output
+    assert sidecar.read_bytes() == before
+    assert _recorded(path) == _digest(sidecar)
+    assert "copied the exchanges" not in result.stderr

@@ -11,7 +11,13 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
-from guardana.cli._contracts import contract_paths, describe_contracts, wire_contracts
+from guardana.cli._atomic import write_whole
+from guardana.cli._contracts import (
+    contract_files,
+    contract_paths,
+    describe_contracts,
+    wire_contracts,
+)
 from guardana.cli._exit import refuse_unenforceable_budget
 from guardana.cli._formats import FORMAT_HELP
 from guardana.cli._outputs import select_outputs, warn_without_a_reporter
@@ -22,10 +28,15 @@ from guardana.cli._plugins import (
     resolve_trust,
 )
 from guardana.cli._profile import PRESET_HELP, resolve_profile
+from guardana.cli._profile_files import profile_file_inputs, rule_flag_inputs
 from guardana.cli._reporting import installed_reporter_or_check, submit_safely
 from guardana.cli._rules_loading import load_custom_rules
 from guardana.cli._run_meta import build_manifest, detect_deployment, target_identity
-from guardana.cli._sidecar import refuse_writing_over_an_input, same_file
+from guardana.cli._sidecar import (
+    refuse_writing_over_an_input,
+    refuse_writing_over_named_inputs,
+    same_file,
+)
 from guardana.cli._target_locator import resolve_target
 from guardana.cli._trace_input import (
     describe_coverage,
@@ -115,9 +126,14 @@ def analyze_trace(  # noqa: C901, PLR0913, PLR0915, PLR0917 — Typer surface pl
     """Grade a recorded agent execution (JSONL, OpenTelemetry GenAI or Guardana native)."""
     inputs = [trace, profile, *rules, *contract]
     refuse_writing_over_an_input(output, inputs)
+    refuse_writing_over_named_inputs(output, rule_flag_inputs(rules))
+    refuse_writing_over_named_inputs(
+        output, [("--contract", file) for entry in contract for file in contract_files(entry)]
+    )
     _refuse_writing_the_trace_over(write_trace, output, inputs)
     installed_reporter = installed_reporter_or_check(reporter)
     prof = resolve_profile(profile, preset)
+    refuse_writing_over_named_inputs(output, profile_file_inputs(prof))
     warn_without_a_reporter(prof.delivery_required, reporter)
     resolved = resolve_trust(plugins, allow_plugin, prof)
     outputs = select_outputs(
@@ -262,7 +278,7 @@ def _refuse_writing_the_trace_over(
 def _write_native(read: TraceRead, destination: Path) -> None:
     """Write the trace in the native dialect, so missing dimensions can be filled in."""
     try:
-        destination.write_text(serialize_trace(read.trace), encoding="utf-8")
+        write_whole(destination, serialize_trace(read.trace).encode("utf-8"))
     except OSError as exc:
         typer.echo(f"error: could not write the native trace to {destination}: {exc}", err=True)
         raise typer.Exit(code=ExitCode.INVALID_USAGE) from exc
