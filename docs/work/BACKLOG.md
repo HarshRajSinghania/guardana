@@ -88,8 +88,9 @@ left for the owner, or are design gaps already documented elsewhere.
   commit; `check_repo_settings.py` reports it ABSENT until the owner enables "Restrict updates".
   GitHub documents no built-in `RepositoryRole` ids (github/rest-api-description#4406); the live
   ruleset's bypass actor is `5` (Admin), and Maintain (2) is unconfirmed.
-- **Before 1.0.0:** `RELEASING.md` says Guardana "is **pre-1.0**", which no gate rewrites
-  or checks at the final release.
+- **Before 1.0.0:** `RELEASING.md:27` still says Guardana "is **pre-1.0**"; `scripts/release.py`
+  refuses a final 1.x until it is rewritten, with the versioning rules that follow from it. The
+  landing hero's status line ("Release candidate · engine and rules beta") changes with it.
 - **The largest classes carry several reasons to change**: `_Probe` (MCP authorization,
   discovery and tasks), `Verifier` (running a check and assembling its result), then `Registry`
   and `Runner`. Split them behind behaviour tests, without a line-count target and without moving
@@ -384,6 +385,9 @@ Left open when the site shipped on 2026-09-25 with Control in coming-soon mode
   encoding each message separately would close that, under a new prompt version.
 - **An unlisted `bin/<module>.py` can shadow the import a console-script wrapper makes**
   (`sys.path[0]` is `bin/`); unlisted files are not pinned.
+- **The release workflow publishes in separate jobs**, so PyPI can succeed while the reference
+  pack or the images fail; `RELEASING.md` lists what to check, nothing checks the whole set.
+- **`_target_version("patch", "1.0.0rc2")` raises** on the suffix in `scripts/release.py`.
 - **Whole-file writes stage a temporary file beside the destination**
   (`cli/_atomic.py`): a destination that is not a regular file (`/dev/stdout`, a FIFO) is
   refused where a plain write worked; a writable file in a directory this process cannot write

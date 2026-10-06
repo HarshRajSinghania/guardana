@@ -53,6 +53,11 @@ _BUMP_WRITES_RE = re.compile(r"^\s*would update (\S+)\s*$", re.MULTILINE)
 _SURFACE = "docs/generated/api-surface.json"
 _SURFACE_PATH = _ROOT / _SURFACE
 _CANDIDATE_RE = re.compile(r"\d+\.\d+\.\d+rc\d+")
+_FINAL_RE = re.compile(r"(?P<major>\d+)\.\d+\.\d+")
+_RELEASING = _ROOT / "RELEASING.md"
+# The runbook's statement of the project's status, which a final 1.x release makes false;
+# a wrapped line may split it, so the gap between the words may hold a newline.
+_PRE_1_STATEMENT_RE = re.compile(r"\bis\s+\**(?P<status>pre-1\.0)\b")
 _SURFACE_SECTION_RE = re.compile(r"^### (Changed|Deprecated|Removed)\b", re.MULTILINE)
 _RELEASE_TAG_GLOB = "v[0-9]*.[0-9]*.[0-9]*"
 _PACK = "examples/reference_pack"
@@ -166,6 +171,7 @@ def main(argv: list[str]) -> None:
 
     _preflight()
     _check_surface(version)
+    _check_pre_1_statement(version)
     _check_reference_pack()
     _gate()
 
@@ -232,15 +238,36 @@ def _unreleased(changelog: str) -> str:
 
 
 def _check_surface(version: str) -> None:
-    """Refuse a release candidate whose supported surface moved without a changelog section.
+    """Refuse a candidate whose surface moved unannounced, or a final whose surface moved at all.
 
     A candidate is meant to carry fixes only, so a difference from the previous tag's
-    `api-surface.json` must be announced under "Changed", "Deprecated" or "Removed". A
-    previous tag without the file cannot show the surface stayed put, so it counts as moved.
+    `api-surface.json` must be announced under "Changed", "Deprecated" or "Removed". The
+    final release cut from a candidate ships what that candidate was tested as, so any
+    difference from it is refused. A previous tag without the file cannot show the surface
+    stayed put, so it counts as moved. A final after a final is not compared.
     """
-    if not _CANDIDATE_RE.fullmatch(version):
+    announced_move_allowed = True
+    if _CANDIDATE_RE.fullmatch(version):
+        previous = _previous_tag("the supported surface")
+    elif _FINAL_RE.fullmatch(version):
+        nearest = _nearest_tag()
+        candidate = rf"v{re.escape(version)}rc\d+"
+        if nearest is None or not re.fullmatch(candidate, nearest):
+            candidates = _run(
+                ["git", "for-each-ref", "--format=%(refname:short)", f"refs/tags/v{version}rc*"],
+                capture=True,
+            ).split()
+            if any(re.fullmatch(candidate, tag) for tag in candidates):
+                _fail(
+                    f"v{version} has release candidates ({', '.join(sorted(candidates))}) but "
+                    f"the nearest tag behind HEAD is {nearest or 'none'}; a final release is cut "
+                    f"from its last candidate, so fetch the tags or cut from that candidate"
+                )
+            return
+        previous = nearest
+        announced_move_allowed = False
+    else:
         return
-    previous = _previous_tag("the supported surface")
     try:
         current = _SURFACE_PATH.read_text(encoding="utf-8")
     except OSError as error:
@@ -251,6 +278,11 @@ def _check_surface(version: str) -> None:
         before = None
     if before == current:
         return
+    if not announced_move_allowed:
+        _fail(
+            f"the supported surface ({_SURFACE}) differs from {previous}'s; the final release "
+            f"ships the surface of its last candidate, so cut another candidate instead"
+        )
     if _SURFACE_SECTION_RE.search(_unreleased(_CHANGELOG.read_text(encoding="utf-8"))):
         return
     _fail(
@@ -260,16 +292,46 @@ def _check_surface(version: str) -> None:
     )
 
 
-def _previous_tag(what: str) -> str:
-    """Return the nearest release tag behind HEAD, or refuse when there is none."""
+def _check_pre_1_statement(version: str) -> None:
+    """Refuse a final 1.x or later release while RELEASING.md still says the project is pre-1.0.
+
+    The runbook's versioning rules follow from that statement, so a stable release that
+    leaves it in place ships a runbook that contradicts the version. A runbook that cannot
+    be read cannot show the statement is gone, so it refuses too.
+    """
+    final = _FINAL_RE.fullmatch(version)
+    if final is None or int(final.group("major")) < 1:
+        return
     try:
-        previous = _run(
+        runbook = _RELEASING.read_text(encoding="utf-8")
+    except OSError as error:
+        _fail(f"cannot read {_RELEASING.name} to check it no longer says pre-1.0: {error}")
+    statement = _PRE_1_STATEMENT_RE.search(runbook)
+    if statement is None:
+        return
+    line = runbook.count("\n", 0, statement.start("status")) + 1
+    _fail(
+        f"{_RELEASING.name}:{line} still says the project is pre-1.0; rewrite that line, and "
+        f"the versioning rules that follow from it, before releasing {version}"
+    )
+
+
+def _nearest_tag() -> str | None:
+    """Return the nearest release tag behind HEAD, or None when there is none."""
+    try:
+        nearest = _run(
             ["git", "describe", "--tags", "--abbrev=0", "--match", _RELEASE_TAG_GLOB, "HEAD"],
             capture=True,
         ).strip()
     except subprocess.CalledProcessError:
-        previous = ""
-    if not previous:
+        return None
+    return nearest or None
+
+
+def _previous_tag(what: str) -> str:
+    """Return the nearest release tag behind HEAD, or refuse when there is none."""
+    previous = _nearest_tag()
+    if previous is None:
         _fail(f"no earlier release tag to compare {what} with")
     return previous
 

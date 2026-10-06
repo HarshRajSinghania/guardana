@@ -130,7 +130,7 @@ git tag -a vX.Y.Z -m "Guardana vX.Y.Z"
 git push origin refs/tags/vX.Y.Z   # this is what triggers the publish
 git tag -f vX.Y "vX.Y.Z^{commit}" && git push -f origin vX.Y   # lightweight — see below
 
-# 9. Publish the GitHub Release (see below), pasting the changelog section.
+# 9. Approve the `pypi` environment; the workflow then creates the GitHub Release (see below).
 ```
 
 ### Push the branch and the tag as two steps, with CI in between
@@ -329,15 +329,18 @@ never errors. No tokens, no new-project rate limit, no surprises.
 
 ## The GitHub Release
 
-After the tag is pushed and CI is green:
+The `publish` job creates it once the five packages are on PyPI: titled `Guardana vX.Y.Z`,
+with the tag's `CHANGELOG.md` section as its body, marked pre-release when the version is a
+candidate (`aN`, `bN`, `rcN`, `.devN`), and with the five SBOMs attached; the job
+`reference-pack` then attaches the pack's wheel and sdist. A re-run keeps the notes and
+repairs missing assets. Nothing here is done by hand. Check it once the workflow is green:
 
-1. **Releases → Draft a new release**, choose the `vX.Y.Z` tag.
-2. Title `vX.Y.Z`. For the body, paste that version's `CHANGELOG.md` section —
-   it's already curated and grouped, which reads better than raw auto-notes.
-   ("Generate release notes" is a fine starting point; the
-   [`.github/release.yml`](.github/release.yml) config groups it by PR label.)
-3. Tick **Set as the latest release** (or **pre-release** for an rc).
-4. Publish. Optionally announce it in the Discussions → Announcements category.
+```bash
+gh release view vX.Y.Z --json isPrerelease,assets --jq '{isPrerelease, assets: [.assets[].name]}'
+```
+
+Five `*.cdx.json` files and the `guardana_reference_pack` wheel and sdist are expected.
+Optionally announce the release in the Discussions → Announcements category.
 
 ## Hotfixes
 

@@ -64,7 +64,7 @@ wrong before.
 |---|---|---|---|---|---|
 | `bump_version.py` | set all five versions, every inter-package pin, the Action and image pins, then `uv lock` | `repo` | `--dry-run` | `uv lock` | — |
 | `capture_historical_documents.py` | ⚠ install every published release in isolation and keep the documents each one wrote from synthetic inputs, and the profile examples in its own `docs/` that it loaded, with `releases.json` recording each example as loaded, refused, or not tried when it names a file the capture does not provide, under `packages/guardana-core/tests/historical/`; run after a release that changes a document; `--profiles-only` redoes only the profiles of the releases already recorded | `repo` | `--dry-run`, `--help` | PyPI | `uv`, release tags in the clone |
-| `release.py` | ⚠ gate → bump → changelog roll → commit only the paths it wrote → push `main` without tags → wait for green CI → create and push the tag (PyPI publish) → move the marketplace tag | `git` + `repo` | `--dry-run`, `--help` | `git`, `gh`, PyPI via CI | `gh` authenticated, push rights |
+| `release.py` | ⚠ refuses a candidate whose supported surface moved without a changelog section, a final whose surface differs from its candidate, and a final 1.x while `RELEASING.md` says pre-1.0 → gate → bump → changelog roll → commit only the paths it wrote → push `main` without tags → wait for green CI → create and push the tag (PyPI publish) → move the marketplace tag | `git` + `repo` | `--dry-run`, `--help` | `git`, `gh`, PyPI via CI | `gh` authenticated, push rights |
 
 ### Security
 

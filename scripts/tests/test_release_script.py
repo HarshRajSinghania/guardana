@@ -236,13 +236,14 @@ _SURFACE = '{"facade": {}}\n'
 _CHANGED_SURFACE = '{"facade": {"guardana.core.verify.Verifier": {}}}\n'
 
 
-def _candidate(
+def _candidate(  # noqa: PLR0913 — each keyword is one answer the fake git gives
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     *,
     unreleased: str,
     previous: str | None,
     tag: str | None = "v1.0.0rc1",
+    tags: str = "",
 ) -> list[list[str]]:
     """Point the surface check at a changelog and a surface in `tmp_path`, and record git calls."""
     changelog = tmp_path / "CHANGELOG.md"
@@ -265,6 +266,8 @@ def _candidate(
             if previous is None:
                 raise subprocess.CalledProcessError(128, cmd)
             return previous
+        if cmd[:2] == ["git", "for-each-ref"]:
+            return tags
         return ""
 
     monkeypatch.setattr(release, "_run", _git)
@@ -342,15 +345,102 @@ def test_a_candidate_with_no_earlier_tag_is_refused(
     assert "no earlier release tag" in str(refused.value.code)
 
 
-@pytest.mark.parametrize("version", ["1.0.0", "0.41.0", "0.41.1"])
-def test_a_final_release_is_not_held_by_the_surface_check(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, version: str
+@pytest.mark.parametrize(
+    ("version", "tag"),
+    [
+        ("1.1.0", "v1.0.0"),
+        ("0.41.1", "v0.41.0"),
+        ("1.0.0", "v0.41.0"),
+        ("1.1.0", "v1.0.0rc2"),
+        ("0.41.0", None),
+    ],
+)
+def test_a_final_release_after_a_final_is_not_held_by_the_surface_check(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, version: str, tag: str | None
 ) -> None:
-    calls = _candidate(monkeypatch, tmp_path, unreleased="", previous=_CHANGED_SURFACE)
+    """Only a candidate of the same version pins a final's surface; a first release has no tag."""
+    calls = _candidate(monkeypatch, tmp_path, unreleased="", previous=_CHANGED_SURFACE, tag=tag)
 
     release._check_surface(version)
 
-    assert calls == []
+    assert not [cmd for cmd in calls if cmd[:2] == ["git", "show"]]
+
+
+@pytest.mark.parametrize("nearest", ["v0.41.0", None])
+def test_a_final_whose_candidates_are_not_behind_head_is_refused_rather_than_unchecked(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, nearest: str | None
+) -> None:
+    """Unfetched tags, or a cut that skips the candidate, would otherwise compare nothing."""
+    _candidate(
+        monkeypatch,
+        tmp_path,
+        unreleased="",
+        previous=_SURFACE,
+        tag=nearest,
+        tags="v1.0.0rc1\nv1.0.0rc2\n",
+    )
+
+    with pytest.raises(SystemExit) as refused:
+        release._check_surface("1.0.0")
+
+    assert "v1.0.0rc1, v1.0.0rc2" in str(refused.value.code)
+
+
+def test_a_final_whose_surface_moved_since_its_candidate_without_a_section_is_refused(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _candidate(
+        monkeypatch,
+        tmp_path,
+        unreleased="\n### Fixed\n\n- a fix\n",
+        previous=_CHANGED_SURFACE,
+        tag="v1.0.0rc2",
+    )
+
+    with pytest.raises(SystemExit) as refused:
+        release._check_surface("1.0.0")
+
+    assert "supported surface" in str(refused.value.code)
+    assert "v1.0.0rc2" in str(refused.value.code)
+
+
+@pytest.mark.parametrize("section", ["Changed", "Deprecated", "Removed"])
+def test_a_final_whose_surface_moved_since_its_candidate_is_refused_whatever_the_changelog_says(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, section: str
+) -> None:
+    """The final ships what its last candidate was tested as; a section cannot excuse a move."""
+    _candidate(
+        monkeypatch,
+        tmp_path,
+        unreleased=f"\n### {section}\n\n- a name\n",
+        previous=_CHANGED_SURFACE,
+        tag="v1.0.0rc2",
+    )
+
+    with pytest.raises(SystemExit) as refused:
+        release._check_surface("1.0.0")
+
+    assert "v1.0.0rc2" in str(refused.value.code)
+    assert "supported surface" in str(refused.value.code)
+
+
+def test_a_final_with_the_surface_of_its_candidate_continues_without_a_section(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    calls = _candidate(monkeypatch, tmp_path, unreleased="", previous=_SURFACE, tag="v1.0.0rc2")
+
+    release._check_surface("1.0.0")
+
+    assert ["git", "show", "v1.0.0rc2:docs/generated/api-surface.json"] in calls
+
+
+def test_a_final_whose_candidate_tag_has_no_surface_is_refused(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _candidate(monkeypatch, tmp_path, unreleased="", previous=None, tag="v1.0.0rc2")
+
+    with pytest.raises(SystemExit):
+        release._check_surface("1.0.0")
 
 
 def test_the_surface_check_runs_before_the_gate(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -370,6 +460,114 @@ def test_the_surface_check_runs_before_the_gate(monkeypatch: pytest.MonkeyPatch)
         release.main(["1.0.0rc2"])
 
     assert order == ["preflight", "1.0.0rc2", "gate"]
+
+
+_PRE_1_RUNBOOK = (
+    "# Releasing\n\n## Versioning\n\nGuardana follows SemVer. The twist is that it\n"
+    "is **pre-1.0**, and 0.x has its own rules.\n\n| Pre-1.0 (`0.y.z`) | Post-1.0 |\n"
+)
+_POST_1_RUNBOOK = (
+    "# Releasing\n\n## Versioning\n\nGuardana follows SemVer and is past 1.0.\n\n"
+    "| Pre-1.0 (`0.y.z`) | Post-1.0 |\n\nBut pre-1.0 with a single active line, patch it.\n"
+)
+
+
+def _runbook(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, text: str | None) -> None:
+    """Point the pre-1.0 check at a runbook in `tmp_path`; `None` leaves it unreadable."""
+    runbook = tmp_path / "RELEASING.md"
+    if text is not None:
+        runbook.write_text(text, encoding="utf-8")
+    monkeypatch.setattr(release, "_RELEASING", runbook)
+
+
+@pytest.mark.parametrize("version", ["1.0.0", "1.2.3", "2.0.0"])
+def test_a_final_1x_release_is_refused_while_the_runbook_says_pre_1_0(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, version: str
+) -> None:
+    _runbook(monkeypatch, tmp_path, _PRE_1_RUNBOOK)
+
+    with pytest.raises(SystemExit) as refused:
+        release._check_pre_1_statement(version)
+
+    assert "RELEASING.md:6" in str(refused.value.code)
+    assert "pre-1.0" in str(refused.value.code)
+
+
+def test_the_pre_1_0_statement_is_found_across_a_line_break(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _runbook(monkeypatch, tmp_path, "# Releasing\n\nThe twist is that it is\n**pre-1.0** still.\n")
+
+    with pytest.raises(SystemExit) as refused:
+        release._check_pre_1_statement("1.0.0")
+
+    assert "RELEASING.md:4" in str(refused.value.code)
+
+
+@pytest.mark.parametrize("version", ["1.0.0rc2", "0.42.0", "0.41.1"])
+def test_a_candidate_or_a_0x_release_is_not_held_by_the_pre_1_0_statement(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, version: str
+) -> None:
+    _runbook(monkeypatch, tmp_path, _PRE_1_RUNBOOK)
+
+    release._check_pre_1_statement(version)
+
+
+def test_a_final_1x_release_continues_once_the_runbook_is_rewritten(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _runbook(monkeypatch, tmp_path, _POST_1_RUNBOOK)
+
+    release._check_pre_1_statement("1.0.0")
+
+
+def test_the_versioning_policy_may_keep_naming_pre_1_0_once_the_status_is_rewritten(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The table and the advice that describe 0.x releases stay true after 1.0."""
+    policy = (
+        "# Releasing\n\nGuardana follows Semantic Versioning and is stable since 1.0.0.\n\n"
+        "| You're releasing… | Bump | Pre-1.0 (`0.y.z`) | Post-1.0 (`x.y.z`) |\n"
+        "|---|---|---|---|\n"
+        "| An incompatible change | **minor** pre-1.0, **major** post-1.0 | `0.1.4 → 0.2.0` "
+        "| `1.4.2 → 2.0.0` |\n"
+        "| A compatible feature | **minor** post-1.0, **patch**-or-minor pre-1.0 "
+        "| `0.1.4 → 0.2.0` | `1.4.2 → 1.5.0` |\n\n"
+        'Practical pre-1.0 rule of thumb: **patch = "safe to upgrade blindly"**.\n\n'
+        "release `0.1.5` from there — but pre-1.0 with a single active line, you'll almost\n"
+    )
+    _runbook(monkeypatch, tmp_path, policy)
+
+    release._check_pre_1_statement("1.0.0")
+
+
+def test_a_final_1x_release_is_refused_when_the_runbook_cannot_be_read(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _runbook(monkeypatch, tmp_path, None)
+
+    with pytest.raises(SystemExit) as refused:
+        release._check_pre_1_statement("1.0.0")
+
+    assert "RELEASING.md" in str(refused.value.code)
+
+
+def test_the_pre_1_0_statement_refuses_a_dry_run_before_the_gate(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _runbook(monkeypatch, tmp_path, _PRE_1_RUNBOOK)
+    ran: list[str] = []
+    monkeypatch.setattr(release, "_current_version", lambda: "1.0.0rc2")
+    monkeypatch.setattr(release, "_preflight", lambda: None)
+    monkeypatch.setattr(release, "_check_surface", lambda version: None)
+    monkeypatch.setattr(release, "_check_reference_pack", lambda: None)
+    monkeypatch.setattr(release, "_gate", lambda: ran.append("gate"))
+
+    with pytest.raises(SystemExit) as refused:
+        release.main(["1.0.0", "--dry-run"])
+
+    assert "RELEASING.md:6" in str(refused.value.code)
+    assert ran == []
 
 
 def _pack_pyproject(version: str) -> str:
