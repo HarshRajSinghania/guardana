@@ -55,6 +55,11 @@ does: five first-run users after F2, two independent teams in F6 and a recorded 
 customization. A missed criterion moves the date, never the bar. Every release re-reads the
 targets; the documentation tests refuse a target that has already shipped.
 
+The [proposed evidence plan](docs/design/roadmap-after-1-0.md) tracks the remaining external
+1.0 gates through the [generated first-run](docs/generated/first-run.md) and
+[application](docs/generated/application-measures.md) measures. A missing observation remains
+not measured; the owner decides any change to the release criteria.
+
 1.0 is reached when:
 
 - the "Now" milestone exit criteria hold, including the three published measures;
@@ -73,9 +78,9 @@ targets; the documentation tests refuse a target that has already shipped.
 0.41.0 met the compatibility-matrix and deprecation-policy criterion, published the conformance kit, added finding, clean and inconclusive fixtures for every built-in rule, published the versioned collector envelope, exercised migrations with documents written by older releases, and exercised collector runbooks. 1.0.0rc1 shipped the 0.41.0 supported surface unchanged, with fixes only. The five first-run sessions, two independent teams, recorded third-party customization, the security runbook drill and the second release candidate are not done; application measures remain "not measured". The reference pack is attached to the GitHub Release but is not on PyPI.
 
 1.0 does not wait for M1, the M3 measurement queries or anything under "Later": each extends a
-versioned contract in a 1.x release. Until 1.0, beta does not require an API freeze. It
-requires an explicit supported surface, tested examples and migration guidance when that
-surface changes.
+versioned contract in a 1.x release. The 1.0 release-candidate surface is frozen after rc1:
+until stable 1.0, candidates carry fixes only, with no new features, fields or generated API
+surface changes. The supported surface, tested examples and migration guidance remain published.
 
 ## Now: honest evidence, first value and the real application
 
@@ -110,8 +115,8 @@ claims wait for M1.
 
 | ID | Deliverable | Done when |
 |---|---|---|
-| M1 | Paired statistical diff | Pair compatible cases and grading identities; handle repeated trials at the case level; refuse insufficient coverage or power; report effect size and uncertainty; gate on a declared effect; control multiple gated suites. Label existing descriptive diff accurately. It follows the F5–F6 evidence workflow. |
-| M3 | Collector measurements | Query by system, deployment, dataset and assessor; carry sample counts, unknowns and uncertainty. Show coverage gaps beside trends. It starts after two teams reproduce and consume local results. Versioning the envelope independently from the run schema is a 1.0 criterion. |
+| M1 | Paired statistical diff | **Start when** two independent pilot teams each use local `diff` on comparable saved before/after application runs for a documented ship decision, and one requests uncertainty because descriptive counts are insufficient. **Done when** compatible cases and grading identities are paired, repeated trials are handled at case level, insufficient coverage or power is refused, effect size and uncertainty are reported, declared effects can gate, and multiple gated suites are controlled. Version the comparison and grading-identity contract; label existing descriptive diff accurately. See the [proposed evidence plan](docs/design/roadmap-after-1-0.md). |
+| M3 | Collector measurements | **Start when** two independent teams submit and read their own locked application runs in the optional collector and each asks the same cross-run question that local files cannot answer. **Done when** versioned envelope and storage queries answer that recorded question by the necessary system, deployment, dataset and assessor dimensions, enforce tenancy, and report sample counts, uncertainty, coverage gaps, missingness and unknowns beside trends. Keep the envelope versioned independently from the run schema. See the [proposed evidence plan](docs/design/roadmap-after-1-0.md). |
 
 Keep the earlier designs for [suites](docs/design/quality-suites.md),
 [trials](docs/design/repeated-trials.md) and
@@ -124,9 +129,13 @@ started from [the direction audit](docs/design/audit-0.31-direction.md); F7's de
 
 ## Later: ongoing verification and platform fit
 
+Later is an unordered, unversioned set of possibilities, not a plan for 2.0. The [post-1.0 evidence plan](docs/design/roadmap-after-1-0.md) and [security research horizon](docs/design/two-zero-horizon.md) record public signals, competing tools, costs, acceptance checks and deferral conditions. Promoting an item to Now requires pilot pain, a reproducible failing case, an acceptance criterion, and a versioned contract review. A future 2.0 additionally requires evidence that a necessary public-contract break cannot be represented faithfully by a compatible 1.x addition.
+
 - Synthetic scheduled verification with [anytime-valid monitoring](docs/design/anytime-valid-monitoring.md), rather than repeated fixed-level tests presented as reliable alerts.
 - A Prometheus reporter over the common output contract, once a team names the measurements and unknowns it needs.
 - Live RAG and application targets beyond the F6 pilot, with safe fixtures and explicit data boundaries, ordered by pilot needs.
+- Model-artifact inventory and parser completeness, starting from the [documented gaps](docs/work/BACKLOG.md) in unlisted formats and safetensors validation; accept only when malformed, unreadable and partially scanned inputs cannot look clean under the versioned scan and coverage contract.
+- An agent tool-action application target after retrieval, only if a pilot supplies a controlled injected input, complete action trace and harmless side-effect oracle; review the versioned target, fixture and trace contracts before adding it.
 - Central distribution of signed, versioned profiles and policies, after local locks and recipes prove use.
 - Profiles distributed in packs are a 1.x addition. `guardana.yaml`, the presets and the versioned profile schema are the 1.0 contract.
 - Agent-card signature verification for A2A as an optional extra, so the JOSE dependency it needs never reaches `guardana-core`.

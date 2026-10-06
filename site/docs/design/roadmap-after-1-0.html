@@ -1,0 +1,806 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Roadmap after 1.0: evidence before expansion — Guardana documentation</title>
+<meta name="description" content="A proposed evidence plan for reaching 1.0 and sequencing 1.x without weakening the release criteria.">
+<link rel="canonical" href="https://guardana.dev/docs/design/roadmap-after-1-0">
+<link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../../assets/brand/v1/tokens.css">
+<link rel="stylesheet" href="../docs.css">
+</head>
+<body>
+<header class="top"><div class="bar">
+<a class="mark" href="../../"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z" style="color:var(--brand)"/><path d="m8.6 12.1 2.4 2.4 4.5-4.8"/></svg><span class="w">guard<b>ana</b></span></a>
+<nav>
+<a href="../index.html">Documentation</a>
+<a href="../rules/index.html">Rules</a>
+<a href="https://github.com/guardana/guardana">GitHub</a>
+</nav>
+</div></header>
+<div class="shell">
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="../index.html">Overview</a></li></ul>
+<h2>Guides for a first run</h2><ul>
+<li><a href="../usage-init.html">guardana init</a></li>
+<li><a href="../recipe-local-scan.html">Recipe: scan your own project</a></li>
+<li><a href="../recipe-recorded-answers.html">Recipe: check a run your application recorded</a></li>
+<li><a href="../recipe-real-application.html">Recipe: probe your real application</a></li>
+<li><a href="../how-it-works.html">How Guardana works</a></li>
+<li><a href="../install.html">Installing</a></li>
+<li><a href="../usage-testing.html">In your test suite</a></li>
+<li><a href="../python-api.html">Python API<span class="tag">beta</span></a></li>
+<li><a href="../usage-scan.html">guardana scan</a></li>
+<li><a href="../usage-probe.html">guardana probe</a></li>
+</ul>
+<h2>Run and policy</h2><ul>
+<li><a href="../safe-testing.html">Safe active testing</a></li>
+<li><a href="../usage-doubles.html">Stateful tool doubles<span class="tag">beta</span></a></li>
+<li><a href="../usage-fixtures.html">guardana fixtures<span class="tag">beta</span></a></li>
+<li><a href="../usage-recipe.html">guardana recipe<span class="tag">beta</span></a></li>
+<li><a href="../usage-doctor.html">guardana doctor</a></li>
+<li><a href="../usage-target.html">guardana target inspect</a></li>
+<li><a href="../providers.html">Providers</a></li>
+<li><a href="../usage-plan.html">guardana plan</a></li>
+<li><a href="../exit-codes.html">Exit codes</a></li>
+<li><a href="../profiles.html">Profiles — guardana.yaml</a></li>
+</ul>
+<h2>Evidence and regression</h2><ul>
+<li><a href="../usage-case.html">guardana case<span class="tag">beta</span></a></li>
+<li><a href="../usage-baseline.html">guardana baseline</a></li>
+<li><a href="../usage-diff.html">guardana diff</a></li>
+<li><a href="../usage-monitor.html">guardana monitor</a></li>
+<li><a href="../usage-run.html">guardana run</a></li>
+<li><a href="../usage-calibrate.html">guardana calibrate</a></li>
+<li><a href="../usage-suites.html">Quality suites<span class="tag">beta</span></a></li>
+<li><a href="../privacy.html">Evidence and redaction</a></li>
+</ul>
+<h2>Recorded applications</h2><ul>
+<li><a href="../usage-analyze-trace.html">guardana analyze-trace</a></li>
+<li><a href="../usage-grade.html">guardana grade<span class="tag">beta</span></a></li>
+<li><a href="../usage-trace-inspect.html">guardana trace inspect</a></li>
+<li><a href="../usage-contracts.html">Security contracts</a></li>
+<li><a href="../usage-import-observations.html">guardana import-observations</a></li>
+<li><a href="../writing-an-integrator.html">Writing an integrator<span class="tag">beta</span></a></li>
+</ul>
+<h2>Rules and extensions</h2><ul>
+<li><a href="../compatibility.html">Compatibility<span class="tag">beta</span></a></li>
+<li><a href="../conformance-kit.html">Conformance kit<span class="tag">beta</span></a></li>
+<li><a href="../usage-rules.html">guardana rules</a></li>
+<li><a href="../usage-taxonomy.html">guardana taxonomy</a></li>
+<li><a href="../writing-rules.html">Writing rules</a></li>
+<li><a href="../usage-rule-test.html">guardana rule test</a></li>
+<li><a href="../usage-new-pack.html">guardana new-pack</a></li>
+<li><a href="../usage-pack.html">guardana pack</a></li>
+<li><a href="../outputs.html">Installed outputs<span class="tag">beta</span></a></li>
+<li><a href="../extending.html">Extending Guardana</a></li>
+<li><a href="../model-formats.html">Reading model formats</a></li>
+</ul>
+<h2>Collector and deployment</h2><ul>
+<li><a href="../integrations.html">CI and pre-commit</a></li>
+<li><a href="../deployment.html">Deploying the collector<span class="tag">beta</span></a></li>
+<li><a href="../usage-collector.html">The collector<span class="tag">beta</span></a></li>
+</ul>
+<h2>Architecture and security</h2><ul>
+<li><a href="../product-status.html">Product status</a></li>
+<li><a href="../threat-model.html">Threat model</a></li>
+<li><a href="../architecture.html">Architecture</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="../rules/index.html">Rule explorer</a></li>
+<li><a href="../generated/rule-summary.html">Rule summary</a></li>
+<li><a href="../generated/rule-catalog.html">Rule catalog</a></li>
+<li><a href="../generated/evaluator-catalog.html">Evaluator catalog</a></li>
+<li><a href="../generated/taxonomy-coverage.html">Taxonomy coverage</a></li>
+<li><a href="../generated/detection-limits.html">Detection limits</a></li>
+<li><a href="../generated/first-run.html">First-run measure</a></li>
+<li><a href="../generated/compatibility-matrix.html">Compatibility matrix</a></li>
+<li><a href="../generated/application-measures.html">Application measures</a></li>
+</ul>
+<h2>Design documents</h2><ul>
+<li><a href="../design/README.html">How these are written</a></li>
+</ul>
+<h2>Project direction</h2><ul>
+<li><a href="../design/guardana-and-control.html">Guardana and Guardana Control<span class="tag">accepted</span></a></li>
+<li><a href="../design/non-executing-packs.html">Non-executing packs and the default plugin trust<span class="tag">accepted</span></a></li>
+<li><a href="../design/audit-0.31-direction.html">Direction audit after 0.31<span class="tag">accepted</span></a></li>
+</ul>
+<h2>Maintainers</h2><ul>
+<li><a href="../maintainers/github-setup.html">GitHub repository setup</a></li>
+<li><a href="../maintainers/ops-catalogue.html">Operations catalogue</a></li>
+<li><a href="../maintainers/lessons.html">Lessons</a></li>
+<li><a href="../maintainers/first-run-study.html">First-run study</a></li>
+<li><a href="../maintainers/security-runbook.html">Security runbook</a></li>
+<li><a href="../maintainers/drills.html">Drills</a></li>
+<li><a href="../maintainers/adopter-study.html">Adopter study</a></li>
+</ul>
+<h2>Also here</h2><ul>
+<li><a href="../design/trace-domain-model.html">The Trace domain model<span class="tag">implemented</span></a></li>
+<li><a href="../design/trace-producer.html">Producing a trace<span class="tag">implemented</span></a></li>
+<li><a href="../design/framework-adapters.html">Framework adapters<span class="tag">implemented</span></a></li>
+<li><a href="../design/assessment-channel.html">The assessment channel<span class="tag">implemented</span></a></li>
+<li><a href="../design/capability-protocols.html">Capability protocols<span class="tag">implemented</span></a></li>
+<li><a href="../design/security-contracts.html">Security contracts<span class="tag">implemented</span></a></li>
+<li><a href="../design/mcp-protocol-eras.html">MCP has two eras<span class="tag">implemented</span></a></li>
+<li><a href="../design/mcp-authorization-depth.html">MCP authorization depth<span class="tag">implemented</span></a></li>
+<li><a href="../design/taxonomy-editions.html">Taxonomy editions<span class="tag">implemented</span></a></li>
+<li><a href="../design/extension-author-tooling.html">Extension author tooling<span class="tag">implemented</span></a></li>
+<li><a href="../design/target-locators.html">Target locators<span class="tag">implemented</span></a></li>
+<li><a href="../design/output-plugins.html">Output plugins<span class="tag">superseded</span></a></li>
+<li><a href="../design/quality-suites.html">Quality suites<span class="tag">implemented</span></a></li>
+<li><a href="../design/paired-regression-statistics.html">Paired regression statistics<span class="tag">proposed</span></a></li>
+<li><a href="../design/attack-techniques.html">Attack techniques<span class="tag">proposed</span></a></li>
+<li><a href="../design/namespaced-extension-ids.html">Namespaced extension ids<span class="tag">proposed</span></a></li>
+<li><a href="../design/declarative-fixtures.html">Declarative fixtures for scenarios and agent runs<span class="tag">implemented</span></a></li>
+<li><a href="../design/pack-scaffolding.html">Scaffolding a pack<span class="tag">implemented</span></a></li>
+<li><a href="../design/repeated-trials.html">Repeated trials<span class="tag">implemented</span></a></li>
+<li><a href="../design/documentation-site.html">A documentation site<span class="tag">implemented</span></a></li>
+<li><a href="../design/judge-error-correction.html">Judge error in a measured rate<span class="tag">implemented</span></a></li>
+<li><a href="../design/regrading-stored-exchanges.html">Re-grading stored exchanges<span class="tag">superseded</span></a></li>
+<li><a href="../design/anytime-valid-monitoring.html">Anytime-valid monitoring<span class="tag">proposed</span></a></li>
+<li><a href="../design/recorded-answers.html">Recorded answers and regrading<span class="tag">accepted</span></a></li>
+<li><a href="../design/team-recipes.html">Repository recipes, one connection and provider conformance<span class="tag">accepted</span></a></li>
+<li><a href="../design/application-fixtures-and-regressions.html">Regression cases, a declared fixture boundary and the retrieval pilot<span class="tag">implemented</span></a></li>
+<li><a href="../design/guarded-applications.html">A guarded application, and the outcomes a run states honestly<span class="tag">implemented</span></a></li>
+<li><a href="../design/run-manifest-v2.html">Run manifest v2<span class="tag">implemented</span></a></li>
+<li><a href="../design/protocol-conformance.html">Protocol conformance against servers Guardana did not write<span class="tag">implemented</span></a></li>
+<li><a href="../design/export-and-webhook.html">One redacted export and one webhook<span class="tag">implemented</span></a></li>
+<li><a href="../design/one-zero-readiness.html">1.0 readiness<span class="tag">implemented</span></a></li>
+<li><a href="../design/roadmap-after-1-0.html" aria-current="page">Roadmap after 1.0: evidence before expansion<span class="tag">proposed</span></a></li>
+<li><a href="../design/two-zero-horizon.html">Post-1.0 security research and the 2.0 horizon<span class="tag">proposed</span></a></li>
+<li><a href="../design/privacy-and-redaction.html">Privacy and redaction<span class="tag">implemented</span></a></li>
+<li><a href="../design/exit-codes.html">Exit codes and gate semantics<span class="tag">implemented</span></a></li>
+<li><a href="../design/collector-persistence.html">Collector persistence<span class="tag">implemented</span></a></li>
+<li><a href="../design/collector-tenancy.html">Collector tenancy<span class="tag">implemented</span></a></li>
+<li><a href="../design/ai-systems-and-deployments.html">AI systems and deployments<span class="tag">implemented</span></a></li>
+<li><a href="../design/collector-runs-and-findings.html">Runs and findings<span class="tag">implemented</span></a></li>
+<li><a href="../design/finding-lifecycle-and-waivers.html">Finding lifecycle and waivers<span class="tag">implemented</span></a></li>
+<li><a href="../design/audit-retention-and-deletion.html">Audit, retention and deletion<span class="tag">implemented</span></a></li>
+<li><a href="../design/panel-sessions.html">Panel sessions<span class="tag">implemented</span></a></li>
+</ul>
+</nav>
+<details class="mnav">
+<summary>Menu · <b>Roadmap after 1.0: evidence before expansion</b></summary>
+<nav class="inner" aria-label="Documentation">
+<ul class="home"><li><a href="../index.html">Overview</a></li></ul>
+<h2>Guides for a first run</h2><ul>
+<li><a href="../usage-init.html">guardana init</a></li>
+<li><a href="../recipe-local-scan.html">Recipe: scan your own project</a></li>
+<li><a href="../recipe-recorded-answers.html">Recipe: check a run your application recorded</a></li>
+<li><a href="../recipe-real-application.html">Recipe: probe your real application</a></li>
+<li><a href="../how-it-works.html">How Guardana works</a></li>
+<li><a href="../install.html">Installing</a></li>
+<li><a href="../usage-testing.html">In your test suite</a></li>
+<li><a href="../python-api.html">Python API<span class="tag">beta</span></a></li>
+<li><a href="../usage-scan.html">guardana scan</a></li>
+<li><a href="../usage-probe.html">guardana probe</a></li>
+</ul>
+<h2>Run and policy</h2><ul>
+<li><a href="../safe-testing.html">Safe active testing</a></li>
+<li><a href="../usage-doubles.html">Stateful tool doubles<span class="tag">beta</span></a></li>
+<li><a href="../usage-fixtures.html">guardana fixtures<span class="tag">beta</span></a></li>
+<li><a href="../usage-recipe.html">guardana recipe<span class="tag">beta</span></a></li>
+<li><a href="../usage-doctor.html">guardana doctor</a></li>
+<li><a href="../usage-target.html">guardana target inspect</a></li>
+<li><a href="../providers.html">Providers</a></li>
+<li><a href="../usage-plan.html">guardana plan</a></li>
+<li><a href="../exit-codes.html">Exit codes</a></li>
+<li><a href="../profiles.html">Profiles — guardana.yaml</a></li>
+</ul>
+<h2>Evidence and regression</h2><ul>
+<li><a href="../usage-case.html">guardana case<span class="tag">beta</span></a></li>
+<li><a href="../usage-baseline.html">guardana baseline</a></li>
+<li><a href="../usage-diff.html">guardana diff</a></li>
+<li><a href="../usage-monitor.html">guardana monitor</a></li>
+<li><a href="../usage-run.html">guardana run</a></li>
+<li><a href="../usage-calibrate.html">guardana calibrate</a></li>
+<li><a href="../usage-suites.html">Quality suites<span class="tag">beta</span></a></li>
+<li><a href="../privacy.html">Evidence and redaction</a></li>
+</ul>
+<h2>Recorded applications</h2><ul>
+<li><a href="../usage-analyze-trace.html">guardana analyze-trace</a></li>
+<li><a href="../usage-grade.html">guardana grade<span class="tag">beta</span></a></li>
+<li><a href="../usage-trace-inspect.html">guardana trace inspect</a></li>
+<li><a href="../usage-contracts.html">Security contracts</a></li>
+<li><a href="../usage-import-observations.html">guardana import-observations</a></li>
+<li><a href="../writing-an-integrator.html">Writing an integrator<span class="tag">beta</span></a></li>
+</ul>
+<h2>Rules and extensions</h2><ul>
+<li><a href="../compatibility.html">Compatibility<span class="tag">beta</span></a></li>
+<li><a href="../conformance-kit.html">Conformance kit<span class="tag">beta</span></a></li>
+<li><a href="../usage-rules.html">guardana rules</a></li>
+<li><a href="../usage-taxonomy.html">guardana taxonomy</a></li>
+<li><a href="../writing-rules.html">Writing rules</a></li>
+<li><a href="../usage-rule-test.html">guardana rule test</a></li>
+<li><a href="../usage-new-pack.html">guardana new-pack</a></li>
+<li><a href="../usage-pack.html">guardana pack</a></li>
+<li><a href="../outputs.html">Installed outputs<span class="tag">beta</span></a></li>
+<li><a href="../extending.html">Extending Guardana</a></li>
+<li><a href="../model-formats.html">Reading model formats</a></li>
+</ul>
+<h2>Collector and deployment</h2><ul>
+<li><a href="../integrations.html">CI and pre-commit</a></li>
+<li><a href="../deployment.html">Deploying the collector<span class="tag">beta</span></a></li>
+<li><a href="../usage-collector.html">The collector<span class="tag">beta</span></a></li>
+</ul>
+<h2>Architecture and security</h2><ul>
+<li><a href="../product-status.html">Product status</a></li>
+<li><a href="../threat-model.html">Threat model</a></li>
+<li><a href="../architecture.html">Architecture</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="../rules/index.html">Rule explorer</a></li>
+<li><a href="../generated/rule-summary.html">Rule summary</a></li>
+<li><a href="../generated/rule-catalog.html">Rule catalog</a></li>
+<li><a href="../generated/evaluator-catalog.html">Evaluator catalog</a></li>
+<li><a href="../generated/taxonomy-coverage.html">Taxonomy coverage</a></li>
+<li><a href="../generated/detection-limits.html">Detection limits</a></li>
+<li><a href="../generated/first-run.html">First-run measure</a></li>
+<li><a href="../generated/compatibility-matrix.html">Compatibility matrix</a></li>
+<li><a href="../generated/application-measures.html">Application measures</a></li>
+</ul>
+<h2>Design documents</h2><ul>
+<li><a href="../design/README.html">How these are written</a></li>
+</ul>
+<h2>Project direction</h2><ul>
+<li><a href="../design/guardana-and-control.html">Guardana and Guardana Control<span class="tag">accepted</span></a></li>
+<li><a href="../design/non-executing-packs.html">Non-executing packs and the default plugin trust<span class="tag">accepted</span></a></li>
+<li><a href="../design/audit-0.31-direction.html">Direction audit after 0.31<span class="tag">accepted</span></a></li>
+</ul>
+<h2>Maintainers</h2><ul>
+<li><a href="../maintainers/github-setup.html">GitHub repository setup</a></li>
+<li><a href="../maintainers/ops-catalogue.html">Operations catalogue</a></li>
+<li><a href="../maintainers/lessons.html">Lessons</a></li>
+<li><a href="../maintainers/first-run-study.html">First-run study</a></li>
+<li><a href="../maintainers/security-runbook.html">Security runbook</a></li>
+<li><a href="../maintainers/drills.html">Drills</a></li>
+<li><a href="../maintainers/adopter-study.html">Adopter study</a></li>
+</ul>
+<h2>Also here</h2><ul>
+<li><a href="../design/trace-domain-model.html">The Trace domain model<span class="tag">implemented</span></a></li>
+<li><a href="../design/trace-producer.html">Producing a trace<span class="tag">implemented</span></a></li>
+<li><a href="../design/framework-adapters.html">Framework adapters<span class="tag">implemented</span></a></li>
+<li><a href="../design/assessment-channel.html">The assessment channel<span class="tag">implemented</span></a></li>
+<li><a href="../design/capability-protocols.html">Capability protocols<span class="tag">implemented</span></a></li>
+<li><a href="../design/security-contracts.html">Security contracts<span class="tag">implemented</span></a></li>
+<li><a href="../design/mcp-protocol-eras.html">MCP has two eras<span class="tag">implemented</span></a></li>
+<li><a href="../design/mcp-authorization-depth.html">MCP authorization depth<span class="tag">implemented</span></a></li>
+<li><a href="../design/taxonomy-editions.html">Taxonomy editions<span class="tag">implemented</span></a></li>
+<li><a href="../design/extension-author-tooling.html">Extension author tooling<span class="tag">implemented</span></a></li>
+<li><a href="../design/target-locators.html">Target locators<span class="tag">implemented</span></a></li>
+<li><a href="../design/output-plugins.html">Output plugins<span class="tag">superseded</span></a></li>
+<li><a href="../design/quality-suites.html">Quality suites<span class="tag">implemented</span></a></li>
+<li><a href="../design/paired-regression-statistics.html">Paired regression statistics<span class="tag">proposed</span></a></li>
+<li><a href="../design/attack-techniques.html">Attack techniques<span class="tag">proposed</span></a></li>
+<li><a href="../design/namespaced-extension-ids.html">Namespaced extension ids<span class="tag">proposed</span></a></li>
+<li><a href="../design/declarative-fixtures.html">Declarative fixtures for scenarios and agent runs<span class="tag">implemented</span></a></li>
+<li><a href="../design/pack-scaffolding.html">Scaffolding a pack<span class="tag">implemented</span></a></li>
+<li><a href="../design/repeated-trials.html">Repeated trials<span class="tag">implemented</span></a></li>
+<li><a href="../design/documentation-site.html">A documentation site<span class="tag">implemented</span></a></li>
+<li><a href="../design/judge-error-correction.html">Judge error in a measured rate<span class="tag">implemented</span></a></li>
+<li><a href="../design/regrading-stored-exchanges.html">Re-grading stored exchanges<span class="tag">superseded</span></a></li>
+<li><a href="../design/anytime-valid-monitoring.html">Anytime-valid monitoring<span class="tag">proposed</span></a></li>
+<li><a href="../design/recorded-answers.html">Recorded answers and regrading<span class="tag">accepted</span></a></li>
+<li><a href="../design/team-recipes.html">Repository recipes, one connection and provider conformance<span class="tag">accepted</span></a></li>
+<li><a href="../design/application-fixtures-and-regressions.html">Regression cases, a declared fixture boundary and the retrieval pilot<span class="tag">implemented</span></a></li>
+<li><a href="../design/guarded-applications.html">A guarded application, and the outcomes a run states honestly<span class="tag">implemented</span></a></li>
+<li><a href="../design/run-manifest-v2.html">Run manifest v2<span class="tag">implemented</span></a></li>
+<li><a href="../design/protocol-conformance.html">Protocol conformance against servers Guardana did not write<span class="tag">implemented</span></a></li>
+<li><a href="../design/export-and-webhook.html">One redacted export and one webhook<span class="tag">implemented</span></a></li>
+<li><a href="../design/one-zero-readiness.html">1.0 readiness<span class="tag">implemented</span></a></li>
+<li><a href="../design/roadmap-after-1-0.html" aria-current="page">Roadmap after 1.0: evidence before expansion<span class="tag">proposed</span></a></li>
+<li><a href="../design/two-zero-horizon.html">Post-1.0 security research and the 2.0 horizon<span class="tag">proposed</span></a></li>
+<li><a href="../design/privacy-and-redaction.html">Privacy and redaction<span class="tag">implemented</span></a></li>
+<li><a href="../design/exit-codes.html">Exit codes and gate semantics<span class="tag">implemented</span></a></li>
+<li><a href="../design/collector-persistence.html">Collector persistence<span class="tag">implemented</span></a></li>
+<li><a href="../design/collector-tenancy.html">Collector tenancy<span class="tag">implemented</span></a></li>
+<li><a href="../design/ai-systems-and-deployments.html">AI systems and deployments<span class="tag">implemented</span></a></li>
+<li><a href="../design/collector-runs-and-findings.html">Runs and findings<span class="tag">implemented</span></a></li>
+<li><a href="../design/finding-lifecycle-and-waivers.html">Finding lifecycle and waivers<span class="tag">implemented</span></a></li>
+<li><a href="../design/audit-retention-and-deletion.html">Audit, retention and deletion<span class="tag">implemented</span></a></li>
+<li><a href="../design/panel-sessions.html">Panel sessions<span class="tag">implemented</span></a></li>
+</ul>
+</nav>
+</details>
+<main>
+<h1>Roadmap after 1.0<span class="status proposed">proposed</span></h1><p class="lede">A proposed evidence plan for reaching 1.0 and sequencing 1.x without weakening the release criteria.</p><p><strong>Status:</strong> proposed · <strong>Written:</strong> 2026-10-06</p>
+<h2 id="baseline-evidence-required-before-proposals">Baseline: evidence required before proposals</h2>
+<p>“Not measured” means the required external observation has not been recorded. It does not mean the gate passed.
+Counts below come from generated measures and maintainer records, not inferred use.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Gate</th>
+<th>Recorded baseline</th>
+<th>Completion evidence</th>
+<th>Owner and source</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>F2 first run</td>
+<td><strong>0/5</strong> consented sessions; completion and time <strong>not measured</strong></td>
+<td>At least four of five people new to Guardana finish the failure, fix, saved evidence, and edited check within ten minutes without maintainer help. The observed task can continue to 30 minutes. Record consented CSV rows.</td>
+<td>Maintainer; <a href="../maintainers/first-run-study.html">study</a>, <a href="https://github.com/guardana/guardana/blob/main/docs/maintainers/first-run-study.csv">CSV</a>, <a href="https://github.com/guardana/guardana/blob/main/scripts/first_run_measure.py">generator</a>, <a href="../generated/first-run.html">generated measure</a>.</td>
+</tr>
+<tr>
+<td>F6 independent applications</td>
+<td><strong>0/2</strong> independent teams; application measures <strong>not measured</strong></td>
+<td>Each team locks an application recipe, saves a failed and an incomplete run, turns a redacted case into a versioned case, regrades it, and gates it in CI. One retrieval pilot uses the team's own target to expose a poisoned document and a tenant-filter failure without an uncontrolled side effect. Keep saved runs with teams and publish consented counts.</td>
+<td>Maintainer and each team; <a href="../maintainers/adopter-study.html">study</a>, <a href="https://github.com/guardana/guardana/blob/main/docs/maintainers/adopter-runs.csv">CSV</a>, <a href="https://github.com/guardana/guardana/blob/main/scripts/adopter_measure.py">generator</a>, <a href="../generated/application-measures.html">generated measures</a>, <a href="https://github.com/guardana/guardana/blob/main/examples/retrieval_pilot/tests/test_reference_application.py">reference pilot test</a>. The team's own target remains untested.</td>
+</tr>
+<tr>
+<td>Third-party customization</td>
+<td><strong>0 recorded</strong>; success <strong>not measured</strong></td>
+<td>An external author independently installs a pack and successfully customizes a check or output using public extension and output contracts. Keep a redacted, consented field note.</td>
+<td>Maintainer and external author; <a href="../conformance-kit.html">conformance kit</a>, <a href="https://github.com/guardana/guardana/blob/main/examples/reference_pack/tests/test_reference_commands.py">reference-pack tests</a>, and the field note. No external customization generator exists.</td>
+</tr>
+<tr>
+<td>Security runbook drill</td>
+<td><strong>0 recorded</strong></td>
+<td>Date the real steps exercised in <code>docs/maintainers/drills.md</code>; identify skipped and simulated steps explicitly. Running <code>scripts/check_repo_settings.py</code> or reading <code>security-runbook.md</code> is not a drill.</td>
+<td>Maintainer; <a href="../maintainers/drills.html">drills</a>, <a href="../maintainers/security-runbook.html">security runbook</a>.</td>
+</tr>
+<tr>
+<td>Reference pack</td>
+<td>GitHub Release attachment published; <strong>0 verified installs from a released wheel</strong>; PyPI absent. Conformance kit published.</td>
+<td>Independently install the released wheel and record the result. Accepted <a href="one-zero-readiness.html">1.0 readiness</a>, decision 11, treats criterion 3 as met only when the pack is on PyPI. A release workflow or isolated CI source install does not establish that result.</td>
+<td>Maintainer; <a href="https://github.com/guardana/guardana/blob/main/.github/workflows/release.yml">release workflow</a>, <a href="https://github.com/guardana/guardana/blob/main/examples/reference_pack/tests/test_reference_commands.py">isolated source tests</a>, <a href="https://github.com/guardana/guardana/blob/main/RELEASING.md">release guide</a>, <a href="one-zero-readiness.html">1.0 readiness</a>.</td>
+</tr>
+</tbody>
+</table></div>
+<p>The attachment is “published” in ordinary language. Under the accepted 1.0 criterion interpretation, the pack remains partial until PyPI publication and an independent released-wheel install.
+On 2026-10-06, the <a href="https://github.com/guardana/guardana/releases/tag/v1.0.0rc1">rc1 release</a> listed the <code>guardana_reference_pack-0.1.0-py3-none-any.whl</code> asset, while the <a href="https://pypi.org/pypi/guardana-reference-pack/json">PyPI project JSON endpoint</a> returned HTTP 404. This verifies distribution state, not successful independent installation.
+The owner may explicitly supersede that interpretation. The recommendation here is to keep it.</p>
+<p>The local audit input <code>cache/audit-2026-10-06/priorities-final.md</code> mixes verified findings with model findings and partial checks.
+Treat its verified findings as verified; treat its remaining findings as hypotheses until reproduced.
+Neither a backlog entry nor an accepted design is evidence that a user needs a new feature.</p>
+<h2 id="decision-and-constraints">Decision and constraints</h2>
+<p><strong>Research question:</strong> How does Guardana reach 1.0, then sequence 1.x, without eroding the bar?</p>
+<p>This document recommends a sequence. <a href="https://github.com/guardana/guardana/blob/main/ROADMAP.md">ROADMAP.md</a> links this proposal and makes M1 and M3 starts conditional; it does not set a release date or record an owner decision.
+The maintainer decides release criteria and priorities using the evidence recorded below.</p>
+<p>The audited baseline was <code>9bab2cf2</code>; subsequent fix commits have reached main. <code>1.0.0rc1</code> was released on 2026-10-05; <code>0.41.0</code> is the stable release.
+The earliest <code>rc2</code> is 2026-10-19 at 09:07 UTC. It carries fixes only: no features, fields, documentation-generated surface movement, or <code>api-surface.json</code> movement.
+No new features or fields enter the release candidates before 1.0.
+Q1 2027 remains a target, not a promise. See <a href="https://github.com/guardana/guardana/blob/main/ROADMAP.md">ROADMAP.md</a>.</p>
+<p>An unavailable check, ungraded case, partial run, or invalid comparison must not become a pass.
+All engine capabilities and built-in rules stay open. Offline use needs no telemetry or account.
+Traffic to a target, judge, or chosen destination must be explicit and bounded.
+Every built-in rule needs a public taxonomy mapping that states relevance; a mapping does not establish coverage.
+Company usability comes before adding coverage for its own sake.
+Law, vendor integrations, and changing formats belong in data or adapters where possible, rather than core verdict logic.</p>
+<p>Guardana Control is independent. It owns the production request path and live telemetry.
+Guardana's saved local evidence and optional collector remain useful without Control.
+A format bridge, if needed, belongs on the Control side; Control must not become a Guardana dependency.</p>
+<h2 id="eight-week-evidence-plan">Eight-week evidence plan</h2>
+<p>These are planning durations, not observed session counts or timings.
+Invite maintainers of LLM, MCP, and RAG applications directly and with regard for privacy.
+Use professional open-source communities, GitHub Discussions, technical contacts, and non-core teams.
+Avoid mass outreach and telemetry. Record invitation, acceptance, consent, and completion counts each week without identifying people publicly.</p>
+<p>Allow each F2 participant an observed task capped at 30 minutes, plus roughly 3–5 minutes for consent.
+Allow each pilot team 60–90 minutes for setup, 30–45 minutes for review and interview, and, if needed, a 30-minute follow-up.
+Allow a third-party author roughly 45–90 minutes. These estimates plan recruitment capacity; they are not findings.</p>
+<p>The existing <a href="../maintainers/first-run-study.html">first-run consent</a> and <a href="../maintainers/adopter-study.html">adopter consent</a> need <code>[STORAGE]</code> and <code>[RETENTION]</code> filled before use.
+Ask separately before quoting a participant or recording a screen.
+Correct the F2 statement “Guardana sends nothing anywhere” to describe the offline starter only, as the documented <code>rc2</code> wording correction.
+Use analogous explicit consent for customization; no customization consent template currently exists.</p>
+<p>Teams keep their saved runs, prompts, findings, secrets, and target addresses.
+A team sends only its <code>adopter_measure.py row</code> output after consent.
+Use safe fixtures and doubles where appropriate; the required retrieval check still runs against the team's own target without an uncontrolled side effect.
+Do not publish raw prompts, findings, or target addresses.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Week</th>
+<th>Checkpoint and record</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Fill consent storage and retention fields; correct F2 consent wording; prepare a short invitation and recruitment log. Record invite, accept, consent, and complete counts.</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Recruit F2 participants and pilot teams; dry-run instructions without counting maintainer runs as external evidence. Record defects and unresolved setup barriers.</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Run early F2 sessions with new users. Record timings and help exactly as the study requires; fix reproduced first-run defects within release rules.</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Finish recruitment toward five F2 sessions; begin locked application setup with the first independent team. Review consent and data boundaries.</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Run the first team's failed and incomplete cases, redacted regression loop, and local review. Record its row only after consent.</td>
+</tr>
+<tr>
+<td>6</td>
+<td>Run the second team's loop and the retrieval checks on a team's own target. Record missing checks and side-effect controls, including failures.</td>
+</tr>
+<tr>
+<td>7</td>
+<td>Ask an external author to install the released reference wheel and customize through public contracts. Record the outcome, including unsuccessful attempts.</td>
+</tr>
+<tr>
+<td>8</td>
+<td>Generate F2 and F6 measures from consented sheets; record the security drill and pack install evidence; audit every 1.0 criterion and decide the next candidate.</td>
+</tr>
+<tr>
+<td>9–10, if needed</td>
+<td>Complete missing sessions or repeat a failed setup after a documented fix. Preserve earlier failures and the reason for the extension.</td>
+</tr>
+</tbody>
+</table></div>
+<p>Every checkpoint records counts, defects, and withdrawals. None supports an adoption claim.
+If recruitment falls short, widen the stated channels and reschedule.
+Maintainer runs, demonstrations, and repository traffic cannot substitute for independent sessions or teams.</p>
+<p><a href="https://docs.github.com/en/repositories/viewing-activity-and-data-for-your-repository/viewing-traffic-to-a-repository">GitHub Insights traffic</a> and the <a href="https://docs.github.com/en/rest/metrics/traffic">REST traffic views and clones endpoints</a> report a 14-day UTC window.
+GitHub labels these as unique counts without exposing the identities behind them; its clone traffic concerns full clones, not fetches.
+They provide neither participant identity nor evidence of installation, use, or adoption.</p>
+<h2 id="if-the-q1-target-slips">If the Q1 target slips</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Cost and effect</th>
+<th>Recommendation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Keep the criteria; release <code>rcN</code> with fixes only</td>
+<td>More release overhead and a later stable date. External evidence remains comparable to the stated bar.</td>
+<td><strong>Recommended.</strong> Record the unmet criterion and new target date.</td>
+</tr>
+<tr>
+<td>Design 1.1 privately while <code>rcN</code> continues</td>
+<td>Branch divergence, migration and backport work, and contract drift. Design can proceed offline; do not publish 1.1 before 1.0.</td>
+<td>Use only if the maintenance cost is explicit.</td>
+</tr>
+<tr>
+<td>Change a 1.0 criterion explicitly</td>
+<td>Trust cost, an accepted design and ROADMAP supersession, and reduced comparability with earlier measurements.</td>
+<td>Consider only if the owner has new evidence, not because a deadline arrived.</td>
+</tr>
+</tbody>
+</table></div>
+<p>The owner makes the release decision.
+This proposal recommends keeping the pack criterion's accepted PyPI interpretation and the external evidence bar.</p>
+<h2 id="three-jobs-users-may-already-solve-elsewhere">Three jobs users may already solve elsewhere</h2>
+<p>The linked primary product and project sources below are treated as read on 2026-10-06.
+They establish the cited capability, not its effectiveness for a Guardana pilot or the absence of other capabilities.
+Guardana's intended distinction is a workflow: carry missingness through plan, gate, saved run, diff, and export.
+That is a proposed position, not a claim of uniqueness.</p>
+<h3 id="job-a-gate-an-llm-or-mcp-application-in-ci">Job A: gate an LLM or MCP application in CI</h3>
+<p><a href="https://www.promptfoo.dev/docs/integrations/github-action/">promptfoo's GitHub Action</a> describes before/after evaluations in CI; its <a href="https://www.promptfoo.dev/docs/providers/mcp/">MCP provider</a> provides an MCP test route.
+<a href="https://reference.garak.ai/en/stable/cliref.html">garak's CLI reference</a> describes scanner probes and detectors.
+<a href="https://github.com/microsoft/PyRIT/releases/tag/v1.1.0">PyRIT 1.1.0, released 2026-09-04</a>, describes scanner and undetermined scores.</p>
+<p><a href="https://github.com/invariantlabs-ai/docs/blob/main/docs/mcp-scan/index.md">mcp-scan documentation</a> describes scanning file-based client configurations, tool poisoning, pinning, and a runtime proxy.
+<a href="https://docs.giskard.ai/en/latest/getting_started/quickstart/quickstart_llm.html">Giskard's quickstart</a> takes a RAG scan into tests.
+<a href="https://docs.nvidia.com/nemo/guardrails/configure-guardrails/configure-rails">NeMo Guardrails documentation</a> describes inline input, output, retrieval, and tool rails.</p>
+<p><a href="https://github.com/protectai/llm-guard/blob/main/docs/get_started/quickstart.md">llm-guard's quickstart</a> describes input and output scanners as a library.
+Its <a href="https://github.com/protectai/llm-guard">repository</a> was archived on 2026-07-09.
+These tools occupy different parts of testing and runtime workflows; the cited pages do not justify a claim that any one lacks another capability.</p>
+<h3 id="job-b-scan-a-model-file">Job B: scan a model file</h3>
+<p><a href="https://github.com/protectai/modelscan">ModelScan</a> describes scanning serialized model files including H5, Pickle, and SavedModel.
+<a href="https://www.promptfoo.dev/docs/model-audit/scanners/">promptfoo ModelAudit's scanner list</a> describes a broader set of scanner types as read on 2026-10-06; this is no historical comparison.
+Expand model-file handling only when a pilot supplies a relevant sample and a reproducible gap.</p>
+<h3 id="job-c-review-an-agent-regression">Job C: review an agent regression</h3>
+<p><a href="https://inspect.aisi.org.uk/tasks.html">Inspect tasks</a> use dataset, solver, and scorer components, and <a href="https://inspect.aisi.org.uk/reference/inspect_score.html">Inspect scoring</a> can re-score a saved log.
+The <a href="https://www.promptfoo.dev/docs/integrations/github-action/">promptfoo Action</a> supports CI evaluation; the <a href="https://docs.giskard.ai/en/latest/getting_started/quickstart/quickstart_llm.html">Giskard quickstart</a> describes a scan-to-tests path.
+<a href="https://github.com/microsoft/PyRIT/releases/tag/v1.1.0">PyRIT 1.1.0</a> includes undetermined scores.
+Guardana should test whether teams value its intended continuity from incomplete observation to a reviewable ship decision.</p>
+<h2 id="standards-and-formats-to-track">Standards and formats to track</h2>
+<p>These editions and dates are supplied source facts as read on 2026-10-06.
+A public taxonomy mapping records why a built-in rule is relevant; it does not claim full framework coverage or certification.
+Put changing legal, vendor, and format identifiers in versioned data and documentation where possible.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Authority, edition, date</th>
+<th>Scope or jurisdiction</th>
+<th>Relevance to Guardana</th>
+<th>Response in data, docs, or code</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="https://genai.owasp.org/2026/09/01/owasp-genai-security-project-unveils-2026-top-10-for-llm-applications-new-agent-control-standard-and-sponsors-as-community-tops-30000-members/">OWASP LLM Top 10 for 2026</a>, announced 2026-09-02 in an article dated 2026-09-01</td>
+<td>LLM application security guidance; international project</td>
+<td>Public vocabulary for applicable checks</td>
+<td>Version the taxonomy mapping in data; explain unmapped and untested areas in docs.</td>
+</tr>
+<tr>
+<td><a href="https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/">OWASP Agentic Applications Top 10 for 2026</a>, published 2025-12-09</td>
+<td>Agentic application security guidance; international project</td>
+<td>Agent and tool risk vocabulary</td>
+<td>Map each applicable built-in with edition and rationale; do not equate mapping with coverage.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/mitre-atlas/atlas-data/releases">MITRE ATLAS data releases</a>: content <code>v2026.09</code> on 2026-09-15; format <code>v5.6.0</code></td>
+<td>International adversarial AI knowledge base</td>
+<td>Techniques and provenance may change separately from file structure</td>
+<td>Pin content and format versions separately; test positive and negative mapping fixtures.</td>
+</tr>
+<tr>
+<td><a href="https://www.nist.gov/itl/ai-risk-management-framework">NIST AI RMF 1.0</a>, 2023-01-26, and <a href="https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence">GenAI Profile</a>, 2024-07-26</td>
+<td>Voluntary US framework with international use</td>
+<td>Context for evidence, governance, and uncertainty</td>
+<td>Document relevance and limits; make no compliance claim from a scan.</td>
+</tr>
+<tr>
+<td><a href="https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=OJ%3AL_202601744">EU AI Act, Regulation 2024/1689 as amended by 2026/1744</a>; <a href="https://digital-strategy.ec.europa.eu/en/policies/regulatory-framework-ai">Commission overview</a></td>
+<td>EU; GPAI 2025-08-02, general 2026-08-02, Annex III high-risk 2027-12-02, Annex I high-risk 2028-08-02</td>
+<td>A user's obligations depend on role and use; Guardana is not automatically a provider or deployer</td>
+<td>Date and scope documentation; no certification or automatic compliance claim.</td>
+</tr>
+<tr>
+<td><a href="https://www.iso.org/standard/42001">ISO/IEC 42001:2023</a>, published December 2023</td>
+<td>Voluntary international AI management standard</td>
+<td>Organizational management context</td>
+<td>Document possible evidence exports without claiming certification.</td>
+</tr>
+<tr>
+<td><a href="https://modelcontextprotocol.io/specification/2025-11-25">MCP 2025-11-25</a> and <a href="https://modelcontextprotocol.io/specification/2026-07-28">MCP 2026-07-28</a></td>
+<td>Protocol editions</td>
+<td>Existing probe interoperability and explicit edition handling</td>
+<td>Keep conformance fixtures and edition data; add protocol code after 1.0 only for an observed interoperability failure, with a versioned contract.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/a2aproject/A2A/releases/tag/v1.0.0">A2A v1.0.0</a>, published 2026-03-12</td>
+<td>Agent protocol</td>
+<td>Existing A2A probe and possible trust checks</td>
+<td>Keep conformance evidence; add optional signature support only after a demonstrated trust gap and contract review.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/gen-ai-spans.md">OpenTelemetry GenAI conventions</a>, in development as of 2026-10-06 in a split repository</td>
+<td>Developing telemetry format</td>
+<td>Potential imported evidence</td>
+<td>Treat as an input adapter, never Guardana's storage contract; preserve missing fields and source version.</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="conditional-starts-after-10">Conditional starts after 1.0</h2>
+<p><strong>M1, paired statistical diff.</strong> Start only after at least two independent pilot teams each use local <code>diff</code> on comparable saved before/after application runs to make a documented ship decision, and one asks for uncertainty because descriptive counts are insufficient.
+Record case and grader identity and the denominator before designing an inference.
+Do not promise statistical power or a sample size before the observed cases support a power plan.
+Version the comparison and grading identity contract; retain refusal when comparison is invalid.
+This threshold is proposed, not observed.</p>
+<p><strong>M3, collector measurements.</strong> Start only after at least two teams submit and read their own locked application runs in the optional collector and each asks the same cross-run question that local files cannot answer.
+Version the collector envelope and storage together, enforce tenancy, and show missingness and unknowns in the answer.
+Do not build an arbitrary dashboard to discover the question.
+This threshold is proposed, not observed.</p>
+<p><strong>B12, non-executing packs.</strong> The <a href="non-executing-packs.html">accepted design</a> commits to a parallel lane after F2, but remains unimplemented. The 1.0 surface freeze places any implementation in 1.x.
+This research proposes deferring implementation until at least one team shares a local YAML check across projects and reports Python packaging or trust friction. That would change the accepted timing; the owner must decide and record a superseding design before moving B12 in ROADMAP.
+The accepted design calls its new entry-point group a fifth group, but the frozen surface now has six; it would be a seventh group. Its manifest and lock version changes and data-only import path need a revised contract design and conformance checks proving no third-party code executes. Acceptance of the design is not user-demand evidence.</p>
+<p>For the next application target, keep one candidate: a multi-step agent and tool workflow with synthetic fixtures, if a pilot reports that pain.
+Do not select it now. Expand model-file scanning only if a pilot supplies a sample.
+Schedule synthetic monitoring after repeated alert pain; expose Prometheus only for named measurements.
+Distribute signed central policy after local recipe reuse, and profiles in packs after shared-check demand.</p>
+<p>Keep optional A2A signature verification with its JOSE extra behind an observed trust gap.
+Derive agent provenance fields from pilot evidence.
+Define imported-evidence quality only after a real import request.
+Consider OIDC, SSO, and Helm when collector teams ask for them.
+These remain unordered candidates, not 1.0 work or an ordered 1.x queue.</p>
+<h2 id="front-page-and-documentation-sequence">Front page and documentation sequence</h2>
+<p>The local audit input <code>cache/audit-2026-10-06/priorities-final.md</code> verifies copyable shell and YAML defects, the clipped <code>scan .</code> command at 390 px, source-first installation advice, and unsafe deployment, writing-rules, and CI examples.
+Correct those for <code>rc2</code> within its fixes-only constraint.
+The study consent correction belongs there too.</p>
+<p>Before 1.0, test a visible starter, an RC label, mobile navigation and code/table readability, a three-step <a href="../index.html">docs index</a>, and a result glossary as F2 barrier candidates.
+Promote a candidate to a release fix when a user study confirms it or a direct reproduction establishes the defect.
+Audit items marked as partial or model findings remain hypotheses until checked.</p>
+<p>After 1.0, consider shortening the hero, a careful comparative line, a simpler Control section, and diagram polish.
+A confirmed contrast accessibility defect is a defect to fix, not cosmetic work.
+The commercial boundary in product principle 4 remains: open engine and built-in rules, with paid hosting or curated content only.
+Control's separate live runtime role does not change that boundary.</p>
+<h2 id="candidate-rubric-for-later-ordering">Candidate rubric for later ordering</h2>
+<p>“Not observed” below is a statement about pilot pain, not a negative user finding.
+Costs are qualitative planning estimates. Every start needs the stated evidence and an acceptance check before a roadmap move.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Candidate</th>
+<th>Observed pilot pain</th>
+<th>User value if confirmed</th>
+<th>Evidence quality now</th>
+<th>Implementation and maintenance cost</th>
+<th>Versioned contract and acceptance</th>
+<th>Defer condition</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>M1 paired diff</td>
+<td>Not observed</td>
+<td>Qualified uncertainty for a ship decision</td>
+<td>Existing design, no qualifying team requests</td>
+<td>High: statistical and grading maintenance</td>
+<td>Comparison, case, and grader identity; refuse incompatible or underpowered claims</td>
+<td>Fewer than two qualifying teams or no uncertainty request</td>
+</tr>
+<tr>
+<td>M3 collector measurements</td>
+<td>Not observed</td>
+<td>Answer a repeated cross-run question</td>
+<td>Existing collector, no qualifying question</td>
+<td>High: tenancy, storage, query semantics</td>
+<td>Envelope and storage versions; preserve unknowns and tenant isolation</td>
+<td>Fewer than two qualifying teams or local files answer the question</td>
+</tr>
+<tr>
+<td>B12 data-only packs</td>
+<td>Not observed</td>
+<td>Share checks without executing author code</td>
+<td>Accepted design, no pilot demand</td>
+<td>Medium to high: entry point, manifest, lock, conformance</td>
+<td>Version manifest and lock; prove data-only import and independent install</td>
+<td>No shared YAML check with reported packaging or trust friction</td>
+</tr>
+<tr>
+<td>Agent/tool application target</td>
+<td>Not observed</td>
+<td>Test a real multi-step workflow safely</td>
+<td>Candidate only</td>
+<td>High: fixtures, adapters, side-effect controls</td>
+<td>Target and fixture contracts; reproduce a pilot failure with synthetic fixtures</td>
+<td>No pilot pain</td>
+</tr>
+<tr>
+<td>Imported-evidence quality</td>
+<td>Not observed</td>
+<td>Make imported observations reviewable</td>
+<td>Candidate only</td>
+<td>High: source trust, missingness, comparability</td>
+<td>Version import and quality record; refuse unsupported local-regression promotion</td>
+<td>No real import request</td>
+</tr>
+<tr>
+<td>Site and docs adoption repairs</td>
+<td>Verified defects plus unverified barrier candidates</td>
+<td>Help a new user reach the first result</td>
+<td>Direct reproductions for defects; F2 pending for barriers</td>
+<td>Low to medium; ongoing content checks</td>
+<td>Copyable examples and documented CLI behavior; F2 completion check remains unchanged</td>
+<td>Barrier changes without reproduction or study signal</td>
+</tr>
+<tr>
+<td>Prometheus reporter</td>
+<td>Not observed</td>
+<td>Export named measures</td>
+<td>Candidate only</td>
+<td>Medium: metric stability and unknowns</td>
+<td>Version output mapping; verify named measures and missingness</td>
+<td>No team names measures</td>
+</tr>
+<tr>
+<td>Central signed profiles and policy</td>
+<td>Not observed</td>
+<td>Reuse governed local recipes</td>
+<td>Candidate only</td>
+<td>High: trust, signatures, rotation</td>
+<td>Version policy, lock, and signature format; verify local reuse first</td>
+<td>No repeated local recipe use</td>
+</tr>
+<tr>
+<td>Profiles in packs</td>
+<td>Not observed</td>
+<td>Distribute requested shared profiles</td>
+<td>Candidate only</td>
+<td>Medium: pack and profile migrations</td>
+<td>Version manifest and profile schema; conformance fixtures</td>
+<td>No shared-check demand</td>
+</tr>
+<tr>
+<td>Scheduled synthetic monitor</td>
+<td>Not observed</td>
+<td>Catch recurring regressions</td>
+<td>Candidate only</td>
+<td>High: alert semantics and operations</td>
+<td>Version alert and schedule records; test repeat alert need</td>
+<td>No repeated alert pain</td>
+</tr>
+<tr>
+<td>A2A signature extra</td>
+<td>Not observed</td>
+<td>Verify agent-card trust when required</td>
+<td>Candidate only</td>
+<td>Medium: JOSE and protocol maintenance</td>
+<td>Optional extra and trust result; conformance with cited edition</td>
+<td>No observed trust gap</td>
+</tr>
+<tr>
+<td>Agent provenance</td>
+<td>Not observed</td>
+<td>Explain tool and server identity</td>
+<td>Candidate only</td>
+<td>Medium to high: identity sources</td>
+<td>Version provenance fields and unknown states</td>
+<td>No pilot source for the fields</td>
+</tr>
+<tr>
+<td>OIDC/SSO and Helm</td>
+<td>Not observed</td>
+<td>Fit collector team operations</td>
+<td>Candidate only</td>
+<td>High: auth and deployment support</td>
+<td>Version roles and deployment migrations; exercise recovery</td>
+<td>No collector team demand</td>
+</tr>
+<tr>
+<td>Model artifact hardening</td>
+<td>Not observed in a Guardana pilot</td>
+<td>Clearer artifact risk reporting and fewer missed scans</td>
+<td>Public upstream advisory and unconfirmed scanner issues; no Guardana failing case</td>
+<td>Medium to high: format, sandbox, and review costs</td>
+<td>Review versioned input and result contracts; reproduce a failing artifact and specify acceptance</td>
+<td>No pilot pain, failing case, or acceptance criterion</td>
+</tr>
+<tr>
+<td>Agent action chain</td>
+<td>Not observed in a Guardana pilot</td>
+<td>Assess whether injected content steers tool actions</td>
+<td>Public issue and anecdote; no Guardana pilot trace</td>
+<td>High: fixtures and integration costs</td>
+<td>Review versioned action and outcome contracts; reproduce a tool-use failure and specify acceptance</td>
+<td>No pilot pain, failing case, or acceptance criterion</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="options-and-owner-questions">Options and owner questions</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Option</th>
+<th>1.x ordering rule</th>
+<th>Consequence</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Evidence-gated sequence, recommended</td>
+<td>Keep M1 and M3 conditional; rank remaining candidates after pilot records</td>
+<td>Limits contract growth while 1.0 evidence is gathered</td>
+</tr>
+<tr>
+<td>Contract-first design only</td>
+<td>Draft schemas and conformance fixtures without publishing a feature</td>
+<td>May reduce later design time; risks work on unused paths</td>
+</tr>
+<tr>
+<td>Broad feature queue</td>
+<td>Put several candidates into Now before pilot evidence</td>
+<td>Higher maintenance and contract cost without a demonstrated user job</td>
+</tr>
+</tbody>
+</table></div>
+<p>The owner needs to decide whether the accepted PyPI interpretation of criterion 3 stands, which F2 barriers warrant immediate fixes after reproduction, and whether either M1 or M3 has met its proposed start threshold.
+Record any changed criterion or priority in an accepted design and ROADMAP before treating it as a release decision.</p>
+<h2 id="sources-and-limits">Sources and limits</h2>
+<p>Local baseline and criteria: <a href="https://github.com/guardana/guardana/blob/main/ROADMAP.md">ROADMAP.md</a>, <a href="one-zero-readiness.html">1.0 readiness</a>, <a href="audit-0.31-direction.html">direction audit</a>, <a href="../product-status.html">product status</a>, <a href="https://github.com/guardana/guardana/blob/main/FEATURES.md">features</a>, <a href="../maintainers/lessons.html">lessons</a>, <a href="../generated/first-run.html">first-run measure</a>, <a href="../generated/application-measures.html">application measures</a>, <a href="../maintainers/drills.html">drills</a>, and <a href="non-executing-packs.html">non-executing packs</a>.
+Local audit records: <code>cache/audit-2026-10-06/A.json</code> through <code>E.json</code>, <code>priorities.md</code> and <code>priorities-final.md</code>, supplied locally and not tracked in this repository.
+External primary links appear beside each capability, standard, or traffic claim above; their stated reading date is 2026-10-06.
+No usage, effectiveness, legal compliance, or adoption result is inferred from those links.</p>
+<h2 id="public-defect-discussions-and-the-20-horizon-2026-10-06">Public defect discussions and the 2.0 horizon (2026-10-06)</h2>
+<p>This is a bounded, non-exhaustive sample of public discussions from Reddit, GitHub issues and advisories, X search results, the Hugging Face forum, and Hacker News, read on 2026-10-06. Reports and questions below suggest cases to investigate; they do not establish that every alleged issue is verified or affects Guardana.</p>
+<p><strong>Prompt injection and agent action.</strong> A <a href="https://www.reddit.com/r/LocalLLaMA/comments/1qyljr0/prompt_injection_is_killing_our_selfhosted_llm/">2026-02-07 Reddit account</a> (firsthand anecdote/question) says a QA prompt injection exposed a self-hosted application’s system prompt. An <a href="https://github.com/modelcontextprotocol/modelcontextprotocol/issues/3213">MCP specification issue opened 2026-08-07</a> (unconfirmed issue/PoC) alleges that <code>server/discover</code> instructions, amplified by a public cache, can inject instructions; its submitted PoC was not independently reproduced here. A <a href="https://news.ycombinator.com/item?id=43601653">2025-04 Hacker News discussion</a> (secondary signal) records a researcher’s concern about MCP tool poisoning, rather than a verified Guardana defect.</p>
+<p><strong>RAG isolation.</strong> A <a href="https://www.reddit.com/r/LocalLLM/comments/1txf6sx/auditing_a_custom_rag_system_looking_for/">2026-06-05 Reddit question</a> (question, not a defect report) seeks methods for testing cross-user document leakage; it reports no observed exploit. <a href="https://github.com/guardana/guardana/blob/main/FEATURES.md">FEATURES.md</a> documents F6’s poisoned retrieval document and tenant-boundary checks on the reference app. The team-owned retrieval pilot has not yet been measured.</p>
+<p><strong>Model artifact execution.</strong> A <a href="https://discuss.huggingface.co/t/how-to-ensure-safe-usage/176678">2026-06-10 Hugging Face forum question</a> (question, not a defect report) asks how an administrator can prevent accidental loading of malicious models. <a href="https://github.com/protectai/modelscan/issues/354">ModelScan issue #354, opened 2026-06-21</a> (unconfirmed issue/PoC), remains open and reports a corrupt ZIP entry that skips a later <code>archive/data.pkl</code> and returns zero issues; its PoC was not independently executed here. <a href="https://github.com/protectai/modelscan/issues/343">ModelScan issue #343, opened 2026-05-12</a> (unconfirmed issue/PoC), remains open and alleges a Keras Lambda detection bypass while withholding details. The <a href="https://github.com/huggingface/diffusers/security/advisories/GHSA-7wx4-6vff-v64p">diffusers advisory published 2026-05-20</a> (confirmed advisory) describes an upstream <code>trust_remote_code</code> time-of-check/time-of-use bypass affecting versions below 0.37.1 and patched in 0.38.0. These concern tooling that handles model artifacts, not a model’s behavioral defect. Guardana already supports model formats, but has no comparative coverage proof across them.</p>
+<p><strong>False-green scoring and scanning.</strong> <a href="https://github.com/microsoft/PyRIT/issues/2658">PyRIT issue #2658, opened 2026-09-14</a> (unconfirmed issue/PoC), remains open and reports an undetermined aggregate becoming <code>FAILURE</code>; it was not reproduced here. <a href="https://github.com/promptfoo/promptfoo/issues/5080">promptfoo issue #5080, opened 2025-07-28</a> (unconfirmed issue report), is closed and reported a critical raw finding alongside a green summary and UI in version 0.117.3; this says nothing about the current release. Guardana already documents explicit inconclusive results, errors, and coverage shortfalls.</p>
+<p>X searches found one relevant <a href="https://x.com/AISecHub/status/2036419023592690109">2026-03-24 AISecHub security-skill post</a> (promotional signal), but no independently verifiable defect report in the inspected results. X is not a comprehensive corpus.</p>
+<p>These observations can inform pilot interview questions and synthetic fixtures. <a href="two-zero-horizon.html">The broader security research horizon</a> compares advisories, behavioral research, incident reports, public discussions, and current competitor documentation. Model artifact hardening and agent action chains remain candidate rows in the rubric above. Moving either to Now requires pilot pain, a reproducible failing case, an acceptance criterion, and a versioned contract review. <strong>2.0 has no version plan, date, or commitments.</strong> Demonstrated incompatible contract changes or multi-team needs might eventually justify it, with an explicit migration path and assessed costs. The 1.x M1/M3 gates remain conditional, and Later remains unordered.</p>
+
+</main>
+</div>
+<footer class="foot"><div class="bar">
+<span class="who">Guardana 1.0.0rc1 · Apache-2.0 ·
+maintained by Konrad Karauda</span>
+<a href="https://github.com/guardana/guardana/blob/main/docs/design/roadmap-after-1-0.md">Edit this page on GitHub</a>
+<a href="https://github.com/guardana/guardana">github.com/guardana</a>
+<a href="../../llms.txt">llms.txt</a>
+</div></footer>
+</body>
+</html>
