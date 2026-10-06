@@ -224,7 +224,7 @@ manifest, entry points, one sampled rule per shape, a locator target and tests â
 passes `pack validate` and `rule test` before it is edited. `pack validate` checks that the
 distribution declaring a rule, evaluator, target or taxonomy framework is the one that
 registers it. Pack manifests declare API
-compatibility and locks pin the exact installed extensions. A lock pins an evaluator or target only when the pack's own distribution registers it. `pack lock` refuses another distribution's registration; `pack lock --check` reports it `removed` with exit `1`. Two distributions registering a target class of the same name cause a load error naming both. An older recipe lock can report changed protocol skip reasons as drift; retake it with `guardana recipe lock`.
+compatibility, which `pack validate` checks. Locks pin each rule's declaration, each evaluator, target and output by id, and every distribution's version; they do not hash the Python behind an extension ([what a lock pins](docs/usage-pack.md#guardana-pack-lock--pin-what-a-check-is)). A lock pins an evaluator or target only when the pack's own distribution registers it. `pack lock` refuses another distribution's registration; `pack lock --check` reports it `removed` with exit `1`. Two distributions registering a target class of the same name cause a load error naming both. An older recipe lock can report changed protocol skip reasons as drift; retake it with `guardana recipe lock`.
 
 A package can also add a format for `--format` and a reporter for `--reporter`
 ([installed outputs](docs/outputs.md)), with no change to the CLI. Each is imported only when

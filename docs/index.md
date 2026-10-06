@@ -9,7 +9,32 @@ status: stable
 
 Start with the root [README](../README.md). Before production use, read [Product status](product-status.md), [Safe testing](safe-testing.md), and the [Threat model](threat-model.md).
 
-## First run
+## Start here
+
+1. [Install](install.md) the CLI, or run it without installing: `uvx --from guardana-cli guardana`.
+2. Run the [offline starter](usage-init.md): a failure, its fix, the saved evidence and one check you edit, with no account, key or model.
+3. Read the result with [the table below](#reading-a-result), then follow the recipe for what you check:
+   - the files you ship: [`recipe-local-scan.md`](recipe-local-scan.md)
+   - answers your application already gave: [`recipe-recorded-answers.md`](recipe-recorded-answers.md)
+   - the application your users talk to: [`recipe-real-application.md`](recipe-real-application.md)
+
+## Reading a result
+
+| The run shows | It means | Gate and exit code |
+|---|---|---|
+| a finding | a check reached a negative verdict at or above `fail_on.severity` (and `min_confidence`, when a model graded it) | `fail`, `1` |
+| `unverified` (verdict `inconclusive`) | a check ran and could not decide | `indeterminate`, `2`, when `fail_on_inconclusive` is on (`--preset release`, `monitor`); otherwise listed and not gating |
+| an error | a check could not run: it raised, or could not be resolved | `indeterminate`, `2` (`fail_on_error`, on by default) |
+| skipped for a missing capability | the target cannot serve the check | `indeterminate`, `2`, when `fail_on_skipped` is on (`--preset release`) |
+| skipped as `not_applicable` | the check is for a protocol the target does not speak | never gates; listed with its reason |
+| a coverage shortfall | evidence you demanded, or a model file no rule read | `indeterminate`, `2`, always |
+| a stopped run | a budget, an interrupt or the target ended it early | `indeterminate`; `6` for a budget, `7` for an interrupt, `4` for the target |
+| `not recorded`, "not measured" | nobody counted it; never zero | — |
+| `pass` | none of the above held | `pass`, `0` |
+
+More in [exit codes](exit-codes.md) and [the gate](profiles.md#the-gate).
+
+## Guides for a first run
 
 - [`install.md`](install.md) — install the CLI or a container
 - [`usage-init.md`](usage-init.md) — a first-run project that fails, is fixed and keeps its evidence, offline

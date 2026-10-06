@@ -109,7 +109,8 @@ def back_up(url: str, destination: Path) -> None:
 
 
 def restore(url: str, source: Path) -> None:
-    """Run the documented restore command."""
+    """Run the documented check that the dump reads, then the documented restore command."""
+    _run(["pg_restore", "--list", str(source)])
     _run(["pg_restore", "--clean", "--if-exists", "--dbname", url, str(source)])
 
 

@@ -186,9 +186,9 @@ A calibration file holds one calibration per evaluator id.
 ### Cost is bounded, not predicted
 
 `guardana plan` prices a run before it sends anything, and
-`--max-requests`/`--max-cost`/`--max-duration` are hard ceilings that stop the run
-and mark it `indeterminate` rather than letting it report partial coverage as a
-pass. What a plan cannot do is predict a *reply's* token count, so a cost estimate
+`--max-requests`, `--max-input-tokens`, `--max-output-tokens` and `--max-duration` are
+hard ceilings that stop the run with exit `6` and an `indeterminate` gate rather than
+letting it report partial coverage as a pass. What a plan cannot do is predict a *reply's* token count, so a cost estimate
 is a bound on requests and a projection on tokens — a rule with unknown cost is
 counted as unknown and says so.
 

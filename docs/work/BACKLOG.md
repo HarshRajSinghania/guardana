@@ -381,6 +381,13 @@ Left open when the site shipped on 2026-09-25 with Control in coming-soon mode
   coupling its ADR-0024 refuses.
 
 ## Left by the audit fixes before 1.0.0rc2
+
+- **The Python facade needs names outside the supported surface:** building a `Verifier` takes
+  `PluginTrust`, `PluginMode` and `load_profile`, and a file target uses `read_source` and
+  `display_url`; none is in `docs/generated/api-surface.json`. The docs say so. Adding them is a
+  surface change, for 1.x.
+- **`SECURITY.md` does not say how a release candidate is supported** next to the stable line;
+  the owner decides the policy, then the sentence goes through `content-model`.
 - **Inside the fenced judge transcript a reply can still imitate role labels** (`assistant:`);
   encoding each message separately would close that, under a new prompt version.
 - **An unlisted `bin/<module>.py` can shadow the import a console-script wrapper makes**

@@ -389,7 +389,7 @@ from collections.abc import Iterable
 from guardana.core.report import Evidence, Finding
 from guardana.core.rule import Rule, RuleContext, RuleMeta
 from guardana.core.severity import Severity
-from guardana.core.target import ArtifactTarget, Capability, Target, TargetKind
+from guardana.core.target import Capability, FileReader, Target, TargetKind
 from guardana.core.taxonomy import OWASP_LLM05_2025
 
 class MyRule(Rule):
@@ -403,9 +403,10 @@ class MyRule(Rule):
     )
 
     def run(self, target: Target, ctx: RuleContext) -> Iterable[Finding]:
-        # Never `assert isinstance(...)` here — it vanishes under `python -O`.
-        # A rule handed a target it can't handle returns nothing.
-        if not isinstance(target, ArtifactTarget):
+        # The runner skips a target without `read_files` and records the skip, so
+        # this check only narrows the type. Never `assert isinstance(...)`: it
+        # vanishes under `python -O`.
+        if not isinstance(target, FileReader):
             return
         for path in target.iter_files((".json",)):
             if _is_bad(path):
@@ -670,25 +671,6 @@ def test_stays_silent_when_the_model_refuses() -> None:
     target = EndpointTarget("http://test", "m", transport=RefusingTransport())
     assert not list(MyRule().run(target, RuleContext()))
 ```
-
-### What happens when your rule raises
-
-Nothing catastrophic, and nothing silent. The runner catches any `Exception` your
-rule throws, records it in the result's `errors` channel with your rule id and the
-exception, and carries on with the other rules — but the gate **fails** on it by
-default, because a check that did not run must never read as a check that passed.
-Findings you already yielded before raising are kept.
-
-Two exceptions to that. `KeyboardInterrupt` and `SystemExit` are deliberately not
-caught, so Ctrl-C still works. And raising `RuleLoadError` means "I could not be
-resolved for this run" — a missing evaluator, say. That is a configuration state
-rather than a defect in your code, and it is still recorded in `errors`: a check
-that could not be resolved did not run.
-
-The practical consequence for you: do not swallow your own errors to be polite.
-Letting an exception out is now the honest thing to do — it is reported, it is
-attributed to your rule, and it stops a build from going green on a check that
-never happened.
 
 ## Testing a rule that reads a model file
 

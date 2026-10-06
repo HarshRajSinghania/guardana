@@ -53,7 +53,7 @@ evaluator: contains
 requires: [chat]
 dataset: ./support-golden.jsonl
 expect:
-  contains_any: []
+  contains_any: ["Settings > Security"]   # what every good answer names
 sample:
   size: 100
   seed: 7
@@ -72,7 +72,7 @@ fixtures:
     outcome: inconclusive
 ```
 
-Fill in the evaluator's expectation before running this example: `contains` returns `inconclusive` when every substring list is empty. See [writing rules](writing-rules.md) for the rule shape.
+Replace `Settings > Security` with what your good answers must contain. `contains` returns `inconclusive` when every substring list is empty, so an expectation left blank grades nothing. See [writing rules](writing-rules.md) for the rule shape.
 
 ## Run and read the suite
 

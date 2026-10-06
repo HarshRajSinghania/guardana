@@ -2,8 +2,10 @@
 
 A Guardana extension pack that uses all six extension points and imports nothing outside
 the [supported surface](../../docs/compatibility.md). It is versioned on its own (`0.1.0`),
-depends on `guardana-core>=0.41` with no upper bound, and lets its manifest's
-`extension_api` and `output_api` ranges decide which Guardana it runs on. Every release
+depends on `guardana-core>=0.41` with no upper bound, and declares in its manifest the
+`extension_api` and `output_api` ranges it runs on. `guardana pack validate` checks those
+ranges; installing the pack or running a scan does not, so a CI job that depends on it
+runs `guardana pack validate` and `guardana pack lock --check`. Every release
 attaches its wheel and sdist to the GitHub Release; it is published to PyPI once the
 project's trusted publisher is registered.
 

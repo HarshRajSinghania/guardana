@@ -116,11 +116,15 @@ guardana scan . --ai-system support-agent --environment production \
 
 ```bash
 docker compose -f deploy/docker-compose.yml pull
+docker compose -f deploy/docker-compose.yml stop collector     # nothing writes while the schema changes
 docker compose -f deploy/docker-compose.yml --profile migrate run --rm migrate
 docker compose -f deploy/docker-compose.yml up -d
+curl -fsS https://collector.example.com/readyz                 # ready once storage and schema agree
 ```
 
-In that order, and never with the middle step skipped. What protects you if it
+In that order, and never with the migration skipped. The old collector stops before the
+schema changes, because a collector refuses a database written by a newer build, and the
+new image starts only after the migration. Send traffic back once `/readyz` answers. What protects you if it
 goes wrong is built into the migration runner: every migration ships a rollback,
 each runs in its own committed transaction under an advisory lock, and the runner
 **refuses** a migration edited after it was applied, one numbered below the
@@ -154,15 +158,21 @@ Take one:
 
 ```bash
 set -a; . deploy/.env; set +a
+BACKUP="guardana-$(date -u +%Y-%m-%d).dump"
 docker compose -f deploy/docker-compose.yml exec -T db \
   pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" --format=custom \
-  > "guardana-$(date -u +%Y-%m-%d).dump"
+  > "$BACKUP"
 ```
 
 Restore it — into an **empty** database, which is what a rebuild on a new machine
-actually looks like:
+actually looks like. Name the dump you are restoring and check that it reads before
+anything is dropped:
 
 ```bash
+set -a; . deploy/.env; set +a
+BACKUP=guardana-2026-08-05.dump                                 # the dump to restore
+docker compose -f deploy/docker-compose.yml exec -T db pg_restore --list < "$BACKUP" > /dev/null
+
 docker compose -f deploy/docker-compose.yml stop collector     # nothing writes mid-restore
 
 docker compose -f deploy/docker-compose.yml exec -T db psql -U "$POSTGRES_USER" -d postgres \
@@ -171,7 +181,7 @@ docker compose -f deploy/docker-compose.yml exec -T db psql -U "$POSTGRES_USER" 
 
 docker compose -f deploy/docker-compose.yml exec -T db \
   pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" --clean --if-exists \
-  < guardana-2026-08-05.dump
+  < "$BACKUP"
 
 docker compose -f deploy/docker-compose.yml start collector
 curl -fsS http://127.0.0.1:8000/readyz     # storage reachable, schema current
@@ -205,11 +215,16 @@ Rotate on a schedule, when someone who held a key leaves, and at once when a key
 may have leaked. Both keys work until the old one is revoked, allowing pipelines to switch without a gap in key validity.
 
 1. **Issue** the new key for the same project, with the same `--scope` and
-   `--environment` as the one it replaces:
+   `--environment` as the one it replaces. `key list` shows both: the scopes, and the
+   environment in brackets after the project. Repeat them, because `--scope` defaults
+   to `ingest` alone and a key created without `--environment` may write to any
+   environment of the project:
 
    ```bash
+   docker compose -f deploy/docker-compose.yml run --rm collector key list --project acme/web
    docker compose -f deploy/docker-compose.yml run --rm collector \
-     key create --project acme/web --name github-actions-2   # prints the key, once
+     key create --project acme/web --name github-actions-2 \
+     --scope ingest --environment production   # the old key's values; prints the key, once
    ```
 
 2. **Deploy** it: replace `GUARDANA_COLLECTOR_TOKEN` in every pipeline that used
@@ -263,10 +278,17 @@ limit, rate-limit at the proxy that already terminates TLS.
 | disk on the `guardana-data` volume | retention is per project and **off until you set it**: submissions accumulate until a policy or a delete removes them |
 
 That last row is the one to act on. `guardana-collector retention set --project
-ORG/PROJECT --keep-days N` bounds the growth, and `retention apply` removes what
-the policy says is too old. Without a policy the volume grows for as long as agents
-report: `--forever` is the default on purpose, because silently deleting a
-customer's evidence is the worse failure.
+ORG/PROJECT --keep-days N` records a policy and deletes nothing; `retention apply`
+removes what the policy says is too old, and only when it runs. Without a policy the
+volume grows for as long as agents report: `--forever` is the default on purpose,
+because silently deleting a customer's evidence is the worse failure. To bound the
+growth, run `apply` on a schedule and alert when it fails:
+
+```bash
+# cron, daily at 03:00; --dry-run first, by hand, to see what would go
+0 3 * * * cd /srv/guardana && docker compose -f deploy/docker-compose.yml run --rm collector \
+  retention apply --project acme/web || logger -t guardana "retention apply failed"
+```
 
 ## What this deployment does not give you yet
 

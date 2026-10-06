@@ -11,7 +11,7 @@ What Guardana defends against, what it deliberately does not, and where the
 trust boundaries sit. A security tool without a stated threat model is asking to
 be trusted on vibes.
 
-**Status:** first published for v0.7. Reviewed each minor release.
+**Status:** first published for v0.7.
 
 ## The shape of the system
 
@@ -273,7 +273,7 @@ memory, sends a real email.
 
 **Stance:** tool calls go to doubles; Guardana never executes a real tool. After
 v0.7, rules declare `impact` and destructive checks require an explicit
-`--allow-side-effects`. Documented in [safe testing](safe-testing.md).
+`--allow-destructive`. Documented in [safe testing](safe-testing.md).
 
 **Residual risk:** a *model* wired to real tools by its own deployment can take
 actions Guardana merely prompted. Probing staging is the recommendation, and the
@@ -292,7 +292,8 @@ attestation beside each container image. How to check them is in
 **Residual risk:** Git tags are not signed. Images before 0.33.0 carry unsigned
 attestations only, so `gh attestation verify` cannot check them; from 0.33.0 each
 image digest has a signed provenance statement. The documented pins are moving `X.Y`
-tags; nothing documents pinning an image by digest.
+tags. Pinning an image by digest is documented ([installing](install.md#run-it-as-a-container),
+[`deploy/docker/README.md`](../deploy/docker/README.md)) and is not the default.
 
 ### T11 — A hostile A2A agent
 

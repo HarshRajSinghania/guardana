@@ -273,9 +273,9 @@ which promise broke.
 ## Guardana's own pack has one
 
 `guardana-rules` ships a manifest and goes through this same door. Its `provides:`
-block is *generated* from the registry — 56 ids is too many to hand-maintain, and a
-hand-maintained list of that length is how every stale count in this repository
-began. Yours is short, so you write it.
+block is *generated* from the registry — one id per built-in rule is too many to
+hand-maintain, and a hand-maintained list of that length is how every stale count in
+this repository began. Yours is short, so you write it.
 
 A validator this project exempted itself from would be a bar we ask other people to
 clear alone, and the first drift it would stop catching is our own.

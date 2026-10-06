@@ -45,7 +45,7 @@ jobs:
       contents: read
       security-events: write   # required to upload SARIF
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: guardana/guardana@v0.41   # moving tag; pins to the latest 0.41.x
         with:
           path: .
@@ -73,15 +73,22 @@ because a scan that did not answer is not a clean result.
 ## Failing a build on deterioration, not just on findings
 
 The Action gates on what a scan finds *today*. To gate on whether today is worse
-than the last accepted run, save both runs and compare them:
+than the last accepted run, save both runs and compare them. These steps run the
+published image, so they need no install step of their own:
 
 ```yaml
+      - uses: actions/checkout@v7
+
       - name: Scan and save this run
         # exit 1 is a finding the comparison will judge; 2 and above still stop the job
-        run: guardana scan . --format json --output current.json || test $? -eq 1
+        run: >
+          docker run --rm -v "$PWD:/work" ghcr.io/guardana/guardana:0.41
+          scan /work --format json --output /work/current.json || test $? -eq 1
 
       - name: Compare against the last accepted run
-        run: guardana diff accepted.json current.json --preset ci
+        run: >
+          docker run --rm -v "$PWD:/work:ro" ghcr.io/guardana/guardana:0.41
+          diff /work/accepted.json /work/current.json --preset ci
 ```
 
 Keep `accepted.json` in the repository (or in your CI's artifact store) and

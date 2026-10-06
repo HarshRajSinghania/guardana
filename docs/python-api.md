@@ -28,6 +28,8 @@ for finding in verification.result.findings:
 verification.save(Path("run.json"))  # the document `--format json --output` writes
 ```
 
+`PluginTrust`, `PluginMode` and `load_profile` are needed to build a `Verifier` but sit outside the [supported surface](compatibility.md#the-supported-surface): a minor release may change them, so pin `guardana-core` to a minor while your code imports them.
+
 A run that fails, stays indeterminate, or is stopped by its budget or by its target failing part-way is returned like one that passed. Read `verification.gate`, `verification.exit_code` or `verification.open_questions`; nothing is raised for an outcome.
 
 ## Configure a run

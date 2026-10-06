@@ -110,6 +110,8 @@ table = render(select_renderer("acme-table", trust), load_verification(Path("run
 Path("run.csv").write_text(table, encoding="utf-8", newline="")
 ```
 
+`PluginTrust` and `PluginMode` sit outside the [supported surface](compatibility.md#the-supported-surface): a minor release may change them, so pin `guardana-core` to a minor while your code imports them.
+
 `guardana recipe run` saves `run.json` in its artifact directory; export it the same way.
 
 ## The reference webhook

@@ -10,7 +10,7 @@ status: stable
 `guardana run inspect` shows a saved run when you need to review its manifest or compare it with `guardana diff`. A run saved with `--output` records its target, configuration, limits, cost, and gate.
 
 ```bash
-guardana scan . --format json --output run.json
+guardana scan path/to/project --format json --output run.json
 guardana run inspect run.json
 ```
 
@@ -19,8 +19,8 @@ run 0191d4c2-8f1a-7c3e-9b21-6f0a2d8e4c11
   started:   2026-08-02 09:14:02+00:00
   completed: 2026-08-02 09:14:03+00:00
   source:    ci (github)
-  guardana:  0.7.0
-  target:    artifact .
+  guardana:  <version>
+  target:    artifact path/to/project
   profile:   ci
   gate:      pass
   findings:  0 (0 unverified, 0 waived, 0 error(s))
@@ -30,7 +30,7 @@ run 0191d4c2-8f1a-7c3e-9b21-6f0a2d8e4c11
   tokens:    in not recorded, out not recorded
   judge:     not counted
   wall time: 0.42
-  evidence:  full
+  evidence:  redacted
 ```
 
 `--format json` prints the manifest. `requests: 0` is measured; tokens are `not recorded`.
@@ -76,8 +76,9 @@ prints one `judge:` line per block:
 It means **nobody measured this**, and it is deliberately not printed as `0`.
 A file scan that sends zero requests and a run from a version that never counted
 requests are different facts; only one of them lets you budget the next run. The
-same distinction runs through the whole document: `null` is always "not known",
-never "not applicable" and never zero.
+same distinction runs through the measured fields (requests, tokens, cost, duration):
+`null` there is "not known", never zero. A block that describes a feature, such as
+`exchanges`, `recording`, `recipe` or `fixtures`, is `null` when the run did not use it.
 
 ## What a run could check
 

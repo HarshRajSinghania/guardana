@@ -210,7 +210,10 @@ Otherwise it exits `0`. This is the same `gate()` policy logic `probe` uses — 
 [`profiles.md`](profiles.md) and [`exit-codes.md`](exit-codes.md).
 
 ```bash
-guardana scan . || echo "gate failed — see findings above"
+guardana scan .
+status=$?
+[ "$status" -eq 0 ] || echo "gate failed with exit $status, see the findings above"
+exit "$status"
 ```
 
 ## Forwarding to a collector

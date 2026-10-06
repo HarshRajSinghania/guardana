@@ -8,6 +8,8 @@ verification for self-hosted and self-built AI (model files, live endpoints,
 and agents) from one rule engine that runs on your laptop, in CI, and next to
 a served model.
 
+The collector is beta: [Product status](https://guardana.dev/docs/product-status).
+
 ## Run it
 
 ```bash

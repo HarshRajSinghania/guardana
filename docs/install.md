@@ -9,9 +9,29 @@ status: stable
 
 Guardana requires **Python 3.11+**.
 
-## Install from source (recommended today)
+## Install from PyPI
 
-Clone the repository and use [`uv`](https://docs.astral.sh/uv/):
+All five packages are on PyPI (Apache-2.0). Install the CLI with any of these commands:
+
+```bash
+uvx --from guardana-cli guardana scan .   # zero-install run
+uv add guardana-cli                       # or add it to a project
+pip install guardana-cli                  # or plain pip
+```
+
+These install the latest stable release. A release candidate is installed only when asked for: `pip install --pre guardana-cli`, or `uvx --prerelease allow --from guardana-cli guardana`.
+
+The `guardana` console script comes from `guardana-cli`, which installs `guardana-core`, `guardana-rules`, and `guardana-report`. Use `--from guardana-cli` so `uvx` finds the script. The optional collector has a separate install: `pip install "guardana-server[serve]"`, where the `serve` extra brings the ASGI server `guardana-collector serve` needs.
+
+Run the Git repository with `uvx`:
+
+```bash
+uvx --from git+https://github.com/guardana/guardana#subdirectory=packages/guardana-cli guardana scan .
+```
+
+## Install from source
+
+For contributors, or to run an unreleased change. Clone the repository and use [`uv`](https://docs.astral.sh/uv/):
 
 ```bash
 git clone https://github.com/guardana/guardana
@@ -25,24 +45,6 @@ Inside the checkout, `guardana scan .` exits `1` because `examples/vulnerable-mo
 
 `uv sync` installs `guardana-core`, `guardana-rules`, `guardana-cli`, `guardana-report`, and `guardana-server` from the root `pyproject.toml`, plus `ruff`, `mypy`, and `pytest`. Run commands with `uv run guardana ...` inside the checkout. See [`CONTRIBUTING.md`](../CONTRIBUTING.md) for contributor setup and test/lint gates.
 
-## Install from PyPI
-
-All five packages are on PyPI (Apache-2.0). Install the CLI with any of these commands:
-
-```bash
-uvx --from guardana-cli guardana scan .   # zero-install run
-uv add guardana-cli                       # or add it to a project
-pip install guardana-cli                  # or plain pip
-```
-
-The `guardana` console script comes from `guardana-cli`, which installs `guardana-core`, `guardana-rules`, and `guardana-report`. Use `--from guardana-cli` so `uvx` finds the script. The optional collector has a separate install: `pip install "guardana-server[serve]"`, where the `serve` extra brings the ASGI server `guardana-collector serve` needs.
-
-Run the Git repository with `uvx`:
-
-```bash
-uvx --from git+https://github.com/guardana/guardana#subdirectory=packages/guardana-cli guardana scan .
-```
-
 ## Run it as a container
 
 The CLI and collector images are available from GitHub Container Registry:
@@ -52,7 +54,7 @@ docker run --rm -v "$PWD:/work:ro" ghcr.io/guardana/guardana:0.41 scan /work
 docker run --rm ghcr.io/guardana/guardana-collector:0.41 --help
 ```
 
-Tags include the exact version, the moving minor used above, and `latest`. Pin the moving minor in CI to receive fixes without changing the rule set, or pin a digest (`ghcr.io/guardana/guardana:<version>@sha256:<digest>`) to run exactly the image you reviewed. Both images run as a non-root user, support `linux/amd64` and `linux/arm64`, and include an SBOM and signed provenance attestation. See [`deploy/docker/README.md`](../deploy/docker/README.md) for mounts, exit codes, reports, and image builds.
+Tags include the exact version, the moving minor used above, and `latest`. While a release candidate is out, `latest`, the moving minor and the Action's `vX.Y` tag stay on the last stable release, and the candidate's image carries only its exact version as a tag. Pin the moving minor in CI to receive fixes without changing the rule set, or pin a digest (`ghcr.io/guardana/guardana:<version>@sha256:<digest>`) to run exactly the image you reviewed. Both images run as a non-root user, support `linux/amd64` and `linux/arm64`, and include an SBOM and signed provenance attestation. See [`deploy/docker/README.md`](../deploy/docker/README.md) for mounts, exit codes, reports, and image builds.
 
 ## The optional collector
 

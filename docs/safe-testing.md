@@ -26,9 +26,11 @@ that means it:
 - **changes MCP server state** if a tool you exposed has side effects.
 
 `probe --mcp` is narrower than that, deliberately. Against an MCP server Guardana
-speaks only `server/discover`, `tools/list`, the `initialize` handshake where the
-server still expects one, and unauthenticated `GET`s of the two authorization
-discovery documents — it **never calls a tool**, because a tool call is a side
+speaks only `server/discover`, `tools/list`, the `initialize` handshake (followed by
+`notifications/initialized`) where the server still expects one, `tasks/list`, and
+unauthenticated `GET`s of the authorization discovery documents, up to five of them; the
+full inventory and its count are in [the MCP probe's cost](usage-probe.md#cost). It
+**never calls a tool**, because a tool call is a side
 effect on somebody's system and no verification result is worth finding that out by
 experiment. It also **declares no client capabilities**, so a server following the
 `2026-07-28` Multi Round-Trip Requests pattern cannot ask it to run a model
@@ -74,11 +76,12 @@ from staging transfers; a production incident does not.
 it tool endpoints that write to a scratch environment.
 
 **Bound the run.** Concurrency is bounded (`--concurrency`, default 4 for probe)
-and rate limits are retried with backoff rather than hammered. Request, token, cost
-and duration budgets are hard ceilings: `--max-requests`, `--max-cost` and
-`--max-duration` stop the run and report it as `indeterminate`, so an exhausted
-budget can never be mistaken for a clean result. `guardana plan` prices the run
-before it sends anything.
+and rate limits are retried with backoff rather than hammered. Request, token and
+duration budgets are hard ceilings: `--max-requests`, `--max-input-tokens`,
+`--max-output-tokens` and `--max-duration` stop the run, which exits `6` with an
+`indeterminate` gate, so an exhausted budget can never be mistaken for a clean result.
+`--max-requests-per-minute` paces the requests. `guardana plan` prices the run before it
+sends anything.
 
 **Run deep checks on a schedule, not on every pull request.** A fast static gate
 belongs in a PR. Endpoint probing belongs at deployment time and nightly. This
