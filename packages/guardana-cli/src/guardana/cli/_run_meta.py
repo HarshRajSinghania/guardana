@@ -15,6 +15,7 @@ from guardana.core.calibration.store import (
     CalibrationStoreError,
     RecordedCalibration,
 )
+from guardana.core.evaluator.config import calibrations_for_another_prompt_version
 from guardana.core.gate import GateOutcome
 from guardana.core.manifest import (
     DeploymentRef,
@@ -142,12 +143,18 @@ def calibrations_or_exit(profile: Profile) -> dict[str, RecordedCalibration]:
     `1` with a stack trace — and `1` means *policy failed*, so a pipeline reading exit
     codes would report a security regression when the only thing wrong was a broken
     JSON file. A wrong verdict is worse than a crash.
+
+    A judge calibration measured under another prompt version than the one in force is
+    named on stderr, since it no longer applies and the run would not otherwise say why.
     """
     try:
-        return load_profile_calibrations(profile)
+        calibrations = load_profile_calibrations(profile)
     except CalibrationStoreError as exc:
         typer.echo(f"error: {exc}", err=True)
         raise typer.Exit(code=ExitCode.INVALID_USAGE) from exc
+    for stale in calibrations_for_another_prompt_version(profile, calibrations):
+        typer.echo(f"warning: {stale}", err=True)
+    return calibrations
 
 
 def _source(kind: SourceKind | None) -> RunSource:

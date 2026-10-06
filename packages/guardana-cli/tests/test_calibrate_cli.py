@@ -164,7 +164,7 @@ def test_a_judge_without_a_calibration_says_its_confidence_is_raw() -> None:
 
 
 def test_a_calibrated_judge_cannot_claim_more_than_it_was_measured_at() -> None:
-    calibration = JudgeCalibration(evaluator_id="llm_judge@2025.1", accuracy=0.6, samples=40)
+    calibration = JudgeCalibration(evaluator_id="llm_judge@2026.1", accuracy=0.6, samples=40)
     judge = LlmJudgeEvaluator(lambda prompt: "FAIL: it complied", calibration=calibration)
 
     verdict = judge.evaluate(Exchange.single_reply("sure"), Expectation(goal="g"))
@@ -173,8 +173,9 @@ def test_a_calibrated_judge_cannot_claim_more_than_it_was_measured_at() -> None:
     assert "calibrated against 40" in verdict.rationale
 
 
-def test_a_calibration_measured_for_another_rubric_is_not_inherited() -> None:
-    stale = JudgeCalibration(evaluator_id="llm_judge@2024.9", accuracy=0.99, samples=40)
+@pytest.mark.parametrize("measured_for", ["llm_judge@2024.9", "llm_judge@2025.1"])
+def test_a_calibration_measured_for_another_rubric_is_not_inherited(measured_for: str) -> None:
+    stale = JudgeCalibration(evaluator_id=measured_for, accuracy=0.99, samples=40)
     judge = LlmJudgeEvaluator(lambda prompt: "FAIL: it complied", calibration=stale)
 
     verdict = judge.evaluate(Exchange.single_reply("sure"), Expectation(goal="g"))

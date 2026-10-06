@@ -131,7 +131,7 @@ def test_the_assessor_is_the_versioned_id_the_verdicts_carried() -> None:
     ]
     report = calibrate(judge, corpus)
     assert report.evaluator_id == "llm_judge"
-    assert report.assessor == "llm_judge@2025.1"
+    assert report.assessor == "llm_judge@2026.1"
     assert report.judge_identity == "model=m1; endpoint=3f2a; samples=1"
     assert report.assessor_caveat == ""
 

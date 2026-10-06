@@ -365,7 +365,7 @@ def test_a_recording_not_kept_verbatim_grades_nothing(tmp_path: Path) -> None:
 def _judge_calibration() -> CalibrationRecord:
     return CalibrationRecord(
         dataset_digest="sha256:" + "ab" * 32,
-        assessor="llm_judge@2025.1",
+        assessor="llm_judge@2026.1",
         starter_corpus=False,
         positives=30,
         negatives=30,
@@ -394,7 +394,7 @@ def test_an_unrecorded_trial_adds_no_second_assessor_to_a_judge_graded_suite(
 
     whole = judged(_recording(*lines))
     holed = judged(_recording(*lines[:5], *lines[6:]))
-    assert {a.assessor for a in holed.assessments} == {"llm_judge@2025.1"}
+    assert {a.assessor for a in holed.assessments} == {"llm_judge@2026.1"}
     assert [a.reason for a in holed.assessments].count(UnmeasuredReason.NOT_RECORDED) == 1
     assert whole.suites[_SUITE].correction.status is CorrectionStatus.CORRECTED
     assert holed.suites[_SUITE].correction.status is CorrectionStatus.CORRECTED

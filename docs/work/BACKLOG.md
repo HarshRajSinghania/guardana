@@ -48,7 +48,6 @@ reproduced; the rest are the sweep's reading with its anchors, not yet reproduce
 - The dashboard cookie is `Secure` only when the app itself sees `https`; behind a proxy that
   uvicorn does not trust, it never does. `docs/deployment.md` names `FORWARDED_ALLOW_IPS`; a
   setting of Guardana's own would add an environment variable to the supported surface.
-- `llm_judge` places the transcript into its prompt unfenced (`core/evaluator/llm_judge.py:26`).
 
 ## From the codex review of 0.36.0
 
@@ -384,6 +383,8 @@ Left open when the site shipped on 2026-09-25 with Control in coming-soon mode
   coupling its ADR-0024 refuses.
 
 ## Left by the audit fixes before 1.0.0rc2
+- **Inside the fenced judge transcript a reply can still imitate role labels** (`assistant:`);
+  encoding each message separately would close that, under a new prompt version.
 - **Whole-file writes stage a temporary file beside the destination**
   (`cli/_atomic.py`): a destination that is not a regular file (`/dev/stdout`, a FIFO) is
   refused where a plain write worked; a writable file in a directory this process cannot write

@@ -20,8 +20,14 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit, urlunsplit
 
 from guardana.core.budget import BudgetExhausted, Budgets
+from guardana.core.calibration.store import RecordedCalibration
 from guardana.core.evaluator.guard import GuardEvaluator
-from guardana.core.evaluator.llm_judge import JudgeCalibration, LlmJudgeEvaluator
+from guardana.core.evaluator.llm_judge import (
+    DEFAULT_PROMPT_VERSION,
+    PROMPT_TEMPLATES,
+    JudgeCalibration,
+    LlmJudgeEvaluator,
+)
 from guardana.core.evaluator.reference_judge import ReferenceJudgeEvaluator
 from guardana.core.fingerprint import digest_of
 from guardana.core.manifest.usage import JudgeUsage
@@ -46,7 +52,6 @@ from guardana.core.target.connection import (
 )
 from guardana.core.target.failure import http_status_problem
 
-_DEFAULT_PROMPT_VERSION = "2025.1"
 _DEFAULT_PORTS = {"https": 443, "http": 80}
 _USABLE_SCHEMES = frozenset({"http", "https"})
 
@@ -356,7 +361,7 @@ def _build_judges(
     cfg: Mapping[str, object], judge: Callable[[str], str], endpoint_identity: str
 ) -> tuple[LlmJudgeEvaluator, ReferenceJudgeEvaluator]:
     """Build the security judge and the reference judge on one judge model and one meter."""
-    version = cfg.get("prompt_version", _DEFAULT_PROMPT_VERSION)
+    version = cfg.get("prompt_version", DEFAULT_PROMPT_VERSION)
     if not isinstance(version, str):
         raise ProfileError("evaluators.llm_judge.prompt_version must be a string")
     min_agreement = cfg.get("min_agreement", 1)
@@ -400,7 +405,7 @@ def _calibration(cfg: Mapping[str, object]) -> JudgeCalibration | None:
     if not isinstance(evaluator_id, str) or not evaluator_id:
         raise ProfileError(
             "evaluators.llm_judge.calibration.evaluator_id must name the judge that was "
-            "measured, e.g. llm_judge@2025.1 — a changed rubric must not inherit an "
+            "measured, e.g. llm_judge@2026.1 — a changed rubric must not inherit an "
             "older measurement"
         )
     try:
@@ -409,6 +414,50 @@ def _calibration(cfg: Mapping[str, object]) -> JudgeCalibration | None:
         )
     except ValueError as exc:
         raise ProfileError(f"evaluators.llm_judge.calibration: {exc}") from exc
+
+
+def calibrations_for_another_prompt_version(
+    profile: Profile, calibrations: Mapping[str, RecordedCalibration]
+) -> tuple[str, ...]:
+    """Say which configured calibration was measured under another `llm_judge` prompt version.
+
+    A calibration applies only to the judge id its verdicts carried, and the prompt version
+    is part of that id, so such a calibration neither caps confidence nor corrects a rate.
+    Each sentence names the pin that keeps it. A version the wiring refuses names nothing,
+    since that run never starts.
+    """
+    cfg = profile.evaluator_config.get("llm_judge")
+    if cfg is None:
+        return ()
+    version = cfg.get("prompt_version", DEFAULT_PROMPT_VERSION)
+    if not isinstance(version, str) or version not in PROMPT_TEMPLATES:
+        return ()
+    in_force = f"{LlmJudgeEvaluator.id}@{version}"
+    named: list[tuple[str, str]] = []
+    inline = cfg.get("calibration")
+    if isinstance(inline, Mapping) and isinstance(inline.get("evaluator_id"), str):
+        named.append(("evaluators.llm_judge.calibration", str(inline["evaluator_id"])))
+    named.extend(
+        (f"the calibration recorded for {recorded.evaluator}", recorded.assessor)
+        for recorded in calibrations.values()
+        if recorded.assessor is not None
+    )
+    said: list[str] = []
+    for where, measured_for in named:
+        judge, versioned, measured_version = measured_for.partition("@")
+        if judge != LlmJudgeEvaluator.id or not versioned or measured_for == in_force:
+            continue
+        keep = (
+            f'set evaluators.llm_judge.prompt_version: "{measured_version}" to keep it, '
+            f"or measure the judge again with guardana calibrate"
+            if measured_version in PROMPT_TEMPLATES
+            else "measure the judge again with guardana calibrate"
+        )
+        said.append(
+            f"{where} was measured for {measured_for}, and this run grades with {in_force}, "
+            f"so it does not apply; {keep}"
+        )
+    return tuple(said)
 
 
 def _endpoint_call(

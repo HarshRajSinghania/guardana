@@ -176,7 +176,7 @@ divergence prompt is a lead, for the unbounded-consumption check), `amplificatio
 agent run by what it did, not what it said), `llm_judge` (a versioned judging
 prompt sent to a judge model wired from the profile's `evaluators:` block;
 confidence is measured as agreement across `min_agreement` samples, and the prompt
-version is stamped into `evaluator_id` — `llm_judge@2025.1` — so grading stays
+version is stamped into `evaluator_id` — `llm_judge@2026.1` — so grading stays
 reproducible as the rubric evolves), and `guard` (an opt-in external
 safety-classifier — see
 [`profiles.md`](profiles.md#config-wired-evaluators-llm_judge-and-guard)).

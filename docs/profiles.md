@@ -86,7 +86,7 @@ evaluators:                     # config-wired evaluators — see the section be
     model: "llama3"
     api_key_env: "JUDGE_API_KEY"         # optional; env var holding the key
     provider: "openai"                   # optional; openai | ollama | tgi
-    prompt_version: "2025.1"             # optional; versioned judging rubric
+    prompt_version: "2026.1"             # optional; versioned judging rubric
     min_agreement: 3                     # optional; samples per verdict (default 1)
   guard:                                 # optional safety-classifier evaluator
     endpoint: "http://localhost:8000"
@@ -253,7 +253,7 @@ builder; a [Python caller](python-api.md) that passes its own `judge_endpoint` g
 
 | Key | Default | Meaning |
 |---|---|---|
-| `prompt_version` | `"2025.1"` | Which judging-prompt version to use; stamped into each finding's `evaluator_id` (`llm_judge@2025.1`) so results stay reproducible as the rubric evolves |
+| `prompt_version` | `"2026.1"` | Which judging-prompt version to use; stamped into each finding's `evaluator_id` (`llm_judge@2026.1`) so results stay reproducible as the rubric evolves. `2026.1` gives the judge the conversation as one JSON-encoded line in a block it is told never to obey; `2025.1`, the earlier unfenced prompt, stays selectable. A calibration keeps applying only to the version it was measured for, so pin `"2025.1"` to keep one measured before `2026.1`; a run warns on stderr when they differ |
 | `min_agreement` | `1` | Samples per verdict. With more than one, confidence is the fraction of samples agreeing — a measured, judge-aware number instead of a flat constant. The verdict is the first word of the judge's reply (markdown stripped); a reply with no such PASS/FAIL, or naming both, fails closed at reduced confidence, and a pass with fewer readable samples than `min_agreement` asked for is `inconclusive`. |
 
 `guard` — an external safety classifier (Llama Guard / Granite Guardian
