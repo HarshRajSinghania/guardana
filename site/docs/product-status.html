@@ -22,7 +22,7 @@
 <div class="shell">
 <nav class="side" aria-label="Documentation">
 <ul class="home"><li><a href="index.html">Overview</a></li></ul>
-<h2>First run</h2><ul>
+<h2>Guides for a first run</h2><ul>
 <li><a href="usage-init.html">guardana init</a></li>
 <li><a href="recipe-local-scan.html">Recipe: scan your own project</a></li>
 <li><a href="recipe-recorded-answers.html">Recipe: check a run your application recorded</a></li>
@@ -162,7 +162,7 @@
 <summary>Menu · <b>Product status</b></summary>
 <nav class="inner" aria-label="Documentation">
 <ul class="home"><li><a href="index.html">Overview</a></li></ul>
-<h2>First run</h2><ul>
+<h2>Guides for a first run</h2><ul>
 <li><a href="usage-init.html">guardana init</a></li>
 <li><a href="recipe-local-scan.html">Recipe: scan your own project</a></li>
 <li><a href="recipe-recorded-answers.html">Recipe: check a run your application recorded</a></li>
@@ -484,9 +484,9 @@ The collector receives the target's request count, not what the judge spent; the
 A calibration file holds one calibration per evaluator id.</p>
 <h3 id="cost-is-bounded-not-predicted">Cost is bounded, not predicted</h3>
 <p><code>guardana plan</code> prices a run before it sends anything, and
-<code>--max-requests</code>/<code>--max-cost</code>/<code>--max-duration</code> are hard ceilings that stop the run
-and mark it <code>indeterminate</code> rather than letting it report partial coverage as a
-pass. What a plan cannot do is predict a <em>reply's</em> token count, so a cost estimate
+<code>--max-requests</code>, <code>--max-input-tokens</code>, <code>--max-output-tokens</code> and <code>--max-duration</code> are
+hard ceilings that stop the run with exit <code>6</code> and an <code>indeterminate</code> gate rather than
+letting it report partial coverage as a pass. What a plan cannot do is predict a <em>reply's</em> token count, so a cost estimate
 is a bound on requests and a projection on tokens — a rule with unknown cost is
 counted as unknown and says so.</p>
 <h2 id="what-guardana-deliberately-does-not-do">What Guardana deliberately does not do</h2>

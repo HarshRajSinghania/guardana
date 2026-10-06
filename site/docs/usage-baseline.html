@@ -22,7 +22,7 @@
 <div class="shell">
 <nav class="side" aria-label="Documentation">
 <ul class="home"><li><a href="index.html">Overview</a></li></ul>
-<h2>First run</h2><ul>
+<h2>Guides for a first run</h2><ul>
 <li><a href="usage-init.html">guardana init</a></li>
 <li><a href="recipe-local-scan.html">Recipe: scan your own project</a></li>
 <li><a href="recipe-recorded-answers.html">Recipe: check a run your application recorded</a></li>
@@ -162,7 +162,7 @@
 <summary>Menu · <b>guardana baseline</b></summary>
 <nav class="inner" aria-label="Documentation">
 <ul class="home"><li><a href="index.html">Overview</a></li></ul>
-<h2>First run</h2><ul>
+<h2>Guides for a first run</h2><ul>
 <li><a href="usage-init.html">guardana init</a></li>
 <li><a href="recipe-local-scan.html">Recipe: scan your own project</a></li>
 <li><a href="recipe-recorded-answers.html">Recipe: check a run your application recorded</a></li>
@@ -392,6 +392,10 @@ rule that errored, a run cut short, a run that verified nothing. The command dec
 finding is fixed by not seeing it, and a check that did not run produces exactly
 that absence. Until 0.7.1 one broken rule deleted the waiver, the reason and the
 approver, printed &quot;is fixed&quot;, and exited <code>0</code>.</p>
+<p><code>create</code> and <code>update</code> write the file whole, through a temporary file and a rename, so a
+write that fails part-way leaves the approved baseline as it was and exits <code>3</code>. <code>create</code>
+refuses an <code>--output</code> that is a file the scan reads: <code>.guardanaignore</code>, the profile or
+anything it names, a rule file, or a scanned file that is not an earlier baseline.</p>
 <h2 id="a-typo-is-refused-never-read-around">A typo is refused, never read around</h2>
 <p>Unknown keys raise — at the top level and inside a waiver. The reason is one letter
 long:</p>

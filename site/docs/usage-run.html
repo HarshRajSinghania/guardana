@@ -22,7 +22,7 @@
 <div class="shell">
 <nav class="side" aria-label="Documentation">
 <ul class="home"><li><a href="index.html">Overview</a></li></ul>
-<h2>First run</h2><ul>
+<h2>Guides for a first run</h2><ul>
 <li><a href="usage-init.html">guardana init</a></li>
 <li><a href="recipe-local-scan.html">Recipe: scan your own project</a></li>
 <li><a href="recipe-recorded-answers.html">Recipe: check a run your application recorded</a></li>
@@ -162,7 +162,7 @@
 <summary>Menu · <b>guardana run</b></summary>
 <nav class="inner" aria-label="Documentation">
 <ul class="home"><li><a href="index.html">Overview</a></li></ul>
-<h2>First run</h2><ul>
+<h2>Guides for a first run</h2><ul>
 <li><a href="usage-init.html">guardana init</a></li>
 <li><a href="recipe-local-scan.html">Recipe: scan your own project</a></li>
 <li><a href="recipe-recorded-answers.html">Recipe: check a run your application recorded</a></li>
@@ -301,15 +301,15 @@
 </details>
 <main>
 <h1><code>guardana run</code> — reading a saved run</h1><p class="lede"><code>guardana run inspect|migrate</code>: reading a saved run and its manifest</p><p><code>guardana run inspect</code> shows a saved run when you need to review its manifest or compare it with <code>guardana diff</code>. A run saved with <code>--output</code> records its target, configuration, limits, cost, and gate.</p>
-<pre><code class="language-bash">guardana scan . --format json --output run.json
+<pre><code class="language-bash">guardana scan path/to/project --format json --output run.json
 guardana run inspect run.json
 </code></pre>
 <pre><code class="language-text">run 0191d4c2-8f1a-7c3e-9b21-6f0a2d8e4c11
   started:   2026-08-02 09:14:02+00:00
   completed: 2026-08-02 09:14:03+00:00
   source:    ci (github)
-  guardana:  0.7.0
-  target:    artifact .
+  guardana:  &lt;version&gt;
+  target:    artifact path/to/project
   profile:   ci
   gate:      pass
   findings:  0 (0 unverified, 0 waived, 0 error(s))
@@ -319,7 +319,7 @@ guardana run inspect run.json
   tokens:    in not recorded, out not recorded
   judge:     not counted
   wall time: 0.42
-  evidence:  full
+  evidence:  redacted
 </code></pre>
 <p><code>--format json</code> prints the manifest. <code>requests: 0</code> is measured; tokens are <code>not recorded</code>.
 A run started from a recipe adds a <code>recipe:</code> line under <code>target:</code>, such as
@@ -354,8 +354,9 @@ prints one <code>judge:</code> line per block:</p>
 <p>It means <strong>nobody measured this</strong>, and it is deliberately not printed as <code>0</code>.
 A file scan that sends zero requests and a run from a version that never counted
 requests are different facts; only one of them lets you budget the next run. The
-same distinction runs through the whole document: <code>null</code> is always &quot;not known&quot;,
-never &quot;not applicable&quot; and never zero.</p>
+same distinction runs through the measured fields (requests, tokens, cost, duration):
+<code>null</code> there is &quot;not known&quot;, never zero. A block that describes a feature, such as
+<code>exchanges</code>, <code>recording</code>, <code>recipe</code> or <code>fixtures</code>, is <code>null</code> when the run did not use it.</p>
 <h2 id="what-a-run-could-check">What a run could check</h2>
 <p><code>coverage</code> is the other half of the promise <code>rules_run</code> started. A run whose corpus
 was trimmed, whose evaluator stopped being installed, whose target lost a capability
@@ -420,9 +421,13 @@ does not have stays titleless, because nothing here knows what it was called.</p
 <pre><code class="language-bash">guardana run migrate old-run.json --output new-run.json
 guardana run migrate old-run.json          # in place
 </code></pre>
-<p>Migrating to another <code>--output</code> removes an earlier <code>&lt;stem&gt;.exchanges.jsonl</code> beside
-that output and says so on stderr; the migrated run's own sidecar stays when migrated
-in place or from <code>run.json</code> to <code>run</code>, which share one. An <code>--output</code> whose sidecar
+<p>Migrating to another <code>--output</code> brings the exchanges the run records: their
+<code>&lt;stem&gt;.exchanges.jsonl</code> is copied beside the new output first, identical exchanges
+already there are kept, different ones are refused with exit <code>3</code> and nothing is written,
+and stderr warns when the original sidecar is missing or does not match the recorded
+digest. A run that kept no exchanges removes the ones an earlier run left beside that
+output, and says so on stderr. The migrated run's own sidecar stays when migrated in
+place or from <code>run.json</code> to <code>run</code>, which share one. An <code>--output</code> whose sidecar
 path is the input file is refused with exit <code>3</code> before anything is written.</p>
 <p>This is a convenience, not a requirement. Nothing needs migrating to be compared.</p>
 <p>A file that says it is already at the current schema is read the way <code>run inspect</code>

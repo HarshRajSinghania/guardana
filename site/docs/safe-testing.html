@@ -22,7 +22,7 @@
 <div class="shell">
 <nav class="side" aria-label="Documentation">
 <ul class="home"><li><a href="index.html">Overview</a></li></ul>
-<h2>First run</h2><ul>
+<h2>Guides for a first run</h2><ul>
 <li><a href="usage-init.html">guardana init</a></li>
 <li><a href="recipe-local-scan.html">Recipe: scan your own project</a></li>
 <li><a href="recipe-recorded-answers.html">Recipe: check a run your application recorded</a></li>
@@ -162,7 +162,7 @@
 <summary>Menu · <b>Safe active testing</b></summary>
 <nav class="inner" aria-label="Documentation">
 <ul class="home"><li><a href="index.html">Overview</a></li></ul>
-<h2>First run</h2><ul>
+<h2>Guides for a first run</h2><ul>
 <li><a href="usage-init.html">guardana init</a></li>
 <li><a href="recipe-local-scan.html">Recipe: scan your own project</a></li>
 <li><a href="recipe-recorded-answers.html">Recipe: check a run your application recorded</a></li>
@@ -317,9 +317,11 @@ reach production;</li>
 <li><strong>changes MCP server state</strong> if a tool you exposed has side effects.</li>
 </ul>
 <p><code>probe --mcp</code> is narrower than that, deliberately. Against an MCP server Guardana
-speaks only <code>server/discover</code>, <code>tools/list</code>, the <code>initialize</code> handshake where the
-server still expects one, and unauthenticated <code>GET</code>s of the two authorization
-discovery documents — it <strong>never calls a tool</strong>, because a tool call is a side
+speaks only <code>server/discover</code>, <code>tools/list</code>, the <code>initialize</code> handshake (followed by
+<code>notifications/initialized</code>) where the server still expects one, <code>tasks/list</code>, and
+unauthenticated <code>GET</code>s of the authorization discovery documents, up to five of them; the
+full inventory and its count are in <a href="usage-probe.html#cost">the MCP probe's cost</a>. It
+<strong>never calls a tool</strong>, because a tool call is a side
 effect on somebody's system and no verification result is worth finding that out by
 experiment. It also <strong>declares no client capabilities</strong>, so a server following the
 <code>2026-07-28</code> Multi Round-Trip Requests pattern cannot ask it to run a model
@@ -355,11 +357,12 @@ from staging transfers; a production incident does not.</p>
 <p><strong>Point tools at a sandbox.</strong> If you must exercise a production-shaped agent, give
 it tool endpoints that write to a scratch environment.</p>
 <p><strong>Bound the run.</strong> Concurrency is bounded (<code>--concurrency</code>, default 4 for probe)
-and rate limits are retried with backoff rather than hammered. Request, token, cost
-and duration budgets are hard ceilings: <code>--max-requests</code>, <code>--max-cost</code> and
-<code>--max-duration</code> stop the run and report it as <code>indeterminate</code>, so an exhausted
-budget can never be mistaken for a clean result. <code>guardana plan</code> prices the run
-before it sends anything.</p>
+and rate limits are retried with backoff rather than hammered. Request, token and
+duration budgets are hard ceilings: <code>--max-requests</code>, <code>--max-input-tokens</code>,
+<code>--max-output-tokens</code> and <code>--max-duration</code> stop the run, which exits <code>6</code> with an
+<code>indeterminate</code> gate, so an exhausted budget can never be mistaken for a clean result.
+<code>--max-requests-per-minute</code> paces the requests. <code>guardana plan</code> prices the run before it
+sends anything.</p>
 <p><strong>Run deep checks on a schedule, not on every pull request.</strong> A fast static gate
 belongs in a PR. Endpoint probing belongs at deployment time and nightly. This
 keeps cost predictable and stops a noisy check from blocking every merge.</p>

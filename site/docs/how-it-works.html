@@ -22,7 +22,7 @@
 <div class="shell">
 <nav class="side" aria-label="Documentation">
 <ul class="home"><li><a href="index.html">Overview</a></li></ul>
-<h2>First run</h2><ul>
+<h2>Guides for a first run</h2><ul>
 <li><a href="usage-init.html">guardana init</a></li>
 <li><a href="recipe-local-scan.html">Recipe: scan your own project</a></li>
 <li><a href="recipe-recorded-answers.html">Recipe: check a run your application recorded</a></li>
@@ -162,7 +162,7 @@
 <summary>Menu · <b>How Guardana works</b></summary>
 <nav class="inner" aria-label="Documentation">
 <ul class="home"><li><a href="index.html">Overview</a></li></ul>
-<h2>First run</h2><ul>
+<h2>Guides for a first run</h2><ul>
 <li><a href="usage-init.html">guardana init</a></li>
 <li><a href="recipe-local-scan.html">Recipe: scan your own project</a></li>
 <li><a href="recipe-recorded-answers.html">Recipe: check a run your application recorded</a></li>
@@ -359,8 +359,43 @@
 <p><code>guardana rules</code> groups the catalogue by layer:</p>
 <ul>
 <li><strong>Build-time (static, artifact)</strong> — 19 rules cover pickle opcodes; unsafe deserialization sinks; <code>trust_remote_code</code>/<code>torch.hub.load</code>; config-<code>auto_map</code> and kernel-dispatch RCE; chat-template SSTI; ONNX graph risk; notebook payloads; Keras/TF/model-format code execution; advisory-backed malicious and hallucinated dependencies; insecure transport; hardcoded secrets; MCP tool poisoning; hidden-instruction rules-file backdoors; and training-data integrity.</li>
-<li><strong>Runtime (dynamic, endpoint and trace)</strong> — 39 rules cover direct prompt injection, DAN-style jailbreaks, a multi-turn gradual-jailbreak scenario, indirect (RAG) injection, excessive tool-use agency, unbounded consumption (denial-of-wallet), cost asymmetry, output-secret leakage, and canary-proven system-prompt leakage. Six agentic checks cover tool-result injection, credential exfiltration through a tool argument, over-broad tool arguments, memory poisoning across a session boundary, hidden context recited from a tool schema, and a live MCP server's tool manifest. Ten checks examine whether a live MCP server authorizes a caller: whether it answers without a credential; offers an authorization surface a conforming client can use; accepts a token it could not have issued; uses a guessable session id or treats one as authentication; offers scopes that express least privilege; directs a client to an address it must not follow; lets a client detect an authorization-code mix-up attack; restricts a tool listing marked cacheable by any client to authorized callers; lists tasks to a caller who presented no credential; and is the server its registry entry publishes. Three examine a live A2A agent: whether its card lets a client connect safely; whether it serves a caller who presented no credential; and whether one caller can read another caller's tasks. Nine runtime rules grade recorded executions: a credential in a tool argument; a credential crossing two trust boundaries; a token outside its audience; a session standing in for an identity; a scope nobody consented to; a run that went ahead against a policy decision; an unapproved consequential effect; retrieval of another tenant's document; and an agent using more authority than a handoff carried to it. Two ask an application's own index through a fixtures file's tenants: whether another tenant's seeded data reaches a reply, and whether an instruction planted in a seeded document is followed.</li>
+<li><strong>Runtime (dynamic, endpoint and trace)</strong> — 39 rules, grouped by what they read:</li>
 </ul>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Reads</th>
+<th>Checks</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>a chat endpoint</td>
+<td>direct and indirect (RAG) prompt injection, DAN-style and multi-turn jailbreaks, excessive tool-use agency, unbounded consumption and cost asymmetry, secrets in output, canary-proven system-prompt leakage</td>
+</tr>
+<tr>
+<td>an agent's tools</td>
+<td>tool-result injection, credential exfiltration through a tool argument, over-broad tool arguments, memory poisoning across a session, hidden context in a tool schema, a live MCP server's tool manifest</td>
+</tr>
+<tr>
+<td>a live MCP server</td>
+<td>whether it authorizes a caller: unauthenticated answers, a usable authorization surface, foreign tokens, session ids, least-privilege scopes, discovery addresses, authorization-code mix-up, cacheable listings, anonymous task listings, and the registry entry it publishes</td>
+</tr>
+<tr>
+<td>a live A2A agent</td>
+<td>a card a client can connect to safely, callers without a credential, one caller reading another's tasks</td>
+</tr>
+<tr>
+<td>a recorded execution</td>
+<td>credentials in tool arguments or across trust boundaries, tokens outside their audience, sessions standing in for identities, unconsented scopes, runs against a policy decision, unapproved effects, cross-tenant retrieval, authority beyond a handoff</td>
+</tr>
+<tr>
+<td>an application's index, through a fixtures file</td>
+<td>another tenant's seeded data in a reply, an instruction planted in a seeded document</td>
+</tr>
+</tbody>
+</table></div>
+<p>Every rule, with its target and maturity, is in the generated <a href="generated/rule-catalog.html">rule catalog</a>.</p>
 <p><code>scan</code> selects build rules. <code>probe</code> and <code>monitor</code> select runtime rules for live systems; <code>analyze-trace</code> selects runtime rules that read a recording.</p>
 <hr />
 <h2 id="5-the-moments-you-run-it--and-presets">5. The moments you run it — and presets</h2>

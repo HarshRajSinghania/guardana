@@ -22,7 +22,7 @@
 <div class="shell">
 <nav class="side" aria-label="Documentation">
 <ul class="home"><li><a href="index.html">Overview</a></li></ul>
-<h2>First run</h2><ul>
+<h2>Guides for a first run</h2><ul>
 <li><a href="usage-init.html">guardana init</a></li>
 <li><a href="recipe-local-scan.html">Recipe: scan your own project</a></li>
 <li><a href="recipe-recorded-answers.html">Recipe: check a run your application recorded</a></li>
@@ -162,7 +162,7 @@
 <summary>Menu · <b>Profiles — guardana.yaml</b></summary>
 <nav class="inner" aria-label="Documentation">
 <ul class="home"><li><a href="index.html">Overview</a></li></ul>
-<h2>First run</h2><ul>
+<h2>Guides for a first run</h2><ul>
 <li><a href="usage-init.html">guardana init</a></li>
 <li><a href="recipe-local-scan.html">Recipe: scan your own project</a></li>
 <li><a href="recipe-recorded-answers.html">Recipe: check a run your application recorded</a></li>
@@ -369,7 +369,7 @@ evaluators:                     # config-wired evaluators — see the section be
     model: &quot;llama3&quot;
     api_key_env: &quot;JUDGE_API_KEY&quot;         # optional; env var holding the key
     provider: &quot;openai&quot;                   # optional; openai | ollama | tgi
-    prompt_version: &quot;2025.1&quot;             # optional; versioned judging rubric
+    prompt_version: &quot;2026.1&quot;             # optional; versioned judging rubric
     min_agreement: 3                     # optional; samples per verdict (default 1)
   guard:                                 # optional safety-classifier evaluator
     endpoint: &quot;http://localhost:8000&quot;
@@ -660,8 +660,8 @@ builder; a <a href="python-api.html">Python caller</a> that passes its own <code
 <tbody>
 <tr>
 <td><code>prompt_version</code></td>
-<td><code>&quot;2025.1&quot;</code></td>
-<td>Which judging-prompt version to use; stamped into each finding's <code>evaluator_id</code> (<code>llm_judge@2025.1</code>) so results stay reproducible as the rubric evolves</td>
+<td><code>&quot;2026.1&quot;</code></td>
+<td>Which judging-prompt version to use; stamped into each finding's <code>evaluator_id</code> (<code>llm_judge@2026.1</code>) so results stay reproducible as the rubric evolves. <code>2026.1</code> gives the judge the conversation as one JSON-encoded line in a block it is told never to obey; <code>2025.1</code>, the earlier unfenced prompt, stays selectable. A calibration keeps applying only to the version it was measured for, so pin <code>&quot;2025.1&quot;</code> to keep one measured before <code>2026.1</code>; a run warns on stderr when they differ</td>
 </tr>
 <tr>
 <td><code>min_agreement</code></td>

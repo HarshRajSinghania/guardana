@@ -22,7 +22,7 @@
 <div class="shell">
 <nav class="side" aria-label="Documentation">
 <ul class="home"><li><a href="../index.html">Overview</a></li></ul>
-<h2>First run</h2><ul>
+<h2>Guides for a first run</h2><ul>
 <li><a href="../usage-init.html">guardana init</a></li>
 <li><a href="../recipe-local-scan.html">Recipe: scan your own project</a></li>
 <li><a href="../recipe-recorded-answers.html">Recipe: check a run your application recorded</a></li>
@@ -162,7 +162,7 @@
 <summary>Menu · <b>Operations catalogue</b></summary>
 <nav class="inner" aria-label="Documentation">
 <ul class="home"><li><a href="../index.html">Overview</a></li></ul>
-<h2>First run</h2><ul>
+<h2>Guides for a first run</h2><ul>
 <li><a href="../usage-init.html">guardana init</a></li>
 <li><a href="../recipe-local-scan.html">Recipe: scan your own project</a></li>
 <li><a href="../recipe-recorded-answers.html">Recipe: check a run your application recorded</a></li>
@@ -507,7 +507,7 @@ wrong before.</p>
 </tr>
 <tr>
 <td><code>release.py</code></td>
-<td>⚠ gate → bump → changelog roll → commit only the paths it wrote → push <code>main</code> without tags → wait for green CI → create and push the tag (PyPI publish) → move the marketplace tag</td>
+<td>⚠ refuses a candidate whose supported surface moved without a changelog section, a final whose surface differs from its candidate, and a final 1.x while <code>RELEASING.md</code> says pre-1.0 → gate → bump → changelog roll → commit only the paths it wrote → push <code>main</code> without tags → wait for green CI → create and push the tag (PyPI publish) → move the marketplace tag</td>
 <td><code>git</code> + <code>repo</code></td>
 <td><code>--dry-run</code>, <code>--help</code></td>
 <td><code>git</code>, <code>gh</code>, PyPI via CI</td>

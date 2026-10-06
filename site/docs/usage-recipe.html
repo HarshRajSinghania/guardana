@@ -22,7 +22,7 @@
 <div class="shell">
 <nav class="side" aria-label="Documentation">
 <ul class="home"><li><a href="index.html">Overview</a></li></ul>
-<h2>First run</h2><ul>
+<h2>Guides for a first run</h2><ul>
 <li><a href="usage-init.html">guardana init</a></li>
 <li><a href="recipe-local-scan.html">Recipe: scan your own project</a></li>
 <li><a href="recipe-recorded-answers.html">Recipe: check a run your application recorded</a></li>
@@ -162,7 +162,7 @@
 <summary>Menu · <b>guardana recipe</b></summary>
 <nav class="inner" aria-label="Documentation">
 <ul class="home"><li><a href="index.html">Overview</a></li></ul>
-<h2>First run</h2><ul>
+<h2>Guides for a first run</h2><ul>
 <li><a href="usage-init.html">guardana init</a></li>
 <li><a href="recipe-local-scan.html">Recipe: scan your own project</a></li>
 <li><a href="recipe-recorded-answers.html">Recipe: check a run your application recorded</a></li>
@@ -481,8 +481,12 @@ interpreter after <code>#!</code> (or in the <code>/bin/sh</code> launcher an in
 that path is hashed as a placeholder and any arguments after it as written. Any other first
 line is hashed as written. A console or GUI script the installer generated from <code>entry_points.txt</code> is left out only
 when it sits directly in this installation's scripts directory (<code>bin/</code> or <code>Scripts/</code>),
-since <code>entry_points.txt</code> already pins what it calls; a file with the same name elsewhere
-is hashed. Installing the same code again into an environment this interpreter's
+is run by the environment's interpreter, and holds exactly what pip, uv or
+pypa/installer generate for its declared entry point: the import, an optional rewrite of
+<code>sys.argv[0]</code> and <code>sys.exit(&lt;entry point&gt;())</code>. <code>entry_points.txt</code> already pins what it
+calls. An edited wrapper, a file with the same name elsewhere and a Windows <code>.exe</code>
+launcher are hashed, so a Windows lock covering a launcher moves when the installer or
+the environment changes. Installing the same code again into an environment this interpreter's
 <code>sysconfig</code> describes pins the same. An installation none of its schemes describes
 (<code>pip install --target</code> or <code>--prefix</code>, or another environment's <code>site-packages</code> on the
 path) has its generated scripts hashed too, so its pin can differ by installer.</li>
@@ -634,11 +638,11 @@ earlier run's green.</p>
 </tr>
 <tr>
 <td><code>guardana-artifact.json</code></td>
-<td>the files above; it marks the directory as one a run may replace</td>
+<td>the files above and the run's <code>status</code> (<code>incomplete</code>, <code>refused</code> or <code>complete</code>); it marks the directory as one a run may replace (<a href="https://github.com/guardana/guardana/blob/main/schemas/artifact-v1.schema.json"><code>schemas/artifact-v1.schema.json</code></a>)</td>
 </tr>
 </tbody>
 </table></div>
-<p>An existing directory holding a file that <code>guardana-artifact.json</code> does not list is refused, never deleted. A recipe that names a file inside its own <code>output.directory</code> is refused with exit <code>3</code> before anything is sent. The directory is marked refused in place: <code>junit.xml</code>, <code>report.txt</code> and <code>guardana-artifact.json</code> say so; the earlier run's other files are removed, and the files the recipe names stay. A recipe that cannot be read marks the earlier artifact refused in the directory it names, or in <code>guardana-artifact</code> beside it when even that cannot be read. It removes only that run's <code>run.json</code> and creates none. A recipe so broken that it no longer names its directory can leave an earlier run in a custom directory, so treat the command's exit code as the verdict, not the directory alone. A
+<p>An existing directory holding a file that <code>guardana-artifact.json</code> does not list is refused, never deleted. A recipe that names a file inside its own <code>output.directory</code> is refused with exit <code>3</code> before anything is sent. The directory is marked refused in place: <code>junit.xml</code>, <code>report.txt</code> and <code>guardana-artifact.json</code> say so; the earlier run's other files are removed, and the files the recipe names stay. A file the recipe names is never rewritten, even to mark it refused: when the recipe names <code>guardana-artifact.json</code> itself, the marker stays as it was, the reports it does not name turn red, and stderr says so. A recipe that cannot be read marks the earlier artifact refused in the directory it names, or in <code>guardana-artifact</code> beside it when even that cannot be read, and treats every string it holds as a file it may name, so none of those is rewritten. When the files the recipe names include the marker and both reports, nothing in the directory can turn red: the marker may still say <code>complete</code>, and only the exit code and stderr report the refusal. It removes only that run's <code>run.json</code> and creates none. A recipe that does not parse at all leaves the artifact as it is and warns that it still holds an earlier run's files. A recipe so broken that it no longer names its directory can leave an earlier run in a custom directory, so treat the command's exit code as the verdict, not the directory alone. A
 profile that keeps exchanges without <code>output.exchanges: true</code> is refused: a CI artifact is a
 copy of your application's replies that nobody controls.</p>
 

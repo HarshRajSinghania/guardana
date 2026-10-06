@@ -22,7 +22,7 @@
 <div class="shell">
 <nav class="side" aria-label="Documentation">
 <ul class="home"><li><a href="index.html">Overview</a></li></ul>
-<h2>First run</h2><ul>
+<h2>Guides for a first run</h2><ul>
 <li><a href="usage-init.html">guardana init</a></li>
 <li><a href="recipe-local-scan.html">Recipe: scan your own project</a></li>
 <li><a href="recipe-recorded-answers.html">Recipe: check a run your application recorded</a></li>
@@ -162,7 +162,7 @@
 <summary>Menu · <b>Installed outputs</b></summary>
 <nav class="inner" aria-label="Documentation">
 <ul class="home"><li><a href="index.html">Overview</a></li></ul>
-<h2>First run</h2><ul>
+<h2>Guides for a first run</h2><ul>
 <li><a href="usage-init.html">guardana init</a></li>
 <li><a href="recipe-local-scan.html">Recipe: scan your own project</a></li>
 <li><a href="recipe-recorded-answers.html">Recipe: check a run your application recorded</a></li>
@@ -445,6 +445,7 @@ trust = PluginTrust(mode=PluginMode.ALLOWLIST, allowed=frozenset({&quot;acme-gua
 table = render(select_renderer(&quot;acme-table&quot;, trust), load_verification(Path(&quot;run.json&quot;)))
 Path(&quot;run.csv&quot;).write_text(table, encoding=&quot;utf-8&quot;, newline=&quot;&quot;)
 </code></pre>
+<p><code>PluginTrust</code> and <code>PluginMode</code> sit outside the <a href="compatibility.html#the-supported-surface">supported surface</a>: a minor release may change them, so pin <code>guardana-core</code> to a minor while your code imports them.</p>
 <p><code>guardana recipe run</code> saves <code>run.json</code> in its artifact directory; export it the same way.</p>
 <h2 id="the-reference-webhook">The reference webhook</h2>
 <p><code>acme-webhook</code> follows <a href="https://github.com/standard-webhooks/standard-webhooks">Standard Webhooks</a>:

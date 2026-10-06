@@ -22,7 +22,7 @@
 <div class="shell">
 <nav class="side" aria-label="Documentation">
 <ul class="home"><li><a href="index.html">Overview</a></li></ul>
-<h2>First run</h2><ul>
+<h2>Guides for a first run</h2><ul>
 <li><a href="usage-init.html">guardana init</a></li>
 <li><a href="recipe-local-scan.html" aria-current="page">Recipe: scan your own project</a></li>
 <li><a href="recipe-recorded-answers.html">Recipe: check a run your application recorded</a></li>
@@ -162,7 +162,7 @@
 <summary>Menu · <b>Recipe: scan your own project</b></summary>
 <nav class="inner" aria-label="Documentation">
 <ul class="home"><li><a href="index.html">Overview</a></li></ul>
-<h2>First run</h2><ul>
+<h2>Guides for a first run</h2><ul>
 <li><a href="usage-init.html">guardana init</a></li>
 <li><a href="recipe-local-scan.html" aria-current="page">Recipe: scan your own project</a></li>
 <li><a href="recipe-recorded-answers.html">Recipe: check a run your application recorded</a></li>
@@ -302,13 +302,15 @@
 <main>
 <h1>Recipe: scan your own project</h1><p class="lede">a local scan of your own models and code, offline, ending with a saved run you can compare later</p><p>Scan the files you ship: model weights, notebooks, training and loading code, and configs. The scan runs offline and needs no model.</p>
 <pre><code class="language-bash">guardana plan scan path/to/project
+guardana scan path/to/project --format json --output accepted-run.json   # review it, then keep it
+# after a change:
 guardana scan path/to/project --format json --output run.json
 guardana diff accepted-run.json run.json
 </code></pre>
 <ol>
 <li><code>plan scan</code> lists the rules that would run and those that would be skipped. It exits <code>3</code> if the run could not pass with the current configuration.</li>
-<li><code>scan</code> reads files without loading them. It exits <code>0</code> for a pass, <code>1</code> for a finding at or above the policy's severity, or <code>2</code> when a check could not run at all, such as a refused plugin. A Python file it cannot open, or one over the size limit, is an error, which makes the run indeterminate (<code>2</code>) under the default gate. A model file it cannot read is listed as UNVERIFIED and does not fail the run unless the profile sets <code>fail_on.fail_on_inconclusive: true</code> (<code>--preset release</code> does). <code>run.json</code> saves the run, including the plugin trust in force (<code>run.configuration.plugins</code>).</li>
-<li>Keep an accepted <code>run.json</code>. Compare a later run against it with <code>diff</code> to see whether the result is worse, better, unchanged, or cannot be compared.</li>
+<li><code>scan</code> reads files without loading them. It exits <code>0</code> for a pass, <code>1</code> for a finding at or above the policy's severity, or <code>2</code> when a check could not run at all, such as a refused plugin. A Python file it cannot open, or one over the size limit, is an error, which makes the run indeterminate (<code>2</code>) under the default gate. A model file it cannot read is listed as UNVERIFIED and also counts as an <code>unexamined_component</code> shortfall, so the run is indeterminate (<code>2</code>) under every preset unless a finding fails it (<a href="usage-scan.html#model-files-no-rule-reads">details</a>). The saved run records the plugin trust in force (<code>run.configuration.plugins</code>).</li>
+<li>The first run you have reviewed is the accepted one: keep <code>accepted-run.json</code> in the repository or your CI's artifact store, and replace it only when you deliberately accept a change. <code>diff</code> compares a later run against it and says whether the result is worse, better, unchanged, or cannot be compared.</li>
 </ol>
 <p>This does not check how a model responds to a question. Use <a href="recipe-real-application.html"><code>probe</code></a> for that. The scan does not load or execute the files it reads. A file in a format it reads but cannot parse is listed as UNVERIFIED, never as clean. A file in a format no rule reads is not examined: any format it does not recognise, and TFLite, which it lists but does not read. Check the formats you ship against <a href="model-formats.html">model formats</a>.</p>
 <p>To admit an installed pack, name it with <code>--plugins allowlist --allow-plugin &lt;distribution&gt;</code> (<a href="profiles.html#plugin-trust-plugins">plugin trust</a>).</p>

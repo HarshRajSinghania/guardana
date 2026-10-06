@@ -22,7 +22,7 @@
 <div class="shell">
 <nav class="side" aria-label="Documentation">
 <ul class="home"><li><a href="index.html">Overview</a></li></ul>
-<h2>First run</h2><ul>
+<h2>Guides for a first run</h2><ul>
 <li><a href="usage-init.html">guardana init</a></li>
 <li><a href="recipe-local-scan.html">Recipe: scan your own project</a></li>
 <li><a href="recipe-recorded-answers.html">Recipe: check a run your application recorded</a></li>
@@ -162,7 +162,7 @@
 <summary>Menu · <b>Architecture</b></summary>
 <nav class="inner" aria-label="Documentation">
 <ul class="home"><li><a href="index.html">Overview</a></li></ul>
-<h2>First run</h2><ul>
+<h2>Guides for a first run</h2><ul>
 <li><a href="usage-init.html">guardana init</a></li>
 <li><a href="recipe-local-scan.html">Recipe: scan your own project</a></li>
 <li><a href="recipe-recorded-answers.html">Recipe: check a run your application recorded</a></li>
@@ -433,7 +433,7 @@ divergence prompt is a lead, for the unbounded-consumption check), <code>amplifi
 agent run by what it did, not what it said), <code>llm_judge</code> (a versioned judging
 prompt sent to a judge model wired from the profile's <code>evaluators:</code> block;
 confidence is measured as agreement across <code>min_agreement</code> samples, and the prompt
-version is stamped into <code>evaluator_id</code> — <code>llm_judge@2025.1</code> — so grading stays
+version is stamped into <code>evaluator_id</code> — <code>llm_judge@2026.1</code> — so grading stays
 reproducible as the rubric evolves), and <code>guard</code> (an opt-in external
 safety-classifier — see
 <a href="profiles.html#config-wired-evaluators-llm_judge-and-guard"><code>profiles.md</code></a>).
@@ -589,8 +589,10 @@ class Runner:
 <p>For each registered rule: skip it if <code>target.kind</code> doesn't match
 <code>meta.target_kind</code>, or the profile's <code>Policy.matches(rule_id)</code> excludes it;
 skip it (recording it under <code>rules_skipped</code>) if the target can't satisfy
-<code>meta.required_capabilities</code>; otherwise run it, catching <code>RuleError</code> per
-rule so one bad rule can't abort the whole scan. Findings whose verdict is
+<code>meta.required_capabilities</code>; otherwise run it, catching any <code>Exception</code> per
+rule (not <code>KeyboardInterrupt</code> or <code>SystemExit</code>) and recording it on the result's
+<code>errors</code> channel, so one bad rule can't abort the whole scan and the gate fails on
+it by default (<a href="writing-rules.html#what-happens-when-your-rule-raises">when a rule raises</a>). Findings whose verdict is
 <code>inconclusive</code> are partitioned onto the result's <code>unverified</code> channel rather
 than counted as confirmed findings — or dropped. <code>gate(result, policy)</code> is
 the free function that turns a <code>ScanResult</code> into the pass/fail boolean CLI

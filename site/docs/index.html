@@ -22,7 +22,7 @@
 <div class="shell">
 <nav class="side" aria-label="Documentation">
 <ul class="home"><li><a href="index.html" aria-current="page">Overview</a></li></ul>
-<h2>First run</h2><ul>
+<h2>Guides for a first run</h2><ul>
 <li><a href="usage-init.html">guardana init</a></li>
 <li><a href="recipe-local-scan.html">Recipe: scan your own project</a></li>
 <li><a href="recipe-recorded-answers.html">Recipe: check a run your application recorded</a></li>
@@ -162,7 +162,7 @@
 <summary>Menu · <b>Overview</b></summary>
 <nav class="inner" aria-label="Documentation">
 <ul class="home"><li><a href="index.html" aria-current="page">Overview</a></li></ul>
-<h2>First run</h2><ul>
+<h2>Guides for a first run</h2><ul>
 <li><a href="usage-init.html">guardana init</a></li>
 <li><a href="recipe-local-scan.html">Recipe: scan your own project</a></li>
 <li><a href="recipe-recorded-answers.html">Recipe: check a run your application recorded</a></li>
@@ -301,7 +301,77 @@
 </details>
 <main>
 <h1>Guardana documentation</h1><p class="lede">Choose a task, then follow one focused guide.</p><p>Start with the root <a href="https://github.com/guardana/guardana/blob/main/README.md">README</a>. Before production use, read <a href="product-status.html">Product status</a>, <a href="safe-testing.html">Safe testing</a>, and the <a href="threat-model.html">Threat model</a>.</p>
-<h2 id="first-run">First run</h2>
+<h2 id="start-here">Start here</h2>
+<ol>
+<li><a href="install.html">Install</a> the CLI, or run it without installing: <code>uvx --from guardana-cli guardana</code>.</li>
+<li>Run the <a href="usage-init.html">offline starter</a>: a failure, its fix, the saved evidence and one check you edit, with no account, key or model.</li>
+<li>Read the result with <a href="#reading-a-result">the table below</a>, then follow the recipe for what you check:
+<ul>
+<li>the files you ship: <a href="recipe-local-scan.html"><code>recipe-local-scan.md</code></a></li>
+<li>answers your application already gave: <a href="recipe-recorded-answers.html"><code>recipe-recorded-answers.md</code></a></li>
+<li>the application your users talk to: <a href="recipe-real-application.html"><code>recipe-real-application.md</code></a></li>
+</ul>
+</li>
+</ol>
+<h2 id="reading-a-result">Reading a result</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>The run shows</th>
+<th>It means</th>
+<th>Gate and exit code</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>a finding</td>
+<td>a check reached a negative verdict at or above <code>fail_on.severity</code> (and <code>min_confidence</code>, when a model graded it)</td>
+<td><code>fail</code>, <code>1</code></td>
+</tr>
+<tr>
+<td><code>unverified</code> (verdict <code>inconclusive</code>)</td>
+<td>a check ran and could not decide</td>
+<td><code>indeterminate</code>, <code>2</code>, when <code>fail_on_inconclusive</code> is on (<code>--preset release</code>, <code>monitor</code>); otherwise listed and not gating</td>
+</tr>
+<tr>
+<td>an error</td>
+<td>a check could not run: it raised, or could not be resolved</td>
+<td><code>indeterminate</code>, <code>2</code> (<code>fail_on_error</code>, on by default)</td>
+</tr>
+<tr>
+<td>skipped for a missing capability</td>
+<td>the target cannot serve the check</td>
+<td><code>indeterminate</code>, <code>2</code>, when <code>fail_on_skipped</code> is on (<code>--preset release</code>)</td>
+</tr>
+<tr>
+<td>skipped as <code>not_applicable</code></td>
+<td>the check is for a protocol the target does not speak</td>
+<td>never gates; listed with its reason</td>
+</tr>
+<tr>
+<td>a coverage shortfall</td>
+<td>evidence you demanded, or a model file no rule read</td>
+<td><code>indeterminate</code>, <code>2</code>, always</td>
+</tr>
+<tr>
+<td>a stopped run</td>
+<td>a budget, an interrupt or the target ended it early</td>
+<td><code>indeterminate</code>; <code>6</code> for a budget, <code>7</code> for an interrupt, <code>4</code> for the target</td>
+</tr>
+<tr>
+<td><code>not recorded</code>, &quot;not measured&quot;</td>
+<td>nobody counted it; never zero</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>pass</code></td>
+<td>none of the above held</td>
+<td><code>pass</code>, <code>0</code></td>
+</tr>
+</tbody>
+</table></div>
+<p>More in <a href="exit-codes.html">exit codes</a> and <a href="profiles.html#the-gate">the gate</a>.</p>
+<h2 id="guides-for-a-first-run">Guides for a first run</h2>
 <ul>
 <li><a href="install.html"><code>install.md</code></a> — install the CLI or a container</li>
 <li><a href="usage-init.html"><code>usage-init.md</code></a> — a first-run project that fails, is fixed and keeps its evidence, offline</li>

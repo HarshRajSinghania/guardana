@@ -8,7 +8,7 @@ Guardana reports four separate outcomes: a finding, an unverified check, a check
 
 This file is generated from the documentation map; do not edit it by hand.
 
-## First run
+## Guides for a first run
 
 - [install.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/install.md): install the CLI or a container
 - [usage-init.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/usage-init.md): a first-run project that fails, is fixed and keeps its evidence, offline

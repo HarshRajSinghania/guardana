@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Rule catalog — Guardana documentation</title>
-<meta name="description" content="Every built-in rule, its severity, the surface it runs on, and what it maps to.">
+<meta name="description" content="Every built-in rule, its severity, surface, target, maturity, and what it maps to.">
 <link rel="canonical" href="https://guardana.dev/docs/generated/rule-catalog">
 <link rel="icon" href="../../favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="../../assets/brand/v1/tokens.css">
@@ -22,7 +22,7 @@
 <div class="shell">
 <nav class="side" aria-label="Documentation">
 <ul class="home"><li><a href="../index.html">Overview</a></li></ul>
-<h2>First run</h2><ul>
+<h2>Guides for a first run</h2><ul>
 <li><a href="../usage-init.html">guardana init</a></li>
 <li><a href="../recipe-local-scan.html">Recipe: scan your own project</a></li>
 <li><a href="../recipe-recorded-answers.html">Recipe: check a run your application recorded</a></li>
@@ -162,7 +162,7 @@
 <summary>Menu · <b>Rule catalog</b></summary>
 <nav class="inner" aria-label="Documentation">
 <ul class="home"><li><a href="../index.html">Overview</a></li></ul>
-<h2>First run</h2><ul>
+<h2>Guides for a first run</h2><ul>
 <li><a href="../usage-init.html">guardana init</a></li>
 <li><a href="../recipe-local-scan.html">Recipe: scan your own project</a></li>
 <li><a href="../recipe-recorded-answers.html">Recipe: check a run your application recorded</a></li>
@@ -300,14 +300,17 @@
 </nav>
 </details>
 <main>
-<h1>Rule catalog</h1><p class="lede">Every built-in rule, its severity, the surface it runs on, and what it maps to.</p><p>Every built-in rule, its severity, the surface it runs on, and the
-frameworks it maps to. A rule without a mapping does not ship.</p>
+<h1>Rule catalog</h1><p class="lede">Every built-in rule, its severity, surface, target, maturity, and what it maps to.</p><p>Every built-in rule, its severity, the surface it runs on, the kind of
+target it reads, its maturity, and the frameworks it maps to. A rule
+without a mapping does not ship.</p>
 <div class="table-wrap"><table>
 <thead>
 <tr>
 <th>Rule</th>
 <th>Severity</th>
 <th>Surface</th>
+<th>Target</th>
+<th>Maturity</th>
 <th>Maps to</th>
 </tr>
 </thead>
@@ -316,348 +319,464 @@ frameworks it maps to. A rule without a mapping does not ship.</p>
 <td><code>guardana.a2a.agent_card</code></td>
 <td>MEDIUM</td>
 <td>runtime</td>
+<td>endpoint</td>
+<td>stable</td>
 <td><code>ASI07:2026</code>, <code>ASI04:2026</code></td>
 </tr>
 <tr>
 <td><code>guardana.a2a.caller_identity</code></td>
 <td>HIGH</td>
 <td>runtime</td>
+<td>endpoint</td>
+<td>stable</td>
 <td><code>ASI03:2026</code>, <code>ASI07:2026</code></td>
 </tr>
 <tr>
 <td><code>guardana.a2a.task_visibility</code></td>
 <td>HIGH</td>
 <td>runtime</td>
+<td>endpoint</td>
+<td>stable</td>
 <td><code>ASI03:2026</code>, <code>ASI07:2026</code></td>
 </tr>
 <tr>
 <td><code>guardana.agent.credential_exfiltration</code></td>
 <td>CRITICAL</td>
 <td>runtime</td>
+<td>endpoint</td>
+<td>stable</td>
 <td><code>LLM02:2025</code>, <code>LLM02:2026</code>, <code>ASI03:2026</code>, <code>AML.T0086</code>, <code>AML.T0098</code></td>
 </tr>
 <tr>
 <td><code>guardana.agent.excessive_tool_use</code></td>
 <td>HIGH</td>
 <td>runtime</td>
+<td>endpoint</td>
+<td>stable</td>
 <td><code>LLM06:2025</code>, <code>LLM03:2026</code>, <code>ASI02:2026</code>, <code>AML.T0053</code></td>
 </tr>
 <tr>
 <td><code>guardana.agent.hidden_context.tool_schema</code></td>
 <td>HIGH</td>
 <td>runtime</td>
+<td>endpoint</td>
+<td>stable</td>
 <td><code>LLM02:2025</code>, <code>LLM02:2026</code>, <code>LLM08:2026</code>, <code>AML.T0084.001</code></td>
 </tr>
 <tr>
 <td><code>guardana.agent.mcp_server_manifest</code></td>
 <td>HIGH</td>
 <td>runtime</td>
+<td>endpoint</td>
+<td>stable</td>
 <td><code>LLM01:2025</code>, <code>LLM01:2026</code>, <code>LLM03:2025</code>, <code>LLM04:2026</code>, <code>ASI04:2026</code>, <code>MCP03:2025</code>, <code>MCP04:2025</code>, <code>MCP10:2025</code>, <code>AML.T0110</code>, <code>AML.T0109</code>, <code>AML.T0084.001</code></td>
 </tr>
 <tr>
 <td><code>guardana.agent.memory_poisoning</code></td>
 <td>CRITICAL</td>
 <td>runtime</td>
+<td>endpoint</td>
+<td>stable</td>
 <td><code>LLM01:2025</code>, <code>LLM01:2026</code>, <code>ASI06:2026</code>, <code>AML.T0080</code>, <code>AML.T0080.000</code></td>
 </tr>
 <tr>
 <td><code>guardana.agent.tool_argument_scope</code></td>
 <td>HIGH</td>
 <td>runtime</td>
+<td>endpoint</td>
+<td>stable</td>
 <td><code>LLM06:2025</code>, <code>LLM03:2026</code>, <code>ASI02:2026</code>, <code>AML.T0053</code>, <code>AML.T0101</code></td>
 </tr>
 <tr>
 <td><code>guardana.agent.tool_result_injection</code></td>
 <td>CRITICAL</td>
 <td>runtime</td>
+<td>endpoint</td>
+<td>stable</td>
 <td><code>LLM01:2025</code>, <code>LLM01:2026</code>, <code>ASI01:2026</code>, <code>ASI02:2026</code>, <code>MCP06:2025</code>, <code>AML.T0053</code>, <code>AML.T0086</code></td>
 </tr>
 <tr>
 <td><code>guardana.mcp.authorization_discovery</code></td>
 <td>HIGH</td>
 <td>runtime</td>
+<td>endpoint</td>
+<td>stable</td>
 <td><code>MCP07:2025</code>, <code>MCP01:2025</code>, <code>ASI03:2026</code></td>
 </tr>
 <tr>
 <td><code>guardana.mcp.cache_scope</code></td>
 <td>MEDIUM</td>
 <td>runtime</td>
+<td>endpoint</td>
+<td>stable</td>
 <td><code>MCP10:2025</code>, <code>MCP07:2025</code>, <code>ASI03:2026</code></td>
 </tr>
 <tr>
 <td><code>guardana.mcp.discovery_target</code></td>
 <td>HIGH</td>
 <td>runtime</td>
+<td>endpoint</td>
+<td>stable</td>
 <td><code>MCP01:2025</code>, <code>LLM02:2026</code>, <code>ASI03:2026</code></td>
 </tr>
 <tr>
 <td><code>guardana.mcp.issuer_identification</code></td>
 <td>MEDIUM</td>
 <td>runtime</td>
+<td>endpoint</td>
+<td>stable</td>
 <td><code>MCP01:2025</code>, <code>MCP07:2025</code>, <code>ASI03:2026</code></td>
 </tr>
 <tr>
 <td><code>guardana.mcp.registry_entry</code></td>
 <td>MEDIUM</td>
 <td>runtime</td>
+<td>endpoint</td>
+<td>stable</td>
 <td><code>MCP09:2025</code>, <code>MCP04:2025</code>, <code>ASI04:2026</code></td>
 </tr>
 <tr>
 <td><code>guardana.mcp.scope_breadth</code></td>
 <td>MEDIUM</td>
 <td>runtime</td>
+<td>endpoint</td>
+<td>stable</td>
 <td><code>MCP02:2025</code>, <code>LLM03:2026</code>, <code>ASI03:2026</code></td>
 </tr>
 <tr>
 <td><code>guardana.mcp.session_binding</code></td>
 <td>HIGH</td>
 <td>runtime</td>
+<td>endpoint</td>
+<td>stable</td>
 <td><code>MCP07:2025</code>, <code>ASI03:2026</code></td>
 </tr>
 <tr>
 <td><code>guardana.mcp.task_identity</code></td>
 <td>HIGH</td>
 <td>runtime</td>
+<td>endpoint</td>
+<td>stable</td>
 <td><code>MCP07:2025</code>, <code>MCP10:2025</code>, <code>ASI03:2026</code></td>
 </tr>
 <tr>
 <td><code>guardana.mcp.token_audience</code></td>
 <td>CRITICAL</td>
 <td>runtime</td>
+<td>endpoint</td>
+<td>stable</td>
 <td><code>MCP01:2025</code>, <code>MCP07:2025</code>, <code>ASI03:2026</code></td>
 </tr>
 <tr>
 <td><code>guardana.mcp.unauthenticated_access</code></td>
 <td>HIGH</td>
 <td>runtime</td>
+<td>endpoint</td>
+<td>stable</td>
 <td><code>MCP07:2025</code>, <code>ASI03:2026</code>, <code>AML.T0084.001</code></td>
 </tr>
 <tr>
 <td><code>guardana.output.secrets</code></td>
 <td>HIGH</td>
 <td>runtime</td>
+<td>endpoint</td>
+<td>stable</td>
 <td><code>LLM02:2025</code>, <code>LLM02:2026</code></td>
 </tr>
 <tr>
 <td><code>guardana.prompt.cost_asymmetry</code></td>
 <td>MEDIUM</td>
 <td>runtime</td>
+<td>endpoint</td>
+<td>stable</td>
 <td><code>LLM10:2025</code>, <code>LLM06:2026</code>, <code>AML.T0034.002</code></td>
 </tr>
 <tr>
 <td><code>guardana.prompt.hidden_instructions</code></td>
 <td>HIGH</td>
 <td>build</td>
+<td>artifact</td>
+<td>stable</td>
 <td><code>LLM01:2025</code>, <code>LLM01:2026</code>, <code>LLM05:2025</code>, <code>LLM10:2026</code>, <code>AML.T0051</code>, <code>ASI01:2026</code>, <code>AML.T0080</code></td>
 </tr>
 <tr>
 <td><code>guardana.prompt.injection.ignore_previous</code></td>
 <td>HIGH</td>
 <td>runtime</td>
+<td>endpoint</td>
+<td>stable</td>
 <td><code>LLM01:2025</code>, <code>LLM01:2026</code>, <code>AML.T0051</code></td>
 </tr>
 <tr>
 <td><code>guardana.prompt.jailbreak.dan_style</code></td>
 <td>HIGH</td>
 <td>runtime</td>
+<td>endpoint</td>
+<td>stable</td>
 <td><code>LLM01:2025</code>, <code>LLM01:2026</code></td>
 </tr>
 <tr>
 <td><code>guardana.prompt.mcp_tool_poisoning</code></td>
 <td>HIGH</td>
 <td>build</td>
+<td>artifact</td>
+<td>stable</td>
 <td><code>LLM01:2025</code>, <code>LLM01:2026</code>, <code>LLM05:2025</code>, <code>LLM10:2026</code>, <code>AML.T0051</code>, <code>ASI04:2026</code>, <code>MCP03:2025</code>, <code>MCP10:2025</code>, <code>AML.T0110</code>, <code>AML.T0011.002</code></td>
 </tr>
 <tr>
 <td><code>guardana.prompt.system_prompt_leak.canary</code></td>
 <td>CRITICAL</td>
 <td>runtime</td>
+<td>endpoint</td>
+<td>stable</td>
 <td><code>LLM07:2025</code>, <code>LLM08:2026</code>, <code>AML.T0056</code></td>
 </tr>
 <tr>
 <td><code>guardana.prompt.unbounded_consumption</code></td>
 <td>MEDIUM</td>
 <td>runtime</td>
+<td>endpoint</td>
+<td>stable</td>
 <td><code>LLM10:2025</code>, <code>LLM06:2026</code></td>
 </tr>
 <tr>
 <td><code>guardana.retrieval.poisoned_document</code></td>
 <td>HIGH</td>
 <td>runtime</td>
+<td>endpoint</td>
+<td>stable</td>
 <td><code>LLM01:2025</code>, <code>LLM08:2025</code>, <code>LLM01:2026</code>, <code>LLM09:2026</code>, <code>ASI06:2026</code>, <code>AML.T0051</code>, <code>AML.T0080</code></td>
 </tr>
 <tr>
 <td><code>guardana.scenario.gradual_jailbreak</code></td>
 <td>HIGH</td>
 <td>runtime</td>
+<td>endpoint</td>
+<td>stable</td>
 <td><code>LLM01:2025</code>, <code>LLM01:2026</code>, <code>AML.T0051</code></td>
 </tr>
 <tr>
 <td><code>guardana.scenario.indirect_injection</code></td>
 <td>HIGH</td>
 <td>runtime</td>
+<td>endpoint</td>
+<td>stable</td>
 <td><code>LLM01:2025</code>, <code>LLM01:2026</code>, <code>LLM08:2025</code>, <code>LLM09:2026</code>, <code>ASI01:2026</code>, <code>AML.T0051</code>, <code>AML.T0080</code></td>
 </tr>
 <tr>
 <td><code>guardana.supply_chain.chat_template</code></td>
 <td>CRITICAL</td>
 <td>build</td>
+<td>artifact</td>
+<td>stable</td>
 <td><code>LLM03:2025</code>, <code>LLM04:2026</code>, <code>LLM05:2025</code>, <code>LLM10:2026</code>, <code>AML.T0018</code>, <code>supply-chain</code>, <code>ASI05:2026</code></td>
 </tr>
 <tr>
 <td><code>guardana.supply_chain.code_execution</code></td>
 <td>HIGH</td>
 <td>build</td>
+<td>artifact</td>
+<td>stable</td>
 <td><code>LLM03:2025</code>, <code>LLM04:2026</code>, <code>supply-chain</code>, <code>ASI05:2026</code></td>
 </tr>
 <tr>
 <td><code>guardana.supply_chain.dependency_risk</code></td>
 <td>HIGH</td>
 <td>build</td>
+<td>artifact</td>
+<td>stable</td>
 <td><code>LLM03:2025</code>, <code>LLM04:2026</code>, <code>supply-chain</code></td>
 </tr>
 <tr>
 <td><code>guardana.supply_chain.hallucinated_package</code></td>
 <td>MEDIUM</td>
 <td>build</td>
+<td>artifact</td>
+<td>stable</td>
 <td><code>LLM03:2025</code>, <code>LLM04:2026</code></td>
 </tr>
 <tr>
 <td><code>guardana.supply_chain.hardcoded_secret</code></td>
 <td>HIGH</td>
 <td>build</td>
+<td>artifact</td>
+<td>stable</td>
 <td><code>LLM02:2025</code>, <code>LLM02:2026</code></td>
 </tr>
 <tr>
 <td><code>guardana.supply_chain.insecure_transport</code></td>
 <td>HIGH</td>
 <td>build</td>
+<td>artifact</td>
+<td>stable</td>
 <td><code>LLM03:2025</code>, <code>LLM04:2026</code>, <code>supply-chain</code></td>
 </tr>
 <tr>
 <td><code>guardana.supply_chain.keras_lambda</code></td>
 <td>HIGH</td>
 <td>build</td>
+<td>artifact</td>
+<td>stable</td>
 <td><code>LLM05:2025</code>, <code>LLM10:2026</code>, <code>ML06:2023</code>, <code>AML.T0018</code>, <code>supply-chain</code>, <code>ASI05:2026</code></td>
 </tr>
 <tr>
 <td><code>guardana.supply_chain.malicious_dependency</code></td>
 <td>HIGH</td>
 <td>build</td>
+<td>artifact</td>
+<td>stable</td>
 <td><code>LLM03:2025</code>, <code>LLM04:2026</code>, <code>ML06:2023</code>, <code>AML.T0018</code>, <code>supply-chain</code></td>
 </tr>
 <tr>
 <td><code>guardana.supply_chain.model_format</code></td>
 <td>HIGH</td>
 <td>build</td>
+<td>artifact</td>
+<td>stable</td>
 <td><code>LLM03:2025</code>, <code>LLM04:2026</code>, <code>LLM05:2025</code>, <code>LLM10:2026</code>, <code>supply-chain</code></td>
 </tr>
 <tr>
 <td><code>guardana.supply_chain.notebook_payload</code></td>
 <td>HIGH</td>
 <td>build</td>
+<td>artifact</td>
+<td>stable</td>
 <td><code>LLM03:2025</code>, <code>LLM04:2026</code>, <code>supply-chain</code>, <code>ASI05:2026</code></td>
 </tr>
 <tr>
 <td><code>guardana.supply_chain.onnx_graph</code></td>
 <td>HIGH</td>
 <td>build</td>
+<td>artifact</td>
+<td>stable</td>
 <td><code>LLM03:2025</code>, <code>LLM04:2026</code>, <code>LLM05:2025</code>, <code>LLM10:2026</code>, <code>AML.T0018</code>, <code>supply-chain</code>, <code>ASI05:2026</code></td>
 </tr>
 <tr>
 <td><code>guardana.supply_chain.pickle_opcode</code></td>
 <td>CRITICAL</td>
 <td>build</td>
+<td>artifact</td>
+<td>stable</td>
 <td><code>LLM03:2025</code>, <code>LLM04:2026</code>, <code>LLM05:2025</code>, <code>LLM10:2026</code>, <code>AML.T0018</code>, <code>supply-chain</code>, <code>ASI05:2026</code></td>
 </tr>
 <tr>
 <td><code>guardana.supply_chain.provenance</code></td>
 <td>MEDIUM</td>
 <td>build</td>
+<td>artifact</td>
+<td>stable</td>
 <td><code>LLM03:2025</code>, <code>LLM04:2026</code>, <code>supply-chain</code></td>
 </tr>
 <tr>
 <td><code>guardana.supply_chain.remote_code</code></td>
 <td>HIGH</td>
 <td>build</td>
+<td>artifact</td>
+<td>stable</td>
 <td><code>LLM03:2025</code>, <code>LLM04:2026</code>, <code>supply-chain</code>, <code>ASI05:2026</code></td>
 </tr>
 <tr>
 <td><code>guardana.supply_chain.remote_code_config</code></td>
 <td>HIGH</td>
 <td>build</td>
+<td>artifact</td>
+<td>stable</td>
 <td><code>LLM03:2025</code>, <code>LLM04:2026</code>, <code>AML.T0018</code>, <code>supply-chain</code>, <code>ASI05:2026</code></td>
 </tr>
 <tr>
 <td><code>guardana.supply_chain.saved_model_ops</code></td>
 <td>MEDIUM</td>
 <td>build</td>
+<td>artifact</td>
+<td>stable</td>
 <td><code>LLM05:2025</code>, <code>LLM10:2026</code>, <code>ML06:2023</code>, <code>AML.T0018</code>, <code>supply-chain</code>, <code>ASI05:2026</code></td>
 </tr>
 <tr>
 <td><code>guardana.tenancy.cross_tenant_answer</code></td>
 <td>CRITICAL</td>
 <td>runtime</td>
+<td>endpoint</td>
+<td>stable</td>
 <td><code>LLM02:2025</code>, <code>LLM08:2025</code>, <code>LLM02:2026</code>, <code>LLM09:2026</code>, <code>AML.T0057</code></td>
 </tr>
 <tr>
 <td><code>guardana.trace.consent_scope_exceeded</code></td>
 <td>HIGH</td>
 <td>runtime</td>
+<td>trace</td>
+<td>stable</td>
 <td><code>MCP02:2025</code>, <code>ASI03:2026</code>, <code>LLM03:2026</code></td>
 </tr>
 <tr>
 <td><code>guardana.trace.credential_passthrough</code></td>
 <td>HIGH</td>
 <td>runtime</td>
+<td>trace</td>
+<td>stable</td>
 <td><code>MCP01:2025</code>, <code>ASI03:2026</code>, <code>LLM03:2026</code></td>
 </tr>
 <tr>
 <td><code>guardana.trace.cross_tenant_retrieval</code></td>
 <td>CRITICAL</td>
 <td>runtime</td>
+<td>trace</td>
+<td>stable</td>
 <td><code>LLM09:2026</code>, <code>LLM02:2026</code></td>
 </tr>
 <tr>
 <td><code>guardana.trace.handoff_authority_expansion</code></td>
 <td>HIGH</td>
 <td>runtime</td>
+<td>trace</td>
+<td>stable</td>
 <td><code>ASI07:2026</code>, <code>ASI03:2026</code>, <code>LLM03:2026</code></td>
 </tr>
 <tr>
 <td><code>guardana.trace.identity_disagreement</code></td>
 <td>HIGH</td>
 <td>runtime</td>
+<td>trace</td>
+<td>stable</td>
 <td><code>MCP01:2025</code>, <code>ASI03:2026</code></td>
 </tr>
 <tr>
 <td><code>guardana.trace.policy_decision_ignored</code></td>
 <td>HIGH</td>
 <td>runtime</td>
+<td>trace</td>
+<td>stable</td>
 <td><code>ASI02:2026</code>, <code>LLM10:2026</code></td>
 </tr>
 <tr>
 <td><code>guardana.trace.secret_in_tool_argument</code></td>
 <td>HIGH</td>
 <td>runtime</td>
+<td>trace</td>
+<td>stable</td>
 <td><code>LLM02:2026</code>, <code>ASI03:2026</code>, <code>AML.T0057</code></td>
 </tr>
 <tr>
 <td><code>guardana.trace.session_as_identity</code></td>
 <td>HIGH</td>
 <td>runtime</td>
+<td>trace</td>
+<td>stable</td>
 <td><code>MCP07:2025</code>, <code>ASI03:2026</code></td>
 </tr>
 <tr>
 <td><code>guardana.trace.unapproved_side_effect</code></td>
 <td>HIGH</td>
 <td>runtime</td>
+<td>trace</td>
+<td>stable</td>
 <td><code>ASI09:2026</code>, <code>ASI02:2026</code>, <code>LLM03:2026</code></td>
 </tr>
 <tr>
 <td><code>guardana.training.dataset_integrity</code></td>
 <td>MEDIUM</td>
 <td>build</td>
+<td>artifact</td>
+<td>stable</td>
 <td><code>LLM04:2025</code>, <code>LLM05:2026</code>, <code>ML02:2023</code>, <code>poisoning</code></td>
 </tr>
 </tbody>

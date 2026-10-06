@@ -22,7 +22,7 @@
 <div class="shell">
 <nav class="side" aria-label="Documentation">
 <ul class="home"><li><a href="index.html">Overview</a></li></ul>
-<h2>First run</h2><ul>
+<h2>Guides for a first run</h2><ul>
 <li><a href="usage-init.html">guardana init</a></li>
 <li><a href="recipe-local-scan.html">Recipe: scan your own project</a></li>
 <li><a href="recipe-recorded-answers.html">Recipe: check a run your application recorded</a></li>
@@ -162,7 +162,7 @@
 <summary>Menu · <b>guardana scan</b></summary>
 <nav class="inner" aria-label="Documentation">
 <ul class="home"><li><a href="index.html">Overview</a></li></ul>
-<h2>First run</h2><ul>
+<h2>Guides for a first run</h2><ul>
 <li><a href="usage-init.html">guardana init</a></li>
 <li><a href="recipe-local-scan.html">Recipe: scan your own project</a></li>
 <li><a href="recipe-recorded-answers.html">Recipe: check a run your application recorded</a></li>
@@ -371,7 +371,7 @@
 <tr>
 <td><code>--write-baseline PATH</code></td>
 <td>none</td>
-<td>Write a baseline waiving every current finding to <code>PATH</code>, then exit 0. Add a reason to each entry before committing it. Over an incomplete run it writes nothing and exits <code>2</code> — see <a href="#baselining-existing-findings">Baselining</a>. It produces no report, so <code>--output</code> or any <code>--reporter</code> beside it is refused with exit <code>3</code> before anything is sent. A <code>PATH</code> naming the scanned file, <code>--profile</code> or a <code>--rules</code> file is also refused with exit <code>3</code>; a <code>PATH</code> that cannot be written exits <code>3</code>.</td>
+<td>Write a baseline waiving every current finding to <code>PATH</code>, then exit 0. Add a reason to each entry before committing it. Over an incomplete run it writes nothing and exits <code>2</code> — see <a href="#baselining-existing-findings">Baselining</a>. It produces no report, so <code>--output</code> or any <code>--reporter</code> beside it is refused with exit <code>3</code> before anything is sent. A <code>PATH</code> naming the scanned file, <code>--profile</code>, a <code>--rules</code> file or a rule file in a <code>--rules</code> directory or under the profile's <code>rules.paths</code>, <code>.guardanaignore</code>, or any file the scan read that is not an earlier baseline is also refused with exit <code>3</code>; writing the baseline again over itself works. The file is written whole through a temporary file and a rename, and a <code>PATH</code> that cannot be written exits <code>3</code>.</td>
 </tr>
 <tr>
 <td><code>--reporter TEXT</code></td>
@@ -568,7 +568,10 @@ at or above <code>fail_on.min_confidence</code>. It exits <code>2</code> when th
 check could not run, a model file no rule read, or a path with no file to scan.
 Otherwise it exits <code>0</code>. This is the same <code>gate()</code> policy logic <code>probe</code> uses — see
 <a href="profiles.html"><code>profiles.md</code></a> and <a href="exit-codes.html"><code>exit-codes.md</code></a>.</p>
-<pre><code class="language-bash">guardana scan . || echo &quot;gate failed — see findings above&quot;
+<pre><code class="language-bash">guardana scan .
+status=$?
+[ &quot;$status&quot; -eq 0 ] || echo &quot;gate failed with exit $status, see the findings above&quot;
+exit &quot;$status&quot;
 </code></pre>
 <h2 id="forwarding-to-a-collector">Forwarding to a collector</h2>
 <pre><code class="language-bash">guardana scan . --reporter server://https://collector.example.com

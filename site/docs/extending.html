@@ -22,7 +22,7 @@
 <div class="shell">
 <nav class="side" aria-label="Documentation">
 <ul class="home"><li><a href="index.html">Overview</a></li></ul>
-<h2>First run</h2><ul>
+<h2>Guides for a first run</h2><ul>
 <li><a href="usage-init.html">guardana init</a></li>
 <li><a href="recipe-local-scan.html">Recipe: scan your own project</a></li>
 <li><a href="recipe-recorded-answers.html">Recipe: check a run your application recorded</a></li>
@@ -162,7 +162,7 @@
 <summary>Menu · <b>Extending Guardana</b></summary>
 <nav class="inner" aria-label="Documentation">
 <ul class="home"><li><a href="index.html">Overview</a></li></ul>
-<h2>First run</h2><ul>
+<h2>Guides for a first run</h2><ul>
 <li><a href="usage-init.html">guardana init</a></li>
 <li><a href="recipe-local-scan.html">Recipe: scan your own project</a></li>
 <li><a href="recipe-recorded-answers.html">Recipe: check a run your application recorded</a></li>
@@ -647,6 +647,7 @@ when a ref contains a URL, build it with <code>guardana.core.target.display_url<
 drops userinfo and the fragment and replaces a query with a digest placeholder, and
 never put a credential in it any other way. The digest keeps two targets that differ
 only by a query apart; it does not hide a short or guessable value.</p>
+<p><code>read_source</code> and <code>display_url</code> sit outside the <a href="compatibility.html#the-supported-surface">supported surface</a>, unlike <code>PythonSource</code> and <code>UnreadSource</code>: a minor release may change them, so pin <code>guardana-core</code> to a minor while your target imports them.</p>
 <div class="table-wrap"><table>
 <thead>
 <tr>

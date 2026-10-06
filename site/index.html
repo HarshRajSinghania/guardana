@@ -34,11 +34,12 @@
   --term:#0B0D12; --term-2:#141824; --term-line:#232838; --term-ink:#E6E9EF; --term-dim:#8B93A5;
   --term-crit:#E5484D; --term-high:#F76B15;
   --maxw:1160px; --r:14px;
+  --faint:#6B7280;
   --shadow:0 1px 2px rgba(15,17,21,.04),0 8px 28px -12px rgba(15,17,21,.14);
 }
 @media (prefers-color-scheme:dark){
   :root{
-    --bg-2:#0E1118;
+    --bg-2:#0E1118; --faint:#8189A0;
     --term:#07090D; --term-2:#0F131C; --term-line:#1E2330;
     --shadow:0 1px 2px rgba(0,0,0,.3),0 12px 32px -12px rgba(0,0,0,.6);
   }
@@ -90,7 +91,11 @@ h1 .grad{background:linear-gradient(100deg,var(--brand) 10%,var(--brand-2) 90%);
 .install{display:flex;align-items:center;gap:12px;max-width:560px;margin:0 auto 18px;background:var(--term);color:var(--term-ink);border:1px solid var(--term-line);border-radius:12px;padding:14px 18px;text-align:left;box-shadow:var(--shadow);animation:rise .7s .24s both}
 .install .sig{color:var(--brand-2);font-family:var(--mono);flex:none}
 .install code{font-size:15px;white-space:nowrap;overflow-x:auto;display:block;min-width:0;flex:1;scrollbar-width:none}
+@media (max-width:520px){.install code{white-space:normal;overflow-wrap:anywhere;font-size:14px}pre.yml code,.term-body{white-space:pre-wrap;overflow-wrap:anywhere}.term-body{font-size:13px}}
 .alt{font-size:14px;color:var(--faint);margin:0 0 30px;animation:rise .7s .3s both}
+.hero .alt:has(+ .start){margin-bottom:6px}
+.status{font-size:13.5px;color:var(--muted);margin:14px 0 0;animation:rise .7s .42s both}
+.status a{color:inherit;text-decoration:underline dotted;text-underline-offset:3px}
 .alt code{color:var(--muted)}
 .ctas{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin:0 0 30px;animation:rise .7s .36s both}
 .btn{display:inline-flex;align-items:center;gap:8px;font-weight:600;font-size:15.5px;padding:12px 20px;border-radius:11px;text-decoration:none;min-height:46px;transition:transform .2s,box-shadow .2s,background .2s}
@@ -102,17 +107,18 @@ h1 .grad{background:linear-gradient(100deg,var(--brand) 10%,var(--brand-2) 90%);
 .facts{display:flex;flex-wrap:wrap;justify-content:center;gap:8px 22px;list-style:none;padding:0;margin:0;font-size:14px;color:var(--muted);animation:rise .7s .42s both}
 .facts li{display:flex;align-items:center;gap:7px}
 .facts svg{width:15px;height:15px;color:var(--ok)}
+.facts a{color:inherit;text-decoration:underline dotted;text-underline-offset:3px}
 @keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
 
 /* terminal */
-.demo{margin:56px auto 0;max-width:880px;animation:rise .9s .5s both}
+.demo{margin:56px auto 0;max-width:880px;animation:rise .6s .2s both}
 .term{background:var(--term);border:1px solid var(--term-line);border-radius:var(--r);box-shadow:0 30px 80px -30px color-mix(in srgb,var(--brand) 45%,transparent),var(--shadow);overflow:hidden;text-align:left}
 .term-bar{display:flex;align-items:center;gap:7px;padding:12px 16px;background:var(--term-2);border-bottom:1px solid var(--term-line);color:var(--term-dim);font:13px var(--mono)}
 .term-bar i{width:11px;height:11px;border-radius:50%;background:#2A3040}
 .term-bar span{margin-left:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .term-body{padding:18px 20px 20px;font:13.5px/1.7 var(--mono);color:var(--term-ink);overflow-x:auto}
 .term-body p{margin:0;white-space:pre}
-.ln{opacity:0;animation:type .35s ease-out forwards;animation-delay:calc(var(--i) * 170ms + 900ms)}
+.ln{opacity:0;animation:type .35s ease-out forwards;animation-delay:calc(var(--i) * 70ms + 400ms)}
 @keyframes type{from{opacity:0;transform:translateX(-6px)}to{opacity:1;transform:none}}
 .prompt{color:var(--brand-2)}
 .c-crit{color:var(--term-crit);font-weight:500}.c-high{color:var(--term-high);font-weight:500}.c-dim{color:var(--term-dim)}
@@ -275,7 +281,7 @@ footer.foot{border-top:1px solid var(--line);padding:44px 0 56px;font-size:14.5p
   <a class="vlink" href="https://github.com/guardana/guardana/releases"><span class="ver mono">v1.0.0rc1</span></a>
   <nav aria-label="Primary">
     <a href="/docs/">Docs</a>
-    <a href="/docs/rules/" class="hide-s">Rules</a>
+    <a href="/docs/rules/">Rules</a>
     <a href="#control" class="hide-s">Control</a>
     <a href="https://github.com/guardana/guardana/releases" class="hide-s">Changelog</a>
     <a class="gh" href="https://github.com/guardana/guardana"><svg viewBox="0 0 16 16" aria-hidden="true" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg><span class="hide-s">GitHub</span></a>
@@ -290,14 +296,16 @@ footer.foot{border-top:1px solid var(--line);padding:44px 0 56px;font-size:14.5p
     <p class="def">Guardana is an open-source AI security verification tool for security and platform engineers that checks model and code artifacts, live AI systems, and recorded runs, with scans that run fully offline.</p>
     <div class="install"><span class="sig">$</span><code>uvx --from guardana-cli guardana scan .</code></div>
     <p class="alt">or <code>pip install guardana-cli</code></p>
+    <p class="alt start">Try <code>guardana init --starter first-run</code>: a small project with one problem to find and fix.</p>
     <div class="ctas">
       <a class="btn pri" href="/docs/">Read the docs <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
       <a class="btn sec" href="#ci">Use it in CI</a>
     </div>
-    <ul class="facts"><li><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4.5 4.5L19 7"/></svg>Apache-2.0</li><li><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4.5 4.5L19 7"/></svg>No account</li><li><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4.5 4.5L19 7"/></svg>No telemetry</li><li><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4.5 4.5L19 7"/></svg>Offline scans</li></ul>
+    <ul class="facts"><li><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4.5 4.5L19 7"/></svg>Apache-2.0</li><li><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4.5 4.5L19 7"/></svg>No account</li><li><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4.5 4.5L19 7"/></svg><a href="/docs/privacy">No telemetry</a></li><li><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4.5 4.5L19 7"/></svg>Offline scans</li></ul>
+    <p class="status">Release candidate · engine and rules beta · <a href="/docs/product-status">Product status</a></p>
   </div>
   <div class="demo">
-    <div class="term" role="img" aria-label="Terminal output: Guardana scanning a model directory and reporting three findings, including a critical pickle opcode that would execute code on load.">
+    <div class="term" role="img" aria-label="Terminal output: Guardana scanning a model directory and reporting twelve findings, three of them shown, including a critical pickle opcode that would execute code on load.">
       <div class="term-bar"><i></i><i></i><i></i><span>guardana scan examples/vulnerable-model</span></div>
       <div class="term-body" aria-hidden="true">
 <p class="ln" style="--i:0"><span class="prompt">$</span> guardana scan examples/vulnerable-model</p>
@@ -308,7 +316,8 @@ footer.foot{border-top:1px solid var(--line);padding:44px 0 56px;font-size:14.5p
 <p class="ln" style="--i:5"><span class="c-dim">    torch.load without weights_only=True  (load_model.py:3)</span></p>
 <p class="ln" style="--i:6"><span class="c-crit">✖ [CRITICAL]</span> guardana.supply_chain.remote_code_config</p>
 <p class="ln" style="--i:7"><span class="c-dim">    config.json names a Hub kernel repo transformers imports on load</span></p>
-<p class="ln" style="--i:8"><span class="c-dim">    12 finding(s); 19 rule(s) run, 0 skipped.  → exit 1</span></p>
+<p class="ln" style="--i:8"><span class="c-dim">    … 9 more findings</span></p>
+<p class="ln" style="--i:9"><span class="c-dim">    12 finding(s); 19 rule(s) run, 0 skipped. 5 component(s) observed.  → exit 1</span></p>
 <p class="ln" style="--i:10"><span class="prompt">$</span><span class="cursor"></span></p>
       </div>
     </div>
@@ -318,9 +327,10 @@ footer.foot{border-top:1px solid var(--line);padding:44px 0 56px;font-size:14.5p
 <section class="s" id="how"><div class="wrap">
   <p class="eyebrow">How it works</p>
   <h2 class="reveal">Ways to verify</h2>
+  <p class="lede">Alongside model scanners, attack harnesses, and evaluation frameworks, Guardana gates AI checks and records findings, inconclusive results, errors, and missing coverage.</p>
   <div class="verbs">
     <div class="verb reveal"><p class="n"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V5a1 1 0 0 1 1-1h2M17 4h2a1 1 0 0 1 1 1v2M20 17v2a1 1 0 0 1-1 1h-2M7 20H5a1 1 0 0 1-1-1v-2"/><path d="M4 12h16"/></svg>01</p><h3>Scan</h3><p>Check model and code artifacts offline with deterministic rules.</p><code>guardana scan PATH</code></div>
-    <div class="verb reveal"><p class="n"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>02</p><h3>Probe</h3><p>Test a live model endpoint, agent, or MCP server; schedule repeats with <code>guardana monitor</code>.</p><code>guardana probe</code></div>
+    <div class="verb reveal"><p class="n"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>02</p><h3>Probe and monitor</h3><p>Test a live model endpoint, agent, or MCP server; schedule repeats with <code>guardana monitor</code>.</p><code>guardana probe</code></div>
     <div class="verb reveal"><p class="n"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10M4 12h10M4 18h6"/><path d="M15 17l2 2 4-4"/></svg>03</p><h3>Grade</h3><p>Grade recorded application answers against your rules without calling the application.</p><code>guardana grade RECORDING</code></div>
     <div class="verb reveal"><p class="n"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v12M8 15l-3-3M8 15l3-3M16 21V9M16 9l-3 3M16 9l3 3"/></svg>04</p><h3>Diff</h3><p>Compare saved runs as worse, better, unchanged, or incomparable. A comparison that cannot be made exits 2.</p><code>guardana diff BEFORE AFTER</code></div>
   </div>
@@ -406,14 +416,14 @@ footer.foot{border-top:1px solid var(--line);padding:44px 0 56px;font-size:14.5p
   <p class="lede">Each run reports what it could establish.</p>
   <div class="split">
     <ul class="checks"><li class="reveal"><span class="tick"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4.5 4.5L19 7"/></svg></span><div><h3>Unverified</h3><p>A check that could not decide is reported as unverified.</p></div></li><li class="reveal"><span class="tick"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4.5 4.5L19 7"/></svg></span><div><h3>Error</h3><p>A check that could not run is reported as an error.</p></div></li><li class="reveal"><span class="tick"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4.5 4.5L19 7"/></svg></span><div><h3>Budget</h3><p>An exhausted budget exits 6.</p></div></li><li class="reveal"><span class="tick"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4.5 4.5L19 7"/></svg></span><div><h3>Repeated trials</h3><p>With <code>--trials N</code>, any failed trial fails its case. A clean result states its trial count and an upper bound on attack success over its cases.</p></div></li></ul>
-    <div class="reveal"><pre class="yml"><code><span class="c">// what will this cost, before it costs anything</span>
+    <div class="reveal"><pre class="yml"><code><span class="c"># what will this cost, before it costs anything</span>
 <span class="k">$</span> <span class="s">guardana plan probe --url … --model …</span>
 <span class="c">   14 rule(s) would run, 16 skipped.</span>
 <span class="c">   requests: at least 14, at most 47</span>
 <span class="c">   trials: 1 attempt(s) per case, counted in the requests above</span>
 <span class="c">   No request was sent to produce this estimate.</span>
 
-<span class="c">// is this worse than last week?</span>
+<span class="c"># is this worse than last week?</span>
 <span class="k">$</span> <span class="s">guardana diff last-week.json today.json</span></code></pre></div>
   </div>
 </div></section>
@@ -423,17 +433,25 @@ footer.foot{border-top:1px solid var(--line);padding:44px 0 56px;font-size:14.5p
   <h2 class="reveal">Use it in CI</h2>
   <p class="lede">Use the GitHub Action or <code>guardana.testing.assert_secure(...)</code> in pytest. Results come as human, JSON, SARIF, or JUnit output. <code>guardana plan probe</code> prices requests before sending one.</p>
   <div class="duo">
-    <div class="reveal"><h3>GitHub Actions</h3><pre class="yml"><code><span class="c">// .github/workflows/ai-security.yml</span>
-<span class="k">- uses:</span> <span class="s">actions/checkout@v4</span>
-<span class="k">- uses:</span> <span class="s">guardana/guardana@v0.41</span>
-  <span class="k">with:</span>
-    <span class="k">args:</span> <span class="s">--preset ci</span></code></pre></div>
+    <div class="reveal"><h3>GitHub Actions</h3><pre class="yml"><code><span class="c"># .github/workflows/ai-security.yml</span>
+<span class="k">on:</span> <span class="s">[push, pull_request]</span>
+<span class="k">jobs:</span>
+  <span class="k">guardana:</span>
+    <span class="k">runs-on:</span> <span class="s">ubuntu-latest</span>
+    <span class="k">permissions:</span> <span class="s">{contents: read, security-events: write}</span>
+    <span class="k">steps:</span>
+      <span class="k">- uses:</span> <span class="s">actions/checkout@v7</span>
+      <span class="k">- uses:</span> <span class="s">guardana/guardana@v0.41</span>
+        <span class="k">with:</span>
+          <span class="k">args:</span> <span class="s">--preset ci</span></code></pre><p class="caption">The <code>guardana/guardana@v0.41</code> Action tag follows the latest stable release; release candidates are not published to it.</p></div>
     <div class="reveal"><h3>pytest</h3><pre class="yml"><code><span class="c"># test_ai_security.py</span>
 <span class="k">from</span> <span class="s">guardana.testing</span> <span class="k">import</span> <span class="s">assert_secure</span>
 <span class="k">from</span> <span class="s">guardana.adapters.langchain</span> <span class="k">import</span> <span class="s">langchain_target</span>
 
 <span class="k">def</span> <span class="s">test_the_agent_keeps_its_instructions_to_itself</span>(chat_model):
-    <span class="s">assert_secure</span>(<span class="s">langchain_target</span>(chat_model, system_prompt=SYSTEM), preset=<span class="s">"ci"</span>)</code></pre></div>
+    <span class="s">assert_secure</span>(
+        <span class="s">langchain_target</span>(chat_model, system_prompt=SYSTEM), preset=<span class="s">"ci"</span>
+    )</code></pre></div>
   </div>
 </div></section>
 
@@ -449,12 +467,12 @@ footer.foot{border-top:1px solid var(--line);padding:44px 0 56px;font-size:14.5p
     <article class="reveal"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 0 1 14-5.3L20 9M20 4v5h-5"/><path d="M20 12a8 8 0 0 1-14 5.3L4 15M4 20v-5h5"/></svg><h3>Redacted evidence</h3><p>Commands redact evidence by default.</p></article>
     <article class="reveal"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v6c0 1.7 3.1 3 7 3s7-1.3 7-3V6M5 12v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"/></svg><h3>Optional collector</h3><p>The self-hosted, PostgreSQL-backed collector is in beta and optional in every direction.</p></article>
   </div>
-  <div class="collector reveal"><pre class="yml"><code><span class="c">// three commands to a real collector</span>
+  <div class="collector reveal"><pre class="yml"><code><span class="c"># three commands to a real collector</span>
 <span class="k">$</span> <span class="s">guardana-collector migrate</span>
 <span class="k">$</span> <span class="s">guardana-collector bootstrap --org acme --project web</span>
 <span class="k">$</span> <span class="s">guardana-collector serve</span>
 
-<span class="c">// then any run can report to it</span>
+<span class="c"># then any run can report to it</span>
 <span class="k">$</span> <span class="s">guardana scan . --ai-system support-agent --environment production \</span>
 <span class="s">      --reporter server://https://collector.internal</span></code></pre></div>
 </div></section>
@@ -498,9 +516,8 @@ footer.foot{border-top:1px solid var(--line);padding:44px 0 56px;font-size:14.5p
   <div class="install"><span class="sig">$</span><code>uvx --from guardana-cli guardana scan .</code></div>
   <h3>Plan before probing</h3>
   <pre class="yml"><code><span class="c"># guardana.yaml — a ceiling before anything is sent</span>
-<span class="k">budgets</span>: {max_requests: 60, max_duration: 5m}
-
-<span class="k">$</span> <span class="s">guardana plan probe --url https://staging.example/v1 --model support-bot --profile guardana.yaml</span>
+<span class="k">budgets</span>: {max_requests: 60, max_duration: 5m}</code></pre>
+  <pre class="yml"><code><span class="k">$</span> <span class="s">guardana plan probe --url https://staging.example/v1 --model support-bot --profile guardana.yaml</span>
 <span class="c">   14 rule(s) would run, 16 skipped.</span>
 <span class="c">   …</span>
 <span class="c">   budget: 60 request(s)</span>

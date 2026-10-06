@@ -395,6 +395,8 @@ Left open when the site shipped on 2026-09-25 with Control in coming-soon mode
 - **The release workflow publishes in separate jobs**, so PyPI can succeed while the reference
   pack or the images fail; `RELEASING.md` lists what to check, nothing checks the whole set.
 - **`_target_version("patch", "1.0.0rc2")` raises** on the suffix in `scripts/release.py`.
+- **The landing diagram's phone layout** scales labels to about 11 px; the renderer has no
+  narrow-screen step list.
 - **Whole-file writes stage a temporary file beside the destination**
   (`cli/_atomic.py`): a destination that is not a regular file (`/dev/stdout`, a FIFO) is
   refused where a plain write worked; a writable file in a directory this process cannot write

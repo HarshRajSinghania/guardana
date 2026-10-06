@@ -22,7 +22,7 @@
 <div class="shell">
 <nav class="side" aria-label="Documentation">
 <ul class="home"><li><a href="index.html">Overview</a></li></ul>
-<h2>First run</h2><ul>
+<h2>Guides for a first run</h2><ul>
 <li><a href="usage-init.html">guardana init</a></li>
 <li><a href="recipe-local-scan.html">Recipe: scan your own project</a></li>
 <li><a href="recipe-recorded-answers.html">Recipe: check a run your application recorded</a></li>
@@ -162,7 +162,7 @@
 <summary>Menu · <b>Installing</b></summary>
 <nav class="inner" aria-label="Documentation">
 <ul class="home"><li><a href="index.html">Overview</a></li></ul>
-<h2>First run</h2><ul>
+<h2>Guides for a first run</h2><ul>
 <li><a href="usage-init.html">guardana init</a></li>
 <li><a href="recipe-local-scan.html">Recipe: scan your own project</a></li>
 <li><a href="recipe-recorded-answers.html">Recipe: check a run your application recorded</a></li>
@@ -301,8 +301,19 @@
 </details>
 <main>
 <h1>Installing Guardana</h1><p class="lede">installing the CLI</p><p>Guardana requires <strong>Python 3.11+</strong>.</p>
-<h2 id="install-from-source-recommended-today">Install from source (recommended today)</h2>
-<p>Clone the repository and use <a href="https://docs.astral.sh/uv/"><code>uv</code></a>:</p>
+<h2 id="install-from-pypi">Install from PyPI</h2>
+<p>All five packages are on PyPI (Apache-2.0). Install the CLI with any of these commands:</p>
+<pre><code class="language-bash">uvx --from guardana-cli guardana scan .   # zero-install run
+uv add guardana-cli                       # or add it to a project
+pip install guardana-cli                  # or plain pip
+</code></pre>
+<p>These install the latest stable release. A release candidate is installed only when asked for: <code>pip install --pre guardana-cli</code>, or <code>uvx --prerelease allow --from guardana-cli guardana</code>.</p>
+<p>The <code>guardana</code> console script comes from <code>guardana-cli</code>, which installs <code>guardana-core</code>, <code>guardana-rules</code>, and <code>guardana-report</code>. Use <code>--from guardana-cli</code> so <code>uvx</code> finds the script. The optional collector has a separate install: <code>pip install &quot;guardana-server[serve]&quot;</code>, where the <code>serve</code> extra brings the ASGI server <code>guardana-collector serve</code> needs.</p>
+<p>Run the Git repository with <code>uvx</code>:</p>
+<pre><code class="language-bash">uvx --from git+https://github.com/guardana/guardana#subdirectory=packages/guardana-cli guardana scan .
+</code></pre>
+<h2 id="install-from-source">Install from source</h2>
+<p>For contributors, or to run an unreleased change. Clone the repository and use <a href="https://docs.astral.sh/uv/"><code>uv</code></a>:</p>
 <pre><code class="language-bash">git clone https://github.com/guardana/guardana
 cd guardana
 uv sync                  # resolves the full workspace (5 packages) + dev tooling
@@ -311,22 +322,12 @@ uv run guardana scan examples/vulnerable-model   # exits 1: finds the planted is
 </code></pre>
 <p>Inside the checkout, <code>guardana scan .</code> exits <code>1</code> because <code>examples/vulnerable-model/</code> contains planted issues. In your own project, <code>guardana scan .</code> scans the current directory.</p>
 <p><code>uv sync</code> installs <code>guardana-core</code>, <code>guardana-rules</code>, <code>guardana-cli</code>, <code>guardana-report</code>, and <code>guardana-server</code> from the root <code>pyproject.toml</code>, plus <code>ruff</code>, <code>mypy</code>, and <code>pytest</code>. Run commands with <code>uv run guardana ...</code> inside the checkout. See <a href="https://github.com/guardana/guardana/blob/main/CONTRIBUTING.md"><code>CONTRIBUTING.md</code></a> for contributor setup and test/lint gates.</p>
-<h2 id="install-from-pypi">Install from PyPI</h2>
-<p>All five packages are on PyPI (Apache-2.0). Install the CLI with any of these commands:</p>
-<pre><code class="language-bash">uvx --from guardana-cli guardana scan .   # zero-install run
-uv add guardana-cli                       # or add it to a project
-pip install guardana-cli                  # or plain pip
-</code></pre>
-<p>The <code>guardana</code> console script comes from <code>guardana-cli</code>, which installs <code>guardana-core</code>, <code>guardana-rules</code>, and <code>guardana-report</code>. Use <code>--from guardana-cli</code> so <code>uvx</code> finds the script. The optional collector has a separate install: <code>pip install &quot;guardana-server[serve]&quot;</code>, where the <code>serve</code> extra brings the ASGI server <code>guardana-collector serve</code> needs.</p>
-<p>Run the Git repository with <code>uvx</code>:</p>
-<pre><code class="language-bash">uvx --from git+https://github.com/guardana/guardana#subdirectory=packages/guardana-cli guardana scan .
-</code></pre>
 <h2 id="run-it-as-a-container">Run it as a container</h2>
 <p>The CLI and collector images are available from GitHub Container Registry:</p>
 <pre><code class="language-bash">docker run --rm -v &quot;$PWD:/work:ro&quot; ghcr.io/guardana/guardana:0.41 scan /work
 docker run --rm ghcr.io/guardana/guardana-collector:0.41 --help
 </code></pre>
-<p>Tags include the exact version, the moving minor used above, and <code>latest</code>. Pin the moving minor in CI to receive fixes without changing the rule set, or pin a digest (<code>ghcr.io/guardana/guardana:&lt;version&gt;@sha256:&lt;digest&gt;</code>) to run exactly the image you reviewed. Both images run as a non-root user, support <code>linux/amd64</code> and <code>linux/arm64</code>, and include an SBOM and signed provenance attestation. See <a href="https://github.com/guardana/guardana/blob/main/deploy/docker/README.md"><code>deploy/docker/README.md</code></a> for mounts, exit codes, reports, and image builds.</p>
+<p>Tags include the exact version, the moving minor used above, and <code>latest</code>. While a release candidate is out, <code>latest</code>, the moving minor and the Action's <code>vX.Y</code> tag stay on the last stable release, and the candidate's image carries only its exact version as a tag. Pin the moving minor in CI to receive fixes without changing the rule set, or pin a digest (<code>ghcr.io/guardana/guardana:&lt;version&gt;@sha256:&lt;digest&gt;</code>) to run exactly the image you reviewed. Both images run as a non-root user, support <code>linux/amd64</code> and <code>linux/arm64</code>, and include an SBOM and signed provenance attestation. See <a href="https://github.com/guardana/guardana/blob/main/deploy/docker/README.md"><code>deploy/docker/README.md</code></a> for mounts, exit codes, reports, and image builds.</p>
 <h2 id="the-optional-collector">The optional collector</h2>
 <p><code>guardana-server</code> is a separate service. <code>scan</code>, <code>probe</code>, and <code>monitor</code> do not require it. Install it to collect findings centrally; see <a href="architecture.html#the-coreserver-boundary"><code>architecture.md</code></a>.</p>
 <pre><code class="language-bash">pip install &quot;guardana-server[serve]&quot;   # `[serve]` adds the ASGI server

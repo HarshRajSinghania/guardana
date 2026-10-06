@@ -22,7 +22,7 @@
 <div class="shell">
 <nav class="side" aria-label="Documentation">
 <ul class="home"><li><a href="index.html">Overview</a></li></ul>
-<h2>First run</h2><ul>
+<h2>Guides for a first run</h2><ul>
 <li><a href="usage-init.html">guardana init</a></li>
 <li><a href="recipe-local-scan.html">Recipe: scan your own project</a></li>
 <li><a href="recipe-recorded-answers.html">Recipe: check a run your application recorded</a></li>
@@ -162,7 +162,7 @@
 <summary>Menu · <b>guardana probe</b></summary>
 <nav class="inner" aria-label="Documentation">
 <ul class="home"><li><a href="index.html">Overview</a></li></ul>
-<h2>First run</h2><ul>
+<h2>Guides for a first run</h2><ul>
 <li><a href="usage-init.html">guardana init</a></li>
 <li><a href="recipe-local-scan.html">Recipe: scan your own project</a></li>
 <li><a href="recipe-recorded-answers.html">Recipe: check a run your application recorded</a></li>
@@ -499,7 +499,7 @@ instead of a model.</p>
 <tr>
 <td><code>--output PATH</code></td>
 <td>stdout</td>
-<td>Write the report to a file instead of stdout — needed by <code>guardana diff</code>. See <a href="#saving-a-run-for-comparison">Saving a run for comparison</a></td>
+<td>Write the report to a file instead of stdout — needed by <code>guardana diff</code>. A <code>PATH</code> that is, or whose <code>&lt;stem&gt;.exchanges.jsonl</code> is, a file the probe reads — <code>--profile</code>, a <code>--rules</code> file, <code>--system-prompt-file</code>, <code>--fixtures</code> or a tenant's adapter, <code>--adapter</code>, <code>--mcp-pin</code>, <code>--mcp-registry-entry</code>, or a file the profile names — is refused with exit <code>3</code> before anything is sent. See <a href="#saving-a-run-for-comparison">Saving a run for comparison</a></td>
 </tr>
 <tr>
 <td><code>--keep-exchanges</code></td>
@@ -1250,7 +1250,9 @@ on the other end cannot parse that.</p>
 <h3 id="keeping-the-exchanges">Keeping the exchanges</h3>
 <p><code>--keep-exchanges</code>, or <code>privacy.keep_exchanges: true</code> in the profile, keeps every chat
 exchange of the probe beside the saved run, so the same replies can be graded again with
-a new rule, a sharper expectation or another judge, without a second request:</p>
+a new rule, a sharper expectation or another judge, without a second request. When the
+sidecar cannot be written, the probe removes what it wrote of it, saves the run with
+<code>exchanges: null</code> and exits <code>3</code>, so no saved run names exchanges that are not there:</p>
 <pre><code class="language-bash">guardana probe --url … --model … --keep-exchanges --format json --output run.json
 guardana grade run.exchanges.jsonl --rules rules/ --format json --output regraded.json
 </code></pre>

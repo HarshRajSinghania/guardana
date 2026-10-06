@@ -22,7 +22,7 @@
 <div class="shell">
 <nav class="side" aria-label="Documentation">
 <ul class="home"><li><a href="index.html">Overview</a></li></ul>
-<h2>First run</h2><ul>
+<h2>Guides for a first run</h2><ul>
 <li><a href="usage-init.html">guardana init</a></li>
 <li><a href="recipe-local-scan.html">Recipe: scan your own project</a></li>
 <li><a href="recipe-recorded-answers.html">Recipe: check a run your application recorded</a></li>
@@ -162,7 +162,7 @@
 <summary>Menu · <b>guardana pack</b></summary>
 <nav class="inner" aria-label="Documentation">
 <ul class="home"><li><a href="index.html">Overview</a></li></ul>
-<h2>First run</h2><ul>
+<h2>Guides for a first run</h2><ul>
 <li><a href="usage-init.html">guardana init</a></li>
 <li><a href="recipe-local-scan.html">Recipe: scan your own project</a></li>
 <li><a href="recipe-recorded-answers.html">Recipe: check a run your application recorded</a></li>
@@ -474,6 +474,8 @@ comparison would blame the model for it.</p>
 <pre><code class="language-bash">guardana pack lock                # write ./guardana-lock.yaml
 guardana pack lock --check        # in CI: fail if the build has drifted
 </code></pre>
+<p>The lock is written whole, through a temporary file and a rename: a write that fails
+part-way leaves the earlier lock as it was, and a lock that cannot be written exits <code>3</code>.</p>
 <pre><code class="language-yaml">schema_version: 2
 extension_api: 2
 packs:
@@ -651,9 +653,9 @@ command names the missing ids on stderr and writes nothing. Run <code>pack valid
 which promise broke.</p>
 <h2 id="guardanas-own-pack-has-one">Guardana's own pack has one</h2>
 <p><code>guardana-rules</code> ships a manifest and goes through this same door. Its <code>provides:</code>
-block is <em>generated</em> from the registry — 56 ids is too many to hand-maintain, and a
-hand-maintained list of that length is how every stale count in this repository
-began. Yours is short, so you write it.</p>
+block is <em>generated</em> from the registry — one id per built-in rule is too many to
+hand-maintain, and a hand-maintained list of that length is how every stale count in
+this repository began. Yours is short, so you write it.</p>
 <p>A validator this project exempted itself from would be a bar we ask other people to
 clear alone, and the first drift it would stop catching is our own.</p>
 <h2 id="a-complete-example">A complete example</h2>
