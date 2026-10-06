@@ -13,6 +13,7 @@ import ast
 import csv
 import hashlib
 import importlib.metadata
+import io
 import json
 import os
 import re
@@ -63,8 +64,15 @@ _COVERAGE_PART = ".coverage."
 _DIST_INFO_KEPT = frozenset({"METADATA", "entry_points.txt"})
 """What in a `.dist-info` says what runs: the version and requirements, and what it registers."""
 _SCRIPT_GROUPS = frozenset({"console_scripts", "gui_scripts"})
-_LAUNCHER_SUFFIXES = (".exe", "-script.pyw", "-script.py")
-"""What an installer appends to a declared script's name on a platform without `#!`."""
+_WRAPPER_SUFFIXES = ("-script.pyw", "-script.py")
+"""What an installer appends to the name of a declared script's Python wrapper on Windows.
+
+A `.exe` launcher is not among them: it is a program of its own, which no reading here can
+tell from an edited one, so it is pinned by its content like any other file.
+"""
+_WRAPPER_BYTES = 64 * 1024
+"""Above this size a file is never taken for a wrapper an installer generated."""
+_ENTRY_POINT = re.compile(r"\s*(?P<module>[\w.]+)\s*:\s*(?P<attr>[\w.]+)\s*(?:\[[^\]]*\]\s*)?")
 _CONTENT_TAG = "content-sha256="
 _READ_CHUNK = 1024 * 1024
 _SHEBANG = re.compile(rb"#![ \t]*(?P<exe>\S+)(?P<rest>.*)", re.DOTALL)
@@ -520,9 +528,23 @@ def _this_interpreter(named: bytes) -> bool:
     return path.parent == Path(executable).parent and bool(_INTERPRETER_NAME.fullmatch(path.name))
 
 
-def _generated_scripts(found: importlib.metadata.Distribution) -> frozenset[str]:
-    """Return the names of the console and GUI scripts an installer generates for `found`."""
-    return frozenset(entry.name for entry in found.entry_points if entry.group in _SCRIPT_GROUPS)
+def _generated_scripts(
+    found: importlib.metadata.Distribution,
+) -> dict[str, frozenset[tuple[str, str]]]:
+    """Return each console and GUI script an installer generates for `found`, with what it calls.
+
+    What it calls is the module and the object its entry point names; an entry point naming
+    no object calls nothing a generated wrapper could.
+    """
+    scripts: dict[str, set[tuple[str, str]]] = {}
+    for entry in found.entry_points:
+        if entry.group not in _SCRIPT_GROUPS:
+            continue
+        called = scripts.setdefault(entry.name, set())
+        target = _ENTRY_POINT.fullmatch(entry.value)
+        if target is not None:
+            called.add((target["module"], target["attr"]))
+    return {name: frozenset(called) for name, called in scripts.items()}
 
 
 def _installed_outside(path: str) -> bool:
@@ -540,18 +562,23 @@ def _generated_wrappers(found: importlib.metadata.Distribution) -> Callable[[str
     """Return whether a `RECORD` entry of `found` is a wrapper written for a declared script.
 
     Only a file directly in the scripts directory of the installation `found` belongs to
-    is one; the same name anywhere else is a file no `entry_points.txt` line vouches for.
+    is one, and only while what it holds is what an installer generates for the entry
+    point its name declares; any other file is pinned by its content.
     """
-    names = _generated_scripts(found)
+    declared = _generated_scripts(found)
     scripts = _scripts_directory(Path(str(found.locate_file(""))))
 
     def generated(path: str) -> bool:
-        if scripts is None or not _named_as_script(path, names):
+        called = declared.get(_script_name(path))
+        if scripts is None or not called:
             return False
         try:
-            return Path(str(found.locate_file(path))).resolve().parent == scripts
+            location = Path(str(found.locate_file(path)))
+            if location.resolve().parent != scripts:
+                return False
         except (OSError, RuntimeError):
             return False
+        return _is_generated_wrapper(location, called)
 
     return generated
 
@@ -580,14 +607,105 @@ def _scripts_directory(site: Path) -> Path | None:
     return found.pop() if len(found) == 1 else None
 
 
-def _named_as_script(path: str, generated: frozenset[str]) -> bool:
-    """Whether an entry bears the name an installer gives the wrapper of a declared script."""
+def _script_name(path: str) -> str:
+    """Return the name of the script a wrapper at `path` would be generated for."""
     name = PurePosixPath(path).name
-    for suffix in _LAUNCHER_SUFFIXES:
+    for suffix in _WRAPPER_SUFFIXES:
         if name.endswith(suffix):
-            name = name[: -len(suffix)]
-            break
-    return name in generated
+            return name[: -len(suffix)]
+    return name
+
+
+def _dumped(statement: str) -> str:
+    return ast.dump(ast.parse(statement).body[0])
+
+
+_IMPORT_SYS = _dumped("import sys")
+_IMPORT_RE = _dumped("import re")
+_MAIN_GUARD = ast.dump(ast.parse("__name__ == '__main__'", mode="eval").body)
+_ARGV_REWRITES = frozenset(
+    {
+        _dumped("sys.argv[0] = sys.argv[0].removesuffix('.exe')"),
+        _dumped(
+            "if sys.argv[0].endswith('-script.pyw'):\n"
+            "    sys.argv[0] = sys.argv[0][:-11]\n"
+            "elif sys.argv[0].endswith('.exe'):\n"
+            "    sys.argv[0] = sys.argv[0][:-4]\n"
+        ),
+    }
+)
+_ARGV_REWRITES_BY_RE = frozenset(
+    {
+        _dumped(r"sys.argv[0] = re.sub(r'(-script\.pyw|\.exe)?$', '', sys.argv[0])"),
+        _dumped(r"sys.argv[0] = re.sub(r'(-script\.pyw?|\.exe)?$', '', sys.argv[0])"),
+    }
+)
+"""How installers strip a launcher's suffix from `sys.argv[0]`, `re` imported for these."""
+_GENERATED_OPENINGS = frozenset({b"#!" + _INTERPRETER + b"\n", b"#!" + _INTERPRETER + b"\r\n"})
+
+
+def _is_generated_wrapper(location: Path, called: frozenset[tuple[str, str]]) -> bool:
+    """Whether the file at `location` is the wrapper an installer generates to call one of `called`.
+
+    It must be run by this environment's interpreter, with no argument, and be nothing but
+    the statements a generated wrapper is made of. Python reads it as written, encoding
+    declaration included, so what is checked is what would run.
+    """
+    try:
+        with open_regular(location) as handle:
+            source = handle.read(_WRAPPER_BYTES + 1)
+    except (OSError, FormatError):
+        return False
+    if len(source) > _WRAPPER_BYTES:
+        return False
+    if _interpreter_line(io.BytesIO(source)) not in _GENERATED_OPENINGS:
+        return False
+    try:
+        body = ast.parse(source).body
+    except (SyntaxError, ValueError, RecursionError, MemoryError):
+        return False
+    return any(_wraps(body, module, attr) for module, attr in called)
+
+
+def _wraps(body: list[ast.stmt], module: str, attr: str) -> bool:
+    """Whether `body` imports `sys` and `attr` from `module`, and under the main guard calls it.
+
+    Optionally `re` is imported too, the import sits first under the guard, and one of the
+    known rewrites of `sys.argv[0]` precedes the call; nothing else is allowed.
+    """
+    try:
+        imported = _dumped(f"from {module} import {attr.partition('.')[0]}")
+        call = _dumped(f"sys.exit({attr}())")
+    except SyntaxError:
+        return False
+    statements = list(body)
+    if statements and _inert(statements[0]):
+        statements.pop(0)
+    if not statements:
+        return False
+    guard = statements.pop()
+    if not isinstance(guard, ast.If) or guard.orelse or ast.dump(guard.test) != _MAIN_GUARD:
+        return False
+    top = [ast.dump(statement) for statement in statements]
+    inner = [ast.dump(statement) for statement in guard.body]
+    if inner[:1] == [imported]:
+        top.append(inner.pop(0))
+    if not inner or inner.pop() != call or len(inner) > 1:
+        return False
+    by_re = bool(inner) and inner[0] in _ARGV_REWRITES_BY_RE
+    if inner and not by_re and inner[0] not in _ARGV_REWRITES:
+        return False
+    expected = {_IMPORT_SYS, imported} | ({_IMPORT_RE} if by_re else set())
+    return len(top) == len(expected) and set(top) == expected
+
+
+def _inert(statement: ast.stmt) -> bool:
+    """Whether `statement` is a bare string, as the lines of a `/bin/sh` launcher read to Python."""
+    return (
+        isinstance(statement, ast.Expr)
+        and isinstance(statement.value, ast.Constant)
+        and isinstance(statement.value.value, str)
+    )
 
 
 def _outside_key(path: str) -> str:

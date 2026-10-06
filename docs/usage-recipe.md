@@ -154,8 +154,12 @@ imports it is.
   that path is hashed as a placeholder and any arguments after it as written. Any other first
   line is hashed as written. A console or GUI script the installer generated from `entry_points.txt` is left out only
   when it sits directly in this installation's scripts directory (`bin/` or `Scripts/`),
-  since `entry_points.txt` already pins what it calls; a file with the same name elsewhere
-  is hashed. Installing the same code again into an environment this interpreter's
+  is run by the environment's interpreter, and holds exactly what pip, uv or
+  pypa/installer generate for its declared entry point: the import, an optional rewrite of
+  `sys.argv[0]` and `sys.exit(<entry point>())`. `entry_points.txt` already pins what it
+  calls. An edited wrapper, a file with the same name elsewhere and a Windows `.exe`
+  launcher are hashed, so a Windows lock covering a launcher moves when the installer or
+  the environment changes. Installing the same code again into an environment this interpreter's
   `sysconfig` describes pins the same. An installation none of its schemes describes
   (`pip install --target` or `--prefix`, or another environment's `site-packages` on the
   path) has its generated scripts hashed too, so its pin can differ by installer.

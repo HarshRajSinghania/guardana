@@ -423,8 +423,66 @@ def test_what_a_recipe_run_writes_inside_the_editable_directory_is_left_out(
     assert counted.files == first.files + 2
 
 
+_PIP = """import sys
+from {module} import {name}
+if __name__ == '__main__':
+    sys.argv[0] = sys.argv[0].removesuffix('.exe')
+    sys.exit({func}())
+"""
+_DISTLIB = r"""# -*- coding: utf-8 -*-
+import re
+import sys
+from {module} import {name}
+if __name__ == '__main__':
+    sys.argv[0] = re.sub(r'(-script\.pyw|\.exe)?$', '', sys.argv[0])
+    sys.exit({func}())
+"""
+_DISTLIB_DEFERRED = r"""# -*- coding: utf-8 -*-
+import re
+import sys
+if __name__ == '__main__':
+    from {module} import {name}
+    sys.argv[0] = re.sub(r'(-script\.pyw|\.exe)?$', '', sys.argv[0])
+    sys.exit({func}())
+"""
+_UV = """# -*- coding: utf-8 -*-
+import sys
+from {module} import {name}
+if __name__ == "__main__":
+    if sys.argv[0].endswith("-script.pyw"):
+        sys.argv[0] = sys.argv[0][:-11]
+    elif sys.argv[0].endswith(".exe"):
+        sys.argv[0] = sys.argv[0][:-4]
+    sys.exit({func}())
+"""
+_INSTALLER = r"""# -*- coding: utf-8 -*-
+import re
+import sys
+from {module} import {name}
+if __name__ == "__main__":
+    sys.argv[0] = re.sub(r"(-script\.pyw|\.exe)?$", "", sys.argv[0])
+    sys.exit({func}())
+"""
+_TRAMPOLINE = "#!/bin/sh\n'''exec' {exe} \"$0\" \"$@\"\n' '''\n"
+
+
+def _wrapper(
+    template: str = _PIP,
+    interpreter: str = "/venv-one/bin/python",
+    *,
+    module: str = "acme_pack",
+    func: str = "main",
+) -> str:
+    """The wrapper an installer writes, opened as it opens one for `interpreter`."""
+    if " " in interpreter:
+        opening = _TRAMPOLINE.format(exe=f"'{interpreter}'")
+    else:
+        opening = f"#!{interpreter}\n"
+    return opening + template.format(module=module, name=func.partition(".")[0], func=func)
+
+
 _OUTSIDE = {
-    "../bin/acme": "#!/venv-one/bin/python\nfrom acme_pack import main\nmain()\n",
+    "../bin/acme": _wrapper(),
     "../bin/acme-tool": "#!/venv-one/bin/python\nprint('tool')\n",
     "../share/acme/table.txt": "rows\n",
     "acme_pack-1.0.data/scripts/acme-setup": "#!python\nprint('setup')\n",
@@ -453,7 +511,10 @@ def _with_installed_files(site: Path, files: Mapping[str, str]) -> None:
 
 @pytest.fixture
 def scripts(site: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """Make `bin/` beside `site` the scripts directory of the installation `site` belongs to."""
+    """Make `bin/` beside `site` the scripts directory of the installation `site` belongs to.
+
+    The interpreter is the first environment's, the one the wrappers of `_OUTSIDE` name.
+    """
     directory = site.parent / "bin"
     paths = {"purelib": str(site), "platlib": str(site), "scripts": str(directory)}
 
@@ -462,12 +523,12 @@ def scripts(site: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
     monkeypatch.setattr(sysconfig, "get_scheme_names", lambda: ("test",))
     monkeypatch.setattr(sysconfig, "get_paths", get_paths)
+    monkeypatch.setattr(sys, "executable", _ENV_ONE)
     return directory
 
 
 _ENV_ONE = "/venv-one/bin/python3"
 _ENV_TWO = "/venv two/bin/python3"
-_TRAMPOLINE = "#!/bin/sh\n'''exec' {exe} \"$0\" \"$@\"\n' '''\n"
 
 
 @pytest.mark.parametrize(
@@ -504,9 +565,9 @@ _TRAMPOLINE = "#!/bin/sh\n'''exec' {exe} \"$0\" \"$@\"\n' '''\n"
         ("acme_pack-1.0.data/scripts/acme-setup", "#!python\nprint('other')\n", _ENV_ONE, True),
         (
             "../bin/acme",
-            "#!/venv-two/bin/python\nfrom elsewhere import main\nmain()\n",
+            "#!/venv-one/bin/python\nfrom elsewhere import main\nmain()\n",
             _ENV_ONE,
-            False,
+            True,
         ),
     ],
     ids=[
@@ -519,7 +580,7 @@ _TRAMPOLINE = "#!/bin/sh\n'''exec' {exe} \"$0\" \"$@\"\n' '''\n"
         "trampoline-to-another-interpreter",
         "data",
         "data-scripts",
-        "generated",
+        "edited-wrapper",
     ],
 )
 @pytest.mark.usefixtures("scripts")
@@ -534,13 +595,15 @@ def test_files_installed_outside_the_package_are_pinned_by_content_but_the_inter
 ) -> None:
     """Only the path an installer writes for this environment's interpreter is left out.
 
-    A console script is what `entry_points.txt` declares, and that file is pinned.
+    The generated wrapper is left out whole, and the environment `pinned_in` names gets its
+    own: what that wrapper calls is what `entry_points.txt` declares, and that file is pinned.
     """
-    monkeypatch.setattr(sys, "executable", _ENV_ONE)
     _with_installed_files(site, _OUTSIDE)
     first = pin_distribution_source("acme-pack")
 
     (site / path).write_text(text, encoding="utf-8")
+    if path != "../bin/acme":
+        (site / "../bin/acme").write_text(_wrapper(interpreter=pinned_in), encoding="utf-8")
     monkeypatch.setattr(sys, "executable", pinned_in)
     second = pin_distribution_source("acme-pack")
 
@@ -600,21 +663,167 @@ def test_a_file_named_like_a_declared_script_outside_the_scripts_directory_is_pi
     assert second != first
 
 
-@pytest.mark.parametrize("path", ["../bin/acme", "../bin/acme-script.py", "../bin/acme.exe"])
+_LOCKED_WITHOUT_THE_WRAPPER = SourcePin(
+    digest="sha256:f80729b28b6d903ae17a4b07eb0cf4004fdf52ce9b520e1182f2093ecdea55d3", files=7
+)
+"""What `acme-pack` pinned to while every file named like a declared script was left out."""
+
+_WITHOUT_THE_WRAPPER = {name: text for name, text in _OUTSIDE.items() if name != "../bin/acme"}
+
+
+@pytest.mark.parametrize(
+    "template",
+    [_PIP, _DISTLIB, _DISTLIB_DEFERRED, _UV, _INSTALLER],
+    ids=["pip", "distlib", "distlib-deferred-import", "uv", "installer"],
+)
+@pytest.mark.parametrize("interpreter", ["/venv-one/bin/python", "/venv-one/bin/python3.13"])
+@pytest.mark.parametrize("path", ["../bin/acme", "../bin/acme-script.py", "../bin/acme-script.pyw"])
 @pytest.mark.usefixtures("scripts")
-def test_the_wrapper_an_installer_writes_in_the_scripts_directory_is_left_out(
-    site: Path, path: str
+def test_the_wrapper_any_installer_writes_is_left_out_and_an_earlier_lock_keeps_its_pin(
+    site: Path, template: str, interpreter: str, path: str
 ) -> None:
-    files = {name: text for name, text in _OUTSIDE.items() if name != "../bin/acme"}
-    _with_installed_files(site, {**files, path: "#!/venv-one/bin/python\nimport acme_pack\n"})
+    _with_installed_files(site, {**_WITHOUT_THE_WRAPPER, path: _wrapper(template, interpreter)})
+
+    assert pin_distribution_source("acme-pack") == _LOCKED_WITHOUT_THE_WRAPPER
+
+
+@pytest.mark.parametrize(
+    "template",
+    [_PIP, _DISTLIB, _DISTLIB_DEFERRED, _UV, _INSTALLER],
+    ids=["pip", "distlib", "distlib-deferred-import", "uv", "installer"],
+)
+@pytest.mark.usefixtures("scripts")
+def test_the_wrapper_written_through_a_shell_launcher_is_left_out(
+    site: Path, monkeypatch: pytest.MonkeyPatch, template: str
+) -> None:
+    """A path `#!` cannot carry is written into a `/bin/sh` launcher, and that pins the same."""
+    monkeypatch.setattr(sys, "executable", _ENV_TWO)
+    tool = _TRAMPOLINE.format(exe=f"'{_ENV_TWO}'") + "print('tool')\n"
+    wrapper = _wrapper(template, _ENV_TWO)
+    files = {**_WITHOUT_THE_WRAPPER, "../bin/acme-tool": tool, "../bin/acme": wrapper}
+    _with_installed_files(site, files)
+
+    assert pin_distribution_source("acme-pack") == _LOCKED_WITHOUT_THE_WRAPPER
+
+
+@pytest.mark.parametrize(
+    ("declared", "pinned"),
+    [
+        ("[gui_scripts]\nacme = acme_pack.cli:App.run [gui]\n", _LOCKED_WITHOUT_THE_WRAPPER.files),
+        ("[console_scripts]\nacme = acme_pack:main\n", _LOCKED_WITHOUT_THE_WRAPPER.files + 1),
+    ],
+    ids=["declared", "another-entry-point"],
+)
+@pytest.mark.usefixtures("scripts")
+def test_a_wrapper_is_left_out_only_for_the_object_its_entry_point_declares(
+    site: Path, declared: str, pinned: int
+) -> None:
+    wrapper = _wrapper(_UV, module="acme_pack.cli", func="App.run")
+    _with_installed_files(site, {**_WITHOUT_THE_WRAPPER, "../bin/acme": wrapper})
+    (site / "acme_pack-1.0.dist-info" / "entry_points.txt").write_text(declared, encoding="utf-8")
+
+    found = pin_distribution_source("acme-pack")
+
+    assert isinstance(found, SourcePin)
+    assert found.files == pinned
+
+
+_TAMPERED = {
+    "extra-statement": _PIP.replace(
+        "    sys.exit", "    __import__('os').system('id')\n    sys.exit"
+    ),
+    "extra-import": "import os\n" + _PIP,
+    "extra-statement-after-the-guard": _PIP + "import os; os.system('id')\n",
+    "another-module": _PIP.replace("from {module}", "from elsewhere"),
+    "aliased-import": _PIP.replace("import {name}", "import {name} as {name}_"),
+    "another-call": _PIP.replace("sys.exit({func}())", "sys.exit({func}('--yes'))"),
+    "another-object": _PIP.replace("sys.exit({func}())", "sys.exit(print())"),
+    "another-argv-rewrite": _PIP.replace("removesuffix('.exe')", "removesuffix('.py')"),
+    "an-else-branch": _PIP + "else:\n    import os\n",
+    "two-guards": _PIP + "if __name__ == '__main__':\n    sys.exit({func}())\n",
+    "no-guard": _PIP.replace("if __name__ == '__main__':\n    ", "").replace("\n    ", "\n"),
+    "re-without-its-use": "import re\n" + _PIP,
+}
+
+
+@pytest.mark.parametrize("template", list(_TAMPERED.values()), ids=list(_TAMPERED))
+@pytest.mark.usefixtures("scripts")
+def test_an_edited_wrapper_is_pinned_by_its_content(site: Path, template: str) -> None:
+    """A wrapper that is not the generated one is pinned like any file, so the pin moves."""
+    _with_installed_files(site, {**_WITHOUT_THE_WRAPPER, "../bin/acme": _wrapper(template)})
+
+    pinned = pin_distribution_source("acme-pack")
+
+    assert isinstance(pinned, SourcePin)
+    assert pinned.files == _LOCKED_WITHOUT_THE_WRAPPER.files + 1
+    assert pinned != _LOCKED_WITHOUT_THE_WRAPPER
+
+
+@pytest.mark.parametrize(
+    "opening",
+    [
+        "#!/venv-one/bin/python -E\n",
+        "#!/usr/bin/env -S python3 -c \"import os; os.system('id')\"\n",
+        "#!/elsewhere/bin/python\n",
+        "#!/venv-one/bin/acme-shell\n",
+        _TRAMPOLINE.format(exe="'/elsewhere/bin/python'"),
+        "",
+    ],
+    ids=[
+        "interpreter-arguments",
+        "foreign-interpreter-line",
+        "another-interpreter",
+        "not-an-interpreter",
+        "launcher-to-another-interpreter",
+        "no-interpreter-line",
+    ],
+)
+@pytest.mark.usefixtures("scripts")
+def test_a_wrapper_run_by_anything_but_this_interpreter_is_pinned_by_its_content(
+    site: Path, opening: str
+) -> None:
+    body = _wrapper().split("\n", 1)[1]
+    _with_installed_files(site, {**_WITHOUT_THE_WRAPPER, "../bin/acme": opening + body})
+
+    pinned = pin_distribution_source("acme-pack")
+
+    assert isinstance(pinned, SourcePin)
+    assert pinned.files == _LOCKED_WITHOUT_THE_WRAPPER.files + 1
+
+
+@pytest.mark.parametrize(
+    ("path", "text"),
+    [
+        ("../bin/acme", _wrapper() + "def (:\n"),
+        ("../bin/acme", _wrapper() + "#" * 200_000 + "\n"),
+        ("../bin/acme-other", _wrapper()),
+    ],
+    ids=["not-python", "too-large", "undeclared-name"],
+)
+@pytest.mark.usefixtures("scripts")
+def test_a_file_in_the_scripts_directory_not_read_as_a_wrapper_is_pinned_by_its_content(
+    site: Path, path: str, text: str
+) -> None:
+    _with_installed_files(site, {**_WITHOUT_THE_WRAPPER, path: text})
+
+    pinned = pin_distribution_source("acme-pack")
+
+    assert isinstance(pinned, SourcePin)
+    assert pinned.files == _LOCKED_WITHOUT_THE_WRAPPER.files + 1
+
+
+@pytest.mark.usefixtures("scripts")
+def test_a_windows_launcher_is_pinned_by_its_content(site: Path) -> None:
+    """A launcher is a program in its own right: no reading of it proves it the generated one."""
+    _with_installed_files(site, {**_WITHOUT_THE_WRAPPER, "../bin/acme.exe": "MZ launcher"})
     first = pin_distribution_source("acme-pack")
 
-    (site / path).write_text("#!/elsewhere/bin/python\nimport other\n", encoding="utf-8")
+    (site / "../bin/acme.exe").write_text("MZ edited launcher", encoding="utf-8")
     second = pin_distribution_source("acme-pack")
 
     assert isinstance(first, SourcePin)
-    assert first.files == 7
-    assert second == first
+    assert first.files == _LOCKED_WITHOUT_THE_WRAPPER.files + 1
+    assert second != first
 
 
 def test_a_wrapper_is_pinned_when_the_installation_names_no_scripts_directory(

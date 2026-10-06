@@ -90,9 +90,6 @@ left for the owner, or are design gaps already documented elsewhere.
   ruleset's bypass actor is `5` (Admin), and Maintain (2) is unconfirmed.
 - **Before 1.0.0:** `RELEASING.md` says Guardana "is **pre-1.0**", which no gate rewrites
   or checks at the final release.
-- **An exempt console-script wrapper's content is never hashed**, so an edited
-  `bin/<declared script>` pins the same as the generated one; the exemption is sound only for an
-  unmodified wrapper.
 - **The largest classes carry several reasons to change**: `_Probe` (MCP authorization,
   discovery and tasks), `Verifier` (running a check and assembling its result), then `Registry`
   and `Runner`. Split them behind behaviour tests, without a line-count target and without moving
@@ -385,6 +382,8 @@ Left open when the site shipped on 2026-09-25 with Control in coming-soon mode
 ## Left by the audit fixes before 1.0.0rc2
 - **Inside the fenced judge transcript a reply can still imitate role labels** (`assistant:`);
   encoding each message separately would close that, under a new prompt version.
+- **An unlisted `bin/<module>.py` can shadow the import a console-script wrapper makes**
+  (`sys.path[0]` is `bin/`); unlisted files are not pinned.
 - **Whole-file writes stage a temporary file beside the destination**
   (`cli/_atomic.py`): a destination that is not a regular file (`/dev/stdout`, a FIFO) is
   refused where a plain write worked; a writable file in a directory this process cannot write
