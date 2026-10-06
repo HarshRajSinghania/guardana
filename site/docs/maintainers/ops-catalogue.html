@@ -537,6 +537,14 @@ wrong before.</p>
 <td>GitHub API (read-only)</td>
 <td><code>gh</code> authenticated</td>
 </tr>
+<tr>
+<td><code>distribution_signals.py</code></td>
+<td>read what PyPI (pypistats.org), GitHub (stars, 14-day traffic, release downloads, public uses of the Action) and ghcr publish about the project and print each number, &quot;not measured&quot; or &quot;absent&quot;; exit <code>0</code> or <code>2</code>. Reach signals, not users; nothing in Guardana itself reports anything</td>
+<td><code>--record</code>: appends to <code>cache/distribution-signals.csv</code> (gitignored)</td>
+<td>default (prints only)</td>
+<td>pypistats.org, GitHub API and ghcr pages (read-only)</td>
+<td><code>gh</code> authenticated; push access for traffic</td>
+</tr>
 </tbody>
 </table></div>
 <h3 id="agent-tooling">Agent tooling</h3>

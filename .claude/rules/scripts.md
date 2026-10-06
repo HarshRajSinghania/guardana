@@ -11,7 +11,7 @@ Catalogue: `docs/maintainers/ops-catalogue.md`. Why: `docs/maintainers/lessons.m
   same change as the script.
 - **A script that writes has `--check` or `--dry-run`, and `--help` that does nothing.** Every
   script that writes, fetches, builds or installs parses its arguments with `argparse`;
-  `scripts/tests/test_script_parsers.py` proves `--help` has no side effect for those four.
+  `scripts/tests/test_script_parsers.py` proves `--help` has no side effect for each of them.
 - **Generated files are never edited by hand**: `docs/generated/`, the built-in pack manifest,
   `site/docs/`, `site/llms.txt`, the counts in `site/index.html`. Every generator has `--check`
   and each is a CI gate.
