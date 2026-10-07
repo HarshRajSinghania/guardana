@@ -73,7 +73,7 @@ wrong before.
 | script | purpose | Writes | Safe mode | Net | Needs |
 |---|---|---|---|---|---|
 | `check_repo_settings.py` | read the repository settings the security runbook relies on and print each PRESENT, ABSENT or NOT CHECKED; exit `0`, `1` or `2`. Reading a setting is not a drill | `-` | `-` | GitHub API (read-only) | `gh` authenticated |
-| `distribution_signals.py` | read what PyPI (pypistats.org), GitHub (stars, 14-day traffic, release downloads, public uses of the Action) and ghcr publish about the project and print each number, "not measured" or "absent"; exit `0` or `2`. Reach signals, not users; nothing in Guardana itself reports anything | `--record`: appends to `cache/distribution-signals.csv` (gitignored) | default (prints only) | pypistats.org, GitHub API and ghcr pages (read-only) | `gh` authenticated; push access for traffic |
+| `distribution_signals.py` | read what PyPI (pypistats.org), GitHub (stars, 14-day traffic, release downloads, public uses of the Action) and ghcr publish about the project and print each number, "not measured" or "absent"; `--weekly [--weeks N] [--project NAME]` prints per-week all / mirrors / CI / pip-uv-outside-CI downloads instead; exit `0` or `2`. Reach signals, not users; nothing in Guardana itself reports anything | `--record`: appends to `cache/distribution-signals.csv` (gitignored); `--weekly` stores nothing | default (prints only) | pypistats.org, GitHub API and ghcr pages; `--weekly`: ClickPy (`sql-clickhouse.clickhouse.com`, public read-only user) (all read-only) | `gh` authenticated; push access for traffic |
 
 ### Agent tooling
 

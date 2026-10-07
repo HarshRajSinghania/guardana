@@ -545,10 +545,10 @@ wrong before.</p>
 </tr>
 <tr>
 <td><code>distribution_signals.py</code></td>
-<td>read what PyPI (pypistats.org), GitHub (stars, 14-day traffic, release downloads, public uses of the Action) and ghcr publish about the project and print each number, &quot;not measured&quot; or &quot;absent&quot;; exit <code>0</code> or <code>2</code>. Reach signals, not users; nothing in Guardana itself reports anything</td>
-<td><code>--record</code>: appends to <code>cache/distribution-signals.csv</code> (gitignored)</td>
+<td>read what PyPI (pypistats.org), GitHub (stars, 14-day traffic, release downloads, public uses of the Action) and ghcr publish about the project and print each number, &quot;not measured&quot; or &quot;absent&quot;; <code>--weekly [--weeks N] [--project NAME]</code> prints per-week all / mirrors / CI / pip-uv-outside-CI downloads instead; exit <code>0</code> or <code>2</code>. Reach signals, not users; nothing in Guardana itself reports anything</td>
+<td><code>--record</code>: appends to <code>cache/distribution-signals.csv</code> (gitignored); <code>--weekly</code> stores nothing</td>
 <td>default (prints only)</td>
-<td>pypistats.org, GitHub API and ghcr pages (read-only)</td>
+<td>pypistats.org, GitHub API and ghcr pages; <code>--weekly</code>: ClickPy (<code>sql-clickhouse.clickhouse.com</code>, public read-only user) (all read-only)</td>
 <td><code>gh</code> authenticated; push access for traffic</td>
 </tr>
 </tbody>

@@ -3,6 +3,7 @@
 
     uv run python scripts/distribution_signals.py            # print today's signals
     uv run python scripts/distribution_signals.py --record   # also append them to the history
+    uv run python scripts/distribution_signals.py --weekly   # per-week downloads of guardana-cli
 
 Guardana itself sends nothing anywhere; every number here is one the registries publish about
 the project. They are reach signals, not users: CI jobs, mirrors and the project's own
@@ -10,11 +11,15 @@ installs count too, and GitHub keeps traffic for 14 days only, which `--record` 
 history in `cache/distribution-signals.csv` (gitignored). A value that could not be read is
 "not measured", never zero.
 
+`--weekly` reads ClickPy, the public ClickHouse copy of the PyPI download log, and splits each
+week into all downloads, mirrors, CI and pip/uv outside CI; nothing of it is stored.
+
 Exit codes: 0 every signal that exists was read, 2 any not measured. A distribution that is
 not on PyPI is "absent", which is a fact rather than a failure.
 """
 
 import argparse
+import base64
 import csv
 import datetime
 import http.client
@@ -61,8 +66,42 @@ _PERIODS = {
     "last_month": "downloads_month",
 }
 _OK = 200
+_CLICKPY = "https://sql-clickhouse.clickhouse.com/"
+_CLICKPY_AUTH = "Basic " + base64.b64encode(b"play:").decode("ascii")
+"""ClickPy's public read-only account: user `play`, empty password."""
+WEEKLY_PROJECT = "guardana-cli"
+_WEEKS_DEFAULT = 12
+_WEEKS_MAX = 104
+# The public account may not turn off ClickHouse's quoting of 64-bit integers in JSON, so the
+# counts are cast down; `in_ci` is not called `ci` because that alias would shadow the column.
+# ClickPy's replicas can disagree on how far they are loaded, so the dataset's days and the weeks
+# come back as one row of one answer, even when no week has a download; `requests` is downloaded
+# every day, and `minOrNull` is null rather than 1970-01-01 for a project with no download.
+_WEEKLY_SQL = (
+    "SELECT (SELECT max(date) FROM pypi.pypi WHERE project = 'requests') AS loaded_through,"
+    " (SELECT minOrNull(date) FROM pypi.pypi WHERE project = '{name}') AS first_day,"
+    " (SELECT groupArray(CAST((week, all_downloads, mirrors, in_ci, pip_uv_not_ci),"
+    " 'Tuple(week Date, all_downloads UInt32, mirrors UInt32, in_ci UInt32,"
+    " pip_uv_not_ci UInt32)'))"
+    " FROM (SELECT toStartOfWeek(date, 1) AS week,"
+    " toUInt32(count()) AS all_downloads,"
+    " toUInt32(countIf(installer = 'bandersnatch')) AS mirrors,"
+    " toUInt32(countIf(ci = 'true')) AS in_ci,"
+    " toUInt32(countIf(installer IN ('pip', 'uv', 'poetry', 'pdm', 'pipenv') AND ci != 'true'))"
+    " AS pip_uv_not_ci"
+    " FROM pypi.pypi WHERE project = '{name}' AND date >= '{start}' GROUP BY week)) AS weeks"
+    " FORMAT JSONEachRow"
+)
+_WEEK_COLUMNS = ("all_downloads", "mirrors", "in_ci", "pip_uv_not_ci")
+_ANSWER_COLUMNS = frozenset({"loaded_through", "first_day", "weeks"})
+_WEEKLY_NOTE = (
+    "pip/uv outside CI in weeks without a release is the closest to people; "
+    "all counts are reach, not users."
+)
 
 Fetch = Callable[[str], tuple[int, str]]
+Query = Callable[[str], tuple[int, str]]
+"""Send one SQL statement to ClickPy and return its status and body; a network failure is 0."""
 Sleep = Callable[[float], None]
 
 
@@ -123,7 +162,7 @@ def pypi_signals(get: Fetch, pause: Sleep) -> list[Signal]:
             signals.extend(Signal(source, metric, None, why) for metric in _PERIODS.values())
             continue
         signals.extend(
-            Signal(source, metric, recent[key], "includes CI and mirrors")
+            Signal(source, metric, recent[key], "excludes mirrors; includes CI")
             for key, metric in _PERIODS.items()
         )
     return signals
@@ -300,6 +339,216 @@ def record(signals: Sequence[Signal], path: Path, today: datetime.date) -> None:
             writer.writerow((today.isoformat(), signal.source, signal.metric, value, signal.note))
 
 
+class NotMeasuredError(Exception):
+    """ClickPy could not be read, so no week can be stated."""
+
+
+@dataclass(frozen=True, slots=True)
+class WeekCounts:
+    """One week's downloads, split the ways the download log can tell apart."""
+
+    all_downloads: int
+    mirrors: int
+    ci: int
+    pip_uv_not_ci: int
+
+
+_NO_DOWNLOADS = WeekCounts(0, 0, 0, 0)
+
+
+@dataclass(frozen=True, slots=True)
+class Week:
+    """One week starting on Monday, with its counts or None where there is nothing to count."""
+
+    start: datetime.date
+    counts: WeekCounts | None
+    partial_through: datetime.date | None = None
+    """The last loaded day when it falls inside this week, so the week is not complete."""
+    before_first_download: bool = False
+    """The week ended before the project's first download, so it has no counts and lacks none."""
+    behind: bool = False
+    """The week has ended but the dataset does not cover all of it: the data is stale."""
+
+
+def clickpy(sql: str) -> tuple[int, str]:
+    """POST `sql` to ClickPy as its public user and return status and body; no answer is 0."""
+    request = urllib.request.Request(
+        _CLICKPY,
+        data=sql.encode("utf-8"),
+        method="POST",
+        headers={
+            "Authorization": _CLICKPY_AUTH,
+            "Content-Type": "text/plain; charset=utf-8",
+            "User-Agent": "guardana-distribution-signals",
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=_TIMEOUT_SECONDS) as answer:  # noqa: S310 — a fixed https URL
+            return answer.status, answer.read().decode("utf-8", errors="replace")
+    except urllib.error.HTTPError as error:
+        try:
+            return error.code, error.read().decode("utf-8", errors="replace")
+        except (http.client.HTTPException, OSError):
+            return error.code, ""
+    except (urllib.error.URLError, http.client.HTTPException, TimeoutError, OSError) as error:
+        return 0, str(error)
+
+
+def weekly_downloads(query: Query, project: str, weeks: int, today: datetime.date) -> list[Week]:
+    """Return `weeks` weeks of `project`'s downloads, the last one being the week of `today`.
+
+    A week the dataset covers without a download had none, so it counts 0; a week that ended
+    before the first download has no counts; a week the dataset does not cover has no counts
+    and, once it has ended, is `behind`. Raises ValueError for a project outside DISTRIBUTIONS
+    or a count outside 1..104, and NotMeasuredError when ClickPy cannot be read or has never
+    seen the project.
+    """
+    if project not in DISTRIBUTIONS:
+        raise ValueError(f"{project!r} is not a Guardana distribution")
+    if not 1 <= weeks <= _WEEKS_MAX:
+        raise ValueError(f"{weeks} weeks is outside 1..{_WEEKS_MAX}")
+    current = today - datetime.timedelta(days=today.weekday())
+    starts = [current - datetime.timedelta(weeks=back) for back in range(weeks - 1, -1, -1)]
+    sql = _WEEKLY_SQL.format(name=project, start=starts[0].isoformat())
+    loaded, first_day, rows = _answer(project, _rows(_ask(query, sql)))
+    counts = _week_counts(rows, frozenset(starts), first_day, loaded)
+    result: list[Week] = []
+    for start in starts:
+        end = start + datetime.timedelta(days=6)
+        if end < first_day:
+            result.append(Week(start, None, before_first_download=True))
+        elif start > loaded:
+            result.append(Week(start, None, behind=end < today))
+        else:
+            partial = loaded if loaded < end else None
+            behind = partial is not None and end < today
+            result.append(Week(start, counts.get(start, _NO_DOWNLOADS), partial, behind=behind))
+    return result
+
+
+def _ask(query: Query, sql: str) -> str:
+    status, body = query(sql)
+    if status == 0:
+        raise NotMeasuredError(f"no answer: {body}")
+    if status != _OK:
+        first = body.strip().splitlines()[0][:200] if body.strip() else "no body"
+        raise NotMeasuredError(f"ClickPy answered {status}: {first}")
+    return body
+
+
+def _rows(body: str) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    for line in body.splitlines():
+        if not line.strip():
+            continue
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError:
+            row = None
+        if not isinstance(row, dict):
+            raise NotMeasuredError("ClickPy answered something other than JSON rows")
+        rows.append(row)
+    return rows
+
+
+def _answer(
+    project: str, rows: Sequence[dict[str, object]]
+) -> tuple[datetime.date, datetime.date, list[object]]:
+    """Return the last loaded day, the first download day and the week rows of the one row."""
+    if len(rows) != 1 or set(rows[0]) != _ANSWER_COLUMNS:
+        raise NotMeasuredError("ClickPy answered something other than one row of the query")
+    row = rows[0]
+    if row["first_day"] is None:
+        raise NotMeasuredError(f"no download of {project} in the dataset; is it on PyPI?")
+    loaded, first_day, weeks = _date(row["loaded_through"]), _date(row["first_day"]), row["weeks"]
+    if loaded is None or first_day is None or not isinstance(weeks, list):
+        raise NotMeasuredError("ClickPy did not say which days its data covers")
+    if first_day > loaded:
+        raise NotMeasuredError("ClickPy says the first download came after its last loaded day")
+    return loaded, first_day, weeks
+
+
+def _week_counts(
+    rows: Sequence[object],
+    starts: frozenset[datetime.date],
+    first_day: datetime.date,
+    loaded: datetime.date,
+) -> dict[datetime.date, WeekCounts]:
+    counts: dict[datetime.date, WeekCounts] = {}
+    for row in rows:
+        if not isinstance(row, dict) or set(row) != {"week", *_WEEK_COLUMNS}:
+            raise NotMeasuredError(f"ClickPy answered a week that is not one: {row}")
+        start = _date(row["week"])
+        if start not in starts or start in counts:
+            raise NotMeasuredError(f"ClickPy answered a week the query did not ask: {row['week']}")
+        if start > loaded or start + datetime.timedelta(days=6) < first_day:
+            raise NotMeasuredError(f"ClickPy answered a week outside its own days: {start}")
+        values = [_count(row[column]) for column in _WEEK_COLUMNS]
+        numbers = [value for value in values if value is not None and value >= 0]
+        if len(numbers) != len(_WEEK_COLUMNS):
+            raise NotMeasuredError(f"ClickPy answered a count that is not one: {row}")
+        counts[start] = WeekCounts(*numbers)
+    return counts
+
+
+def _date(value: object) -> datetime.date | None:
+    if not isinstance(value, str):
+        return None
+    try:
+        return datetime.date.fromisoformat(value)
+    except ValueError:
+        return None
+
+
+def render_weekly(project: str, weeks: Sequence[Week]) -> str:
+    """Return the weekly table; a week the dataset does not cover is shown as not measured."""
+    lines = [
+        f"{project} weekly downloads from ClickPy (weeks start on Monday)",
+        f"{'week':<10}  {'all':>7}  {'mirrors':>7}  {'CI':>7}  {'pip/uv not CI':>13}",
+    ]
+    for week in weeks:
+        behind = "; dataset is behind" if week.behind else ""
+        if week.before_first_download:
+            lines.append(f"{week.start.isoformat():<10}  before the first download")
+            continue
+        if week.counts is None:
+            lines.append(f"{week.start.isoformat():<10}  not measured  (not loaded yet{behind})")
+            continue
+        counts = week.counts
+        line = (
+            f"{week.start.isoformat():<10}  {counts.all_downloads:>7}  {counts.mirrors:>7}"
+            f"  {counts.ci:>7}  {counts.pip_uv_not_ci:>13}"
+        )
+        if week.partial_through is not None:
+            line += f"  (partial: data through {week.partial_through.isoformat()}{behind})"
+        lines.append(line)
+    lines.append(_WEEKLY_NOTE)
+    return "\n".join(lines)
+
+
+def _weeks(value: str) -> int:
+    try:
+        weeks = int(value)
+    except ValueError:
+        weeks = 0
+    if not 1 <= weeks <= _WEEKS_MAX:
+        raise argparse.ArgumentTypeError(
+            f"{value!r} is not a whole number of weeks in 1..{_WEEKS_MAX}"
+        )
+    return weeks
+
+
+def _weekly(project: str, weeks: int) -> int:
+    today = datetime.datetime.now(tz=datetime.UTC).date()
+    try:
+        found = weekly_downloads(clickpy, project, weeks, today)
+    except NotMeasuredError as error:
+        print(f"{project} weekly downloads: not measured ({error})")
+        return 2
+    print(render_weekly(project, found))
+    return 2 if any(week.behind for week in found) else 0
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=(__doc__ or "").split("\n\n")[0])
     parser.add_argument(
@@ -308,12 +557,34 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--record", action="store_true", help=f"also append the signals to {_HISTORY}"
     )
+    parser.add_argument(
+        "--weekly",
+        action="store_true",
+        help="print per-week downloads from ClickPy instead of today's signals; stores nothing",
+    )
+    parser.add_argument(
+        "--weeks",
+        type=_weeks,
+        help=f"with --weekly, how many weeks (default: {_WEEKS_DEFAULT}, at most {_WEEKS_MAX})",
+    )
+    parser.add_argument(
+        "--project",
+        choices=DISTRIBUTIONS,
+        help=f"with --weekly, the distribution to count (default: {WEEKLY_PROJECT})",
+    )
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Print the signals, append them when asked, and exit 2 when any was not measured."""
-    args = _parser().parse_args(argv)
+    """Print the signals or the weekly table, and exit 2 when anything was not measured."""
+    parser = _parser()
+    args = parser.parse_args(argv)
+    if args.weekly and args.record:
+        parser.error("--weekly stores nothing, so it does not take --record")
+    if not args.weekly and (args.weeks is not None or args.project is not None):
+        parser.error("--weeks and --project apply only with --weekly")
+    if args.weekly:
+        return _weekly(args.project or WEEKLY_PROJECT, args.weeks or _WEEKS_DEFAULT)
     signals = collect(Api(), fetch, time.sleep, args.repo)
     print(render(signals))
     if args.record:
