@@ -269,6 +269,22 @@ def test_robots_points_at_the_sitemap() -> None:
     assert "Sitemap: https://guardana.dev/sitemap.xml" in robots
 
 
+def test_robots_lets_search_and_ai_use_the_documentation() -> None:
+    """The site exists to be found and quoted correctly, so no use of it is withheld."""
+    robots = (_repo() / "site" / "robots.txt").read_text(encoding="utf-8")
+
+    assert "Content-Signal: search=yes, ai-input=yes, ai-train=yes" in robots
+
+
+def test_every_page_points_agents_at_llms_txt_and_the_sitemap() -> None:
+    """An agent that reads headers finds the plain-text map without parsing a page."""
+    headers = (_repo() / "site" / "_headers").read_text(encoding="utf-8")
+    every_page = headers.split("\n/schemas/*", 1)[0]
+
+    assert '</llms.txt>; rel="describedby"' in every_page
+    assert '</sitemap.xml>; rel="sitemap"' in every_page
+
+
 def test_the_landing_page_loads_nothing_from_another_host() -> None:
     """Fonts, styles and icons come from the site itself, and the policy says so.
 
