@@ -14,6 +14,7 @@ from mcp_fixtures import (
     guarded,
     outcomes,
     summaries,
+    wide_open,
 )
 
 pytestmark = pytest.mark.usefixtures(refuse_name_lookups.__name__)
@@ -135,3 +136,17 @@ def test_a_resource_document_answering_an_error_hides_the_next_address(status: i
 
 def test_a_resource_document_that_is_gone_directs_a_client_nowhere() -> None:
     assert findings(RULE, guarded(resource_metadata_status=410), credential=CREDENTIAL) == []
+
+
+def test_a_server_open_to_anyone_is_inconclusive_rather_than_silent() -> None:
+    # The addresses an open server names are never followed, so "it directs a client
+    # nowhere it must not go" would be a claim nobody checked.
+    server = wide_open(
+        resource_metadata={**CONFORMING_RESOURCE, "authorization_servers": ["https://10.0.0.5"]}
+    )
+
+    reported = findings(RULE, server)
+
+    assert outcomes(reported) == ["inconclusive"]
+    assert "answers an anonymous caller" in summaries(reported)[0]
+    assert "never fetched" in summaries(reported)[0]

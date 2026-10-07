@@ -13,6 +13,7 @@ from mcp_fixtures import (
     guarded,
     outcomes,
     summaries,
+    wide_open,
 )
 
 pytestmark = pytest.mark.usefixtures(refuse_name_lookups.__name__)
@@ -124,3 +125,16 @@ def test_an_authorization_server_failing_at_its_metadata_addresses_is_unseen(sta
 
 def test_an_authorization_server_answering_410_advertises_no_scopes() -> None:
     assert findings(RULE, guarded(authorization_metadata_status=410), credential=CREDENTIAL) == []
+
+
+def test_a_server_open_to_anyone_is_inconclusive_rather_than_silent() -> None:
+    # A wildcard an open server publishes is never fetched; silence would read as
+    # "this server's scopes are narrow".
+    server = wide_open(resource_metadata={**CONFORMING_RESOURCE, "scopes_supported": ["*"]})
+
+    reported = findings(RULE, server)
+
+    assert outcomes(reported) == ["inconclusive"]
+    assert "answers an anonymous caller" in summaries(reported)[0]
+    assert "never fetched" in summaries(reported)[0]
+    assert "scopes" in summaries(reported)[0]

@@ -39,7 +39,8 @@ class McpDiscoveryTargetRule(McpAuthorizationRule):
     A protected resource document that came back but could not be read, or whose
     address answered an error other than `404` or `410`, hides the authorization server
     it names, so the rule declines there. One that was never published names nothing,
-    and leaves nothing unseen.
+    and leaves nothing unseen. A server that answered an anonymous caller is never
+    asked for discovery at all, so the rule declines there too.
     """
 
     meta = RuleMeta(
@@ -61,7 +62,7 @@ class McpDiscoveryTargetRule(McpAuthorizationRule):
         return 10
 
     def fixtures(self) -> Iterable[RuleFixture]:
-        """Sample a challenge naming cloud metadata, a conforming chain, and three left unread."""
+        """Sample a challenge naming cloud metadata, a conforming chain, and four left unread."""
         return materialise(
             (
                 _samples.sample(
@@ -105,6 +106,11 @@ class McpDiscoveryTargetRule(McpAuthorizationRule):
                         credential=_samples.CREDENTIAL,
                     ),
                 ),
+                _samples.sample(
+                    "a server answering an anonymous caller",
+                    FixtureOutcome.INCONCLUSIVE,
+                    lambda: _samples.target(_samples.open_server()),
+                ),
             )
         )
 
@@ -113,6 +119,9 @@ class McpDiscoveryTargetRule(McpAuthorizationRule):
         blocked = self.unreachable(view)
         if blocked is not None:
             yield blocked
+            return
+        if view.anonymous.open_to_anyone:
+            yield self.metadata_not_fetched(view)
             return
         for document in view.refused_addresses:
             address = display_url(document.url)

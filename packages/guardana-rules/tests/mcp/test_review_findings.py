@@ -58,7 +58,7 @@ def test_a_tool_listing_delivered_over_sse_is_still_a_tool_listing() -> None:
 def test_an_sse_server_does_not_get_a_metadata_finding_it_never_earned() -> None:
     server = _SseServer(ROUTABLE, tools=_TOOLS)
 
-    assert findings(McpAuthorizationDiscoveryRule(), server) == []
+    assert outcomes(findings(McpAuthorizationDiscoveryRule(), server)) == ["inconclusive"]
 
 
 def test_a_reply_nobody_can_parse_is_not_a_refusal() -> None:

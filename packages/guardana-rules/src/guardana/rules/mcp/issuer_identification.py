@@ -59,7 +59,7 @@ class McpIssuerIdentificationRule(McpAuthorizationRule):
         return 10
 
     def fixtures(self) -> Iterable[RuleFixture]:
-        """Sample metadata silent about `iss`, metadata advertising it, and no metadata at all."""
+        """Sample metadata silent about `iss`, metadata advertising it, and two left unread."""
         silent = {
             key: value
             for key, value in _samples.AUTHORIZATION_METADATA.items()
@@ -90,6 +90,11 @@ class McpIssuerIdentificationRule(McpAuthorizationRule):
                         credential=_samples.CREDENTIAL,
                     ),
                 ),
+                _samples.sample(
+                    "a server answering an anonymous caller",
+                    FixtureOutcome.INCONCLUSIVE,
+                    lambda: _samples.target(_samples.open_server()),
+                ),
             )
         )
 
@@ -100,9 +105,7 @@ class McpIssuerIdentificationRule(McpAuthorizationRule):
             yield blocked
             return
         if view.anonymous.open_to_anyone:
-            # No protected resource, so no authorization server, so no flow to mix
-            # up. `guardana.mcp.unauthenticated_access` is the rule with something
-            # to say about this server.
+            yield self.metadata_not_fetched(view)
             return
         document = view.authorization_server
         if document is None or not document.readable:

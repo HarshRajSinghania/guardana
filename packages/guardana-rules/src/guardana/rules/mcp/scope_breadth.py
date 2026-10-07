@@ -62,7 +62,7 @@ class McpScopeBreadthRule(McpAuthorizationRule):
         return 10
 
     def fixtures(self) -> Iterable[RuleFixture]:
-        """Sample a wildcard scope, narrow scopes, and two servers whose scopes went unread."""
+        """Sample a wildcard scope, narrow scopes, and three servers whose scopes went unread."""
         wildcard = {**_samples.RESOURCE_METADATA, "scopes_supported": ["*"]}
         return materialise(
             (
@@ -99,6 +99,11 @@ class McpScopeBreadthRule(McpAuthorizationRule):
                         credential=_samples.CREDENTIAL,
                     ),
                 ),
+                _samples.sample(
+                    "a server answering an anonymous caller",
+                    FixtureOutcome.INCONCLUSIVE,
+                    lambda: _samples.target(_samples.open_server()),
+                ),
             )
         )
 
@@ -109,6 +114,7 @@ class McpScopeBreadthRule(McpAuthorizationRule):
             yield blocked
             return
         if view.anonymous.open_to_anyone:
+            yield self.metadata_not_fetched(view)
             return
         read = 0
         for document, where in (

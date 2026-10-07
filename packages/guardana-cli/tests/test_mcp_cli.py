@@ -831,3 +831,78 @@ def test_plan_prices_the_registry_comparison_only_when_an_entry_is_given(tmp_pat
     assert with_entry.exit_code == 0, with_entry.output
     assert "guardana.mcp.registry_entry" in json.loads(with_entry.stdout)["rules"]
     assert "guardana.mcp.registry_entry" in json.loads(without.stdout)["skipped"]
+
+
+_METADATA_RULES = [
+    "guardana.mcp.authorization_discovery",
+    "guardana.mcp.discovery_target",
+    "guardana.mcp.issuer_identification",
+    "guardana.mcp.scope_breadth",
+]
+
+
+@pytest.mark.parametrize(
+    ("fail_on_inconclusive", "code", "gate"),
+    [(False, 0, "pass"), (True, 2, "indeterminate")],
+    ids=["default-bar", "inconclusive-bar"],
+)
+def test_an_open_server_leaves_its_unfetched_metadata_open_when_the_open_rule_is_excluded(
+    fail_on_inconclusive: bool,
+    code: int,
+    gate: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Without `unauthenticated_access`, nothing else may read as a pass on metadata never read.
+
+    The server answers anybody and publishes a surface broken four ways; discovery is
+    never attempted on such a server, so each metadata rule has to decline by name.
+    """
+    from guardana.cli.main import app  # noqa: PLC0415
+    from typer.testing import CliRunner  # noqa: PLC0415
+
+    url = "https://93.184.215.14/mcp"
+    server = ScriptedMcpServer(
+        url,
+        tools=_TOOLS["tools"],
+        resource_metadata={
+            "resource": "https://1.2.3.4",
+            "authorization_servers": ["https://93.184.215.14"],
+            "scopes_supported": ["*"],
+        },
+        authorization_metadata={"issuer": "https://1.2.3.4", "scopes_supported": ["*"]},
+    )
+    monkeypatch.setattr(
+        "guardana.cli._mcp_run.build_mcp_target",
+        lambda connection: McpServerTarget(url, sender=server, discovery_sender=server),
+    )
+    profile = tmp_path / "guardana.yaml"
+    profile.write_text(
+        "name: t\nrules:\n  exclude: ['guardana.mcp.unauthenticated_access']\n"
+        f"fail_on:\n  fail_on_inconclusive: {str(fail_on_inconclusive).lower()}\n",
+        encoding="utf-8",
+    )
+    written = tmp_path / "run.json"
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "probe",
+            "--mcp",
+            url,
+            "--profile",
+            str(profile),
+            "--format",
+            "json",
+            "--output",
+            str(written),
+        ],
+    )
+
+    assert result.exit_code == code, result.output
+    assert not [request for request in server.requests if request[0] == "GET"]
+    document = json.loads(written.read_text(encoding="utf-8"))
+    declined = {f["rule_id"]: f["evidence"]["summary"] for f in document["unverified"]}
+    assert sorted(set(declined) & set(_METADATA_RULES)) == _METADATA_RULES
+    assert all("never fetched" in declined[rule] for rule in _METADATA_RULES)
+    assert document["run"]["result_summary"]["gate"] == gate

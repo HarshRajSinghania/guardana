@@ -76,10 +76,17 @@ def test_an_authorization_server_offering_only_plain_pkce_is_a_finding() -> None
     assert any("'S256'" in line for line in summaries(reported))
 
 
-def test_a_server_that_needs_no_credential_is_left_to_the_rule_that_owns_it() -> None:
-    # There is no protected resource on an open server, so this rule has nothing to
-    # say; `guardana.mcp.unauthenticated_access` is the one with the finding.
-    assert findings(RULE, wide_open()) == []
+def test_a_server_that_needs_no_credential_is_inconclusive_rather_than_silent() -> None:
+    # Discovery is never attempted on an open server, so a broken surface it publishes
+    # goes unread, and the rule that reports the open server may be excluded.
+    server = wide_open(resource_metadata={**CONFORMING_RESOURCE, "resource": ELSEWHERE})
+
+    reported = findings(RULE, server)
+
+    assert outcomes(reported) == ["inconclusive"]
+    assert "answers an anonymous caller" in summaries(reported)[0]
+    assert "never fetched" in summaries(reported)[0]
+    assert "guardana.mcp.unauthenticated_access" in summaries(reported)[0]
 
 
 def test_an_authorization_server_nobody_could_reach_leaves_pkce_unsettled() -> None:

@@ -218,6 +218,11 @@ saying plainly when it could not reach a verdict:
 | `guardana.mcp.cache_scope` | A tool listing the server gates behind a credential is not also declared `cacheScope: "public"`, which would invite any shared gateway to serve it to a caller the server would have refused |
 | `guardana.mcp.task_identity` | One `tasks/list` sent without a credential lists no task, since a fresh anonymous session owns none; on a server that serves tools to anyone, listed task ids are not a counter, repeated or short. A refused listing is the conforming answer. An empty one on a gated server is confirmed with one listing as the operator: a task there shows the anonymous caller was kept from it; without `--mcp-token-env`, or with no task to show, the check is `inconclusive`. An operator's session refused with `401` or `403` is `inconclusive` too. A server that declares no tasks and answers `tasks/list` as an unknown method is skipped `not_offered`, a coverage gap; when what it declares could not be read at all, the check is `inconclusive` instead |
 
+On a server that answers an anonymous caller, `authorization_discovery`, `scope_breadth`,
+`issuer_identification` and `discovery_target` are `inconclusive`: no credential was asked
+for, so the authorization metadata they read was never fetched, and `unauthenticated_access`
+is the check that judges that server.
+
 **Two of them need `--mcp-token-env` to say anything**, and say so rather than
 going quiet: whether a session authenticates on its own cannot be tested without a
 credential to remove. A run without one reports those as `inconclusive` and names

@@ -676,6 +676,10 @@ saying plainly when it could not reach a verdict:</p>
 </tr>
 </tbody>
 </table></div>
+<p>On a server that answers an anonymous caller, <code>authorization_discovery</code>, <code>scope_breadth</code>,
+<code>issuer_identification</code> and <code>discovery_target</code> are <code>inconclusive</code>: no credential was asked
+for, so the authorization metadata they read was never fetched, and <code>unauthenticated_access</code>
+is the check that judges that server.</p>
 <p><strong>Two of them need <code>--mcp-token-env</code> to say anything</strong>, and say so rather than
 going quiet: whether a session authenticates on its own cannot be tested without a
 credential to remove. A run without one reports those as <code>inconclusive</code> and names

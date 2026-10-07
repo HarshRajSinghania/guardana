@@ -17,6 +17,11 @@ from guardana.core.severity import Severity
 from guardana.core.target import McpAuthorizationView, Target
 from guardana.core.target.protocols import AuthorizationInspector
 
+METADATA_NOT_FETCHED = (
+    "the server answers an anonymous caller, so its authorization metadata was never fetched"
+)
+"""Why a rule grading the metadata documents declines on a server open to anyone."""
+
 
 class McpReporting(Rule):
     """The two ways an MCP rule is allowed to speak, and the evidence both carry.
@@ -95,6 +100,19 @@ class McpAuthorizationRule(McpReporting):
         if not isinstance(target, AuthorizationInspector):
             return
         yield from self.examine(target.authorization())
+
+    def metadata_not_fetched(self, view: McpAuthorizationView) -> Finding:
+        """Decline on a server open to anyone, where discovery is never attempted.
+
+        Whatever such a server publishes went unread, so silence here would grade a
+        document nobody fetched. The rule that reports the open server is a different
+        id, and a profile may have excluded it.
+        """
+        return self.unverified(
+            view,
+            f"{METADATA_NOT_FETCHED} and {self.claim}; "
+            f"guardana.mcp.unauthenticated_access reports the open server",
+        )
 
     @abstractmethod
     def examine(self, view: McpAuthorizationView) -> Iterator[Finding]:

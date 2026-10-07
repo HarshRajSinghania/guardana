@@ -21,8 +21,9 @@ class McpUnauthenticatedAccessRule(McpAuthorizationRule):
     Authorization is `OPTIONAL` in MCP, so this is not a specification violation on
     its own — it is a fact about a deployment, and it is the fact every other
     authorization check depends on. A server that asks for nothing cannot
-    demonstrate that it validates anything, which is why the audience and session
-    checks decline rather than pass when this one fires.
+    demonstrate that it validates anything, and its authorization metadata is never
+    fetched, which is why the audience, session and metadata checks decline rather
+    than pass when this one fires.
 
     Severity follows reachability. A server on a loopback or private address is how
     everyone develops and is reported `low` with that said out loud; the same

@@ -44,8 +44,15 @@ def test_advertising_it_as_anything_but_true_is_not_advertising_it() -> None:
     assert len(findings(RULE, server, credential=CREDENTIAL)) == 1
 
 
-def test_a_server_open_to_anyone_has_no_authorization_flow_to_grade() -> None:
-    assert findings(RULE, wide_open()) == []
+def test_a_server_open_to_anyone_is_inconclusive_rather_than_silent() -> None:
+    # Discovery is never attempted on an open server, so silence would read as "this
+    # server advertises `iss` correctly" about metadata nobody fetched.
+    reported = findings(RULE, wide_open(authorization_metadata=CONFORMING_AUTHORIZATION))
+
+    assert outcomes(reported) == ["inconclusive"]
+    assert "answers an anonymous caller" in summaries(reported)[0]
+    assert "never fetched" in summaries(reported)[0]
+    assert "issuer mix-up" in summaries(reported)[0]
 
 
 def test_an_unreadable_metadata_document_is_inconclusive_rather_than_silent() -> None:

@@ -45,9 +45,9 @@ class McpAuthorizationDiscoveryRule(McpAuthorizationRule):
     Only a `404` or `410` reads as a document not published. A metadata address that
     answered any other error status said nothing about the document, so the rule declines.
 
-    It says nothing about a server that answered an anonymous caller: there is no
-    protected resource there, and `guardana.mcp.unauthenticated_access` is the rule
-    with something to report.
+    It declines on a server that answered an anonymous caller: discovery is never
+    attempted there, so whatever surface it publishes went unread, and
+    `guardana.mcp.unauthenticated_access` is the rule that reports the open server.
     """
 
     meta = RuleMeta(
@@ -69,7 +69,7 @@ class McpAuthorizationDiscoveryRule(McpAuthorizationRule):
         return 10
 
     def fixtures(self) -> Iterable[RuleFixture]:
-        """Sample an unpublished surface, a conforming one, an unsafe issuer and an unread one."""
+        """Sample an unpublished surface, a conforming one, and three left unread."""
         unsafe_issuer = {
             **_samples.RESOURCE_METADATA,
             "authorization_servers": [_samples.UNSAFE_ADDRESS],
@@ -107,6 +107,11 @@ class McpAuthorizationDiscoveryRule(McpAuthorizationRule):
                         credential=_samples.CREDENTIAL,
                     ),
                 ),
+                _samples.sample(
+                    "a server answering an anonymous caller",
+                    FixtureOutcome.INCONCLUSIVE,
+                    lambda: _samples.target(_samples.open_server()),
+                ),
             )
         )
 
@@ -117,6 +122,7 @@ class McpAuthorizationDiscoveryRule(McpAuthorizationRule):
             yield blocked
             return
         if view.anonymous.open_to_anyone:
+            yield self.metadata_not_fetched(view)
             return
         resource = view.protected_resource
         if resource is None:
