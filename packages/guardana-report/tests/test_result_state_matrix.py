@@ -321,7 +321,10 @@ def test_findings_beside_a_skip_the_gate_refused_still_name_the_refusal() -> Non
     assert gate is GateOutcome.INDETERMINATE
     assert "⚠ 1 rule(s) were skipped and the gate refused the run" in rendered.human
     assert rendered.junit_errors == 1
-    assert rendered.descriptors == ["guardana.open_question.skipped"]
+    assert rendered.descriptors == [
+        "guardana.open_question.skipped",
+        "guardana.skipped.missing_capability",
+    ]
 
 
 def test_a_failed_gate_no_rendered_fact_explains_is_named_as_the_gate() -> None:
@@ -329,7 +332,10 @@ def test_a_failed_gate_no_rendered_fact_explains_is_named_as_the_gate() -> None:
 
     assert "✓" not in rendered.human
     assert "the gate is fail" in rendered.human
-    assert rendered.descriptors == ["guardana.open_question.gate"]
+    assert rendered.descriptors == [
+        "guardana.open_question.gate",
+        "guardana.skipped.missing_capability",
+    ]
 
 
 def test_sarif_says_so_when_the_saved_run_recorded_no_gate() -> None:

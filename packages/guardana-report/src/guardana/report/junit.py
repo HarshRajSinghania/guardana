@@ -5,7 +5,7 @@ from xml.sax import saxutils
 from guardana.core.gate import GateOutcome, OpenQuestion, declined_suites, open_questions
 from guardana.core.manifest import RunManifest
 from guardana.core.manifest.records import SuiteOutcome, SuiteSummary
-from guardana.core.report import Finding, ScanResult
+from guardana.core.report import Finding, ScanResult, SkippedRule
 from guardana.core.suite import describe
 from guardana.report._refusal import (
     recorded_gate,
@@ -88,6 +88,8 @@ class JUnitRenderer:
                 f"      <skipped message={message}>{reason}</skipped>\n"
                 f"    </testcase>"
             )
+        gaps = [skip for skip in result.rules_skipped if skip.is_coverage_gap]
+        cases.extend(_skip_case(skip) for skip in gaps)
         # Every open question the renderers always name is one or more `<error>`
         # testcases, and so is a refusal the recorded gate made over nothing else named.
         errors = [case for q in questions for case in _OPEN_CASES[q](result, unverified)]
@@ -96,10 +98,10 @@ class JUnitRenderer:
             errors.append(_refusal_case(result, refusal))
         cases.extend(errors)
         body = "\n".join(cases)
-        skipped = len(unverified) + len(result.waived)
+        skipped = len(unverified) + len(result.waived) + len(gaps)
         return (
             '<?xml version="1.0" encoding="UTF-8"?>\n'
-            f'<testsuite name={_attr(self._suite)} tests="{result.rules_run_count}" '
+            f'<testsuite name={_attr(self._suite)} tests="{result.rules_run_count + len(gaps)}" '
             f'failures="{len(findings) + failed}" skipped="{skipped}" '
             f'errors="{len(errors) + declined}">\n'
             f"{body}\n</testsuite>"
@@ -110,6 +112,22 @@ def _error_case(name: str, classname: str, message: str, detail: str) -> str:
     return (
         f"    <testcase name={_attr(name)} classname={_attr(classname)}>\n"
         f"      <error message={_attr(message)}>{_text(detail)}</error>\n"
+        f"    </testcase>"
+    )
+
+
+def _skip_case(skip: SkippedRule) -> str:
+    """Write one testcase for a rule that never ran for want of coverage.
+
+    Counted among the suite's tests, since a suite counting only the rules that ran reads
+    as every check having happened.
+    """
+    missing = f"; missing: {', '.join(skip.missing)}" if skip.missing else ""
+    classname = _attr(f"guardana.skipped.{skip.reason}")
+    reason = _text(f"{skip.reason}{missing}")
+    return (
+        f"    <testcase name={_attr(skip.rule_id)} classname={classname}>\n"
+        f"      <skipped message={_attr(skip.detail)}>{reason}</skipped>\n"
         f"    </testcase>"
     )
 

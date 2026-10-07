@@ -11,6 +11,7 @@ from guardana.core.manifest.records import (
 )
 from guardana.core.report import Finding, ScanResult, SkippedRule, SkipReason
 from guardana.core.suite import describe
+from guardana.core.target import TargetKind
 from guardana.core.trials import CONFIDENCE, wilson_interval
 from guardana.report._refusal import recorded_gate, refusal_clause, unnamed_refusal
 from guardana.report._subject import fixtures_line, subject_line
@@ -65,7 +66,7 @@ class HumanRenderer:
                 lines.append("")
                 lines.extend(block)
         lines.append("")
-        lines.append(_summary(result))
+        lines.append(_summary(result, self._run))
         return "\n".join(printable(line) for line in lines)
 
 
@@ -293,7 +294,7 @@ def _why_unverified(finding: Finding) -> str:
     return f"{summary} — {rationale}" if summary else rationale
 
 
-def _summary(result: ScanResult) -> str:
+def _summary(result: ScanResult, run: RunManifest | None) -> str:
     summary = (
         f"{len(result.findings)} finding(s); "
         f"{result.rules_run_count} rule(s) run, {len(result.rules_skipped)} skipped."
@@ -326,9 +327,12 @@ def _summary(result: ScanResult) -> str:
             f" {measured}/{cases} case(s) measured{stopped}"
             f"{f', {ungraded} ungraded' if ungraded else ''}."
         )
-    if result.observations:
+    scanned_files = run is not None and run.target.kind is TargetKind.ARTIFACT
+    if result.observations or scanned_files:
         # Says what the run actually looked at, so "no findings" reads as "nothing
-        # wrong in these N components" rather than the ambiguous "nothing here".
+        # wrong in these N components" rather than the ambiguous "nothing here". A
+        # file scan says it even at zero: one that observed nothing must not read as
+        # one that observed nothing wrong.
         summary += f" {len(result.observations)} component(s) observed."
     if result.stopped_by is not None:
         # Last, so it is the note the summary ends on — this line is what a CI job

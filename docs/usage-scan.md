@@ -169,7 +169,11 @@ could not run a check or left a check without a verdict prints no `✓` in the t
 an `<error>` testcase in JUnit, and sets SARIF's `executionSuccessful` to `false` with one
 `toolExecutionNotifications` entry per cause (`guardana.open_question.*`,
 `guardana.check_error.*`, `guardana.coverage_shortfall.*`). A skipped rule counts only when
-the policy fails on skips, and then no format renders the run clean either.
+the policy fails on skips, and then no format renders the run clean either. Either way, a
+rule skipped for missing coverage (`missing_capability`, `unsafe_mode`, `not_recorded`,
+`not_offered`) stays visible: a SARIF `note` notification (`guardana.skipped.<reason>`) and
+a JUnit testcase holding `<skipped>`, counted in the suite's `tests` and `skipped`. A scan's
+summary line always states how many components it observed, zero included.
 
 ## Baselining existing findings
 

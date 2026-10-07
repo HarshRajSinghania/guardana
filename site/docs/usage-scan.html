@@ -546,7 +546,11 @@ could not run a check or left a check without a verdict prints no <code>✓</cod
 an <code>&lt;error&gt;</code> testcase in JUnit, and sets SARIF's <code>executionSuccessful</code> to <code>false</code> with one
 <code>toolExecutionNotifications</code> entry per cause (<code>guardana.open_question.*</code>,
 <code>guardana.check_error.*</code>, <code>guardana.coverage_shortfall.*</code>). A skipped rule counts only when
-the policy fails on skips, and then no format renders the run clean either.</p>
+the policy fails on skips, and then no format renders the run clean either. Either way, a
+rule skipped for missing coverage (<code>missing_capability</code>, <code>unsafe_mode</code>, <code>not_recorded</code>,
+<code>not_offered</code>) stays visible: a SARIF <code>note</code> notification (<code>guardana.skipped.&lt;reason&gt;</code>) and
+a JUnit testcase holding <code>&lt;skipped&gt;</code>, counted in the suite's <code>tests</code> and <code>skipped</code>. A scan's
+summary line always states how many components it observed, zero included.</p>
 <h2 id="baselining-existing-findings">Baselining existing findings</h2>
 <p>Turning on a blocking gate for an existing repository is usually all-or-nothing:
 either you fix the whole backlog first, or you exclude a rule entirely and go

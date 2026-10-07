@@ -10,7 +10,14 @@ from guardana.core.gate import (
     open_questions,
 )
 from guardana.core.manifest import RunManifest
-from guardana.core.report import CheckError, CoverageShortfall, Finding, ScanResult, split_ref
+from guardana.core.report import (
+    CheckError,
+    CoverageShortfall,
+    Finding,
+    ScanResult,
+    SkippedRule,
+    split_ref,
+)
 from guardana.core.severity import Severity
 from guardana.report._refusal import (
     recorded_gate,
@@ -147,7 +154,8 @@ def _invocation(
     `executionSuccessful` is what stops a viewer reading an empty result list as
     a clean run, so it is false for every open question the renderers always name,
     each with a notification saying which, and for a refusal the recorded gate made
-    over nothing else named.
+    over nothing else named. Each rule skipped for want of coverage adds a note that
+    leaves it as it is.
 
     The timestamps and exit code come from the manifest when there is one; SARIF
     marks them optional, and inventing them would be worse than omitting.
@@ -159,7 +167,7 @@ def _invocation(
         notifications.append(_refusal_notification(result, refusal))
     invocation: dict[str, object] = {
         "executionSuccessful": not notifications,
-        "toolExecutionNotifications": notifications,
+        "toolExecutionNotifications": [*notifications, *map(_skip_notification, _gaps(result))],
     }
     if manifest is None:
         return invocation
@@ -226,6 +234,26 @@ def _coverage_notification(gap: CoverageShortfall) -> dict[str, object]:
         "level": "error",
         "message": {"text": f"coverage missing ({gap.kind}): {gap.name}: {gap.detail}"},
         "descriptor": {"id": f"guardana.coverage_shortfall.{gap.kind}"},
+    }
+
+
+def _gaps(result: ScanResult) -> list[SkippedRule]:
+    return [skip for skip in result.rules_skipped if skip.is_coverage_gap]
+
+
+def _skip_notification(skip: SkippedRule) -> dict[str, object]:
+    """Name a rule that never ran for want of coverage, without failing the invocation.
+
+    The gate decides whether a skip refuses the run; a note keeps an accepted skip from
+    vanishing from the document while leaving `executionSuccessful` to that decision.
+    """
+    return {
+        "level": "note",
+        "message": {"text": f"{skip.rule_id} was skipped ({skip.reason}): {skip.detail}"},
+        "descriptor": {"id": f"guardana.skipped.{skip.reason}"},
+        # Not `associatedRule`: that reference must resolve in `driver.rules`, which lists
+        # only the rules that produced a result.
+        "properties": {"ruleId": skip.rule_id},
     }
 
 
