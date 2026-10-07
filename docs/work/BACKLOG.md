@@ -231,9 +231,21 @@ left for the owner, or are design gaps already documented elsewhere.
 
 ## Left by run schema 12 (the `left_scan` and `unexamined_component` fixes)
 
-- **Formats the inventory does not list as models**: `.npy`/`.npz` (numpy can hold pickles),
-  `.msgpack`, a TensorFlow `.pb`. `saved_model_ops` reads `.pb` but nothing observes it, so a
-  shortfall cannot name one; a `.bin` holding GGUF or GGML is a shortfall with no reader.
+- **Model formats listed but read by no rule**: `.mar` (its `handler.py` is code no rule
+  judges), `.nemo`, `.llamafile`, `model.tar.gz`, compressed pickles and checkpoints, and an
+  archive member named as a model that is itself an archive are shortfalls; a `.bin` holding GGUF or GGML likewise.
+  Weights-only formats (Flax `.msgpack`, TensorFlow `variables.*`) are not inventoried, since
+  listing them unread would make every such repository `indeterminate`. A TensorFlow `.pb` is
+  read by `saved_model_ops` but not inventoried, so with that rule excluded nothing names it.
+  A `.zip` or `.tar` hiding a pickle under a member name that is not a model name is not read;
+  a Python 2 `.npy` header (`10L` shapes) reads as unread, not clean.
+- **`pickle_opcode` has no size cap for an archive**: the tar walk stops at 1,000,000 headers,
+  but a PAX or GNU long-name header is read whole by `tarfile`, and the header list costs
+  memory in proportion to the archive (about 150 MB for 200,000 headers). A zip or tar
+  nested in a scanned archive under a name that is not a model name is not opened.
+- **JUnit `tests` counts rules that ran, not testcases**: a passing rule writes no testcase
+  and a rule with several findings writes several, so `tests` equals the testcase count only
+  when every rule produced exactly one. Changing it changes output for every run.
 - **The collector envelope carries no coverage shortfall**, so a run that is `indeterminate`
   for an unread component or a missing dimension reaches the collector without its cause.
 - **`left_scan` cannot tell a file deleted from one hidden.** Accepting a deliberate removal

@@ -73,6 +73,8 @@ def _notebook(source: str) -> bytes:
 
 
 _PICKLE = pickle.dumps(_Evil())
+_NPY_HEADER = b"{'descr': '|O', 'fortran_order': False, 'shape': (1,), }"
+_OBJECT_NPY = b"\x93NUMPY\x01\x00" + len(_NPY_HEADER).to_bytes(2, "little") + _NPY_HEADER + _PICKLE
 _H5_LAMBDA = b"\x89HDF\r\n" + b'...{"class_name": "Lambda", "config": {}}...' + b"\x00\x00"
 _XXE = b'<?xml version="1.0"?><!DOCTYPE r [<!ENTITY x SYSTEM "file:///etc/passwd">]><r>&x;</r>'
 _GADGET = "{{ cycler.__init__.__globals__ }}"
@@ -94,6 +96,7 @@ _CASES = (
     _Case(PickleOpcodeRule, "model.pickle", "model.PICKLE", _PICKLE),
     _Case(PickleOpcodeRule, "model.joblib", "model.JobLib", _PICKLE),
     _Case(PickleOpcodeRule, "model.dill", "model.DILL", _PICKLE),
+    _Case(PickleOpcodeRule, "arrays.npy", "arrays.NPY", _OBJECT_NPY),
     _Case(OnnxGraphRule, "c.onnx", "c.ONNX", b"\xff" * 11),
     _Case(NotebookPayloadRule, "d.ipynb", "d.IPYNB", _notebook("import os\nos.system('x')\n")),
     _Case(SavedModelOpsRule, "saved_model.pb", "saved_model.PB", b"\x08\x01ReadFile\x00"),

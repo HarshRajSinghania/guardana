@@ -59,6 +59,14 @@ _HOSTILE_SUFFIXES = (
     ".pmml",
     ".pb",
     ".npy",
+    ".npz",
+    ".sav",
+    ".p",
+    ".model",
+    ".pdparams",
+    ".ptl",
+    ".tar",
+    ".zip",
     ".ipynb",
     ".json",
     ".yaml",
@@ -85,6 +93,7 @@ _MAGICS = (
     b"\x89HDF\r\n\x1a\n",  # HDF5, as Keras .h5 begins
     b"PK\x03\x04",  # zip, as .keras and torch archives begin
     b"\x93NUMPY",
+    b"\x93NUMPY\x01\x00\x40\x00{'descr': '|O', 'fortran_order': False, 'shape': (1,)}",
     b'{"__metadata__":',
     b"<PMML>",
 )

@@ -61,6 +61,43 @@ def test_a_model_carries_its_format_and_size(tmp_path: Path) -> None:
     assert int(gguf.attributes["size_bytes"]) == 20
 
 
+def test_numpy_array_files_are_models_since_they_can_hold_a_pickle(tmp_path: Path) -> None:
+    (tmp_path / "weights.npy").write_bytes(b"\x93NUMPY\x01\x00")
+    (tmp_path / "bundle.npz").write_bytes(b"PK\x05\x06" + bytes(18))
+
+    formats = {
+        item.name: item.attributes["format"]
+        for item in observe(ArtifactTarget(tmp_path))
+        if item.kind is ObservationKind.MODEL
+    }
+
+    assert formats == {"weights.npy": "numpy", "bundle.npz": "numpy-zip"}
+
+
+def test_a_model_named_by_more_than_its_last_suffix_is_listed_by_its_whole_name(
+    tmp_path: Path,
+) -> None:
+    for name in ("m.pth.tar", "m.pt.gz", "m.pth.gz", "m.joblib.lz4", "m.pkl.gz", "model.tar.gz"):
+        (tmp_path / name).write_bytes(b"\x00")
+    for name in ("release.tar.gz", "flax_model.msgpack", "variables.index", "notes.p"):
+        (tmp_path / name).write_bytes(b"\x00")
+
+    formats = {
+        item.name: item.attributes["format"]
+        for item in observe(ArtifactTarget(tmp_path))
+        if item.kind is ObservationKind.MODEL
+    }
+
+    assert formats == {
+        "m.pth.tar": "pytorch",
+        "m.pt.gz": "compressed-pytorch",
+        "m.pth.gz": "compressed-pytorch",
+        "m.joblib.lz4": "compressed-pickle",
+        "m.pkl.gz": "compressed-pickle",
+        "model.tar.gz": "sagemaker-model",
+    }
+
+
 def test_an_unreadable_component_is_listed_as_unread_not_dropped(tmp_path: Path) -> None:
     # Omitting it would silently shrink the inventory — the same class of lie as a
     # check that could not run reporting clean. `stat()` is not the test: it

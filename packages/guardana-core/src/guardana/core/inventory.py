@@ -31,9 +31,32 @@ _MODEL_SUFFIXES: dict[str, str] = {
     ".pickle": "pickle",
     ".dill": "pickle",
     ".joblib": "joblib",
+    ".npy": "numpy",
+    ".npz": "numpy-zip",
+    ".pdparams": "paddle",
+    ".ptl": "pytorch",
+    ".mar": "torchserve",
+    ".nemo": "nemo",
+    ".llamafile": "llamafile",
     ".pmml": "pmml",
     ".tflite": "tflite",
 }
+_MODEL_NAME_ENDINGS: tuple[tuple[str, str], ...] = (
+    (".pth.tar", "pytorch"),
+    (".pt.tar", "pytorch"),
+    (".pt.gz", "compressed-pytorch"),
+    (".pth.gz", "compressed-pytorch"),
+    (".joblib.lz4", "compressed-pickle"),
+    *(
+        (f"{base}{codec}", "compressed-pickle")
+        for base in (".pkl", ".pickle", ".joblib")
+        for codec in (".gz", ".z", ".xz", ".bz2", ".lzma")
+    ),
+)
+"""Model files named by more than their last suffix, matched against the whole name."""
+_MODEL_NAMES: dict[str, str] = {"model.tar.gz": "sagemaker-model"}
+"""Model files known by their exact name: a SageMaker model is uploaded as `model.tar.gz`,
+while any other `.tar.gz` is as likely a source release."""
 _MANIFEST_NAMES = frozenset(
     {
         "requirements.txt",
@@ -63,6 +86,10 @@ _BIN_SIGNATURES: tuple[tuple[bytes, str], ...] = (
 `.bin` names model weights, firmware and test data alike, so it is a component only
 when its first bytes say which model container it is; one that says nothing is not
 listed."""
+_PICKLE_SIGNATURES = tuple(entry for entry in _BIN_SIGNATURES if entry[1] == "pickle")
+_PICKLE_SNIFFED_SUFFIXES = frozenset({".sav", ".p", ".model"})
+"""Suffixes that name a pickle as often as some other format, listed only when the first
+bytes are a pickle header."""
 _DATASET_SUFFIXES = frozenset({".parquet", ".jsonl", ".arrow"})
 _MANIFEST_PREFIX = "requirements"
 
@@ -95,7 +122,9 @@ def _regular_file(path: Path) -> bool:
         return False
 
 
-def _bin_format(path: Path) -> str | None:
+def _sniffed_format(
+    path: Path, signatures: tuple[tuple[bytes, str], ...] = _BIN_SIGNATURES
+) -> str | None:
     if not _regular_file(path):
         return None
     try:
@@ -103,17 +132,35 @@ def _bin_format(path: Path) -> str | None:
             head = handle.read(4)
     except OSError:
         return None
-    return next((name for magic, name in _BIN_SIGNATURES if head.startswith(magic)), None)
+    return next((name for magic, name in signatures if head.startswith(magic)), None)
+
+
+def _model_format(path: Path, suffix: str, name: str) -> str | None:
+    """Return the model format `path` holds, or None when it is not a model file.
+
+    Judged by the whole name, since `model.pkl.gz` is a compressed pickle and not a
+    gzip of anything, and by the first bytes where the name says nothing certain.
+    """
+    ending = next((fmt for end, fmt in _MODEL_NAME_ENDINGS if name.endswith(end)), None)
+    if ending is not None:
+        return ending
+    if suffix in _MODEL_SUFFIXES:
+        return _MODEL_SUFFIXES[suffix]
+    if name in _MODEL_NAMES:
+        return _MODEL_NAMES[name]
+    if suffix == _BIN_SUFFIX:
+        return _sniffed_format(path)
+    if suffix in _PICKLE_SNIFFED_SUFFIXES:
+        return _sniffed_format(path, _PICKLE_SIGNATURES)
+    return None
 
 
 def _classify(path: Path) -> tuple[ObservationKind, dict[str, str]] | None:
     suffix = path.suffix.lower()
     name = path.name.lower()
-    if suffix in _MODEL_SUFFIXES:
-        return ObservationKind.MODEL, {"format": _MODEL_SUFFIXES[suffix]}
-    if suffix == _BIN_SUFFIX:
-        bin_format = _bin_format(path)
-        return None if bin_format is None else (ObservationKind.MODEL, {"format": bin_format})
+    model_format = _model_format(path, suffix, name)
+    if model_format is not None:
+        return ObservationKind.MODEL, {"format": model_format}
     if name in _MANIFEST_NAMES or (name.startswith(_MANIFEST_PREFIX) and suffix == ".txt"):
         return ObservationKind.DEPENDENCY_MANIFEST, {}
     if suffix in _DATASET_SUFFIXES:

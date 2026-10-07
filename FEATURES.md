@@ -107,7 +107,7 @@ correlated. See [repeated trials](docs/usage-probe.md#repeated-trials).
 ### Build-time
 
 The offline scanner parses Python and common AI artifact formats, including GGUF,
-safetensors, ONNX, Keras, pickle-based checkpoints, notebooks, model configuration,
+safetensors, ONNX, Keras, pickle-based checkpoints and numpy arrays, notebooks, model configuration,
 chat templates, dependency manifests, and agent rule files. Coverage includes:
 
 - unsafe deserialization and dynamic code execution;

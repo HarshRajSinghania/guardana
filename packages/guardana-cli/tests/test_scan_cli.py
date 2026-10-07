@@ -1,6 +1,8 @@
 import importlib.metadata
+import io
 import os
 import pickle
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -491,3 +493,22 @@ def test_a_baseline_never_replaces_a_scanned_file_that_only_looks_like_one(tmp_p
 
     assert result.exit_code == ExitCode.INVALID_USAGE, result.output
     assert lookalike.read_text(encoding="utf-8") == "waivers: [the team's own list]\n"
+
+
+def _npz_cut_short() -> bytes:
+    header = b"{'descr': '|O', 'fortran_order': False, 'shape': (1,), }"
+    array = b"\x93NUMPY\x01\x00" + len(header).to_bytes(2, "little") + header + pickle.dumps([1])
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr("arr_0.npy", array)
+    whole = buffer.getvalue()
+    return whole[: len(whole) // 2]
+
+
+def test_a_truncated_npz_is_a_coverage_gap_not_a_pass(tmp_path: Path) -> None:
+    (tmp_path / "bundle.npz").write_bytes(_npz_cut_short())
+
+    result = runner.invoke(app, ["scan", str(tmp_path)])
+
+    assert result.exit_code == ExitCode.INDETERMINATE, result.output
+    assert "bundle.npz" in " ".join(result.output.split())

@@ -93,15 +93,22 @@ and in CI. A format name (`tflite`) is not a path and stays as it is.
 
 | Observed as a model | Read by |
 |---|---|
-| `.pkl`, `.pickle`, `.dill`, `.joblib`, `.pt`, `.pth`, `.ckpt` | `guardana.supply_chain.pickle_opcode` |
-| `.bin` whose first bytes are a zip or a pickle stream (`pytorch_model.bin`) | `guardana.supply_chain.pickle_opcode` |
+| `.pkl`, `.pickle`, `.dill`, `.joblib`, `.pt`, `.pth`, `.ckpt`, `.ptl`, `.pdparams`, `.pth.tar`, `.pt.tar` | `guardana.supply_chain.pickle_opcode` |
+| `.npy`, and each `.npy` inside a `.npz`, or a `.bin`, `.sav`, `.p` or `.model` that starts with the NPY magic: an object array holds a pickle stream, a numeric one cannot | `guardana.supply_chain.pickle_opcode` |
+| `.bin` whose first bytes are a zip or a pickle stream (`pytorch_model.bin`); `.sav`, `.p` or `.model` whose first bytes are a pickle stream | `guardana.supply_chain.pickle_opcode` |
 | `.onnx` | `guardana.supply_chain.onnx_graph` |
 | `.keras`, `.h5`, `.hdf5` | `guardana.supply_chain.keras_lambda` |
 | `.gguf` | `guardana.supply_chain.chat_template` |
 | `.safetensors`, `.pmml` | `guardana.supply_chain.model_format` |
-| `.tflite`, a `.bin` that starts like GGUF or GGML | no built-in rule |
+| `.tflite`, `.mar`, `.nemo`, `.llamafile`, `model.tar.gz`, a compressed pickle or checkpoint (`.pkl`, `.pickle` or `.joblib` followed by `.gz`, `.z`, `.xz`, `.bz2` or `.lzma`; `.joblib.lz4`; `.pt.gz`; `.pth.gz`), a `.bin` that starts like GGUF or GGML | no built-in rule |
 
-A `.bin` whose first bytes match none of those is not listed as a model. A rule left
+A `.bin`, `.sav`, `.p` or `.model` whose first bytes match none of those is not listed as a
+model. `pickle_opcode` also reads a `.tar` or `.zip` by its content: the members named like
+a model (`pickle`, `data.pkl`, `*.pt`, `*.pth.tar`), and every member of a `.tar` that is in
+fact a zip; a member named as a model that is itself an archive is a coverage shortfall. A
+model with no built-in
+rule is a coverage shortfall too, so a scan holding one ends `indeterminate` (exit `2`)
+rather than clean. A rule left
 out by the profile reads nothing, so a profile that excludes
 `guardana.supply_chain.pickle_opcode` leaves every pickle unread. A third-party rule
 counts a file as read by reporting on it, or by calling `ctx.examined(path)`
