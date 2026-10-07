@@ -302,3 +302,35 @@ def test_an_object_array_under_a_name_read_by_content_is_read_as_one(
     _path, _ctx, titles = _scan(tmp_path, name, _npy("|O", _SYSTEM))
 
     assert titles == ["Dangerous pickle opcode (arbitrary code on load)"]
+
+
+def test_an_object_array_named_like_a_tensor_storage_is_read_as_an_array(tmp_path: Path) -> None:
+    # `np.load` reads any npz member that starts as an NPY file, whatever torch would make
+    # of the name.
+    archive = _npz({"x/data.pkl": b"not read by numpy", "x/data/0": _npy("|O", _SYSTEM)})
+    path = tmp_path / "bundle.npz"
+    path.write_bytes(archive)
+
+    findings = list(PickleOpcodeRule().run(ArtifactTarget(tmp_path), RuleContext()))
+
+    assert [(f.severity, f.evidence.detail) for f in findings] == [
+        (Severity.CRITICAL, "os.system in bundle.npz::x/data/0")
+    ]
+
+
+def test_an_object_array_with_tar_magic_inside_it_is_an_array_not_a_nested_archive(
+    tmp_path: Path,
+) -> None:
+    head = _npy("|O", b"")
+    body = _SYSTEM + b"\x00" * (257 - len(head) - len(_SYSTEM)) + b"ustar\x0000"
+    member = head + body
+    if member[257:262] != b"ustar":
+        raise AssertionError("the sample must carry tar magic where a tar header has it")
+    path = tmp_path / "bundle.npz"
+    path.write_bytes(_npz({"arr_0.npy": member}))
+
+    findings = list(PickleOpcodeRule().run(ArtifactTarget(tmp_path), RuleContext()))
+
+    assert [(f.severity, f.evidence.detail) for f in findings] == [
+        (Severity.CRITICAL, "os.system in bundle.npz::arr_0.npy")
+    ]

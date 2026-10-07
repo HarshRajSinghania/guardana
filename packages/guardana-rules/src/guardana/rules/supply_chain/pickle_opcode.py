@@ -154,6 +154,7 @@ _SAFE_GLOBALS: frozenset[tuple[str, str]] = frozenset(
 
 Pairs, never modules: `numpy.testing._private.utils.runstring` and `torch.hub.load`
 live under the same top-level names as the tensors and run whatever they are given.
+The one pattern beside them is a `*DType` class of `numpy.dtypes`, `_NUMPY_DTYPE_MODULE`.
 """
 _NUMPY_DTYPE_MODULE = "numpy.dtypes"
 _BUILTIN_MODULES = frozenset({"builtins", "__builtin__"})
@@ -1033,11 +1034,11 @@ class PickleOpcodeRule(ArtifactRule):
         """
         limit = _MEMBER_MAX_BYTES
         member_data, cut = raw[:limit], len(raw) > limit
+        if member_data.startswith(NPY_MAGIC):
+            return self._scan_npy_member(report, name, member_data, budget, cut=cut)
         if member_data.startswith(_NESTED_CONTAINER_MAGICS) or _is_tar(member_data):
             report.unscanned(f"{report.container} member is a nested archive ({name}); not scanned")
             return False
-        if kind is not _Member.STORAGE and member_data.startswith(NPY_MAGIC):
-            return self._scan_npy_member(report, name, member_data, budget, cut=cut)
         scan = _scan_opcodes(member_data, budget)
         if scan.end is not ParseEnd.OVER_BUDGET and (
             (kind is _Member.STORAGE and not _holds_a_pickle(member_data, scan, cut=cut))

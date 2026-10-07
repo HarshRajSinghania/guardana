@@ -238,7 +238,14 @@ left for the owner, or are design gaps already documented elsewhere.
   listing them unread would make every such repository `indeterminate`. A TensorFlow `.pb` is
   read by `saved_model_ops` but not inventoried, so with that rule excluded nothing names it.
   A `.zip` or `.tar` hiding a pickle under a member name that is not a model name is not read;
-  a Python 2 `.npy` header (`10L` shapes) reads as unread, not clean.
+  a Python 2 `.npy` header (`10L` shapes), a top-level tuple `descr` (`('|O', (2,))`) and a
+  dict `descr` (numpy unpacks its keys into fields) read as unread, not clean; numpy loads all
+  three as object arrays, so each is a pickle the rule could analyse.
+- **The pickle allow-list admits `numpy.dtype` followed by BUILD**: `dtype.__setstate__`
+  takes its flags from the pickle, so clearing `NPY_LIST_PICKLE` might let
+  `ndarray.__setstate__` copy raw bytes into an object array (attacker-chosen object
+  pointers). Not reproduced without numpy; a BUILD applied to a `numpy.dtype` outside an NPY
+  payload could be flagged.
 - **`pickle_opcode` has no size cap for an archive**: the tar walk stops at 1,000,000 headers,
   but a PAX or GNU long-name header is read whole by `tarfile`, and the header list costs
   memory in proportion to the archive (about 150 MB for 200,000 headers). A zip or tar
