@@ -139,6 +139,23 @@ def test_a_push_to_main_is_refused_while_the_site_is_stale(
     assert _decision(monkeypatch, capsys, "Bash", {"command": command}) == "deny"
 
 
+@pytest.mark.parametrize(
+    "stale", ["build_site.py", "generate_llms_txt.py", "generate_sitemap.py", "sync_site.py"]
+)
+def test_any_stale_site_generator_refuses_a_push_to_main(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], stale: str
+) -> None:
+    def _run(cmd: list[str]) -> subprocess.CompletedProcess[str]:
+        if cmd[:2] == ["git", "rev-parse"]:
+            return subprocess.CompletedProcess(cmd, 0, "main\n", "")
+        if stale in cmd[3]:
+            return subprocess.CompletedProcess(cmd, 1, "out of date\n", "")
+        return subprocess.CompletedProcess(cmd, 0, "current\n", "")
+
+    monkeypatch.setattr(guard_hook, "_run", _run)
+    assert _decision(monkeypatch, capsys, "Bash", {"command": "git push origin main"}) == "deny"
+
+
 def test_a_push_to_main_asks_when_the_site_cannot_be_checked(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

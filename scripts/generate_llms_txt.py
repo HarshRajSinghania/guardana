@@ -12,6 +12,9 @@ added to the docs appears here for free, a page removed disappears, and a
 hand-written second list — which is what every stale claim in this repository has
 been — never exists.
 
+Published notes follow the documentation sections, listed from their own front
+matter at the URL the site serves them on; with no note, the section is absent.
+
     python scripts/generate_llms_txt.py            # write it
     python scripts/generate_llms_txt.py --check    # exit 1 if stale, write nothing
 
@@ -28,6 +31,7 @@ from pathlib import Path
 _REPO = Path(__file__).resolve().parent.parent
 _INDEX = _REPO / "docs" / "index.md"
 _OUT = _REPO / "site" / "llms.txt"
+_NOTES = _REPO / "notes"
 
 _RAW = "https://raw.githubusercontent.com/guardana/guardana/refs/heads/main"
 _SCHEMAS = _REPO / "schemas"
@@ -38,12 +42,17 @@ _CONTROL_SUMMARY = (
 )
 """Quoted from Control's README, which owns how Control describes itself."""
 
+sys.path.insert(0, str(_REPO / "scripts"))
 sys.path.insert(0, str(_REPO / "packages" / "guardana-core" / "src"))
 sys.path.insert(0, str(_REPO / "packages" / "guardana-rules" / "src"))
 
 from guardana.core import __version__  # noqa: E402
 from guardana.core.surface import Surface  # noqa: E402
 from guardana.rules import provide_rules  # noqa: E402
+
+from sitegen import SiteBuildError  # noqa: E402
+from sitegen.notes import read_notes  # noqa: E402
+from sitegen.render import inline_text  # noqa: E402
 
 _HEADING = re.compile(r"^## (.+)$")
 _ENTRY = re.compile(r"^- \[`?([^\]`]+)`?\]\(([^)]+)\)\s*(?:—|-)?\s*(.*)$")
@@ -135,6 +144,18 @@ def _current_schemas() -> list[tuple[str, str, str]]:
     return entries
 
 
+def _notes(notes: Path) -> list[tuple[str, str, str]]:
+    """List every published note, newest first, as (title, served URL, summary).
+
+    A note that would not build stops this script too, rather than being left out
+    of a list that then disagrees with the site.
+    """
+    try:
+        return [(note.title, note.url, inline_text(note.summary)) for note in read_notes(notes)]
+    except SiteBuildError as exc:
+        sys.exit(f"error: {exc}")
+
+
 def _render() -> str:
     counts = _counts()
     out = [
@@ -166,6 +187,12 @@ def _render() -> str:
         out.append(f"## {heading}")
         out.append("")
         out.extend(_bullet(entry) for entry in entries)
+        out.append("")
+    notes = _notes(_NOTES)
+    if notes:
+        out.append("## Notes")
+        out.append("")
+        out.extend(_bullet(entry) for entry in notes)
         out.append("")
     out.append("## Schemas")
     out.append("")

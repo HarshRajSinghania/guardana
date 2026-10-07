@@ -128,10 +128,18 @@ def test_nothing_the_site_publishes_is_excluded_from_the_deploy() -> None:
     )
 
 
+def _served_file(path: str) -> Path:
+    """Map a URL path to the file behind it: itself, or the page the host serves without `.html`."""
+    site = _repo() / "site"
+    if not path or path.endswith("/"):
+        return site / f"{path}index.html"
+    return site / path if (site / path).is_file() else site / f"{path}.html"
+
+
 def test_every_guardana_dev_url_in_llms_txt_is_a_file_the_site_serves() -> None:
     llms = (_repo() / "site" / "llms.txt").read_text(encoding="utf-8")
     urls = re.findall(r"\((https://guardana\.dev/[^)]+)\)", llms)
-    missing = [url for url in urls if not (_repo() / "site" / url.split("/", 3)[3]).is_file()]
+    missing = [url for url in urls if not _served_file(url.split("/", 3)[3]).is_file()]
 
     assert urls, "llms.txt names no guardana.dev URL — its schema list is gone"
     assert not missing, f"llms.txt points at files site/ does not serve: {missing}"

@@ -157,6 +157,17 @@ def render(markdown: str, resolve: Callable[[str], str]) -> Rendered:
     return Rendered(md.renderer.render(tokens, md.options, {}), frozenset(headings.values()))
 
 
+def wrap_tables(html: str) -> str:
+    """Wrap every table so a wide one scrolls inside itself instead of the page.
+
+    Substituting on the literal tag is safe only because the parser escapes raw
+    HTML, so no `<table>` an author wrote in prose or a fence can reach this.
+    """
+    return html.replace("<table>", '<div class="table-wrap"><table>').replace(
+        "</table>", "</table></div>"
+    )
+
+
 def _inline_children(token: Token) -> Iterator[Token]:
     if token.type == "inline" and token.children:
         yield from token.children

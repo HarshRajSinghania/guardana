@@ -30,7 +30,6 @@ import re
 import pytest
 
 from sitegen import explorer, render
-from sitegen.build import _tables
 from sitegen.theme import CSS
 
 
@@ -68,7 +67,7 @@ def test_a_plain_heading_is_still_lifted_out_of_the_body() -> None:
 
 
 def test_the_parser_escapes_raw_html_so_the_table_wrapper_cannot_reach_prose() -> None:
-    """`_tables` substitutes on the literal `<table>`, and that is safe for one reason only.
+    """`wrap_tables` substitutes on the literal `<table>`, and that is safe for one reason only.
 
     Raw HTML is off, so a document mentioning `<table>` in prose or in a code fence
     renders it escaped and the substitution never sees it. Turning raw HTML on would
@@ -82,7 +81,7 @@ def test_the_parser_escapes_raw_html_so_the_table_wrapper_cannot_reach_prose() -
     )
 
     html = render.render(markdown, lambda href: href).html
-    wrapped = _tables(html)
+    wrapped = render.wrap_tables(html)
 
     assert "&lt;table&gt;" in html, "raw HTML is no longer escaped; the table wrapper is now unsafe"
     assert wrapped.count('<div class="table-wrap">') == 1

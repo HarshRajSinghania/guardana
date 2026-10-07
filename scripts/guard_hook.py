@@ -31,6 +31,7 @@ SITE_CHECKS = (
     "sync_site.py",
     "build_site.py",
     "generate_llms_txt.py",
+    "generate_sitemap.py",
     "generate_well_known.py",
 )
 # Programs that read or check a file named on their command line and never run it.

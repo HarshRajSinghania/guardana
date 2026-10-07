@@ -1,4 +1,4 @@
-"""Every `guardana …` command line the documentation shows names a real command and real flags.
+"""Every `guardana …` command line in the docs or a note names a real command and real flags.
 
 The command trees come from the parsers themselves — the Typer app and the collector's
 argparse parser — so a flag renamed or removed in code turns the page that still shows it red.
@@ -348,14 +348,16 @@ def _unknown_bare_flags(markdown: str, page: str) -> list[tuple[int, str]]:
     return found
 
 
-def _documents() -> list[Path]:
-    docs = _REPO / "docs"
+def _documents(repo: Path = _REPO) -> list[Path]:
+    """The README, FEATURES, the published docs pages and every note under `notes/`."""
+    docs = repo / "docs"
     pages = [
         page
         for page in sorted(docs.rglob("*.md"))
         if page.relative_to(docs).parts[0] not in _EXCLUDED_DOC_DIRS
     ]
-    return [_REPO / "README.md", _REPO / "FEATURES.md", *pages]
+    notes = sorted((repo / "notes").glob("*.md")) if (repo / "notes").is_dir() else []
+    return [repo / "README.md", repo / "FEATURES.md", *pages, *notes]
 
 
 def _failures(markdown: str, page: str = "docs/page.md") -> list[tuple[int, str]]:
@@ -455,6 +457,38 @@ def test_launchers_prompts_and_placeholders_are_not_read_as_flags() -> None:
 
     assert _failures(snippet) == []
     assert [i.args[0] for i in _invocations(snippet)] == ["scan", "scan", _PLACEHOLDER]
+
+
+def test_a_note_is_checked_like_a_documentation_page(tmp_path: Path) -> None:
+    for name in ("README.md", "FEATURES.md", "docs/index.md"):
+        (tmp_path / name).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / name).write_text("# Page\n", encoding="utf-8")
+    (tmp_path / "notes").mkdir()
+    (tmp_path / "notes" / "a-note.md").write_text(
+        "---\ntitle: A\n---\n```bash\nguardana frobnicate\nguardana probe --max-cost 5\n```\n"
+        "Then pass `--no-such-flag`.\n",
+        encoding="utf-8",
+    )
+
+    failures = [
+        f"{page.relative_to(tmp_path).as_posix()}:{line}: {problem}"
+        for page in _documents(tmp_path)
+        for line, problem in _failures(
+            page.read_text(encoding="utf-8"), page.relative_to(tmp_path).as_posix()
+        )
+    ]
+
+    assert failures == [
+        "notes/a-note.md:5: guardana frobnicate: no such command",
+        "notes/a-note.md:6: guardana probe has no option --max-cost",
+        "notes/a-note.md:8: no command takes --no-such-flag",
+    ]
+
+
+def test_without_a_notes_directory_only_the_documentation_is_read(tmp_path: Path) -> None:
+    (tmp_path / "docs").mkdir()
+
+    assert _documents(tmp_path) == [tmp_path / "README.md", tmp_path / "FEATURES.md"]
 
 
 def test_the_pages_carry_enough_command_lines_for_the_check_to_mean_something() -> None:

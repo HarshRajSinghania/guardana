@@ -1,6 +1,6 @@
-"""Render the documentation site into `site/docs/`, and publish `schemas/` into `site/schemas/`.
+"""Render `docs/` and `notes/` into `site/docs/` and `site/notes/`; publish `schemas/` too.
 
-    uv run python scripts/build_site.py            # write site/docs/ and site/schemas/
+    uv run python scripts/build_site.py            # write site/docs/, site/notes/ and site/schemas/
     uv run python scripts/build_site.py --check    # exit 1 if stale; write nothing
 
 The same pair of guards `generate_docs.py`, `sync_site.py` and
@@ -12,7 +12,7 @@ turns the suite red rather than waiting for somebody to cut a release.
 Cloudflare serves is what is committed here, which is also what a reviewer can
 read in a diff. Two things follow, and both are deliberate:
 
-- **Nothing under `site/docs/` is edited by hand.** The whole tree is deleted and
+- **Nothing under `site/docs/` or `site/notes/` is edited by hand.** The whole tree is deleted and
   rewritten, so a hand-edit is silently lost — which is the honest outcome, since
   the markdown is the source.
 - **No script is emitted anywhere.** `site/_headers` ships `script-src 'none'`,
@@ -32,6 +32,7 @@ from pathlib import Path
 
 _REPO = Path(__file__).resolve().parent.parent
 _OUT = _REPO / "site" / "docs"
+_NOTES_OUT = _REPO / "site" / "notes"
 _SCHEMAS = _REPO / "schemas"
 _SCHEMAS_OUT = _REPO / "site" / "schemas"
 _SCHEMA_BASE = "https://guardana.dev/schemas/"
@@ -43,7 +44,7 @@ sys.path.insert(0, str(_REPO / "packages" / "guardana-rules" / "src"))
 
 from guardana.core import __version__  # noqa: E402
 
-from sitegen import SiteBuildError, build  # noqa: E402
+from sitegen import SiteBuildError, build, build_notes  # noqa: E402
 
 _NAMED = 8
 """How many stale paths `--check` prints before it stops listing them."""
@@ -100,7 +101,7 @@ def _write(root: Path, files: dict[str, bytes]) -> None:
 
 def main() -> int:
     """Build the site, or report which pages on disk no longer match the sources."""
-    parser = argparse.ArgumentParser(description="Render docs/ into site/docs/.")
+    parser = argparse.ArgumentParser(description="Render docs/ and notes/ into site/.")
     parser.add_argument("--check", action="store_true", help="exit 1 if stale; write nothing")
     args = parser.parse_args()
 
@@ -108,6 +109,7 @@ def main() -> int:
         pages = build(_REPO, __version__)
         trees = {
             _OUT: {name: body.encode("utf-8") for name, body in pages.items()},
+            _NOTES_OUT: {name: body.encode("utf-8") for name, body in build_notes(_REPO).items()},
             _SCHEMAS_OUT: _published_schemas(),
         }
     except SiteBuildError as exc:

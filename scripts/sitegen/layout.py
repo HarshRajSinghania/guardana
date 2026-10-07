@@ -14,7 +14,7 @@ from sitegen.page import served_path
 _REPO = "https://github.com/guardana/guardana"
 _MAINTAINER = "Konrad Karauda"
 # The mark, drawn inline so the header costs no request: a shield with a check.
-_MARK = (
+MARK = (
     '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" '
     'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'
     '<path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z" '
@@ -28,6 +28,8 @@ class Chrome:
 
     sections: tuple[NavSection, ...]
     version: str
+    notes: bool = False
+    """Whether at least one note is published, and so whether the header links to them."""
 
 
 def page(  # noqa: PLR0913 — one keyword per fact the shell needs; none is derivable
@@ -46,6 +48,7 @@ def page(  # noqa: PLR0913 — one keyword per fact the shell needs; none is der
         if edit_path
         else f'<a href="{_REPO}">Source on GitHub</a>'
     )
+    notes = f'<a href="{up}../notes/index.html">Notes</a>\n' if chrome.notes else ""
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -60,11 +63,11 @@ def page(  # noqa: PLR0913 — one keyword per fact the shell needs; none is der
 </head>
 <body>
 <header class="top"><div class="bar">
-<a class="mark" href="{up}../">{_MARK}<span class="w">guard<b>ana</b></span></a>
+<a class="mark" href="{up}../">{MARK}<span class="w">guard<b>ana</b></span></a>
 <nav>
 <a href="{up}index.html">Documentation</a>
 <a href="{up}rules/index.html">Rules</a>
-<a href="{_REPO}">GitHub</a>
+{notes}<a href="{_REPO}">GitHub</a>
 </nav>
 </div></header>
 <div class="shell">
