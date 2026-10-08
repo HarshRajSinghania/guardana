@@ -24,19 +24,9 @@ uv run pre-commit install --install-hooks --hook-type commit-msg --hook-type pre
 
 ## Your first contribution
 
-The fastest way in is a **new declarative rule**, and it needs no engine
-knowledge. A YAML rule is "send these prompts, grade with this evaluator" —
-`uv run guardana new-rule yourname.prompt.my_check` scaffolds a valid skeleton,
-and the whole thing (rule + its required positive and negative test fixtures) is
-typically a ~30-minute PR. See [`docs/writing-rules.md`](docs/writing-rules.md)
-and the worked example in [`examples/custom_rule/`](examples/custom_rule/).
+Documentation fixes, tests for existing behaviour, examples, and maintainer scripts are open now. Browse issues labelled [`good first issue`](https://github.com/guardana/guardana/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) for a concrete task.
 
-Looking for something concrete? Browse issues labelled
-[`good first issue`](https://github.com/guardana/guardana/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22).
-Built-in security rules map to a public framework (OWASP LLM / OWASP ASI / MITRE
-ATLAS / NIST). Every rule ships with a positive **and** a negative fixture. That
-pair is non-negotiable because dynamic checks are prone to false positives and
-false negatives.
+New declarative rules are welcome after 1.0. A rule needs a framework mapping and positive and negative fixtures. When rules open, `uv run guardana new-rule yourname.prompt.my_check` scaffolds a skeleton. See [`docs/writing-rules.md`](docs/writing-rules.md) and [`examples/custom_rule/`](examples/custom_rule/).
 
 ## Tooling gates
 

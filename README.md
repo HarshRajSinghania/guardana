@@ -276,19 +276,18 @@ The engine and built-in rules are Apache-2.0. See the project [principles](CLAUD
 
 Report suspected vulnerabilities privately through [`SECURITY.md`](SECURITY.md), never public issues. Review third-party Python packs before admitting them; the security policy explains plugin trust and supported versions.
 
-## Contributing
-
-New rules are useful. Each new rule must map to a standard and include a positive and a negative fixture. [`CONTRIBUTING.md`](CONTRIBUTING.md) covers contributors; [`CLAUDE.md`](CLAUDE.md) covers AI agents.
-
 ## Related project: Guardana Control
 
 [Guardana Control](https://github.com/guardana/control) is a separate, independent open-source project. It sits in the request path of an AI agent's MCP tool calls: it decides each call, enforces the decision, and records evidence. It is alpha; its own README says not to deploy it as a security boundary. Guardana verifies from outside any request path, before and between releases. Neither project needs the other.
 
-## Partner with us
+## Get involved
 
-- **🏢 Design partners.** Use Guardana in CI and beside self-hosted production models, with a direct line to the maintainers.
-- **🧩 Rule and integration authors.** Keep checks private under your namespace or contribute them upstream.
-- **💬 Everyone else.** Share issues and questions in [Discussions](https://github.com/guardana/guardana/discussions).
+- Try it in about ten minutes and tell us where you got stuck in a [first-run session](docs/maintainers/first-run-study.md).
+- Bring your team's LLM, RAG or MCP application as a [pilot](docs/maintainers/adopter-study.md). Start in GitHub Discussions’ [Pilots category](https://github.com/guardana/guardana/discussions) or email contact@guardana.dev.
+- Write your own pack or check. See [docs/extending.md](docs/extending.md) and [examples/](examples/).
+- Star the repository or watch releases if you want to follow 1.0.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). New rules need a framework mapping and fixtures.
 
 **contact@guardana.dev** · [karauda.com/contact](https://karauda.com/contact) · [guardana.dev](https://guardana.dev) · [github.com/guardana](https://github.com/guardana)
 
