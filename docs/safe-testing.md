@@ -69,8 +69,8 @@ This is why the recommendation is not "Guardana is safe" but:
 ## Practical guidance
 
 **Use a staging deployment with the same configuration.** Same model, same system
-prompt, same tool manifest, non-production credentials and data. A security verdict
-from staging transfers; a production incident does not.
+prompt, same tool manifest, non-production credentials and data. Staging evidence applies to
+production only insofar as the model, system prompt, and tool manifest match.
 
 **Point tools at a sandbox.** If you must exercise a production-shaped agent, give
 it tool endpoints that write to a scratch environment.

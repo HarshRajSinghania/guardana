@@ -20,7 +20,8 @@ from guardana.rules import provide_rules
 
 _TOTAL_RE = re.compile(r">(\d+) rules · two surfaces<")
 _BUILD_RE = re.compile(r">(\d+) rules · your laptop")
-_RUNTIME_RE = re.compile(r">(\d+) rules · a served model, or a run it already performed<")
+_RUNTIME_LABEL = "served systems; recorded runs support checks only where exchanges were captured"
+_RUNTIME_RE = re.compile(rf">(\d+) rules · {re.escape(_RUNTIME_LABEL)}<")
 
 
 def _page() -> str:

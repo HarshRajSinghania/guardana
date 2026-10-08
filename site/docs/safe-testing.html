@@ -358,8 +358,8 @@ real action. Guardana did not execute the tool; the system under test did.</p>
 </blockquote>
 <h2 id="practical-guidance">Practical guidance</h2>
 <p><strong>Use a staging deployment with the same configuration.</strong> Same model, same system
-prompt, same tool manifest, non-production credentials and data. A security verdict
-from staging transfers; a production incident does not.</p>
+prompt, same tool manifest, non-production credentials and data. Staging evidence applies to
+production only insofar as the model, system prompt, and tool manifest match.</p>
 <p><strong>Point tools at a sandbox.</strong> If you must exercise a production-shaped agent, give
 it tool endpoints that write to a scratch environment.</p>
 <p><strong>Bound the run.</strong> Concurrency is bounded (<code>--concurrency</code>, default 4 for probe)

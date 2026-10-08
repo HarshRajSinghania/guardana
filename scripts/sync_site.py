@@ -35,6 +35,8 @@ from sitegen.diagram import figure  # noqa: E402
 from sitegen.errors import SiteBuildError  # noqa: E402
 from sitegen.render import parser  # noqa: E402
 
+_RUNTIME_LABEL = "served systems; recorded runs support checks only where exchanges were captured"
+
 # Each claim is (pattern with the number captured, template, what it counts).
 # Kept next to each other so adding a claim to the page means adding one line
 # here — the alternative is a fourth number nobody rewrites.
@@ -42,8 +44,8 @@ _CLAIMS: tuple[tuple[re.Pattern[str], str, str], ...] = (
     (re.compile(r">(\d+) rules · two surfaces<"), ">{n} rules · two surfaces<", "total"),
     (re.compile(r">(\d+) rules · your laptop"), ">{n} rules · your laptop", "build"),
     (
-        re.compile(r">(\d+) rules · a served model, or a run it already performed<"),
-        ">{n} rules · a served model, or a run it already performed<",
+        re.compile(r">(\d+) rules · " + re.escape(_RUNTIME_LABEL) + "<"),
+        ">{n} rules · " + _RUNTIME_LABEL + "<",
         "runtime",
     ),
     (re.compile(r"(\d+) rule\(s\) run, 0 skipped"), "{n} rule(s) run, 0 skipped", "build"),
