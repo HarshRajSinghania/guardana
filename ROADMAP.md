@@ -47,8 +47,8 @@ The readiness release and first release candidate have shipped. F2's five first-
 
 | Target | Delivers |
 |---|---|
-| **v1.0.0rc2** | fixes only, at least two weeks after the first candidate |
-| **v1.0.0** | the first stable release |
+| **v1.0.0rc2** | fixes only; ships once the fixes found in rc1 are in and the gate is green |
+| **v1.0.0** | first stable release when a release candidate has drawn no new defect reports for a while and the 1.0 criteria below hold |
 
 The target is the first quarter of 2027. External evidence sets that date more than the code
 does: five first-run users after F2, two independent teams in F6 and a recorded third-party
