@@ -2,9 +2,7 @@
 
 Pushing the branch and the tag together races CI against the publish, and a red run
 then leaves a publish waiting on the `pypi` approval — a second click, and a cancelled
-run in the history that reads as a failed release. Every release from 0.19.0 to 0.21.0
-paid that once and 0.20.0 paid it twice, which is why the wait is in the script and not
-only in the runbook.
+run in the history that reads as a failed release.
 
 The direction that matters is the refusal. A gate that pushed the tag anyway when it
 could not check is the same defect wearing a different hat, so both ways of being unable
@@ -35,6 +33,17 @@ def test_a_tag_is_not_pushed_when_ci_cannot_be_reached(monkeypatch: pytest.Monke
         release._await_green_ci()
 
     assert exit_info.value.code == 1
+
+
+def test_a_stop_before_tagging_spells_out_the_tag_commands(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The release commit is pushed and untagged, so the message is all a hand has to go on."""
+    with pytest.raises(SystemExit):
+        release._stop_before_tagging("CI run 42 is not green")
+
+    err = capsys.readouterr().err
+    assert all(command in err for command in release._TAG_BY_HAND), err
 
 
 def test_a_tag_is_not_pushed_when_no_ci_run_exists_yet(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -212,7 +221,7 @@ def test_a_bump_plan_names_the_files_the_bump_writes() -> None:
     )
 
 
-def test_the_runbook_moves_the_minor_tag_the_way_the_script_does(
+def test_the_tag_by_hand_moves_the_minor_tag_the_way_the_script_does(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The moving tag is a lightweight pointer at the release commit, by hand or by script."""
@@ -224,8 +233,9 @@ def test_the_runbook_moves_the_minor_tag_the_way_the_script_does(
 
     monkeypatch.setattr(release, "_run", _record)
     release._move_marketplace_tag("0.1.1", "v0.1.1")
-    runbook = (release._ROOT / "RELEASING.md").read_text(encoding="utf-8").splitlines()
-    by_hand = [line for line in runbook if line.startswith("git tag") and " vX.Y " in line]
+    by_hand = [
+        line for line in release._TAG_BY_HAND if line.startswith("git tag") and " vX.Y " in line
+    ]
 
     assert calls[0] == ["git", "tag", "-f", "v0.1", "v0.1.1^{commit}"]
     assert by_hand
@@ -462,61 +472,70 @@ def test_the_surface_check_runs_before_the_gate(monkeypatch: pytest.MonkeyPatch)
     assert order == ["preflight", "1.0.0rc2", "gate"]
 
 
-_PRE_1_RUNBOOK = (
-    "# Releasing\n\n## Versioning\n\nGuardana follows SemVer. The twist is that it\n"
+_PRE_1_POLICY = (
+    "# Compatibility\n\n## Versioning\n\nGuardana follows SemVer. The twist is that it\n"
     "is **pre-1.0**, and 0.x has its own rules.\n\n| Pre-1.0 (`0.y.z`) | Post-1.0 |\n"
 )
-_POST_1_RUNBOOK = (
-    "# Releasing\n\n## Versioning\n\nGuardana follows SemVer and is past 1.0.\n\n"
+_POST_1_POLICY = (
+    "# Compatibility\n\n## Versioning\n\nGuardana follows SemVer and is past 1.0.\n\n"
     "| Pre-1.0 (`0.y.z`) | Post-1.0 |\n\nBut pre-1.0 with a single active line, patch it.\n"
 )
+_POLICY_PAGE = "docs/compatibility.md"
 
 
-def _runbook(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, text: str | None) -> None:
-    """Point the pre-1.0 check at a runbook in `tmp_path`; `None` leaves it unreadable."""
-    runbook = tmp_path / "RELEASING.md"
+def _policy(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, text: str | None) -> None:
+    """Point the pre-1.0 check at a policy page under `tmp_path`; `None` leaves it unreadable."""
+    page = tmp_path / _POLICY_PAGE
     if text is not None:
-        runbook.write_text(text, encoding="utf-8")
-    monkeypatch.setattr(release, "_RELEASING", runbook)
+        page.parent.mkdir(parents=True)
+        page.write_text(text, encoding="utf-8")
+    monkeypatch.setattr(release, "_ROOT", tmp_path)
+    monkeypatch.setattr(release, "_VERSIONING", page)
+
+
+def test_the_pre_1_0_statement_is_read_from_the_public_versioning_policy() -> None:
+    """The release must read the page users read, and that page must carry the policy."""
+    assert release._VERSIONING == release._ROOT / _POLICY_PAGE
+    assert "\n## Versioning\n" in release._VERSIONING.read_text(encoding="utf-8")
 
 
 @pytest.mark.parametrize("version", ["1.0.0", "1.2.3", "2.0.0"])
-def test_a_final_1x_release_is_refused_while_the_runbook_says_pre_1_0(
+def test_a_final_1x_release_is_refused_while_the_policy_says_pre_1_0(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, version: str
 ) -> None:
-    _runbook(monkeypatch, tmp_path, _PRE_1_RUNBOOK)
+    _policy(monkeypatch, tmp_path, _PRE_1_POLICY)
 
     with pytest.raises(SystemExit) as refused:
         release._check_pre_1_statement(version)
 
-    assert "RELEASING.md:6" in str(refused.value.code)
+    assert f"{_POLICY_PAGE}:6" in str(refused.value.code)
     assert "pre-1.0" in str(refused.value.code)
 
 
 def test_the_pre_1_0_statement_is_found_across_a_line_break(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    _runbook(monkeypatch, tmp_path, "# Releasing\n\nThe twist is that it is\n**pre-1.0** still.\n")
+    _policy(monkeypatch, tmp_path, "# Compatibility\n\nThe twist is that it is\n**pre-1.0**.\n")
 
     with pytest.raises(SystemExit) as refused:
         release._check_pre_1_statement("1.0.0")
 
-    assert "RELEASING.md:4" in str(refused.value.code)
+    assert f"{_POLICY_PAGE}:4" in str(refused.value.code)
 
 
 @pytest.mark.parametrize("version", ["1.0.0rc2", "0.42.0", "0.41.1"])
 def test_a_candidate_or_a_0x_release_is_not_held_by_the_pre_1_0_statement(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, version: str
 ) -> None:
-    _runbook(monkeypatch, tmp_path, _PRE_1_RUNBOOK)
+    _policy(monkeypatch, tmp_path, _PRE_1_POLICY)
 
     release._check_pre_1_statement(version)
 
 
-def test_a_final_1x_release_continues_once_the_runbook_is_rewritten(
+def test_a_final_1x_release_continues_once_the_policy_is_rewritten(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    _runbook(monkeypatch, tmp_path, _POST_1_RUNBOOK)
+    _policy(monkeypatch, tmp_path, _POST_1_POLICY)
 
     release._check_pre_1_statement("1.0.0")
 
@@ -526,7 +545,7 @@ def test_the_versioning_policy_may_keep_naming_pre_1_0_once_the_status_is_rewrit
 ) -> None:
     """The table and the advice that describe 0.x releases stay true after 1.0."""
     policy = (
-        "# Releasing\n\nGuardana follows Semantic Versioning and is stable since 1.0.0.\n\n"
+        "# Compatibility\n\nGuardana follows Semantic Versioning and is stable since 1.0.0.\n\n"
         "| You're releasing… | Bump | Pre-1.0 (`0.y.z`) | Post-1.0 (`x.y.z`) |\n"
         "|---|---|---|---|\n"
         "| An incompatible change | **minor** pre-1.0, **major** post-1.0 | `0.1.4 → 0.2.0` "
@@ -536,26 +555,26 @@ def test_the_versioning_policy_may_keep_naming_pre_1_0_once_the_status_is_rewrit
         'Practical pre-1.0 rule of thumb: **patch = "safe to upgrade blindly"**.\n\n'
         "release `0.1.5` from there — but pre-1.0 with a single active line, you'll almost\n"
     )
-    _runbook(monkeypatch, tmp_path, policy)
+    _policy(monkeypatch, tmp_path, policy)
 
     release._check_pre_1_statement("1.0.0")
 
 
-def test_a_final_1x_release_is_refused_when_the_runbook_cannot_be_read(
+def test_a_final_1x_release_is_refused_when_the_policy_cannot_be_read(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    _runbook(monkeypatch, tmp_path, None)
+    _policy(monkeypatch, tmp_path, None)
 
     with pytest.raises(SystemExit) as refused:
         release._check_pre_1_statement("1.0.0")
 
-    assert "RELEASING.md" in str(refused.value.code)
+    assert f"cannot read {_POLICY_PAGE}" in str(refused.value.code)
 
 
 def test_the_pre_1_0_statement_refuses_a_dry_run_before_the_gate(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    _runbook(monkeypatch, tmp_path, _PRE_1_RUNBOOK)
+    _policy(monkeypatch, tmp_path, _PRE_1_POLICY)
     ran: list[str] = []
     monkeypatch.setattr(release, "_current_version", lambda: "1.0.0rc2")
     monkeypatch.setattr(release, "_preflight", lambda: None)
@@ -566,7 +585,7 @@ def test_the_pre_1_0_statement_refuses_a_dry_run_before_the_gate(
     with pytest.raises(SystemExit) as refused:
         release.main(["1.0.0", "--dry-run"])
 
-    assert "RELEASING.md:6" in str(refused.value.code)
+    assert f"{_POLICY_PAGE}:6" in str(refused.value.code)
     assert ran == []
 
 

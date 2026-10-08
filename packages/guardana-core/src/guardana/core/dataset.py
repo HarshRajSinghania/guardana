@@ -1,8 +1,7 @@
 """A quality suite's dataset: one JSONL file of cases, named and versioned by its author.
 
 The first non-blank line is a header naming the dataset; every other non-blank line is
-one case. Why the format is this shape, and what was rejected:
-[`docs/design/quality-suites.md`](../../../../../docs/design/quality-suites.md).
+one case.
 
 Format 2 adds a case's optional `observed` and `accepted` replies, both or neither: the
 failure a regression case was promoted from and a correct reply a reviewer wrote. A live

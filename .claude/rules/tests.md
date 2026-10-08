@@ -6,8 +6,6 @@ paths:
 ---
 # Tests
 
-Why: `docs/maintainers/lessons.md` § False green, § Gates.
-
 - **Tests are never a leak.** No fixture carries real customer data, a real secret or a real
   production prompt; evidence stays redacted. Crafted fixtures are built in code
   (`guardana.core.testing`) so they are readable in review.

@@ -50,7 +50,7 @@ class Capability(StrEnum):
     # they are one capability per dimension rather than one for "a trace is present".
     # A single `READ_TRACE` would let the approval rule run against a trace with no
     # approval records and accuse a system whose instrumentation is merely quieter
-    # than ours. See `docs/design/trace-domain-model.md`.
+    # than ours.
     READ_TRACE = "read_trace"
     READ_MESSAGES = "read_messages"
     READ_TOOL_CALLS = "read_tool_calls"

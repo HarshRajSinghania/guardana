@@ -26,8 +26,8 @@ _TAG = re.compile(r"<[a-zA-Z/][^>]*>")
 _SCRIPTABLE = re.compile(r"<script|\son\w+\s*=|(?:href|src)\s*=\s*\"javascript:", re.IGNORECASE)
 """Matched against the *tags* of a page, never against its text.
 
-`design/mcp-authorization-depth.html` names the `javascript:` scheme as one of the
-things a poisoned MCP tool description reaches for, inside a `<code>` span. A
+A security page may name the `javascript:` scheme as one of the things a
+poisoned MCP tool description reaches for, inside a `<code>` span. A
 scanner that read the prose would report the page describing the attack as
 carrying it — a false red on a security page, which is the failure mode this
 project spends the most effort refusing in the other direction.
@@ -112,13 +112,12 @@ def test_no_page_ships_anything_the_content_security_policy_forbids() -> None:
 
 
 def test_the_policy_still_forbids_reaching_any_host() -> None:
-    """`connect-src 'none'` is the line the design document called non-negotiable.
+    """`connect-src 'none'` is non-negotiable for the documentation site.
 
     Free-text search over the prose is the one feature worth relaxing `script-src`
-    for, and `docs/design/documentation-site.md` says that if it is ever taken, the
-    network stays shut. This is that promise as a test rather than a paragraph — if
-    the docs site ever needs to reach a host, that is a decision with a design
-    document, not a header edit somebody makes on the way past.
+    for, and if it is ever taken, the network stays shut. If the docs site ever
+    needs to reach a host, that is a deliberate decision, not a header edit
+    somebody makes on the way past.
     """
     headers = (_repo() / "site" / "_headers").read_text(encoding="utf-8")
 
@@ -203,7 +202,7 @@ def test_the_explorer_offers_a_filter_for_every_framework_entry_a_rule_maps_to()
 
 @pytest.mark.parametrize(
     "page",
-    ["index.html", "rules/index.html", "usage-scan.html", "design/documentation-site.html"],
+    ["index.html", "rules/index.html", "usage-scan.html", "studies/first-run-study.html"],
 )
 def test_a_representative_page_carries_its_own_title_and_navigation(page: str) -> None:
     html = (_site() / page).read_text(encoding="utf-8")
@@ -353,3 +352,75 @@ def test_the_published_brand_version_is_never_edited_in_place() -> None:
     assert digest == _BRAND_V1_DIGEST, (
         f"{_BRAND_V1} changed; publish the change as site/assets/brand/v2/ instead"
     )
+
+
+_REMOVED = ("/docs/design/", "/docs/maintainers/")
+
+
+def _served(site: Path, path: str) -> Path | None:
+    """The file the host answers a URL path with, or None when nothing answers it."""
+    relative = path.lstrip("/")
+    candidates = (
+        [site / relative / "index.html"]
+        if not relative or relative.endswith("/")
+        else [site / relative, site / f"{relative}.html", site / relative / "index.html"]
+    )
+    return next((candidate for candidate in candidates if candidate.is_file()), None)
+
+
+def _redirect_problems(rules: str, site: Path) -> list[str]:
+    """Every way a `_redirects` file can send a visitor nowhere, or hide a live page."""
+    problems: list[str] = []
+    seen: list[str] = []
+    for number, line in enumerate(rules.splitlines(), start=1):
+        if not line.strip() or line.startswith("#"):
+            continue
+        fields = line.split()
+        if len(fields) != 3 or fields[2] != "301":
+            problems.append(f"{number}: not `source destination 301`: {line!r}")
+            continue
+        source, destination, _ = fields
+        if destination.startswith(_REMOVED) or _served(site, destination) is None:
+            problems.append(f"{number}: {destination} is not a page the site serves")
+        if not source.endswith("*") and _served(site, source) is not None:
+            problems.append(f"{number}: {source} is a live page, and a redirect always wins")
+        swallowed_by = [s for s in seen if s.endswith("*") and source.startswith(s[:-1])]
+        if swallowed_by:
+            problems.append(f"{number}: {source} comes after {swallowed_by[0]}, which wins")
+        seen.append(source)
+    sources = set(seen)
+    problems.extend(
+        f"{source} has no rule for {source}.html"
+        for source in sorted(sources)
+        if not source.endswith(("*", ".html", "/")) and f"{source}.html" not in sources
+    )
+    return problems
+
+
+def test_every_redirect_lands_on_a_page_the_site_serves() -> None:
+    """A removed page keeps its subject: each redirect ends on a live page, never on another 404.
+
+    A rule matches its path literally, so the `.html` form of a removed page needs a
+    rule of its own; the host's extension handling only applies to files that exist.
+    """
+    site = _repo() / "site"
+    problems = _redirect_problems((site / "_redirects").read_text(encoding="utf-8"), site)
+
+    assert not problems, "site/_redirects:\n  " + "\n  ".join(problems)
+
+
+def test_a_redirect_to_nowhere_or_behind_a_wildcard_is_reported() -> None:
+    site = _repo() / "site"
+    rules = (
+        "/docs/design/* /docs/ 301\n"
+        "/docs/design/trace-producer /docs/writing-an-integrator 301\n"
+        "/docs/maintainers/lessons /docs/maintainers/lessons 301\n"
+        "/docs/usage-scan /docs/ 301\n"
+    )
+
+    problems = _redirect_problems(rules, site)
+
+    assert any("comes after /docs/design/*" in p for p in problems)
+    assert any("/docs/maintainers/lessons is not a page" in p for p in problems)
+    assert any("/docs/usage-scan is a live page" in p for p in problems)
+    assert any("no rule for /docs/design/trace-producer.html" in p for p in problems)

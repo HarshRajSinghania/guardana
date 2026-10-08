@@ -5,8 +5,7 @@ from the plan of the recipe's run and pins what a run already records about itse
 digests, the profile digest, judge identities — plus what those records miss: calibration
 contents, the distribution behind every rule, evaluator and installed target, plugin trust,
 the subject's own reviewed files and the files of every distribution installed from a
-directory or a URL. Design: `docs/design/team-recipes.md`,
-`docs/design/guarded-applications.md`.
+directory or a URL.
 """
 
 import importlib.metadata

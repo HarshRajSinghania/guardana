@@ -15,7 +15,7 @@ Range: $ARGUMENTS
 In-flight work files — read the one that matches the change for its goal and done-criteria:
 
 ```!
-ls docs/work/*.md 2>/dev/null | grep -v -E 'README|BACKLOG|TEMPLATE' || echo "none"
+ls .work/*.md 2>/dev/null || echo "none"
 ```
 
 Changed files right now:

@@ -54,7 +54,7 @@ happened
   that this framework simply does not describe.
 
 A report that collapsed the two would make those indistinguishable, which is the
-single inference [the trace design](design/trace-domain-model.md) exists to refuse.
+single inference the trace model exists to refuse.
 
 **`records` counts messages, not readable text.** When some messages carry neither text
 nor a tool call, a note says how many, because a rule reading message text grades them as
@@ -163,5 +163,3 @@ missing pieces can be added by hand or by your own exporter. See
 - [`usage-analyze-trace.md`](usage-analyze-trace.md) — grading the execution
 - [`usage-contracts.md`](usage-contracts.md) — security contracts, which demand
   dimensions implicitly by asserting things that need them
-- [`design/trace-domain-model.md`](design/trace-domain-model.md) — why absence is
-  never read as evidence

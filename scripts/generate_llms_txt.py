@@ -57,10 +57,10 @@ from sitegen.render import inline_text  # noqa: E402
 _HEADING = re.compile(r"^## (.+)$")
 _ENTRY = re.compile(r"^- \[`?([^\]`]+)`?\]\(([^)]+)\)\s*(?:—|-)?\s*(.*)$")
 
-_OPTIONAL_SECTIONS = frozenset({"Design documents", "Maintainers", "Governance"})
+_OPTIONAL_SECTIONS = frozenset({"Studies", "Maintainers", "Governance"})
 """Sections a model may skip when its context is short, per the llms.txt spec.
 
-Design documents argue about rejected alternatives, and governance is about people.
+Studies say how the published measures are collected, and governance is about people.
 Both are worth having on the site and neither is what somebody asking "how do I gate
 a build on this" needs first.
 """

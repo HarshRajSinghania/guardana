@@ -2,8 +2,7 @@
 
 The fourth declarative shape, picked by `dataset:`. It grades each reply with an ordinary
 evaluator, records one assessment per trial with the pass included, and yields at most
-one finding, about the rate rather than a case. Why, and what was rejected:
-[`docs/design/quality-suites.md`](../../../../../../docs/design/quality-suites.md).
+one finding, about the rate rather than a case.
 """
 
 import hashlib

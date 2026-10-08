@@ -4,7 +4,7 @@
     uv run python scripts/first_run_measure.py    # validate the sheet, print the measure
 
 `generate_docs.py` writes the same text to `docs/generated/first-run.md`, so the
-published number always comes from `docs/maintainers/first-run-study.csv` and never
+published number always comes from `docs/studies/first-run-study.csv` and never
 from a sentence somebody typed. Until the sheet holds `REQUIRED` consented sessions
 the page says "not measured".
 
@@ -23,7 +23,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 _REPO = Path(__file__).resolve().parent.parent
-SHEET = _REPO / "docs" / "maintainers" / "first-run-study.csv"
+SHEET = _REPO / "docs" / "studies" / "first-run-study.csv"
 REQUIRED = 5
 TARGET = 4
 LIMIT_SECONDS = 600

@@ -11,8 +11,8 @@ Task: $ARGUMENTS
 Run `work` → `plan` → `build` → `gate` → `review` → fix → `gate` → commit, in one go.
 
 1. **Check it is still true.** Reproduce the bug / confirm the feature is missing / confirm the
-   dead code is still there. Other sessions work in this repo: look at `git log -15`,
-   `git status` and `docs/work/` first. Nothing to do → say so and stop cleanly. A work file
+   dead code is still there. Look at `git log -15`, `git status` and `.work/` first; the tree
+   may hold changes that are not yours. Nothing to do → say so and stop cleanly. A work file
    already covers it → continue THAT file from its Handoff section; never start a duplicate.
 2. **Decide instead of asking.** For every open question take the most REVERSIBLE option, and
    record it under "Decisions" in the work file as `decided alone: … — reverse by …` so the user
@@ -38,8 +38,8 @@ Run `work` → `plan` → `build` → `gate` → `review` → fix → `gate` →
   code, a rule id, an entry-point group, a CLI flag, the collector envelope, the Action inputs;
 - making a check return clean to get green — the verdict is `inconclusive` or a finding, or the
   task stops here;
-- reader-facing wording with no `text-broker` engine available;
-- deleting a user-facing page, a design document or a fixture;
+- reader-facing wording that nobody has reviewed as text;
+- deleting a user-facing page or a fixture;
 - a gate red for a reason that is not yours and that you cannot fix inside the task.
 
 ## Report

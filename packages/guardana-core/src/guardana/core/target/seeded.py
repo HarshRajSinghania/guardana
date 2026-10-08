@@ -3,8 +3,7 @@
 Every other rule talks to the run's own endpoint, which is never a tenant; a rule that
 needs `Capability.SEEDED_DATA` asks through a tenant's endpoint instead, so Guardana
 knows which tenant it sent as. Every tenant endpoint bills the run's meter, so the
-run's budgets bound all of them. Design: `docs/design/application-fixtures-and-regressions.md`,
-decision 4.
+run's budgets bound all of them.
 """
 
 from collections.abc import Mapping, Sequence

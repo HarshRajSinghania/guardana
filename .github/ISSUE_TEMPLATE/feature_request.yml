@@ -36,7 +36,7 @@ body:
     id: kind
     attributes:
       label: What kind of extension is this?
-      description: See `CLAUDE.md` → "Extending Guardana" if you're unsure which applies.
+      description: See `docs/extending.md` if you're unsure which applies.
       options:
         - New Rule (YAML)
         - New Rule (Python plugin — logic YAML can't express)

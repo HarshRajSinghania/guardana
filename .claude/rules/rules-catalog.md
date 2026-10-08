@@ -5,7 +5,7 @@ paths:
 ---
 # Rules, evaluators and the catalogue
 
-Procedure: the `add-a-rule` skill. Why: `docs/maintainers/lessons.md` § Rules and seams.
+Procedure: the `add-a-rule` skill.
 
 - **YAML is the default** for "send this prompt, grade with this evaluator"; a Python plugin only
   for logic YAML cannot express. Unknown keys are rejected at load time — a typo'd `promts:`

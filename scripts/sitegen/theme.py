@@ -86,10 +86,9 @@ main{min-width:0; padding:34px 0 88px; max-width:780px}
   padding:3px 9px; border-radius:999px; background:var(--brand-soft); color:var(--brand-ink);
   vertical-align:middle; margin-left:10px; font-weight:600;
 }
-.status.beta,.status.proposed,.status.draft{
+.status.beta,.status.draft{
   background:color-mix(in srgb, var(--high) 14%, transparent); color:var(--high)
 }
-.status.superseded{background:var(--code); color:var(--muted)}
 
 main h1{font-size:36px; line-height:1.12; letter-spacing:-.025em; margin:0 0 12px; font-weight:700}
 main h2{

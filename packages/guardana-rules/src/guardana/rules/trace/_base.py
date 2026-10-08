@@ -9,7 +9,7 @@ held".
 The dimension a rule needs is a *capability*, so the runner skips the rule before it
 runs and records the reason. That is what stops the most dangerous inference a trace
 invites: a producer that does not emit approvals must not have its silence read as
-"nothing was approved". See `docs/design/trace-domain-model.md`.
+"nothing was approved".
 """
 
 from abc import abstractmethod

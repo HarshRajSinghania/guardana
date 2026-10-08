@@ -6,7 +6,7 @@ version stays put. An editable install is pinned by the source directory its
 An editable install whose path file or finder loads code from outside that directory, or
 whose path file runs a hook other than a setuptools finder read here, stays unpinned with
 the reason; so does a distribution too large to read, with a symlink leading out of its
-directory, or with nothing to read. Design: `docs/design/guarded-applications.md`.
+directory, or with nothing to read.
 """
 
 import ast

@@ -112,7 +112,7 @@ A `reply:` fixture answers every case with one reply. A fixture can use its own 
 
 ## Saved runs and limits
 
-The saved run includes a suite summary; see [suite summaries](usage-run.md#suite-summaries) for its fields. Extension authors can see [extending Guardana](extending.md), and the [suite design](design/quality-suites.md) gives the design context.
+The saved run includes a suite summary; see [suite summaries](usage-run.md#suite-summaries) for its fields. Extension authors can see [extending Guardana](extending.md).
 
 - Numeric measurements are recorded and rendered, but there is no gate on their aggregate.
 - The collector receives the target's request count, not `usage.judge`.

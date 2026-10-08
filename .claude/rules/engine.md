@@ -4,8 +4,6 @@ paths:
 ---
 # The engine (`guardana-core`)
 
-Why and the incidents: `docs/maintainers/lessons.md` § Engine, § False green.
-
 - **The engine knows no regulation and no vendor.** A law, a model vendor or a file format is
   data in a rule, a taxonomy entry or an extension package — never a branch in core.
 - **Never import `guardana.server`**, directly or transitively; `uv run lint-imports` fails the

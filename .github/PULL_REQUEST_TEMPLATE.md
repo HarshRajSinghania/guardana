@@ -28,7 +28,8 @@
       uv run pytest --cov
       uv run guardana scan packages --profile scripts/dogfood.yaml
       ```
-- [ ] Docs updated alongside the code change (`CLAUDE.md`, `CONTRIBUTING.md`,
+- [ ] The change keeps the project principles (`CONTRIBUTING.md` § Principles).
+- [ ] Docs updated alongside the code change (`README.md`, `CONTRIBUTING.md`
       or `docs/`, as applicable) — not deferred to a follow-up.
 - [ ] If this PR adds/changes a **Rule**: it has a taxonomy mapping
       (OWASP/MITRE ATLAS/NIST tags) and a positive **and** negative test

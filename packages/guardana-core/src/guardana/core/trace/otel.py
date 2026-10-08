@@ -434,8 +434,8 @@ def _identity(attributes: Mapping[str, Any]) -> Identity | None:
     instrumented" from a session id would let the rule that fires on
     *session-as-authentication* run against a trace that never recorded a credential
     — accusing a properly authenticated deployment because its instrumentation is
-    quieter than ours. This is the same distinction as
-    `docs/design/mcp-authorization-depth.md`, arriving a second time.
+    quieter than ours. This is the same distinction `Identity` draws between a
+    credential and a session.
     """
     session = _string(attributes.get("mcp.session.id"))
     if session is None:

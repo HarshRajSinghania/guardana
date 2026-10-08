@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read the repository settings the security runbook relies on, through read-only `gh api` calls.
+"""Read the repository settings a safe release relies on, through read-only `gh api` calls.
 
     uv run python scripts/check_repo_settings.py                 # guardana/guardana
     uv run python scripts/check_repo_settings.py --repo acme/fork
@@ -10,7 +10,7 @@ shape this script does not know. GitHub answers `404` both for a missing resourc
 and for one the token may not see, so a `404` is never read as ABSENT.
 
 Exit codes: 0 every setting present, 1 any absent, 2 any not checked and none absent.
-Reading a setting is not a drill: `docs/maintainers/drills.md` records those.
+Reading a setting is not a drill: it shows the setting exists, not that it holds.
 """
 
 import argparse
@@ -38,7 +38,7 @@ ENVIRONMENT = "pypi"
 RELEASE_TAGS = ("refs/tags/v1.2.3", "refs/tags/v1.2")
 """A full release tag and a moving `vX.Y` tag; a tag ruleset has to cover both."""
 TAG_RULES = (("creation", "creating"), ("update", "updating"), ("deletion", "deleting"))
-"""The ruleset rules the runbook relies on, each with what it restricts."""
+"""The ruleset rules a safe release relies on, each with what it restricts."""
 _MAINTAINER_ROLES = frozenset({2, 5})
 """GitHub's ids for the built-in Maintain and Admin repository roles."""
 _ABOVE_REPOSITORY = frozenset({"OrganizationAdmin", "EnterpriseOwner"})
@@ -353,7 +353,7 @@ def main(argv: list[str] | None = None, runner: Runner = gh) -> int:
     parser.add_argument("--repo", type=_repository, default=DEFAULT_REPO, help="OWNER/NAME to read")
     args = parser.parse_args(argv)
     results = check_all(args.repo, Api(runner))
-    print(f"Settings the security runbook relies on, read from {args.repo}:")
+    print(f"Settings a safe release relies on, read from {args.repo}:")
     for result in results:
         line = f"{result.outcome.value:<12} {result.setting}"
         print(f"{line}: {result.detail}" if result.detail else line)
@@ -362,7 +362,7 @@ def main(argv: list[str] | None = None, runner: Runner = gh) -> int:
         f"{len(results)} settings: {counts[Outcome.PRESENT]} present, "
         f"{counts[Outcome.ABSENT]} absent, {counts[Outcome.NOT_CHECKED]} not checked"
     )
-    print("Reading a setting is not a drill; drills are recorded in docs/maintainers/drills.md.")
+    print("Reading a setting is not a drill: it shows the setting exists, not that it holds.")
     return exit_code(results)
 
 

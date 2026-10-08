@@ -4,8 +4,7 @@
 an export and wrong for a producer: a live agent cannot buffer a session that runs for
 hours, and a file that stops mid-session has to say so rather than look finished.
 
-Three refusals, each closing a measured false green rather than tidying an API. See
-`docs/design/trace-producer.md` for the four traces that located them:
+Three refusals, each closing a measured false green rather than tidying an API:
 
 - a **block for an undeclared dimension** is dropped in silence by every reader, so
   one typo in a declaration list removes a producer's whole authorization coverage;

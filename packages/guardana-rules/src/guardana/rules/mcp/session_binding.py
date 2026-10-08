@@ -53,7 +53,7 @@ class McpSessionBindingRule(McpAuthorizationRule):
     counter there is a live defect that the modern half of the same server cannot
     show. A handshake answered with an error before any id was collected is
     inconclusive too: that is sampling that stopped, not a server issuing no session
-    id. See `docs/design/protocol-conformance.md`.
+    id.
     """
 
     meta = RuleMeta(

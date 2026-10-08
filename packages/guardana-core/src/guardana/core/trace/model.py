@@ -37,7 +37,7 @@ class Dimension(StrEnum):
     passes on the one that really skipped it.
 
     So a dimension the producer never emits is stated, and the rules that need it do
-    not run. See `docs/design/trace-domain-model.md`.
+    not run.
     """
 
     MESSAGES = "messages"

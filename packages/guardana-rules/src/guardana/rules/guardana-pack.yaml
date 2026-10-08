@@ -11,7 +11,6 @@
 # register, so a rule renamed in one place and not the other fails the build.
 #
 # Documentation: docs/usage-pack.md
-# Reasoning:     docs/design/extension-author-tooling.md
 
 schema_version: 2
 name: guardana-rules

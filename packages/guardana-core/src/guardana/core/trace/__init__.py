@@ -26,8 +26,6 @@ would be a cycle that only shows up when somebody runs the command. The two adap
 that *do* reach into those layers are deliberately not re-exported here and are
 imported from their own modules: `guardana.core.trace.bridge.as_trajectory` and
 `guardana.core.trace.claims.claims_of`. A test pins the direction.
-
-See `docs/design/trace-domain-model.md`.
 """
 
 from guardana.core.fingerprint import DigestKind, DocumentDigest

@@ -258,7 +258,7 @@ Kubernetes deployment; those remain roadmap work.
 
 The collector accepts envelope versions from 2 through its own and refuses a newer agent with `422` naming supported versions. Tests post stored older envelopes to migrated PostgreSQL and read them back. Tests exercise backup and restore, rollback and forward, project deletion, an older-schema upgrade and key rotation; [`docs/deployment.md`](docs/deployment.md) names each test. The dashboard uses a Content-Security-Policy with SHA-256 allowances for its script and style, `frame-ancestors 'none'`, and `Referrer-Policy: no-referrer`; every response has `X-Content-Type-Options: nosniff`. A test checks escaped dashboard values.
 
-[`docs/maintainers/security-runbook.md`](docs/maintainers/security-runbook.md) covers security incidents, and [`scripts/check_repo_settings.py`](scripts/check_repo_settings.py) reports each setting as `PRESENT`, `ABSENT` or `NOT CHECKED`. No drill is recorded in [`docs/maintainers/drills.md`](docs/maintainers/drills.md). [`docs/generated/application-measures.md`](docs/generated/application-measures.md) reports "not measured" for application coverage and supported-verdict share until two independent teams have rows.
+[`SECURITY.md`](SECURITY.md) says how to report a vulnerability, and [`scripts/check_repo_settings.py`](scripts/check_repo_settings.py) reports each setting as `PRESENT`, `ABSENT` or `NOT CHECKED`. [`docs/generated/application-measures.md`](docs/generated/application-measures.md) reports "not measured" for application coverage and supported-verdict share until two independent teams have rows.
 
 ## Safety boundaries
 

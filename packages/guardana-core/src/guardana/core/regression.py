@@ -3,8 +3,7 @@
 A case's expectation gates something only while it tells the failure it was promoted from
 apart from a correct reply. The proof grades both replies with the suite's own evaluator
 and the case's effective expectation, sending nothing, so only an evaluator that declares
-itself deterministic and asks no judge can give it. Why, and what was rejected:
-[`docs/design/application-fixtures-and-regressions.md`](../../../../../docs/design/application-fixtures-and-regressions.md).
+itself deterministic and asks no judge can give it.
 """
 
 from collections.abc import Iterable, Mapping, Sequence

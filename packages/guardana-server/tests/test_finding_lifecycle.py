@@ -96,14 +96,14 @@ def test_a_false_positive_stays_one_when_it_is_seen_again(
 
 def test_an_acknowledged_finding_stays_acknowledged(connection: DbConnection, project: int) -> None:
     _seen(connection, project)
-    set_status(connection, _PROJECT, _IDENTITY, status="acknowledged", owner="konrad")
+    set_status(connection, _PROJECT, _IDENTITY, status="acknowledged", owner="alice")
     connection.commit()
 
     _seen(connection, project)
 
     entry = _only(connection)
     assert entry.status == "acknowledged"
-    assert entry.owner == "konrad"
+    assert entry.owner == "alice"
 
 
 def test_a_live_waiver_holds_across_sightings(connection: DbConnection, project: int) -> None:
@@ -112,7 +112,7 @@ def test_a_live_waiver_holds_across_sightings(connection: DbConnection, project:
         connection,
         _PROJECT,
         _IDENTITY,
-        approver="konrad",
+        approver="alice",
         reason="accepted until the vendor ships a fix",
         expires=datetime.date(2026, 12, 31),
     )
@@ -134,7 +134,7 @@ def test_an_expired_waiver_reports_open_without_anything_having_run(
         connection,
         _PROJECT,
         _IDENTITY,
-        approver="konrad",
+        approver="alice",
         reason="until the next release",
         expires=datetime.date(2026, 8, 5),
     )

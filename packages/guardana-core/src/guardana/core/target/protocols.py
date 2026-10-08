@@ -8,8 +8,6 @@ not offer tools satisfies `ChatEndpoint` and not `ToolOfferingEndpoint`.
 Selection still belongs to the runner. The protocol is the narrower question asked
 at the point of use — a type, so `mypy --strict` verifies the call and a third
 party's target satisfies it without inheriting anything of ours.
-
-Why the contract needed this: `docs/design/capability-protocols.md`.
 """
 
 from collections.abc import Iterator, Mapping, Sequence

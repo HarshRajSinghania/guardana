@@ -345,9 +345,8 @@ measured is a pass rate over three cases, and a summary carrying only the pass
 count would present it with the same confidence as a full run.
 
 An artifact scan records none of these, and that is correct — reading a file and
-finding nothing is not a measurement. See
-[`design/assessment-channel.md`](design/assessment-channel.md) for the reasoning,
-and [`usage-diff.md`](usage-diff.md) for what a comparison does with them.
+finding nothing is not a measurement. See [`usage-diff.md`](usage-diff.md) for
+what a comparison does with them.
 
 ## Trial summaries
 

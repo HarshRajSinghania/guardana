@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# Mirrors every job of .github/workflows/ci.yml, plus the local-only gates CI never
-# reaches (the ops catalogue and the agent setup). One command, one verdict per gate.
+# Mirrors every job of .github/workflows/ci.yml. One command, one verdict per gate.
 #
 #   scripts/ci_local.sh               full output, as CI prints it
 #   scripts/ci_local.sh --quiet       one line per gate; a red gate prints its tail
@@ -26,9 +25,8 @@ for arg in "$@"; do
   esac
 done
 
-# Caches that have answered for changed files before: a stale .ruff_cache once let
-# a red tag through, and __pycache__ keeps old bytecode when a same-size edit lands
-# within the same second.
+# A stale .ruff_cache can answer for a changed file, and __pycache__ keeps old
+# bytecode when a same-size edit lands within the same second.
 rm -rf .ruff_cache
 find packages examples scripts -name __pycache__ -type d -prune -exec rm -rf {} + 2>/dev/null
 
@@ -82,6 +80,7 @@ step "Ruff check"          uv run ruff check .
 step "Ruff format"         uv run ruff format --check .
 step "Mypy"                uv run mypy --strict .
 step "Import contract"     uv run lint-imports
+step "Agent setup"         uv run python scripts/check_claude_setup.py
 
 # CI runs the collector's tests against a real PostgreSQL and refuses the skip.
 if docker compose -f deploy/docker-compose.dev.yml up -d --wait >/dev/null 2>&1; then
@@ -143,10 +142,6 @@ step "Example reference_pack" uv run --isolated --no-cache \
 # The examples above prove a hand-written package still works, this one proves
 # the command that writes one from nothing does.
 step "New pack"           uv run python scripts/new_pack_check.py
-
-# Local-only: CI has no job for the agent setup or the ops catalogue.
-step "Ops catalogue"       uv run python scripts/check_ops_catalogue.py
-step "Agent setup"         uv run python scripts/check_claude_setup.py
 
 # CI runs these three on every push too; they are only slow, not optional.
 if [ "$fast" -eq 1 ]; then

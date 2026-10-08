@@ -559,7 +559,7 @@ def test_next_version_bumps_the_numeric_core() -> None:
 
 
 def test_next_version_passes_through_a_pep440_prerelease() -> None:
-    # RELEASING.md documents `bump_version.py 1.0.0rc1`; the explicit form must
+    # A release candidate is cut as `bump_version.py 1.0.0rc1`; the explicit form must
     # accept a PEP 440 pre-release verbatim, not reject it as non-numeric.
     assert _BUMP._next_version("0.1.0", "1.0.0rc1") == "1.0.0rc1"
     assert _BUMP._next_version("0.9.0", "1.0.0b2") == "1.0.0b2"

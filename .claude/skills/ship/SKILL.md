@@ -15,8 +15,8 @@ git status --short | head -40
 
 - The full gate was green on THIS tree (`/gate`), verdict lines read. If something is red for a
   reason that is not yours, the commit message says so.
-- Stage **explicit paths** only — never `git add .` / `-A`. Other sessions leave work in this
-  tree. Never stage an `.env*` file.
+- Stage **explicit paths** only — never `git add .` / `-A`; the tree may hold changes that are
+  not yours. Never stage an `.env*` file or anything from `.work/`.
 - One commit per logical change, on `main` (a PR is one commit, squashed). Message in English,
   conventional prefix (`feat|fix|refactor|docs|test|chore(scope): …`), the subject says what is
   now true. The body carries the WHY, the measurements and the history that must not go into
@@ -27,8 +27,8 @@ git status --short | head -40
   `[Unreleased]` (why, not only what), `FEATURES.md`, the `docs/` page plus `docs/index.md`,
   `site/index.html` for a headline claim, `ROADMAP.md` when the direction moved — and
   `docs/generated/` was regenerated, never edited (`/docs` has the checklist).
-- M/L work: delete the work file in the same commit; move leftovers to `docs/work/BACKLOG.md`
-  and durable knowledge to its home (a `docs/` page, a design document, a rule, lessons).
+- M/L work: delete the work file; open leftovers as issues; move durable knowledge to its home
+  (a `docs/` page, a rule, the commit message).
 
 ## 2. Push — a push to `main` deploys guardana.dev
 
@@ -38,7 +38,7 @@ Cloudflare deploys `site/` from the tree on every push to `main`, before CI has 
 and refuses on drift; if it could not check, it asks. Regenerate, commit, push again.
 
 Then `git push`. If the user asked only for a commit, stop before this step. A version tag is
-never pushed here — that is `release`, and the hook asks before any tag push.
+never pushed here — tags are a maintainer's release step, and the hook asks before any tag push.
 
 ## 3. After the push
 

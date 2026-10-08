@@ -7,8 +7,6 @@ paths:
 ---
 # CI, the release pipeline and the site deploy
 
-Runbook: `RELEASING.md`; the order that has gone wrong: the `release` skill.
-
 - **Every action is pinned by commit SHA** with a version comment, and every workflow declares
   least-privilege `permissions`. A too-wide token never fails a build, which is why it is
   written down instead of defaulted.

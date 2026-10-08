@@ -5,7 +5,7 @@ stateful doubles. Every seeded item gets a retrieval term, a presence marker and
 poisoned, an instruction marker, all derived from the item as declared and the file's
 `name:`, so an index seeded before an edit fails its control instead of answering with
 stale text. `data: synthetic` is the team's statement; Guardana records it and cannot
-check it. Design: `docs/design/application-fixtures-and-regressions.md`, decision 2.
+check it.
 
 What the rest of the engine builds on: `load_fixtures` returns `Fixtures`, whose `items`
 carry an owner, a channel, markers and a question; `Fixtures.resolve_tenants` turns each

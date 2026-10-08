@@ -461,8 +461,7 @@ without it the saved run records its excludes as unknown.
 > Before 0.22.0 this page promised that a target declaring `READ_FILES` could run
 > the artifact rules unmodified. It could not: every rule asked
 > `isinstance(target, ArtifactTarget)`. The protocols above are what made the
-> promise true — see
-> [`design/capability-protocols.md`](design/capability-protocols.md).
+> promise true.
 
 **`guardana.targets` is discovered by `Registry.discover(trust)`**, the same way
 as rules and evaluators (see

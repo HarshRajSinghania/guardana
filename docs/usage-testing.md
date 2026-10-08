@@ -189,7 +189,7 @@ Three things to know:
 ## A run your framework already performed
 
 The adapters above *drive* a model. These translate the record of a run that
-already happened into a [`Trace`](design/trace-domain-model.md), which
+already happened into a `Trace`, which
 [`analyze-trace`](usage-analyze-trace.md)'s rules grade. Nothing is sent anywhere.
 
 ```python

@@ -6,13 +6,8 @@ on:
   pull_request:
     branches: ["**"]
 
-# Least privilege for the whole file, then per job where more is genuinely needed
-# (none is, here — CI reads the repository and reports). Without this block the
-# workflow inherits whatever the repository default is, which on an older repo is
-# read-write: a compromised action anywhere in this file would then hold a token
-# that can push to `main` of a security product. `release.yml` already declares
-# its own; this one did not, and nothing noticed because a too-wide token never
-# fails a build.
+# Least privilege: without this block the workflow inherits the repository default,
+# which can be read-write, and a compromised action would hold a token that can push.
 permissions:
   contents: read
 
@@ -85,9 +80,6 @@ jobs:
 
       - name: Architecture (the engine must never depend on the collector)
         run: uv run lint-imports
-
-      - name: Every script has an ops-catalogue row
-        run: uv run python scripts/check_ops_catalogue.py
 
       - name: Agent setup is consistent
         run: uv run python scripts/check_claude_setup.py
@@ -168,18 +160,8 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      # `enable-cache: false`, stated rather than left to the default. Every step
-      # below runs `--no-cache` — that is the job's whole point, because uv
-      # otherwise serves a previously built wheel for an example and the metadata
-      # inside it is exactly what these tests check. So nothing ever writes to
-      # `UV_CACHE_DIR`, and setup-uv's post step fails the job trying to save a
-      # directory that was never created.
-      #
-      # Dropping `enable-cache: true` was not enough: the default is `auto`, which
-      # still enables it. The job passed anyway for four releases because another
-      # job's cache happened to match the key and *restoring* it created the
-      # directory — so the first commit to change `uv.lock` turned a green job red
-      # for a reason unrelated to anything it tests.
+      # Every step below runs `--no-cache`, so `UV_CACHE_DIR` is never created and
+      # setup-uv's post step would fail saving it; the default `auto` still enables the cache.
       - name: Install uv
         uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:

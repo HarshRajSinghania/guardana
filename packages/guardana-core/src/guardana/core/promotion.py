@@ -3,8 +3,7 @@
 This module selects the exchange, refuses what would make the case ask another question
 or record another failure, and builds the dataset text the case would be written into,
 held to every rule the suite loads under. Proving the case and writing the file are the
-caller's; nothing here sends or writes. Why, and what was rejected:
-[`docs/design/application-fixtures-and-regressions.md`](../../../../../docs/design/application-fixtures-and-regressions.md).
+caller's; nothing here sends or writes.
 """
 
 from collections.abc import Mapping

@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """Cut a release in one command: gate -> bump -> changelog -> commit -> push -> CI -> tag.
 
-The one command the RELEASING.md runbook describes, automated. Pushing the tag is
-what triggers `release.yml` to build and publish all five packages to PyPI (which
+Pushing the tag is what triggers `release.yml` to build and publish all five packages to PyPI (which
 still pauses on the `pypi` environment's approval — a deliberate final gate).
 
 The branch and the tag go up as two steps with CI in between, and that ordering is
@@ -54,10 +53,16 @@ _SURFACE = "docs/generated/api-surface.json"
 _SURFACE_PATH = _ROOT / _SURFACE
 _CANDIDATE_RE = re.compile(r"\d+\.\d+\.\d+rc\d+")
 _FINAL_RE = re.compile(r"(?P<major>\d+)\.\d+\.\d+")
-_RELEASING = _ROOT / "RELEASING.md"
-# The runbook's statement of the project's status, which a final 1.x release makes false;
-# a wrapped line may split it, so the gap between the words may hold a newline.
+_VERSIONING = _ROOT / "docs" / "compatibility.md"
+# The versioning policy's statement of the project's status, which a final 1.x release makes
+# false; a wrapped line may split it, so the gap between the words may hold a newline.
 _PRE_1_STATEMENT_RE = re.compile(r"\bis\s+\**(?P<status>pre-1\.0)\b")
+# What `main` does after a green CI, spelled for a hand to type when the wait could not be done.
+_TAG_BY_HAND = (
+    'git tag -a vX.Y.Z -m "Guardana vX.Y.Z"',
+    "git push origin refs/tags/vX.Y.Z",
+    'git tag -f vX.Y "vX.Y.Z^{commit}" && git push -f origin vX.Y',
+)
 _SURFACE_SECTION_RE = re.compile(r"^### (Changed|Deprecated|Removed)\b", re.MULTILINE)
 _RELEASE_TAG_GLOB = "v[0-9]*.[0-9]*.[0-9]*"
 _PACK = "examples/reference_pack"
@@ -118,10 +123,7 @@ def _gate() -> None:
         ["uv", "run", "lint-imports"],
         ["uv", "run", "pytest", "-q"],
         _DOGFOOD,
-        # Last, because it is the only one that runs where a user runs. Every
-        # gate above passes in an environment where an undeclared module is
-        # installed for some other reason; that is how 0.9.0 was tagged with a
-        # `guardana` that crashed on every command.
+        # Last, because only a clean install sees an undeclared dependency the workspace hides.
         ["uv", "run", "--no-project", "python", "scripts/clean_install_check.py"],
     ):
         _run(cmd)
@@ -292,26 +294,34 @@ def _check_surface(version: str) -> None:
     )
 
 
-def _check_pre_1_statement(version: str) -> None:
-    """Refuse a final 1.x or later release while RELEASING.md still says the project is pre-1.0.
+def _versioning_name() -> str:
+    """Name the versioning policy the way a refusal should: repo-relative when it can be."""
+    try:
+        return _VERSIONING.relative_to(_ROOT).as_posix()
+    except ValueError:
+        return str(_VERSIONING)
 
-    The runbook's versioning rules follow from that statement, so a stable release that
-    leaves it in place ships a runbook that contradicts the version. A runbook that cannot
-    be read cannot show the statement is gone, so it refuses too.
+
+def _check_pre_1_statement(version: str) -> None:
+    """Refuse a final 1.x or later release while the versioning policy still says pre-1.0.
+
+    The policy's rules follow from that statement, so a stable release that leaves it in
+    place ships a policy that contradicts the version. A policy that cannot be read cannot
+    show the statement is gone, so it refuses too.
     """
     final = _FINAL_RE.fullmatch(version)
     if final is None or int(final.group("major")) < 1:
         return
     try:
-        runbook = _RELEASING.read_text(encoding="utf-8")
+        policy = _VERSIONING.read_text(encoding="utf-8")
     except OSError as error:
-        _fail(f"cannot read {_RELEASING.name} to check it no longer says pre-1.0: {error}")
-    statement = _PRE_1_STATEMENT_RE.search(runbook)
+        _fail(f"cannot read {_versioning_name()} to check it no longer says pre-1.0: {error}")
+    statement = _PRE_1_STATEMENT_RE.search(policy)
     if statement is None:
         return
-    line = runbook.count("\n", 0, statement.start("status")) + 1
+    line = policy.count("\n", 0, statement.start("status")) + 1
     _fail(
-        f"{_RELEASING.name}:{line} still says the project is pre-1.0; rewrite that line, and "
+        f"{_versioning_name()}:{line} still says the project is pre-1.0; rewrite that line, and "
         f"the versioning rules that follow from it, before releasing {version}"
     )
 
@@ -395,8 +405,8 @@ def _written_by_release(path: str, bumped: frozenset[str]) -> bool:
 def _stage_release(bumped: frozenset[str]) -> None:
     """Stage exactly what the release wrote, and refuse when the tree holds anything else.
 
-    The gate takes minutes and other sessions work in this tree; a blanket stage
-    would commit and deploy whatever they changed meanwhile, unchecked.
+    The gate takes minutes; a blanket stage would commit and deploy whatever else
+    changed in the tree meanwhile, unchecked.
     """
     changed = _changed_paths()
     stray = sorted({path for path in changed if not _written_by_release(path, bumped)})
@@ -417,8 +427,7 @@ def _await_green_ci() -> None:
     run — for any reason, including one that has nothing to do with the code — then
     leaves a publish already waiting on the `pypi` approval. Cancelling, fixing and
     re-tagging costs a second approval click and leaves a `cancelled` run in the history
-    that reads as a failed release. Every release from 0.19.0 to 0.21.0 paid that, and
-    0.20.0 paid it twice.
+    that reads as a failed release.
 
     Fail-closed when the wait itself cannot be done: without `gh`, this stops before a
     tag exists rather than creating it blind, because an unverified tag is the thing
@@ -458,8 +467,8 @@ def _stop_before_tagging(reason: str) -> NoReturn:
     print(
         f"error: {reason}, so no tag was created.\n"
         f"The release commit is on `main` and nothing has been published. Once CI is\n"
-        f"green on it, create and push the tag by hand — see the 'Push the branch and\n"
-        f"the tag as two steps' section in RELEASING.md.",
+        f"green on it, create and push the tag by hand (the last line only for a final\n"
+        f"release):\n  " + "\n  ".join(_TAG_BY_HAND),
         file=sys.stderr,
     )
     raise SystemExit(1)

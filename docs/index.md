@@ -122,34 +122,20 @@ coverage. Do not edit them by hand.
 - [`generated/application-measures.md`](generated/application-measures.md) — coverage of the real application and the share of checks that reached a verdict, from consented team runs
 - [`generated/compatibility-matrix.md`](generated/compatibility-matrix.md) — which schema and API versions each release carried
 
-## Design documents
-
-- [`design/README.md`](design/README.md) — accepted decisions, proposals, and status conventions
-
-Design documents explain why an implementation has its current shape. They are
-not task guides and may describe rejected or superseded alternatives.
-
 ## Project direction
 
 - [`../FEATURES.md`](../FEATURES.md) — concise shipped capability overview
 - [`../ROADMAP.md`](../ROADMAP.md) — ordered next work and exit criteria
-- [`design/audit-0.31-direction.md`](design/audit-0.31-direction.md) — the current order: evidence and gate integrity first, the real application as the acceptance test, protocol conformance, and narrower output work
-- [`design/guardana-and-control.md`](design/guardana-and-control.md) — Guardana and Guardana Control: measuring before release versus supervising agents while they run, what the two exchange, and how the two sites divide the work
-- [`design/non-executing-packs.md`](design/non-executing-packs.md) — whether a pack can ship checks that execute no Python, and why every command starts with built-in plugin trust
 - [`../CHANGELOG.md`](../CHANGELOG.md) — release history
+
+## Studies
+
+- [`studies/first-run-study.md`](studies/first-run-study.md) — how the first-run sessions are run, consented and recorded
+- [`studies/adopter-study.md`](studies/adopter-study.md) — how two independent teams' runs are recorded, with consent, for the application measures
 
 ## Maintainers
 
 - [`../CONTRIBUTING.md`](../CONTRIBUTING.md) — setup, quality gates, and review rules
-- [`../RELEASING.md`](../RELEASING.md) — versioning and publishing
-- [`maintainers/github-setup.md`](maintainers/github-setup.md) — repository settings
-- [`maintainers/ops-catalogue.md`](maintainers/ops-catalogue.md) — which script, is it safe, what it needs
-- [`maintainers/lessons.md`](maintainers/lessons.md) — why the rules are what they are
-- [`maintainers/first-run-study.md`](maintainers/first-run-study.md) — how the first-run sessions are run, consented and recorded
-- [`maintainers/adopter-study.md`](maintainers/adopter-study.md) — how two independent teams' runs are recorded, with consent, for the application measures
-- [`maintainers/security-runbook.md`](maintainers/security-runbook.md) — what to do on a vulnerability report, a compromised release or a leaked collector credential
-- [`maintainers/drills.md`](maintainers/drills.md) — the record of runbook drills, and which steps each exercised
-- [`maintainers/notes.md`](maintainers/notes.md) — where notes live, what their front matter must say, and how they are built and checked
 
 ## Governance
 

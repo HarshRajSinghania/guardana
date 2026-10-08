@@ -89,7 +89,7 @@ keeps cost predictable and stops a noisy check from blocking every merge.
 
 **Watch the evidence.** Findings can quote model output, which can quote your data.
 Evidence is redacted by default; enabling full evidence is a decision to make
-deliberately — see [privacy and redaction](design/privacy-and-redaction.md).
+deliberately — see [privacy](privacy.md).
 
 ## Reading a result honestly
 

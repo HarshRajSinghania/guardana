@@ -4,8 +4,6 @@ paths:
 ---
 # Examples — the third-party story, and one deliberate poison
 
-Why: `docs/maintainers/lessons.md` § Rules and seams.
-
 - **`examples/vulnerable-model/` is deliberately malicious** (a pickle that calls `os.system`).
   `guardana scan .` is supposed to exit 1; the dogfood gate scans `packages/`. Never "fix" the
   fixture, never exclude it from a scan to make a demo green; ruff excludes it on purpose.

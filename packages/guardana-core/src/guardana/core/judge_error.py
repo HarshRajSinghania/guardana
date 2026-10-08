@@ -5,8 +5,6 @@ the system look safer than it is, and every number computed from its verdicts is
 arithmetically right. The correction uses the judge's sensitivity and specificity from
 `guardana calibrate`, applies to rates and never to one case's verdict, and refuses — naming
 the missing condition — whenever the calibration cannot be trusted to describe this run.
-Why, and what was rejected:
-[`docs/design/judge-error-correction.md`](../../../../../docs/design/judge-error-correction.md).
 """
 
 import math

@@ -15,6 +15,7 @@ which Cloudflare reads for the security headers — applies to both.
 | `favicon.svg` | the browser icon; the same drawing as `assets/brand/v1/icon.svg` | hand-written |
 | `favicon.ico`, `apple-touch-icon.png`, `apple-touch-icon-precomposed.png` | the icons browsers request without a page declaring them | **generated** by `scripts/generate_well_known.py` from `favicon.svg` — never edit them |
 | `.well-known/security.txt` | the [RFC 9116](https://www.rfc-editor.org/rfc/rfc9116) pointer to the vulnerability policy | **generated** by `scripts/generate_well_known.py` from `SECURITY.md`; `Expires` is refreshed on every release |
+| `_redirects` | permanent redirects for documentation URLs that no longer exist, read by Cloudflare like `_headers` | hand-written; specific rules before wildcards, because the first match wins |
 
 Preview locally:
 
@@ -157,8 +158,7 @@ uv run python scripts/build_site.py --check    # exit 1 if stale, change nothing
 `docs/**.md` plus `docs/generated/rules.json` become `site/docs/**.html`.
 `release.py` runs the build; `test_documentation_site.py` runs `--check` and reads
 the rendered pages, so a page edited without rebuilding turns the suite red rather
-than waiting for a release. Reasoning and the alternatives that lost:
-[`docs/design/documentation-site.md`](../docs/design/documentation-site.md).
+than waiting for a release.
 
 **Nothing in `site/docs/` is hand-edited.** The tree is deleted and rewritten on
 every build, so an edit there is silently lost — which is the honest outcome, since
@@ -176,9 +176,9 @@ the registry, so it cannot go stale the way this page's rule count did.
 Two consequences worth stating, because both are choices:
 
 - **Free-text search over the prose is the one thing this cannot do.** It would
-  need `script-src 'self'` under `/docs/*`. The design document says that is the
-  only reason worth taking it, and that `connect-src 'none'` stays either way —
-  which `test_documentation_site.py` now pins.
+  need `script-src 'self'` under `/docs/*`. That is the only reason worth taking
+  it, and `connect-src 'none'` stays either way — which `test_documentation_site.py`
+  now pins.
 - **No page loads anything from another host.** IBM Plex is served from
   `assets/brand/v1/fonts/`, and the policy in `_headers` names no third party;
   `test_documentation_site.py` pins both for the landing page and the docs.

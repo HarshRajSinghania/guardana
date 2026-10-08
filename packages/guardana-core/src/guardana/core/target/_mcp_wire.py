@@ -9,8 +9,6 @@ One place knows the difference, because two would drift — and the half that
 drifted would be writing a header that no longer matches the body it describes,
 which a conforming server answers with `HeaderMismatch` and an older one answers
 by doing something else entirely.
-
-See `docs/design/mcp-protocol-eras.md`.
 """
 
 import json

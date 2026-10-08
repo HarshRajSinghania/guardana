@@ -4,9 +4,6 @@ One record per case actually measured, pass included — the passes are what giv
 rate a denominator. A separate channel from `Finding` because a measurement and a
 defect are different sentences: one has a denominator, a direction and an
 uncertainty; the other has a severity and somebody who has to act.
-
-Why it is shaped this way, and what was rejected:
-[`docs/design/assessment-channel.md`](../../../../../docs/design/assessment-channel.md).
 """
 
 from dataclasses import dataclass

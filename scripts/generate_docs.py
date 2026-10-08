@@ -400,24 +400,24 @@ def _detection_limits(rules: list[Rule]) -> str:
 
 
 def _first_run(_rules: list[Rule]) -> str:
-    """Render the first-run measure from `docs/maintainers/first-run-study.csv` only."""
+    """Render the first-run measure from `docs/studies/first-run-study.csv` only."""
     return (
-        _HEADER.replace("the installed registry", "docs/maintainers/first-run-study.csv")
+        _HEADER.replace("the installed registry", "docs/studies/first-run-study.csv")
         + "# First-run measure\n\n"
         + "Sessions run as described in "
-        + "[the first-run study](../maintainers/first-run-study.md): a participant new to "
+        + "[the first-run study](../studies/first-run-study.md): a participant new to "
         + "Guardana, a clean environment, the published release and the README only.\n\n"
         + first_run_measure.render(first_run_measure.read_sheet())
     )
 
 
 def _application_measures(_rules: list[Rule]) -> str:
-    """Render the two adopter measures from `docs/maintainers/adopter-runs.csv` only."""
+    """Render the two adopter measures from `docs/studies/adopter-runs.csv` only."""
     return (
-        _HEADER.replace("the installed registry", "docs/maintainers/adopter-runs.csv")
+        _HEADER.replace("the installed registry", "docs/studies/adopter-runs.csv")
         + "# Application measures\n\n"
         + "Counts from locked application runs that teams recorded, with their consent to "
-        + "publish, in `docs/maintainers/adopter-runs.csv`. The coverage of the real "
+        + "publish, in `docs/studies/adopter-runs.csv`. The coverage of the real "
         + "application is the rules attempted out of the rules that apply to it; the "
         + "supported-verdict share is the rules that reached a finding or a clean result out "
         + "of the rules attempted.\n\n"
@@ -623,7 +623,6 @@ def _pack_manifest(rules: list[Rule]) -> str:
         "# register, so a rule renamed in one place and not the other fails the build.\n"
         "#\n"
         "# Documentation: docs/usage-pack.md\n"
-        "# Reasoning:     docs/design/extension-author-tooling.md\n"
         "\n"
         f"schema_version: {_BUILT_IN_MANIFEST_SCHEMA}\n"
         "name: guardana-rules\n"

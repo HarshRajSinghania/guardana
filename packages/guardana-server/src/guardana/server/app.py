@@ -170,7 +170,7 @@ def create_app(
 
     if _dashboard_enabled(dashboard):
         # No longer refused on an authenticated collector: a browser signs in with
-        # a read key and the session cookie carries it. See docs/design/panel-sessions.md.
+        # a read key and the session cookie carries it.
         _mount_sessions(app, database_url)
         _mount_dashboard(app, active_store, refresh_seconds, reading)
 

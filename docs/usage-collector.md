@@ -174,9 +174,9 @@ date it lapses.
 
 ```bash
 guardana-collector finding list --project acme/web [--status open]
-guardana-collector finding status 1854bc20 --project acme/web --status acknowledged --owner konrad
+guardana-collector finding status 1854bc20 --project acme/web --status acknowledged --owner alice
 guardana-collector finding waive  1854bc20 --project acme/web \
-  --approver konrad --reason "vendor fix due in September" --expires 2026-09-30
+  --approver alice --reason "vendor fix due in September" --expires 2026-09-30
 ```
 
 Identities are `sha256:…`, so every command takes a **unique prefix**, like git.
@@ -234,7 +234,7 @@ recorded — a log that grows with every dashboard refresh is a log nobody reads
 | Kind | Example | Worth |
 |---|---|---|
 | `key` | `key:prod-ci (id 4)` | **verified** — the credential was presented and matched |
-| `cli` | `cli:konrad@ops-1` | **asserted** — an operator with database access said so |
+| `cli` | `cli:alice@ops-1` | **asserted** — an operator with database access said so |
 
 A CLI actor is the operating-system user, taken from the environment rather than
 typed, and `--actor` overrides it for a shared operations account. It is not
@@ -482,7 +482,7 @@ are no user accounts — those arrive with RBAC and replace this.
 only, so a page on another origin cannot make a signed-in browser submit findings.
 That is enforced in the guard rather than left to `SameSite`, because a control
 that rests on one browser flag fails the day somebody adds an exception for a
-proxy ([design](design/panel-sessions.md)).
+proxy.
 
 A signed-in browser sees exactly what the key sees: one project, and one
 environment when the key is pinned to one. It cannot reach further than a `curl`
@@ -631,7 +631,5 @@ protocol and fails on any method that does not take a tenant scope first.
 
 ## See also
 
-- [`design/collector-persistence.md`](design/collector-persistence.md) — why persistence is shaped the way it is
-- [`design/collector-tenancy.md`](design/collector-tenancy.md) — the organization/project boundary that is being built next
 - [`architecture.md`](architecture.md#the-coreserver-boundary) — why the engine never imports this
 - [`privacy.md`](privacy.md) — evidence is redacted by the agent before it is sent

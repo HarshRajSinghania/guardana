@@ -26,8 +26,8 @@ import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
 CLAUDE_MD_MAX_LINES = 150
-# Spelled in halves so this file does not trip its own rule.
-FORBIDDEN_MODEL_ALIASES = ("fab" + "le", "myth" + "os")
+# The model aliases an agent may name; a full model id would pin one release for everybody.
+AGENT_MODELS = frozenset({"haiku", "sonnet", "opus", "inherit"})
 # A quoted token is checked as a path only when it starts in a directory this repo owns.
 PATH_ROOTS = (
     "packages/",
@@ -102,9 +102,9 @@ def _check_named(
     description = meta.get("description")
     if not isinstance(description, str) or not description.strip():
         problems.append(f"{name}: missing description")
-    model = str(meta.get("model", "")).lower()
-    if kind == "agent" and any(alias in model for alias in FORBIDDEN_MODEL_ALIASES):
-        problems.append(f"{name}: this model family is never configured for an agent")
+    model = str(meta.get("model", "inherit")).lower()
+    if kind == "agent" and model not in AGENT_MODELS:
+        problems.append(f"{name}: model {model!r} is not one of {sorted(AGENT_MODELS)}")
     agent = meta.get("agent")
     if kind == "skill" and agent and not (ROOT / ".claude" / "agents" / f"{agent}.md").exists():
         problems.append(f"{name}: runs as agent {agent!r}, which does not exist")
@@ -190,10 +190,83 @@ def _check_ignored(problems: list[str]) -> None:
     except (OSError, subprocess.SubprocessError) as exc:
         problems.append(f"could not ask git which files under .claude/ are ignored: {exc}")
         return
+    private = _private_overlay()
     problems.extend(
         f"{line}: gitignored, so it is not in the repository"
         for line in done.stdout.split("\0")
-        if line and not _harness_local(line)
+        if line and not _harness_local(line) and not _within(line, private)
+    )
+
+
+def _private_overlay() -> tuple[str, ...]:
+    """Paths this clone's owner keeps out of the repository, named exactly in `info/exclude`.
+
+    Only an exact path counts: a wildcard there would let a local pattern hide a file the
+    shared setup needs, and the check runs in CI on a clone without any such file.
+    """
+    try:
+        done = subprocess.run(
+            ["git", "rev-parse", "--git-path", "info/exclude"],  # noqa: S607
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=True,
+        )
+        lines = (ROOT / done.stdout.strip()).read_text(encoding="utf-8").splitlines()
+    except (OSError, subprocess.SubprocessError):
+        return ()
+    return tuple(
+        line.strip().lstrip("/")
+        for line in lines
+        if line.strip()
+        and not line.lstrip().startswith(("#", "!"))
+        and not any(char in line for char in "*?[")
+    )
+
+
+def _tracked() -> frozenset[str]:
+    try:
+        done = subprocess.run(
+            ["git", "ls-files", "-z", "--", ".claude"],  # noqa: S607
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=True,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return frozenset()
+    return frozenset(line for line in done.stdout.split("\0") if line)
+
+
+def _principles(text: str, heading: str) -> list[str]:
+    """Return the numbered list under the `##` heading that starts with `heading`."""
+    _, found, after = text.partition(f"\n## {heading}")
+    if not found:
+        return []
+    body = after.split("\n## ", 1)[0]
+    return [line.split(". ", 1)[1] for line in body.splitlines() if re.match(r"\d+\. ", line)]
+
+
+def _check_principles(problems: list[str]) -> None:
+    """Require CONTRIBUTING.md to state the principles CLAUDE.md gives every agent."""
+    contributing = ROOT / "CONTRIBUTING.md"
+    if not contributing.exists():
+        return
+    agents = _principles((ROOT / "CLAUDE.md").read_text(encoding="utf-8"), "Product principles")
+    people = _principles(contributing.read_text(encoding="utf-8"), "Principles")
+    if agents != people:
+        problems.append(
+            "CLAUDE.md § Product principles and CONTRIBUTING.md § Principles differ: "
+            "change both together"
+        )
+
+
+def _within(path: str, entries: tuple[str, ...]) -> bool:
+    return any(
+        path == entry.rstrip("/") or (entry.endswith("/") and path.startswith(entry))
+        for entry in entries
     )
 
 
@@ -207,13 +280,20 @@ def main() -> int:
     """Run every check and print the drift, if any."""
     problems: list[str] = []
     documents = [ROOT / "CLAUDE.md"]
+    private = _private_overlay()
+    tracked = _tracked()
 
     for kind, pattern in (
         ("skill", "skills/*/SKILL.md"),
         ("agent", "agents/*.md"),
         ("rule", "rules/*.md"),
     ):
-        found = sorted((ROOT / ".claude").glob(pattern))
+        found = [
+            path
+            for path in sorted((ROOT / ".claude").glob(pattern))
+            if path.relative_to(ROOT).as_posix() in tracked
+            or not _within(path.relative_to(ROOT).as_posix(), private)
+        ]
         if not found:
             problems.append(f"no {kind} matches .claude/{pattern}: the directory moved or is empty")
         for path in found:
@@ -239,12 +319,13 @@ def main() -> int:
 
     _check_hooks(problems)
     _check_ignored(problems)
+    _check_principles(problems)
 
     lines = len((ROOT / "CLAUDE.md").read_text(encoding="utf-8").splitlines())
     if lines > CLAUDE_MD_MAX_LINES:
         problems.append(
             f"CLAUDE.md is {lines} lines (budget {CLAUDE_MD_MAX_LINES}): it loads into every "
-            "session and subagent — move detail to a rule, a skill or docs/maintainers/lessons.md"
+            "session and subagent — move detail to a rule or a skill"
         )
 
     if problems:

@@ -97,9 +97,6 @@ This file is generated from the documentation map; do not edit it by hand.
 
 - [../FEATURES.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/FEATURES.md): concise shipped capability overview
 - [../ROADMAP.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/ROADMAP.md): ordered next work and exit criteria
-- [design/audit-0.31-direction.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/design/audit-0.31-direction.md): the current order: evidence and gate integrity first, the real application as the acceptance test, protocol conformance, and narrower output work
-- [design/guardana-and-control.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/design/guardana-and-control.md): Guardana and Guardana Control: measuring before release versus supervising agents while they run, what the two exchange, and how the two sites divide the work
-- [design/non-executing-packs.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/design/non-executing-packs.md): whether a pack can ship checks that execute no Python, and why every command starts with built-in plugin trust
 - [../CHANGELOG.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/CHANGELOG.md): release history
 
 ## Notes
@@ -129,16 +126,8 @@ This file is generated from the documentation map; do not edit it by hand.
 
 ## Optional
 
-- [design/README.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/design/README.md): accepted decisions, proposals, and status conventions
+- [studies/first-run-study.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/studies/first-run-study.md): how the first-run sessions are run, consented and recorded
+- [studies/adopter-study.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/studies/adopter-study.md): how two independent teams' runs are recorded, with consent, for the application measures
 - [../CONTRIBUTING.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/CONTRIBUTING.md): setup, quality gates, and review rules
-- [../RELEASING.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/RELEASING.md): versioning and publishing
-- [maintainers/github-setup.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/maintainers/github-setup.md): repository settings
-- [maintainers/ops-catalogue.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/maintainers/ops-catalogue.md): which script, is it safe, what it needs
-- [maintainers/lessons.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/maintainers/lessons.md): why the rules are what they are
-- [maintainers/first-run-study.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/maintainers/first-run-study.md): how the first-run sessions are run, consented and recorded
-- [maintainers/adopter-study.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/maintainers/adopter-study.md): how two independent teams' runs are recorded, with consent, for the application measures
-- [maintainers/security-runbook.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/maintainers/security-runbook.md): what to do on a vulnerability report, a compromised release or a leaked collector credential
-- [maintainers/drills.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/maintainers/drills.md): the record of runbook drills, and which steps each exercised
-- [maintainers/notes.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/maintainers/notes.md): where notes live, what their front matter must say, and how they are built and checked
 - [../SECURITY.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/SECURITY.md): report vulnerabilities and understand support
 - [../CODE_OF_CONDUCT.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/CODE_OF_CONDUCT.md): community expectations

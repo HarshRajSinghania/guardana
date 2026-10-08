@@ -4,11 +4,8 @@ paths:
 ---
 # Scripts
 
-Catalogue: `docs/maintainers/ops-catalogue.md`. Why: `docs/maintainers/lessons.md` § Gates.
-
-- **Every script has a row in the catalogue** (what it writes, its safe mode, what it needs);
-  `scripts/check_ops_catalogue.py` fails the gate otherwise. Add, rename or delete the row in the
-  same change as the script.
+- **Every script's module docstring says what it writes, its safe mode and what it needs**,
+  so a reader decides whether it is safe to run before running it.
 - **A script that writes has `--check` or `--dry-run`, and `--help` that does nothing.** Every
   script that writes, fetches, builds or installs parses its arguments with `argparse`;
   `scripts/tests/test_script_parsers.py` proves `--help` has no side effect for each of them.
@@ -26,6 +23,5 @@ Catalogue: `docs/maintainers/ops-catalogue.md`. Why: `docs/maintainers/lessons.m
   nobody can find.
 - Fixed literal subprocess commands carry `# noqa: S603` with the reason; `T201` is allowed
   here. `scripts/` is on `pythonpath`, so tests import a script by module name.
-- Never a Fable/Mythos model id in a script, config or flag; the Anthropic default is
-  `claude-opus-5`. A loop over `claude -p`, `codex exec` or `agy --print` boots a full agent
-  session per call — batch, announce the count, and go through `scripts/text_model.py`.
+- A script that calls a model names a generally available model in one constant. A loop that
+  starts an agent CLI per item boots a full session per call — batch it and state the count.

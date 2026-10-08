@@ -562,8 +562,7 @@ changed.
 
 Recording is optional, and staying silent is not a failure. A rule that reads a
 file and finds nothing has not *measured* anything; inventing an assessment for it
-would put hundreds of empty passes into the denominator of every rate. See
-[`design/assessment-channel.md`](design/assessment-channel.md).
+would put hundreds of empty passes into the denominator of every rate.
 
 A Python rule that sends to a guarded application catches `RequestDeclined`
 (`guardana.core.target`) around the send only, never around grading, builds the declined

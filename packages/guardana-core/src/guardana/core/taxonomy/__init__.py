@@ -7,8 +7,7 @@ engine that outlives a renamed standard is possible at all.
 **Identity is scheme + edition + local id.** `OWASP-LLM/2025/LLM07` (System Prompt
 Leakage) and `OWASP-LLM/2026/LLM07` (Misinformation) are two different controls that
 happen to share a string, so a rule names an edition: `LLM07:2025`. Titles and ranks
-hang off that identity as display data and are never part of it. See
-`docs/design/taxonomy-editions.md`.
+hang off that identity as display data and are never part of it.
 
 Mapping is mandatory for a rule (`CONTRIBUTING.md`), which is why registration is
 open: a company mapping rules to its own control catalogue, or to a framework we

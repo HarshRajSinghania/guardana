@@ -60,6 +60,37 @@ From 1.0:
 Until 1.0, a breaking change can land in a minor release and is announced under
 "Changed — breaking" in the changelog, with what to write instead.
 
+## Versioning
+
+Guardana follows [Semantic Versioning](https://semver.org). The twist is that it
+is **pre-1.0**, and 0.x has its own rules — under SemVer, `0.y.z` makes *no*
+stability promise across a **minor** bump, so the minor slot carries what the
+major slot will carry after 1.0:
+
+| You're releasing… | Bump | Pre-1.0 (`0.y.z`) | Post-1.0 (`x.y.z`) |
+|---|---|---|---|
+| A backwards-**incompatible** change (renamed/removed public API, a rule id change, a stricter default that can fail a previously-passing build) | **minor** pre-1.0, **major** post-1.0 | `0.1.4 → 0.2.0` | `1.4.2 → 2.0.0` |
+| A backwards-**compatible** new feature (a new rule, a new flag, a new evaluator) | **minor** post-1.0, **patch**-or-minor pre-1.0 | `0.1.4 → 0.2.0` *(or `→ 0.1.5` if you want to signal "small")* | `1.4.2 → 1.5.0` |
+| A backwards-compatible **bug fix** (no API change) | **patch** | `0.1.4 → 0.1.5` | `1.4.2 → 1.4.3` |
+
+Practical pre-1.0 rule of thumb: **patch = "safe to upgrade blindly"**, **minor
+= "read the changelog, something might break."** Because a security tool can
+*fail a build* by design, treat "a new HIGH/CRITICAL rule that will flag code
+that passed before" as a **breaking** change (minor bump) — users pin to a range
+precisely so that doesn't surprise their CI. Between Guardana's own packages
+the pins are exact (`==0.1.0`): the five ship together and are tested only as
+one set, so nothing else may resolve beside them.
+
+### When to release 1.0
+
+Cut `1.0.0` when the public API (the `guardana.core` surface, the rule/evaluator/
+target contracts, the CLI flags, the profile schema, the collector envelope) is
+one you're willing to keep stable — i.e. the next breaking change would be rare
+and deliberate. 1.0 is a promise, not a maturity badge; don't rush it, but don't
+hide behind 0.x forever either. Everything from 1.0 on follows the right-hand
+column above. The criteria, the release plan and the target are the first goal in
+[ROADMAP.md](../ROADMAP.md).
+
 ## The collector envelope
 
 A run reaches the collector as a versioned envelope. Every change to the envelope raises its

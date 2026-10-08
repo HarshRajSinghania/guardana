@@ -40,7 +40,7 @@ so this page is maintained as carefully as the code.
 
 **Released (beta), F4:** an installed package adds a format for `--format` and a reporter for `--reporter` ([installed outputs](outputs.md)), imported only when named, behind the redaction the saved run went through, with a delivery line on every path and exit `8` when an installed output fails. `examples/output_pack` is the reference: a CSV export and a Standard Webhooks sender. It is an example to copy, not a published package, and the output contract is versioned by its own `output_api`. Not supported: diff renderers, binary formats, more than one reporter per run, and installed outputs on `monitor`, `import-observations` and `recipe run`.
 
-**Not released:** The five-user first-run study (F2) and the rest of F6 (the team regression loop and the live retrieval pilot) are roadmap items in `ROADMAP.md`. Pages under `docs/design/` record decisions; each page's status line says whether it shipped.
+**Not released:** The five-user first-run study (F2) and the rest of F6 (the team regression loop and the live retrieval pilot) are roadmap items in `ROADMAP.md`.
 
 ## Known limitations
 
@@ -86,7 +86,19 @@ on another origin are not examined, and agent-card signatures are not verified.
 It re-runs checks on an interval. It does not observe production traffic, cannot
 see what your real users are doing, and is not an inline control. Watching live
 agent traffic is not planned here: it belongs to Guardana Control, a separate
-project ([Guardana and Guardana Control](design/guardana-and-control.md)).
+project.
+
+```mermaid
+flowchart LR
+  accTitle: Guardana and Guardana Control
+  accDescr: Guardana checks models, RAG pipelines, agents and MCP servers before release, and its verdict gates the release. While the agent runs, Guardana Control sits between the agent and its tools, decides each tool call and records evidence. Neither product needs the other.
+  classDef accent fill:#F0ECFF,stroke:#5B3DF5,color:#4A2FE0
+  SYS[Models · RAG<br>agents · MCP servers] --> GV[Guardana<br>scan · probe · diff]:::accent
+  GV ==>|release| AG[Agent in<br>production]
+  AG ==> GW[Guardana Control<br>decides each tool call]:::accent
+  GW ==> TL[Tools and<br>MCP servers]
+  GW --> EV[(Evidence)]
+```
 
 ### The collector stores and triages findings — it does not trend quality
 

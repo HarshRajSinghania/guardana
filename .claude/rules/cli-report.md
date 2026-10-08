@@ -5,7 +5,7 @@ paths:
 ---
 # The CLI and the renderers
 
-Why: `docs/maintainers/lessons.md` § CLI and outputs. Contract: `docs/exit-codes.md`.
+Contract: `docs/exit-codes.md`.
 
 - **Exit codes are a contract.** A new outcome gets its own code and a row in
   `docs/exit-codes.md` and the design table; a code is never reused for a different meaning.

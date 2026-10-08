@@ -136,6 +136,4 @@ can be traced back to the document that carried it.
 
 - [`usage-analyze-trace.md`](usage-analyze-trace.md) — grading a recorded execution with
   Guardana's own rules
-- [`design/trace-domain-model.md`](design/trace-domain-model.md) — why an import is a claim
-  and not a verdict
 - [`usage-collector.md`](usage-collector.md) — where the claims land when `--reporter` is set

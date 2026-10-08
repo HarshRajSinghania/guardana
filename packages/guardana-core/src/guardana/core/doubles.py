@@ -7,8 +7,7 @@ security does: a call names the tenant the application resolved (`acting_as`) an
 only that tenant's records. A tenant leak therefore needs the application to name the
 wrong tenant, which the tenancy rules detect from the replies; the trace is evidence of
 what the application did with its tools, never the tenant verdict, because the tenant in
-it is the application's own claim. Design: `docs/design/application-fixtures-and-regressions.md`,
-decision 3.
+it is the application's own claim.
 """
 
 import atexit

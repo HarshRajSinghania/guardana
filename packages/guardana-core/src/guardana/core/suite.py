@@ -6,8 +6,7 @@ a rate that could not be established is neither. Every rate is over cases, each 
 weighted by its share of passed trials, since the K trials of one case are correlated.
 
 Trials nobody could grade never leave the denominator: they bound the rate from both
-sides, and the gate concludes only when both bounds agree. Why, and what was rejected:
-[`docs/design/quality-suites.md`](../../../../../docs/design/quality-suites.md).
+sides, and the gate concludes only when both bounds agree.
 """
 
 import math

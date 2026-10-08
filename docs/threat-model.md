@@ -177,7 +177,7 @@ ran. That last part is what a compromise is *detectable* by after the fact.
 What does not exist: once a pack is admitted it runs with the user's privileges, and a
 package's dependencies and `.pth` startup hooks run when Python starts, before any
 trust decision. A declarative pack format that executes no Python is decided
-([non-executing packs](design/non-executing-packs.md)) but not built, and subprocess
+but not built, and subprocess
 isolation for packs that do execute has no stated release.
 
 **Until then:** treat installing a Guardana pack exactly like installing any other
@@ -204,7 +204,7 @@ for an installed reporter, since the reporter's own code makes the connection; t
 report is committed to a repository or uploaded to a collector.
 
 **Stance:** evidence is redacted, and after v0.7 centrally rather than by
-convention (see [privacy design](design/privacy-and-redaction.md)). Prompts and
+convention (see [privacy](privacy.md)). Prompts and
 responses are not stored by default; `full` evidence mode warns loudly.
 
 **Residual risk:** a third-party rule that writes a secret into a field the

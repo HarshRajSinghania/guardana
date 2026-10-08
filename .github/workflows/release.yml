@@ -2,8 +2,6 @@
 # The reference pack (`examples/reference_pack`, versioned on its own) is built in a job
 # of its own after that publish and attached to every GitHub Release, and published to
 # PyPI by a further job only once the repository variable REFERENCE_PACK_PYPI is `true`.
-# The maintainer runbook for cutting a release is RELEASING.md; the one-time repo
-# and PyPI setup is docs/maintainers/github-setup.md.
 #
 # Steady-state: this builds all five packages and uploads them via OIDC trusted
 # publishing behind the "pypi" environment's approval gate — no API token in CI.
@@ -13,8 +11,7 @@
 # NOTE on first-time setup: you cannot pre-register five *pending* publishers with
 # this one shared (repo, workflow, environment) config — PyPI allows only one
 # pending publisher per config. Bootstrap the projects once with a token upload,
-# then add a normal trusted publisher to each. Full runbook + the one-time
-# new-project rate-limit caveat: RELEASING.md. `skip-existing` below keeps re-runs
+# then add a normal trusted publisher to each. `skip-existing` below keeps re-runs
 # idempotent.
 
 name: Release

@@ -285,5 +285,3 @@ clear alone, and the first drift it would stop catching is our own.
 [`examples/custom_rule/`](../examples/custom_rule/) is a real third-party package —
 a plugin rule, YAML rules, a custom evaluator and this manifest — and CI runs its
 tests in an isolated environment on every push.
-
-Reasoning: [`design/extension-author-tooling.md`](design/extension-author-tooling.md).

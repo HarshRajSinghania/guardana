@@ -253,6 +253,4 @@ fails the build rather than teaching the schema wrong.
 
 - [`usage-trace-inspect.md`](usage-trace-inspect.md) — what a producer records
 - [`usage-analyze-trace.md`](usage-analyze-trace.md) — grading an execution
-- [`design/security-contracts.md`](design/security-contracts.md) — why a contract is
-  a third entity rather than a rule or a profile, and what was rejected
 - [`profiles.md`](profiles.md) — `contracts:` and `trace.require:` in `guardana.yaml`

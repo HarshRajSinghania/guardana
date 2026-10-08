@@ -10,8 +10,6 @@ by the same policy as the data it describes cannot answer questions about the
 pruning. And **a tracked finding outlives its occurrences**: pruning the evidence
 keeps the triage, or a finding that reappears after a retention run arrives as new
 and somebody re-decides what they already decided.
-
-Design: `docs/design/audit-retention-and-deletion.md`.
 """
 
 import datetime

@@ -273,6 +273,3 @@ gate lists it as exempt with the reason it can never decline.
 | `--write-corpus PATH` | write the fixtures out as a labelled corpus, whole: through a temporary file and a rename, so a failed write leaves an earlier corpus as it was and exits `3` |
 | `--unsampled-ok` | do not go indeterminate over unsampled rules; says so in the output |
 | `--plugins`, `--allow-plugin` | the usual plugin-trust controls; `builtins` unless the flag or the profile's `plugins:` says otherwise. While an installed pack is refused, every selector exits `2`, so a pack author admits their own distribution: `--plugins allowlist --allow-plugin <distribution>` |
-
-Reasoning: [`design/extension-author-tooling.md`](design/extension-author-tooling.md),
-[`design/declarative-fixtures.md`](design/declarative-fixtures.md).

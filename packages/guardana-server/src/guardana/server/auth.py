@@ -51,8 +51,8 @@ _SECRET_BYTES = 32
 Which is why a plain SHA-256 is the right digest here and a password hash is not.
 Argon2 and bcrypt exist to make *guessing* expensive, and guessing only matters
 against a secret a human chose. There is nothing to guess in 256 random bits, so
-the cost would buy nothing and the dependency would be real — see CLAUDE.md on the
-dependency surface being part of the posture. This is the same reasoning GitHub
+the cost would buy nothing and the dependency would be real, and the dependency
+surface is part of the security posture. This is the same reasoning GitHub
 publishes for personal access tokens.
 """
 

@@ -282,7 +282,5 @@ schema 11 carries `document: null`: the digest was not recorded.
   file this command checks
 - [`usage-import-observations.md`](usage-import-observations.md) — carrying another
   tool's results in as unverified claims
-- [`design/trace-domain-model.md`](design/trace-domain-model.md) — why the model is
-  shaped this way, and what was rejected
 - [`usage-probe.md`](usage-probe.md) — verifying a live endpoint or MCP server instead
 - [`privacy.md`](privacy.md) — what evidence keeps, and what the redactor removes

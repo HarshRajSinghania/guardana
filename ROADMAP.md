@@ -10,8 +10,7 @@ This is the ordered plan toward 1.0, not a release promise. [FEATURES.md](FEATUR
 describes shipped behavior; [the generated rule summary](docs/generated/rule-summary.md)
 and [rule catalog](docs/generated/rule-catalog.md) are the coverage source of truth;
 [Product status](docs/product-status.md) states limits; [CHANGELOG.md](CHANGELOG.md)
-records releases; [the direction audit](docs/design/audit-0.31-direction.md)
-explains this order.
+records releases.
 
 ## Product constraints
 
@@ -41,7 +40,7 @@ Profiles have a versioned schema, all 58 built-in rules have finding, clean and 
 1.0 is the first release whose public surface stays stable: the supported Python facade, the
 rule, evaluator and target contracts, the output contracts, the CLI flags and exit codes, the
 profile schema and the collector envelope. From 1.0 on, a breaking change needs a major
-version ([RELEASING.md](RELEASING.md)).
+version ([versioning](docs/compatibility.md#versioning)).
 
 The readiness release and first release candidate have shipped. F2's five first-run sessions and F6's two independent teams remain alongside the second candidate and stable release:
 
@@ -55,9 +54,9 @@ does: five first-run users after F2, two independent teams in F6 and a recorded 
 customization. A missed criterion moves the date, never the bar. Every release re-reads the
 targets; the documentation tests refuse a target that has already shipped.
 
-The [proposed evidence plan](docs/design/roadmap-after-1-0.md) tracks the remaining external
-1.0 gates through the [generated first-run](docs/generated/first-run.md) and
-[application](docs/generated/application-measures.md) measures. A missing observation remains
+The [generated first-run](docs/generated/first-run.md) and
+[application](docs/generated/application-measures.md) measures track the remaining external
+1.0 gates. A missing observation remains
 not measured; the owner decides any change to the release criteria.
 
 1.0 is reached when:
@@ -84,9 +83,8 @@ surface changes. The supported surface, tested examples and migration guidance r
 
 ## Now: honest evidence, first value and the real application
 
-Use stable IDs for new planning. Older designs may reference the previous numbered
-roadmap table; their decisions remain historical inputs. Verify the implementation
-status of each item before starting it.
+Use stable IDs for new planning. Verify the implementation status of each item
+before starting it.
 
 | Order | ID | Deliverable | Done when |
 |---:|---|---|---|
@@ -95,7 +93,7 @@ status of each item before starting it.
 
 F1 shipped in 0.30.0 and the defects found while building it in 0.31.0; Q1 shipped in 0.32.0; F2's starter, recipes and study kit shipped in 0.33.0, and its five-user study is pending; F3 shipped in 0.34.0; F5 shipped in 0.35.0; F6's recipes, connection settings and provider conformance shipped in 0.36.0, its regression cases, fixtures, doubles and seeded checks in 0.37.0, and its guarded-application work in 0.38.0; F7 shipped in 0.39.0; F4 shipped in 0.40.0. M2 (provider and
 application conformance) and M4 (evidence to regression) are part of F6 now. F6 regrades with the
-recordings F5 shipped ([recorded answers](docs/design/recorded-answers.md)). Advanced statistics must not block inspecting a
+recordings F5 shipped. Advanced statistics must not block inspecting a
 result, adding a deterministic check or consuming a table; statistically proven regression
 claims wait for M1.
 
@@ -115,26 +113,17 @@ claims wait for M1.
 
 | ID | Deliverable | Done when |
 |---|---|---|
-| M1 | Paired statistical diff | **Start when** two independent pilot teams each use local `diff` on comparable saved before/after application runs for a documented ship decision, and one requests uncertainty because descriptive counts are insufficient. **Done when** compatible cases and grading identities are paired, repeated trials are handled at case level, insufficient coverage or power is refused, effect size and uncertainty are reported, declared effects can gate, and multiple gated suites are controlled. Version the comparison and grading-identity contract; label existing descriptive diff accurately. See the [proposed evidence plan](docs/design/roadmap-after-1-0.md). |
-| M3 | Collector measurements | **Start when** two independent teams submit and read their own locked application runs in the optional collector and each asks the same cross-run question that local files cannot answer. **Done when** versioned envelope and storage queries answer that recorded question by the necessary system, deployment, dataset and assessor dimensions, enforce tenancy, and report sample counts, uncertainty, coverage gaps, missingness and unknowns beside trends. Keep the envelope versioned independently from the run schema. See the [proposed evidence plan](docs/design/roadmap-after-1-0.md). |
-
-Keep the earlier designs for [suites](docs/design/quality-suites.md),
-[trials](docs/design/repeated-trials.md) and
-[judge error](docs/design/judge-error-correction.md).
-F4 shipped from [one redacted export and one webhook](docs/design/export-and-webhook.md);
-M1 starts from [paired statistics](docs/design/paired-regression-statistics.md) and
-the case-compatibility contract in [recorded answers](docs/design/recorded-answers.md). F6 and F7
-started from [the direction audit](docs/design/audit-0.31-direction.md); F7's design is
-[protocol conformance](docs/design/protocol-conformance.md).
+| M1 | Paired statistical diff | **Start when** two independent pilot teams each use local `diff` on comparable saved before/after application runs for a documented ship decision, and one requests uncertainty because descriptive counts are insufficient. **Done when** compatible cases and grading identities are paired, repeated trials are handled at case level, insufficient coverage or power is refused, effect size and uncertainty are reported, declared effects can gate, and multiple gated suites are controlled. Version the comparison and grading-identity contract; label existing descriptive diff accurately. |
+| M3 | Collector measurements | **Start when** two independent teams submit and read their own locked application runs in the optional collector and each asks the same cross-run question that local files cannot answer. **Done when** versioned envelope and storage queries answer that recorded question by the necessary system, deployment, dataset and assessor dimensions, enforce tenancy, and report sample counts, uncertainty, coverage gaps, missingness and unknowns beside trends. Keep the envelope versioned independently from the run schema. |
 
 ## Later: ongoing verification and platform fit
 
-Later is an unordered, unversioned set of possibilities, not a plan for 2.0. The [post-1.0 evidence plan](docs/design/roadmap-after-1-0.md) and [security research horizon](docs/design/two-zero-horizon.md) record public signals, competing tools, costs, acceptance checks and deferral conditions. Promoting an item to Now requires pilot pain, a reproducible failing case, an acceptance criterion, and a versioned contract review. A future 2.0 additionally requires evidence that a necessary public-contract break cannot be represented faithfully by a compatible 1.x addition.
+Later is an unordered, unversioned set of possibilities, not a plan for 2.0. Promoting an item to Now requires pilot pain, a reproducible failing case, an acceptance criterion, and a versioned contract review. A future 2.0 additionally requires evidence that a necessary public-contract break cannot be represented faithfully by a compatible 1.x addition.
 
-- Synthetic scheduled verification with [anytime-valid monitoring](docs/design/anytime-valid-monitoring.md), rather than repeated fixed-level tests presented as reliable alerts.
+- Synthetic scheduled verification with anytime-valid monitoring, rather than repeated fixed-level tests presented as reliable alerts.
 - A Prometheus reporter over the common output contract, once a team names the measurements and unknowns it needs.
 - Live RAG and application targets beyond the F6 pilot, with safe fixtures and explicit data boundaries, ordered by pilot needs.
-- Model-artifact inventory and parser completeness, starting from the [documented gaps](docs/work/BACKLOG.md) in unlisted formats and safetensors validation; accept only when malformed, unreadable and partially scanned inputs cannot look clean under the versioned scan and coverage contract.
+- Model-artifact inventory and parser completeness, starting from the known gaps in unlisted formats and safetensors validation; accept only when malformed, unreadable and partially scanned inputs cannot look clean under the versioned scan and coverage contract.
 - An agent tool-action application target after retrieval, only if a pilot supplies a controlled injected input, complete action trace and harmless side-effect oracle; review the versioned target, fixture and trace contracts before adding it.
 - Central distribution of signed, versioned profiles and policies, after local locks and recipes prove use.
 - Profiles distributed in packs are a 1.x addition. `guardana.yaml`, the presets and the versioned profile schema are the 1.0 contract.
@@ -146,7 +135,7 @@ Later is an unordered, unversioned set of possibilities, not a plan for 2.0. The
 An exported recording remains an explicit supported subset behind an adapter.
 OpenTelemetry conventions are input formats, not Guardana's storage contract.
 Live production intake and supervision belong to
-[Guardana Control](docs/design/guardana-and-control.md).
+Guardana Control.
 
 ## Parallel contributor lane
 
@@ -154,9 +143,9 @@ Small deterministic checks, framework adapters, taxonomy updates and artifact
 formats may proceed when they do not delay the milestone. Heavy dependencies,
 niche corpora and experimental graders belong in extension packages.
 
-These move up, and live in [the backlog](docs/work/BACKLOG.md): ATLAS provenance, pinning
+These move up: ATLAS provenance, pinning
 the monthly content release and the data-format release separately, with positive and
-negative fixtures for new techniques; fixture expressiveness; and the non-executing declarative packs [decided](docs/design/non-executing-packs.md)
+negative fixtures for new techniques; fixture expressiveness; and the non-executing declarative packs decided
 but not yet built, because installed Python packs execute code. A public extension-ID service is dropped: namespaces,
 local validation and locks cover the author workflow.
 
@@ -168,7 +157,7 @@ OWASP mappings; built-in security checks retain public-framework mappings
 
 Multi-agent protocols beyond the A2A fixture in F7, multimodal carriers beyond one
 document or image carrier a pilot actually uses, adaptive attackers,
-[reusable techniques](docs/design/attack-techniques.md) and broad multilingual or
+reusable techniques and broad multilingual or
 domain corpora follow measured usefulness, evaluation quality and bounded execution.
 Import or buy coverage rather than grow the prompt count; attack volume is not the
 adoption metric.
@@ -187,5 +176,5 @@ Follow [CONTRIBUTING.md](CONTRIBUTING.md), including isolated extension installa
 checks and generated documentation. Skips are not passes.
 
 Change priority using a user problem, observed evidence, affected item ID,
-dependencies and the work moved down. Record owners and acceptance evidence in
-work files; use GitHub issues for externally discoverable contributor tasks.
+dependencies and the work moved down. Use GitHub issues for owners, acceptance
+evidence and externally discoverable contributor tasks.

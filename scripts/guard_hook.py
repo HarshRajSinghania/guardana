@@ -10,7 +10,10 @@ Wired in `.claude/settings.json`; the case table lives in
 `scripts/tests/test_guard_hook.py`.
 """
 
+from __future__ import annotations
+
 import json
+import os
 import re
 import shlex
 import subprocess
@@ -18,10 +21,8 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-# Spelled in two halves so this file does not trip its own rule.
-FORBIDDEN_MODEL = re.compile(
-    r"claude-(?:fab" + r"le|myth" + r"os)|--model[= ]+(?:fab" + r"le|myth" + r"os)\b", re.IGNORECASE
-)
+# Model families a clone refuses, comma-separated, e.g. a tier the team never uses in scripts.
+FORBIDDEN_MODELS_ENV = "GUARD_FORBIDDEN_MODELS"
 ENV_FILE = r"(?<![\w.-])\.env(?!\.example)[\w.-]*"
 ATTRIBUTION = re.compile(r"co-authored-by|generated with|claude\.ai/code|\U0001F916", re.IGNORECASE)
 TAG_PUSH = re.compile(r"\bgit\s+push\b[^|;&]*(?:--tags\b|refs/tags/|\bv\d+\.\d+)")
@@ -153,7 +154,10 @@ def _guard_stage(command: str) -> None:
     if not re.search(r"\bgit\s+add\b", command):
         return
     if re.search(r"\bgit\s+add\s+(?:-A\b|--all\b|-u\b|--update\b|\.(?:\s|$))", command):
-        decide("deny", "Stage explicit paths. Other sessions leave work in this tree.")
+        decide(
+            "deny",
+            "Stage explicit paths: the tree may hold changes that are not part of this commit.",
+        )
     if re.search(rf"\bgit\s+add\b[^|;&]*{ENV_FILE}", command):
         decide("deny", "Env files hold credentials and are never staged.")
 
@@ -272,10 +276,24 @@ def without_git_options(command: str) -> str:
     return "".join(kept) + command[copied:]
 
 
+def forbidden_models() -> re.Pattern[str] | None:
+    """Return a pattern for the families in `GUARD_FORBIDDEN_MODELS`, as ids or `--model` values."""
+    families = [
+        re.escape(name.strip())
+        for name in os.environ.get(FORBIDDEN_MODELS_ENV, "").split(",")
+        if name.strip()
+    ]
+    if not families:
+        return None
+    alternatives = "|".join(families)
+    return re.compile(rf"claude-(?:{alternatives})|--model[= ]+(?:{alternatives})\b", re.IGNORECASE)
+
+
 def guard_bash(command: str) -> None:
     """Decide on a Bash command; return silently when nothing applies."""
-    if FORBIDDEN_MODEL.search(command):
-        decide("deny", "Fable/Mythos models are never used from a command or script in this repo.")
+    forbidden = forbidden_models()
+    if forbidden is not None and forbidden.search(command):
+        decide("deny", f"This clone does not use that model family ({FORBIDDEN_MODELS_ENV}).")
     command = without_git_options(command)
     _guard_stage(command)
     _guard_commit(command)
@@ -307,8 +325,9 @@ def guard_write(tool_input: dict[str, object]) -> None:
     """Decide on a Write, Edit, MultiEdit or NotebookEdit; return silently when nothing applies."""
     if _is_exempt(str(tool_input.get("file_path", tool_input.get("notebook_path", "")))):
         return
-    if FORBIDDEN_MODEL.search(" ".join(_strings(tool_input))):
-        decide("deny", "Fable/Mythos model ids are never written into this repo.")
+    forbidden = forbidden_models()
+    if forbidden is not None and forbidden.search(" ".join(_strings(tool_input))):
+        decide("deny", f"This clone does not write that model family ({FORBIDDEN_MODELS_ENV}).")
 
 
 def main() -> None:

@@ -8,6 +8,7 @@ The negative rows matter as much as the positive ones: a guard that denies
 import contextlib
 import io
 import json
+import shutil
 import subprocess
 import sys
 from collections.abc import Mapping
@@ -17,8 +18,12 @@ import pytest
 
 import guard_hook
 
-# Assembled at run time so this file does not carry the id it exists to refuse.
-FORBIDDEN_ID = "claude-" + "fab" + "le-5-1"
+FORBIDDEN_ID = "claude-preview-9"
+
+
+@pytest.fixture(autouse=True)
+def _a_refused_family(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(guard_hook.FORBIDDEN_MODELS_ENV, "preview")
 
 
 def _decision(
@@ -57,7 +62,7 @@ def _no_subprocesses(monkeypatch: pytest.MonkeyPatch) -> None:
         ("git add --all", "deny"),
         ("git add .", "deny"),
         ("git add -u", "deny"),
-        ("git add scripts/guard_hook.py docs/work/README.md", None),
+        ("git add scripts/guard_hook.py docs/index.md", None),
         ("git add .env", "deny"),
         ("git add deploy/.env.production", "deny"),
         ("git add deploy/env.example", None),
@@ -88,8 +93,7 @@ def _no_subprocesses(monkeypatch: pytest.MonkeyPatch) -> None:
         ("head -5 deploy/.env", "deny"),
         ("cat deploy/env.example", None),
         ('claude -p "summarise this"', "ask"),
-        ("codex exec --sandbox read-only -", None),
-        ("agy --print='hello' --model gemini-3.1-pro-high", None),
+        ("uv run something --model sonnet", None),
         ("uv run python scripts/release.py patch", "ask"),
         ("uv run python scripts/release.py patch --dry-run", None),
         ("uv run python scripts/release.py --help", None),
@@ -218,6 +222,30 @@ def test_a_multi_edit_and_a_notebook_edit_are_checked_too(
     assert _decision(monkeypatch, capsys, "MultiEdit", edits) == "deny"
     cell = {"notebook_path": "n.ipynb", "new_source": f"model = '{FORBIDDEN_ID}'"}
     assert _decision(monkeypatch, capsys, "NotebookEdit", cell) == "deny"
+
+
+def test_without_a_configured_family_no_model_is_refused(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.delenv(guard_hook.FORBIDDEN_MODELS_ENV)
+    command = {"command": f"uv run something --model {FORBIDDEN_ID}"}
+    assert _decision(monkeypatch, capsys, "Bash", command) is None
+    written = {"file_path": "x.py", "content": f'MODEL = "{FORBIDDEN_ID}"'}
+    assert _decision(monkeypatch, capsys, "Write", written) is None
+
+
+def test_the_hook_runs_under_the_interpreter_the_settings_name() -> None:
+    """The harness starts the hook with `python3` from PATH, which may be older than the venv's."""
+    python3 = shutil.which("python3")
+    if python3 is None:
+        pytest.skip("no python3 on PATH, so no session could run the hook either")
+    hook = Path(__file__).resolve().parents[1] / "guard_hook.py"
+    payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": "git add -A"}})
+    done = subprocess.run(  # noqa: S603
+        [python3, str(hook)], input=payload, capture_output=True, text=True, check=False
+    )
+    assert done.returncode == 0, done.stderr
+    assert '"permissionDecision": "deny"' in done.stdout
 
 
 def test_a_broken_payload_never_blocks_work() -> None:

@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The repository and guardana.dev carry user documentation only.** Design records, maintainer runbooks and the work directory are no longer part of the repository or the site; each removed page redirects to the page that now covers its subject, or to the documentation index. The first-run and adopter studies moved to `docs/studies/`, and the versioning policy is now a section of `docs/compatibility.md`. The shared agent setup (`CLAUDE.md`, `AGENTS.md`, `.claude/`) keeps work files in a gitignored `.work/`.
 - **`llm_judge` uses prompt version `2026.1` by default, which a graded reply cannot talk its way out of.** The judge receives the conversation as one JSON-encoded line inside a labelled block it is told never to obey, so a model's reply can no longer close the transcript and answer PASS on the judge's behalf. The prompt version is part of the judge's id (`llm_judge@2026.1`), so a calibration measured for `llm_judge@2025.1` no longer applies, and `guardana diff` against an earlier baseline shows judge-graded rules as regraded. A run warns about such a calibration on stderr; to keep it, set `prompt_version: "2025.1"` under `evaluators.llm_judge`.
 
 ### Fixed
@@ -28,7 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **A `guardana recipe run` refusal turns every earlier report it may rewrite red, and never rewrites a file the recipe names.** A recipe that names its own `guardana-artifact.json` as an input keeps that marker and any other file it reads, rewrites the earlier `junit.xml` and `report.txt` as refused, removes the earlier `run.json`, and says so on stderr; before, the whole earlier artifact stayed green and only exit `3` reported the refusal. An invalid recipe no longer rewrites a file in its earlier artifact that it names: every string it holds counts as a path it may read. A recipe that does not parse at all leaves the artifact untouched and warns that it still holds an earlier run's files.
 - **Pins, locks, corpora and native traces are written whole or not at all.** `probe --write-mcp-pin`, `guardana pack lock`, `guardana recipe lock`, `rule test --write-corpus` and `analyze-trace --write-trace` write through a temporary file beside the destination and a rename, so a write that fails part-way leaves the earlier file as it was; before, an approved pin or lock could be left truncated. A pack lock, recipe lock or corpus that cannot be written exits `3` with an error instead of a traceback.
 - **`guardana run migrate` to another `--output` brings the exchanges the run records.** It copies the run's `<stem>.exchanges.jsonl` beside the new file first, refuses with exit `3` and writes nothing when different exchanges are already there, keeps identical ones, and warns when the original sidecar is missing or does not match its recorded digest. Before, the copy recorded a digest whose sidecar stayed beside the original.
-- **`scripts/release.py` holds a final release to its candidate.** A final `X.Y.Z` cut after `vX.Y.ZrcN` is refused when `docs/generated/api-surface.json` differs at all from that candidate's, whatever the changelog says; the fix is another candidate. A final release with a major version of 1 or more is refused, in `--dry-run` too and before the gate, while `RELEASING.md` still states the project is pre-1.0, and the message names the line. A final release whose version has candidate tags, none of which is the nearest tag behind `HEAD`, is refused rather than left uncompared.
+- **`scripts/release.py` holds a final release to its candidate.** A final `X.Y.Z` cut after `vX.Y.ZrcN` is refused when `docs/generated/api-surface.json` differs at all from that candidate's, whatever the changelog says; the fix is another candidate. A final release with a major version of 1 or more is refused, in `--dry-run` too and before the gate, while `docs/compatibility.md` still states the project is pre-1.0, and the message names the line. A final release whose version has candidate tags, none of which is the nearest tag behind `HEAD`, is refused rather than left uncompared.
 - **The generated rule catalog shows each rule's target kind and maturity**, as `FEATURES.md` says it does. On the documentation site, wide code blocks and tables scroll inside their own box with a visible scrollbar and an edge shadow, and long code in a heading wraps inside the column.
 - **Documentation that named a flag, an outcome or a step wrongly.** `docs/safe-testing.md` and `docs/product-status.md` named a `--max-cost` flag that does not exist, and `docs/threat-model.md` an `--allow-side-effects` flag; they now name the real budget flags, exit `6` and `--allow-destructive`, and `safe-testing.md` lists the full MCP request inventory. A new test reads every `guardana` and `guardana-collector` command line in `README.md`, `FEATURES.md` and `docs/`, and every flag named alone, against the commands themselves. `docs/usage-scan.md` showed `guardana scan . || echo …`, which turns a failed gate into exit `0` in CI; the example now keeps the exit status. The regression workflow in `docs/integrations.md` runs the published image instead of assuming an installed CLI. `docs/deployment.md` stops the collector before a migration, keeps a key's scope and environment when rotating it, restores the dump it names and checks it reads first, and schedules `retention apply`, since a policy alone deletes nothing. The Python rule example in `docs/writing-rules.md` checks the `FileReader` protocol rather than one target class, so a third-party file target is not skipped silently. `docs/install.md` starts with PyPI and says how to install a release candidate. `docs/recipe-local-scan.md` creates the accepted run its `diff` reads. `docs/privacy.md` says an admitted package can open its own connections. The pages that build a `Verifier` or a target say which imported names sit outside the supported surface. `docs/index.md` opens with an ordered start and one table of what each outcome means and how it gates.
 - **The landing page's examples are copyable and complete on a phone.** Shell and YAML examples use `#` comments, the CI example is a complete workflow on `actions/checkout@v7`, the scan demo marks its three findings as a sample of twelve and quotes the full summary line, commands wrap rather than hide their arguments at phone width, Rules stays in the phone header, and the faint text colour meets 4.5:1 contrast in both themes. The hero states the release candidate and beta status with a link to product status, and offers the offline starter.
@@ -65,7 +66,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **All 58 built-in rules carry finding, clean and inconclusive samples.** `guardana rule test 'guardana.*'` runs them, and the generated rule summary counts them. A sample whose target cannot read a file is inconclusive.
 - **Documents written by published releases from 0.2.0 through 0.40.0 are read by current tests.** These include runs, collector envelopes, profiles, pack manifests and locks, and datasets; `run migrate`, `load_verification` and `diff` read the runs. [`scripts/capture_historical_documents.py`](scripts/capture_historical_documents.py) produces them, and [`releases.json`](packages/guardana-core/tests/historical/releases.json) records their versions.
 - **The collector envelope is published at [`schemas/collector-envelope-v8.schema.json`](schemas/collector-envelope-v8.schema.json).** A collector accepts versions from 2 through its own. It refuses a newer agent with `422` and names the versions it speaks; tests post stored older envelopes to migrated PostgreSQL and read them back.
-- **Collector recovery procedures are exercised by tests.** They cover backup and restore, rollback and forward, project deletion, an older-schema upgrade and key rotation; [`docs/deployment.md`](docs/deployment.md) names the tests. [`docs/maintainers/security-runbook.md`](docs/maintainers/security-runbook.md) and [`scripts/check_repo_settings.py`](scripts/check_repo_settings.py) cover security procedures and their repository settings. No security runbook drill is recorded in [`docs/maintainers/drills.md`](docs/maintainers/drills.md).
+- **Collector recovery procedures are exercised by tests.** They cover backup and restore, rollback and forward, project deletion, an older-schema upgrade and key rotation; [`docs/deployment.md`](docs/deployment.md) names the tests. `docs/maintainers/security-runbook.md` and [`scripts/check_repo_settings.py`](scripts/check_repo_settings.py) cover security procedures and their repository settings. No security runbook drill is recorded in `docs/maintainers/drills.md`.
 - **Application measures have a generated page.** [`scripts/adopter_measure.py`](scripts/adopter_measure.py) and [`docs/generated/application-measures.md`](docs/generated/application-measures.md) report application coverage and the share of attempted checks reaching a supported verdict. Both remain "not measured" until two independent teams have rows.
 - **The collector dashboard sends a Content-Security-Policy and `Referrer-Policy: no-referrer`.** Script and style allowances use SHA-256 hashes, and `frame-ancestors 'none'` blocks framing. Every collector response sends `X-Content-Type-Options: nosniff`; a test checks escaped dashboard values.
 - **The supported surface and compatibility policy are published.** [`docs/generated/api-surface.json`](docs/generated/api-surface.json) records the Python, CLI, extension, output, locator, Action and environment surface and is checked on Python 3.11, 3.12 and 3.13. [`docs/compatibility.md`](docs/compatibility.md) states the 1.0 policy, and [`docs/generated/compatibility-matrix.md`](docs/generated/compatibility-matrix.md) records earlier releases. `scripts/release.py` refuses a release candidate with an unrecorded surface change.
@@ -906,7 +907,7 @@ waiver cannot cover them, because waivers move entries out of `findings` only.
   to branch protection's required status checks, so the first run against the
   existing tree does not retroactively fail every open PR before anyone has
   triaged the initial backlog. See
-  [`docs/maintainers/github-setup.md`](docs/maintainers/github-setup.md) for the
+  `docs/maintainers/github-setup.md` for the
   one-time repository setting this still depends on.
 
 ### Changed
@@ -1247,7 +1248,7 @@ Saved-run schema **6** (`assessments`, and `run.rules[].origin`), diff document
 schema **2**. A version-5 run migrates forward with the channel empty and the origin
 null — the first because no version-5 build could record one, the second because
 `null` means unknown and inventing a likely answer is the one thing a migration must
-never do. Design: [`docs/design/assessment-channel.md`](docs/design/assessment-channel.md).
+never do. Design: `docs/design/assessment-channel.md`.
 
 **The extension contract is real, and checkable.** `docs/extending.md` promised from
 0.1 that a target declaring `READ_FILES` could run all nineteen artifact rules
@@ -1271,7 +1272,7 @@ failing nineteen times in a row. A target that implements a surface and forgets 
 back green, and nothing distinguished that from a clean target. `guardana.testing.
 assert_target_conforms` fails on both and ships in the package, because a conformance
 kit somebody has to vendor is a conformance kit nobody runs. Design:
-[`docs/design/capability-protocols.md`](docs/design/capability-protocols.md).
+`docs/design/capability-protocols.md`.
 
 ### Fixed
 
@@ -1403,7 +1404,7 @@ export and wrong for a producer: a live agent cannot buffer a session that runs 
 hours, and a file that stops mid-session has to say so rather than look finished.
 `guardana.core.trace.open_trace` writes the header first, appends and flushes each span,
 and signs the file off on a clean exit. Reasoning and rejected options:
-[`docs/design/trace-producer.md`](docs/design/trace-producer.md); how to use it:
+`docs/design/trace-producer.md`; how to use it:
 [`docs/writing-an-integrator.md`](docs/writing-an-integrator.md).
 
 Three of its refusals close a measured false green rather than tidying an API, and the
@@ -1697,7 +1698,7 @@ rather than an inference that can vary by machine.
 header's **Docs** link finally points at documentation instead of at the GitHub
 README, which is the open item `site/README.md` has carried since the domain was
 parked. Reasoning and the alternatives that lost:
-[`docs/design/documentation-site.md`](docs/design/documentation-site.md).
+`docs/design/documentation-site.md`.
 
 The page worth building is the **rule explorer**. Every rule has a page — severity,
 surface, impact, declared request budget, required capabilities, the goal its own
@@ -1819,7 +1820,7 @@ about the rule that actually runs.
 **The roadmap carries the documentation site**, with the decision the design settles:
 prose stays markdown with YAML frontmatter, facts stay generated from the registry as
 JSON, and the interactivity worth building is a generated rule explorer rather than a
-docs theme. See [`docs/design/documentation-site.md`](docs/design/documentation-site.md).
+docs theme. See `docs/design/documentation-site.md`.
 
 ## [0.18.0] - 2026-08-11 — what a third party needs before the API freezes
 
@@ -1945,7 +1946,7 @@ either file from the deploy — the opposite of the mistake that once published
 `site/README.md`.
 
 **A design document for a documentation site on guardana.dev**
-([`docs/design/documentation-site.md`](docs/design/documentation-site.md)), closing
+(`docs/design/documentation-site.md`), closing
 the open item at the end of `site/README.md`. It argues that the interactivity worth
 building is a *generated rule explorer* rather than a docs theme, that prose stays
 markdown while facts stay generated from the registry — the answer to "should docs
@@ -2069,7 +2070,7 @@ contract all apply with no new path through the engine. Generated attacks aimed 
 *breaking* an invariant are deliberately not part of this: the order is state the
 invariant, prove it, then generate traffic. See
 [`docs/usage-contracts.md`](docs/usage-contracts.md) and the design document,
-[`docs/design/security-contracts.md`](docs/design/security-contracts.md), which
+`docs/design/security-contracts.md`, which
 records what was rejected — a contract as a profile, a contract as a YAML rule, and
 an evaluator seam that would have let a tenant boundary be graded by a language
 model.
@@ -2164,7 +2165,7 @@ taken**: the specification warns that some older servers answer an era-ambiguous
 method without a handshake, so a client that opened with `tools/list` would take
 their manifest and write `2026-07-28` into a run manifest as a coverage claim no
 server ever agreed to. Reasoning in
-[`docs/design/mcp-protocol-eras.md`](docs/design/mcp-protocol-eras.md).
+`docs/design/mcp-protocol-eras.md`.
 
 **Guardana declares no client capabilities, which is a safety property.** Under the
 new Multi Round-Trip Requests pattern a server asks for sampling, elicitation or a
@@ -2248,7 +2249,7 @@ refuses keeps every text rule and skips the agentic ones with a reason, which
 framework already performed into the model the trace rules grade. None of the three
 libraries is imported, and `guardana-core` gains no dependency; the shapes were read
 by running the real libraries and are recorded, with versions, in
-[`docs/design/framework-adapters.md`](docs/design/framework-adapters.md).
+`docs/design/framework-adapters.md`.
 
 They drive three *different* halves of the model, which is the point: PydanticAI
 supplies messages with typed parts and a tool loop, LlamaIndex supplies retrieval with
@@ -2318,7 +2319,7 @@ content parts** (so a multimodal carrier does not force a breaking change later)
 offers, calls and results, retrieval queries and retrieved documents, identity and
 scopes, delegation, consent, policy decisions, approvals, memory reads and writes,
 external side effects, and agent handoffs. Design and rejected options:
-[`docs/design/trace-domain-model.md`](docs/design/trace-domain-model.md).
+`docs/design/trace-domain-model.md`.
 
 **`guardana analyze-trace` reads a trace and grades it.** OpenTelemetry GenAI
 semantic conventions are the interoperability base rather than a Guardana protocol —
@@ -2507,7 +2508,7 @@ token minted for a different service, a session id that is a counter, scopes tha
 cannot be reduced — and none of it is visible in a tool description. The controls
 are settled rather than speculative (OAuth 2.1, PKCE, audience-bound tokens, no
 token passthrough), so this is depth on a target Guardana already has. See
-[`docs/design/mcp-authorization-depth.md`](docs/design/mcp-authorization-depth.md).
+`docs/design/mcp-authorization-depth.md`.
 
 - **Six new rules over a live server's authorization surface**, each testing an
   invariant the specification states as a `MUST`: a server that answers without a
@@ -2642,7 +2643,7 @@ be Improper Output Handling and is now Data and Model Poisoning. Nothing Guardan
 published was a lie — the `framework` field on every reference has always said
 `OWASP-LLM-2025` — but the short id a report renders meant one thing to this build
 and another to an auditor who looked it up, and every saved run widened the gap. See
-[`docs/design/taxonomy-editions.md`](docs/design/taxonomy-editions.md).
+`docs/design/taxonomy-editions.md`.
 
 - **A framework reference is now scheme + edition + local id.** `OWASP-LLM/2025/LLM07`
   and `OWASP-LLM/2026/LLM07` are different controls that share a string, and both are
@@ -3321,13 +3322,13 @@ never planted rather than by reading code that looked right:
   unchanged.
 - **Design documents are named for their topic, not for their date.**
   `2026-08-03-collector-persistence-design.md` is now
-  [`collector-persistence.md`](docs/design/collector-persistence.md), and the
+  `collector-persistence.md`, and the
   enterprise-readiness plan and the new tenancy design moved the same way. Four
   of the seven documents already used topic names, so this is a return to the
   convention rather than a new one. A filename that leads with a date tells a
   reader the age of a document instead of its subject, and an accepted decision
   does not expire on a schedule; the date now lives in the header beside the
-  status. [`docs/design/README.md`](docs/design/README.md) writes the convention
+  status. `docs/design/README.md` writes the convention
   down, including what each status means and why an accepted decision is
   superseded rather than rewritten.
 - The enterprise-readiness plan now opens by saying it is a **historical input

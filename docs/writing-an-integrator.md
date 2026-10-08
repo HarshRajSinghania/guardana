@@ -89,8 +89,7 @@ that supply them exist.
 Overstate it and you get a check that runs on nothing. This is not theoretical, and it
 is not symmetric between dimensions: declaring `approval` and never writing one makes
 the rules **decline**, while declaring `effects` and never writing one produces
-`✓ No findings.` and exit `0` over an execution that moved money. The measurement is in
-[`docs/design/trace-producer.md`](design/trace-producer.md). It is also why the writer
+`✓ No findings.` and exit `0` over an execution that moved money. It is also why the writer
 refuses to record a tool call the producer marked `mutates: true` without an effect
 beside it — the file that grades falsely clean is one you cannot write.
 

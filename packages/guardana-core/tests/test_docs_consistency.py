@@ -84,12 +84,11 @@ def test_documented_action_pins_track_the_released_minor() -> None:
 def _product_prose() -> list[Path]:
     """Tracked markdown that makes claims *about the product*, and is checked for them.
 
-    Three exclusions, each for its own reason. `CHANGELOG.md` is a record of the
-    past, and the past is allowed to say the collector had none of this.
-    `docs/design/` states the problem a decision solved; an accepted decision is
-    superseded rather than rewritten. And `.claude/` holds agent procedures that
-    deliberately *quote* the stale phrasings as examples of what to hunt for — a
-    gate that fires on its own description of itself is a gate people delete.
+    Two exclusions, each for its own reason. `CHANGELOG.md` is a record of the
+    past, and the past is allowed to say the collector had none of this. And
+    `.claude/` holds agent procedures that deliberately *quote* the stale phrasings
+    as examples of what to hunt for — a gate that fires on its own description of
+    itself is a gate people delete.
 
     `CLAUDE.md` is deliberately **not** exempt. It is project law, it makes claims
     about the product, and it named a milestone as current for fifteen releases
@@ -98,9 +97,7 @@ def _product_prose() -> list[Path]:
     return [
         path
         for path in _tracked_markdown()
-        if path.name != "CHANGELOG.md"
-        and "design" not in path.parts
-        and ".claude" not in path.parts
+        if path.name != "CHANGELOG.md" and ".claude" not in path.parts
     ]
 
 
@@ -166,8 +163,7 @@ def test_no_page_still_denies_a_capability_the_collector_now_has() -> None:
     Every tracked page is checked rather than a hand-written list, because the list
     is what missed `product-status.md` the first time. `CHANGELOG.md` is exempt: it
     is a record of the past, and the past is allowed to say the collector had none
-    of this. So is `docs/design/`: a design document states the problem it solved,
-    and an accepted decision is superseded rather than rewritten.
+    of this.
     """
     offenders = [
         f"{path.relative_to(_repo())}: {claim!r}"
@@ -326,8 +322,8 @@ def test_no_page_promises_a_milestone_that_has_already_shipped(pattern: re.Patte
     is that schedule: the released version moves, and every page that named it as
     future has to be re-read.
 
-    `CHANGELOG.md` and `docs/design/` are exempt for the reason they always are —
-    both are records of what was true when written.
+    `CHANGELOG.md` is exempt for the reason it always is — it is a record of what
+    was true when written.
     """
     released = stable_series()
     stale = [
@@ -346,15 +342,13 @@ def test_every_list_of_presets_names_every_preset() -> None:
     """A page listing the presets on one line lists all of them.
 
     Keyed on the two names no other word collides with, so a sentence about CI or
-    monitoring is not mistaken for a list. `docs/work/` is work in flight and quotes
-    the old list on purpose.
+    monitoring is not mistaken for a list.
     """
     from guardana.core.profile import PRESET_NAMES  # noqa: PLC0415 — the one test that needs it
 
     stale = [
         f"{path.relative_to(_repo())}:{number}"
         for path in _product_prose()
-        if "work" not in path.relative_to(_repo()).parts
         for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1)
         if "pre-training" in line
         and "monitor" in line

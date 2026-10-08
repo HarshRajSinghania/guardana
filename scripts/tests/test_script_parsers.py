@@ -2,9 +2,8 @@
 
 `release.py` fetches, runs the gate and pushes; `clean_install_check.py` builds a
 virtual environment; `generate_sbom.py` writes `sbom/`; `image_smoke.py` builds and
-runs containers; `distribution_signals.py` fetches from PyPI, GitHub and ghcr. A
-request for usage that did any of that, or an unknown flag that was ignored and ran
-the default, is the script doing something nobody asked for.
+runs containers. A request for usage that did any of that, or an unknown flag that
+was ignored and ran the default, is the script doing something nobody asked for.
 """
 
 import subprocess
@@ -18,7 +17,6 @@ from typing import Any, NoReturn
 import pytest
 
 import clean_install_check
-import distribution_signals
 import generate_sbom
 import image_smoke
 import release
@@ -51,7 +49,7 @@ def acted(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> list[str]:
     monkeypatch.setattr(tempfile, "TemporaryDirectory", _stub("tempfile.TemporaryDirectory"))
     monkeypatch.setattr(urllib.request, "urlopen", _stub("urllib.request.urlopen"))
     # A stray write lands in an empty directory the test can inspect, not the repository.
-    for module in (release, clean_install_check, generate_sbom, image_smoke, distribution_signals):
+    for module in (release, clean_install_check, generate_sbom, image_smoke):
         monkeypatch.setattr(module, "_ROOT", tmp_path)
     return attempts
 
@@ -63,9 +61,8 @@ _SCRIPTS = pytest.mark.parametrize(
         (clean_install_check, ("--keep",)),
         (generate_sbom, ("--check",)),
         (image_smoke, ("--no-build",)),
-        (distribution_signals, ("--record",)),
     ],
-    ids=["release", "clean_install_check", "generate_sbom", "image_smoke", "distribution_signals"],
+    ids=["release", "clean_install_check", "generate_sbom", "image_smoke"],
 )
 
 
@@ -110,7 +107,7 @@ def test_an_unknown_flag_is_refused_before_anything_runs(
 
 
 def test_release_takes_its_part_and_dry_run_in_either_order() -> None:
-    """The invocations RELEASING.md documents parse to the same plan as before."""
+    """A part and `--dry-run` parse to the same plan in either order."""
     parser = release._parser()
 
     for argv in (["patch", "--dry-run"], ["--dry-run", "patch"]):
@@ -137,14 +134,13 @@ def test_release_without_a_part_is_refused(
         (clean_install_check, "keep", "--keep"),
         (generate_sbom, "check", "--check"),
         (image_smoke, "no_build", "--no-build"),
-        (distribution_signals, "record", "--record"),
     ],
-    ids=["clean_install_check", "generate_sbom", "image_smoke", "distribution_signals"],
+    ids=["clean_install_check", "generate_sbom", "image_smoke"],
 )
 def test_each_existing_flag_still_parses_and_defaults_off(
     module: ModuleType, attribute: str, flag: str
 ) -> None:
-    """The flags CI and the runbooks pass keep their meaning; a bare run keeps its default."""
+    """The flags CI and maintainers pass keep their meaning; a bare run keeps its default."""
     parser_factory: Callable[[], Any] = module._parser
     parser = parser_factory()
 

@@ -3,8 +3,7 @@
 The revision published on 2026-07-28 removed the `initialize` handshake and
 protocol sessions, and made every request carry its own version. A client that
 guessed would be wrong half the time and would write the guess into a run
-manifest, so the guess is what these tests are about — see
-`docs/design/mcp-protocol-eras.md`.
+manifest, so the guess is what these tests are about.
 """
 
 from collections.abc import Mapping

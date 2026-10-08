@@ -143,31 +143,28 @@ If a rule fires on code you believe is right, argue it in the PR with a
 `# noqa: RULE — reason` and the reason must be about *this* code, not about
 disliking the rule.
 
-## Product principles
+## Principles
 
-Before the code standards, the seven rules that decide whether a change belongs
-in the engine *at all*. A PR that breaks one gets sent back however good the code
-is — these are what [`ROADMAP.md`](ROADMAP.md) is planned against. The full
-wording and the incidents behind each live in
-[`docs/maintainers/lessons.md`](docs/maintainers/lessons.md); in short:
+Before the code standards, the rules that decide whether a change belongs in the
+engine *at all*. A PR that breaks one gets sent back however good the code is —
+these are what [`ROADMAP.md`](ROADMAP.md) is planned against, and they outrank
+convenience, in every 0.x:
 
-1. **No regulation or vendor name is logic in `guardana-core`** — it is data in a
-   rule, a taxonomy entry, or a separate extension package.
-2. **Cost grows with the target, not the rule count** — no new tree walk,
-   re-read, or re-parse per rule. Performance is a security property: a scan
-   nobody waits for gets excluded from CI, which is a fail-open one level up.
-3. **Offline, no account, no phone-home.** Traffic goes only to destinations
-   the run names: the target under test, a judge or guard the profile
-   configures, the authorization metadata the target itself advertises, and
-   a collector or reporter `--reporter` names.
-4. **The engine and every built-in rule stay open source, permanently.** Only
-   hosting and curated content may ever be paid.
-5. **Built-in security rules map to a public framework, in edition form**
-   (OWASP LLM / OWASP ASI / MITRE ATLAS / NIST). No mapping, no merge.
-   A team's own quality criteria need no public mapping.
-6. **Adding a dependency needs a justification in the PR** — a security scanner
-   with a sprawling dependency tree is its own supply-chain risk.
-7. **No fixture carries real data, secrets, or production prompts.**
+1. The engine knows no regulation and no vendor: a law, a vendor, a format is data, never logic in core.
+2. Cost grows with the target, not the rule count; performance is a security property, pinned by operation-count gates.
+3. Offline, no account, always: traffic goes only to destinations the run names — the target under test, a judge or guard the profile configures, the authorization metadata the target itself advertises, and a collector or reporter `--reporter` names; the collector is optional in every direction.
+4. The commercial boundary is fixed: engine and built-in rules stay open source; only hosting and curated content may be paid.
+5. Every built-in security rule maps to a public framework, in edition form; no mapping, no merge. A team's own quality criteria (suites, local checks) need no public mapping.
+6. The dependency surface is part of the posture: a new dependency needs a written justification.
+7. Tests are never a leak: no real data, secrets or production prompts; fixtures are built in code.
+8. Company usability before coverage volume.
+9. No public claim without generated or cited evidence.
+10. No false green from any direction: unsupported capability, exhausted budget, redaction failure, missing coverage, incomparable diff — each its own outcome.
+11. Every persisted schema is versioned and migratable.
+12. Every collector change considers tenancy and authorization.
+13. Every active rule declares its impact and expected cost.
+14. No API freeze before the domain model is complete.
+15. Documentation is part of the acceptance criteria.
 
 ## Code standards
 
@@ -277,11 +274,10 @@ while the release tooling dutifully rewrote the version number one element above
 it. Where you can, pin a claim with a test instead of a promise — `test_features_doc.py`
 and `test_landing_page.py` are the pattern.
 
-A larger change gets a design document first, under
-[`docs/design/`](docs/design/) — named for its topic, never for its date, with a
-status line at the top. [`docs/design/README.md`](docs/design/README.md) is the
-convention, and a test fails on any local link that points at a file which does
-not exist, so moving a document is never quietly half-done.
+A larger change starts with an
+[issue or a discussion](https://github.com/guardana/guardana/discussions), before
+the code. A test fails on any local link that points at a file which does not
+exist, so moving a document is never quietly half-done.
 
 ## Contribution lanes
 
@@ -314,10 +310,3 @@ Answer each with a sentence or an explicit "not applicable":
 - [ ] Documentation, per the five places above
 - [ ] `CHANGELOG.md` entry saying *why*
 - [ ] Generated docs refreshed (`uv run python scripts/generate_docs.py`)
-
-## For maintainers
-
-- Cutting a release (version bump, changelog, tag, PyPI publish):
-  [`RELEASING.md`](RELEASING.md).
-- One-time GitHub repo configuration (branch protection, labels, security,
-  the `pypi` environment): [`docs/maintainers/github-setup.md`](docs/maintainers/github-setup.md).

@@ -5,7 +5,7 @@
     uv run python scripts/adopter_measure.py    # validate the sheet, print the measures
 
 `row` prints one CSV line of counts from a team's saved run, never its content, for
-`docs/maintainers/adopter-runs.csv`. `generate_docs.py` writes the measures to
+`docs/studies/adopter-runs.csv`. `generate_docs.py` writes the measures to
 `docs/generated/application-measures.md` through `render()`, so the published numbers
 always come from the sheet and never from a sentence somebody typed. Until two teams
 have rows the page says "not measured".
@@ -32,7 +32,7 @@ from guardana.core.report.skipped import SkipReason
 from guardana.core.subject import SubjectKind
 
 _REPO = Path(__file__).resolve().parent.parent
-SHEET = _REPO / "docs" / "maintainers" / "adopter-runs.csv"
+SHEET = _REPO / "docs" / "studies" / "adopter-runs.csv"
 REQUIRED_TEAMS = 2
 OLDEST_SCHEMA = 14
 

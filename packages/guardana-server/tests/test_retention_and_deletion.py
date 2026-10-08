@@ -32,7 +32,7 @@ from guardana.server.tenancy import (
     create_project,
 )
 
-_ACTOR = CLI("konrad@ops-1")
+_ACTOR = CLI("alice@ops-1")
 _PROJECT = "acme/web"
 _IDENTITY = "sha256:" + "d" * 64
 _NOW = datetime.datetime(2026, 8, 6, tzinfo=datetime.UTC)

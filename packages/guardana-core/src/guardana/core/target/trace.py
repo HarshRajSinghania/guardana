@@ -60,8 +60,8 @@ class TraceTarget(Target):
     of rules.
 
     Capabilities come from what the producer records, not from what the type can hold.
-    That is what stops the most dangerous inference a trace invites; see
-    `docs/design/trace-domain-model.md`.
+    That is what stops the most dangerous inference a trace invites:
+    reading a dimension the producer never records as evidence that nothing happened.
     """
 
     kind = TargetKind.TRACE

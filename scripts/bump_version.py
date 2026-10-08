@@ -5,8 +5,8 @@ Keeps their versions, inter-package pins, and uv.lock consistent in one step.
 The five packages release together and pin to each other, so their versions and
 those pins must move as one — the single most error-prone step of a release, and
 the one `uv version` can't do alone (it bumps a version field but never the pins
-in the *other* packages that depend on it). Run this, then follow RELEASING.md
-for the changelog roll, tag, and push.
+in the *other* packages that depend on it). `scripts/release.py` runs it and then
+rolls the changelog, commits, pushes and tags.
 
     python scripts/bump_version.py patch        # 0.1.0 -> 0.1.1
     python scripts/bump_version.py minor        # 0.1.0 -> 0.2.0  (breaking, pre-1.0)
@@ -64,10 +64,9 @@ _IMAGE_PIN_RE = re.compile(r"(ghcr\.io/guardana/guardana(?:-collector)?:)\d+\.\d
 _REQUIRED_ACTION_PIN = (Path("README.md"), Path("docs/integrations.md"))
 _REQUIRED_IMAGE_PIN = (Path("docs/install.md"), Path("deploy/docker/README.md"))
 # Exempt from both the rewrite and the staleness gate, each for its own reason:
-# the changelog records what past releases said, a design document states the
-# problem it solved rather than being kept current, and a test fixture that feeds
-# an *old* pin to the rewriter has to stay old to be a test at all.
-_PIN_EXEMPT = ("CHANGELOG.md", "docs/design/", "/tests/", "AUDIT_", "ROADMAP_V2")
+# the changelog records what past releases said, and a test fixture that feeds an
+# *old* pin to the rewriter has to stay old to be a test at all.
+_PIN_EXEMPT = ("CHANGELOG.md", "/tests/")
 
 
 def _tracked_text_files() -> tuple[Path, ...]:
@@ -347,7 +346,7 @@ def main() -> int:
 
     print("re-locking (uv lock)...")
     subprocess.run(["uv", "lock"], cwd=_REPO, check=True)  # noqa: S607
-    print(f"\nDone. Next: roll CHANGELOG to [{new}], commit, tag `v{new}` — see RELEASING.md")
+    print(f"\nDone. Next: roll CHANGELOG to [{new}], commit, push, tag `v{new}` once CI is green")
     return 0
 
 

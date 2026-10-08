@@ -70,8 +70,7 @@ class McpServerTarget(Target):
     recorded in the run manifest so a later comparison can say the two runs graded
     different revisions rather than that the system changed. The negotiation is one
     live record the authorization view reads too, so a server that drops the agreed
-    revision part-way stops the run instead of being graded in two revisions. See
-    `docs/design/mcp-protocol-eras.md`.
+    revision part-way stops the run instead of being graded in two revisions.
 
     `sender` carries the server's own requests and `discovery_sender` the discovery
     documents at addresses the server named. With neither, both are the built-in

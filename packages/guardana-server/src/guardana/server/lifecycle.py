@@ -9,8 +9,6 @@ project refuses everywhere else, reached through triage instead of through a rul
 Waivers expire, and expiry is evaluated when the finding is read. The collector
 has no scheduler, so a status that only becomes correct once a job runs is a
 status that is quietly wrong in between.
-
-Design: `docs/design/finding-lifecycle-and-waivers.md`.
 """
 
 import datetime

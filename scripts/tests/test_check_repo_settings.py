@@ -409,6 +409,7 @@ def test_main_with_a_fake_gh_on_path_reads_every_setting(
     assert out.count("PRESENT") >= 6
     assert "EXERCISED" not in out
     assert "not a drill" in out
+    assert "docs/" not in out
 
 
 def test_main_with_a_fake_gh_reports_a_missing_environment_as_not_checked(

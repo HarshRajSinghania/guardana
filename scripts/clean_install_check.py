@@ -2,10 +2,8 @@
 """Install the five packages into an empty environment and run the documented commands.
 
 The gate runs in one environment, and it is the one environment a user does not
-have: everything is installed, including things nothing declares. That is how
-`0.9.0` was tagged with a `guardana` that crashed on **every** command
-(`ModuleNotFoundError: click`, because Typer 0.26 vendored Click and stopped
-requiring it). Nothing in ruff, mypy, pytest or the dogfood scan could see it.
+have: everything is installed, including things nothing declares, so a missing
+runtime dependency is invisible to ruff, mypy, pytest and the dogfood scan.
 
 So this does what a user does: an empty virtual environment, the five
 distributions, and then the commands the documentation tells people to type. It
@@ -181,10 +179,8 @@ def _checks(venv: Path, clean_directory: Path, trace_file: Path) -> list[Check]:
             expect=("not told where to keep",),
         ),
         Check("server package imports", [python, "-c", "import guardana.server"], 0),
-        # The two subpackages `guardana-core` ships beside `guardana.core`. A wheel
-        # that failed to carry one imports fine here, in a checkout, and fails for
-        # everybody who installed it — which is the exact shape of the defect that
-        # made 0.9.0 unshippable, one namespace along.
+        # The two subpackages `guardana-core` ships beside `guardana.core`: a wheel
+        # that failed to carry one imports fine in a checkout and fails once installed.
         Check(
             "the pytest assertion API imports and refuses a target that is not there",
             [

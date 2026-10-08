@@ -126,5 +126,4 @@ there is nothing here to pin and inventing a value would claim a provenance nobo
 has. In `--format json` the entry appears in the same list as the built-in
 catalogues with `"digest": null`, which is how a script tells the two apart.
 
-See [`extending.md`](extending.md) and
-[`design/taxonomy-editions.md`](design/taxonomy-editions.md).
+See [`extending.md`](extending.md).

@@ -97,8 +97,7 @@ Compose file, TLS, upgrades — is
 The images are public. If a fresh machine cannot pull one, the package's
 visibility was never flipped after the first release — a package created by a
 workflow starts private whatever the repository is. That is a maintainer setting,
-not something to work around with a token:
-[`docs/maintainers/github-setup.md`](../../docs/maintainers/github-setup.md).
+not something to work around with a token.
 
 ## Building them yourself
 

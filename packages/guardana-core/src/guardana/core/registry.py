@@ -184,8 +184,7 @@ class Registry:
         doubled findings and doubled probe calls.
 
         A *different* origin raises `RegistryConflictError`, as does an installed
-        plugin claiming the reserved `guardana.*` namespace. Why silent last-wins
-        had to go: `docs/design/capability-protocols.md`.
+        plugin claiming the reserved `guardana.*` namespace.
         """
         _require_canary_participation(rule)
         self._refuse_conflict("rule", rule.meta.id, origin)

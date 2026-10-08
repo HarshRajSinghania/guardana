@@ -29,8 +29,8 @@ One line per gate; a red gate prints its last 40 lines and the full log sits in 
 It runs every job of `.github/workflows/ci.yml` — the locked sync, lint, types, the import
 contract, pytest with PostgreSQL, the coverage floors, `uv audit`, the dogfood scan, the four
 generated-truth checks, the isolated example suites, the clean-install check, the SBOM
-check and the image smoke — plus two local-only gates CI has no job for: the ops catalogue
-(`scripts/check_ops_catalogue.py`) and the agent setup (`scripts/check_claude_setup.py`).
+check and the image smoke — plus the agent setup (`scripts/check_claude_setup.py`), which CI
+runs as well.
 `--fast` leaves out the three slow jobs and reports them as NOT RUN, so a fast run is never
 called green. For a long run hand the command to `runner` and keep working.
 

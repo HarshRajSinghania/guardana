@@ -2,8 +2,7 @@
 
 A deployed model samples, so one reply per prompt says only that the failure was not
 observed this time. A rule that repeats makes K attempts at every case, records each
-one, and reduces them here. Why, and what was rejected:
-[`docs/design/repeated-trials.md`](../../../../../docs/design/repeated-trials.md).
+one, and reduces them here.
 
 Every statistic is computed over **cases**, never over pooled trials: the K trials of
 one prompt are correlated, so "0 of 60 trials" is not sixty independent observations.
