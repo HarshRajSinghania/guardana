@@ -102,6 +102,10 @@ This file is generated from the documentation map; do not edit it by hand.
 - [design/non-executing-packs.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/docs/design/non-executing-packs.md): whether a pack can ship checks that execute no Python, and why every command starts with built-in plugin trust
 - [../CHANGELOG.md](https://raw.githubusercontent.com/guardana/guardana/refs/heads/main/CHANGELOG.md): release history
 
+## Notes
+
+- [Catching tenant leaks and poisoned documents before release](https://guardana.dev/notes/tenant-leaks-and-poisoned-documents): A reference retrieval app shows how to check tenant answers and document instructions, save the result, and rerun it with clear coverage limits.
+
 ## Schemas
 
 - [Guardana Artifact Index v1](https://guardana.dev/schemas/artifact/v1.schema.json): guardana-artifact.json in a recipe's output directory: which files a run wrote there.
