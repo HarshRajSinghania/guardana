@@ -166,6 +166,8 @@ point in time. The digest lets a reader check which corpus supplied the measurem
 **A stale calibration is not an error.** It is recorded with its age, and reading it
 is your job. Re-measure after changing a judge model.
 
+**Calibration must transfer to the replies being graded.** Correction assumes the judge makes the same errors per class on the calibration corpus as on this run. One model's refusals do not calibrate a judge reading another model's jailbreaks. Check the corpus digest beside the rate.
+
 A measurement with fewer than 30 graded samples overall, or abstentions on half or
 more overall, is refused rather than recorded with exit code `2`: a run's evidence
 needs a number, not a caveat. A measurement carrying only a per-class `RATE CAVEAT:`

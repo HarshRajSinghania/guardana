@@ -403,6 +403,14 @@ answer: <code>401</code> means the key is revoked, and <code>422</code> means it
 <p>Rotation changes who may write, never what was written: the runs the old key
 sent stay in the project. A key belongs to one project, so a team with several
 projects rotates each key on its own.</p>
+<h2 id="if-the-database-credential-leaks">If the database credential leaks</h2>
+<ol>
+<li>Change the role password and restrict the hosts it may connect from.</li>
+<li>Update <code>GUARDANA_DATABASE_URL</code> and restart every replica. Run <code>guardana-collector status</code> to confirm the new credential works.</li>
+<li>Treat the stored findings as disclosed and tell each project's owners.</li>
+<li>Run <code>guardana-collector key list</code>, then revoke every key nobody issued with <code>guardana-collector key revoke</code>.</li>
+</ol>
+<p>Database read access exposes every project. Write access can add API keys, rewrite submissions and edit the audit log. Stored API keys are digests, so the leak does not expose existing keys.</p>
 <h2 id="which-test-exercises-each-procedure">Which test exercises each procedure</h2>
 <p>A procedure nobody has run is a belief. Each of these is run by a PostgreSQL test
 in <code>packages/guardana-server/tests/</code>, which CI refuses to skip; deletion is

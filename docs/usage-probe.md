@@ -255,6 +255,16 @@ than an argument — an argument is in every process list on the machine — and
 evidence records whether one was presented and what the server answered, never its
 value, at any privacy level.
 
+### What these checks cannot see
+
+- Token passthrough to an upstream API happens behind the server and is not observable from a client request. The checks do test its precondition: accepting a token minted for another audience.
+- Proving a full confused-deputy attack requires registering a client on the authorization server, a write to a third party's system.
+- Isolation between users' data requires two credentials and knowledge of who owns which data.
+- Finding shadow, unregistered servers is network discovery, not verification of a target.
+- Sampling misuse is a server request to the client.
+
+Guardana never completes an OAuth flow or registers a client, so it never holds a real token it obtained itself.
+
 ### The registry entry
 
 Neither MCP revision defines registry metadata a client can observe, and what a server

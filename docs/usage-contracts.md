@@ -68,6 +68,9 @@ the rest.
 | `credential_boundary` | a named boundary never received a credential at all | `delegation` |
 | `forbidden_sink` | no side effect landed on a sink the application forbids | `effects` |
 
+- **Assertions are deterministic.** They have no evaluator, so `evaluator:` cannot point them at `llm_judge`. They compare recorded values at confidence 1.0.
+- **The OWASP/ASI mapping belongs to the assertion kind.** A contract cannot set or replace `taxonomy:`. The mapping is what has to survive somebody else's audit.
+
 ### `tenant_boundary`
 
 Wider than the built-in `guardana.trace.cross_tenant_retrieval`, which compares one

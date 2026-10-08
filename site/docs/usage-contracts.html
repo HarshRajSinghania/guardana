@@ -272,6 +272,10 @@ the rest.</p>
 </tr>
 </tbody>
 </table></div>
+<ul>
+<li><strong>Assertions are deterministic.</strong> They have no evaluator, so <code>evaluator:</code> cannot point them at <code>llm_judge</code>. They compare recorded values at confidence 1.0.</li>
+<li><strong>The OWASP/ASI mapping belongs to the assertion kind.</strong> A contract cannot set or replace <code>taxonomy:</code>. The mapping is what has to survive somebody else's audit.</li>
+</ul>
 <h3 id="tenant_boundary"><code>tenant_boundary</code></h3>
 <p>Wider than the built-in <code>guardana.trace.cross_tenant_retrieval</code>, which compares one
 retrieval against the documents it returned. An agent that retrieves for tenant A

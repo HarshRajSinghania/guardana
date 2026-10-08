@@ -244,6 +244,8 @@ question a log usually answers — and labelling an assertion as proof would be 
 same false green this tool refuses in a verdict. Real identities arrive with users
 and RBAC.
 
+- **The audit log is not tamper-evident.** It has no per-row signature or hash chain. Anyone with database write access can edit or delete rows. It records actions; it does not prove them.
+
 `api_keys.created_by` is filled by the same actor, and a stored submission now
 records **which key wrote it**.
 
@@ -477,6 +479,8 @@ guardana-collector key create --project acme/web --name panel --scope read
 The key goes into an `HttpOnly`, `SameSite=Strict` cookie the page itself cannot
 read; `key revoke` ends the session, and an expiring key ends it on its own. There
 are no user accounts — those arrive with RBAC and replace this.
+
+**The cookie holds the read-scoped API key itself.** Stealing it gives read access until the key is revoked or expires. It is marked `Secure` only when the request reaches the collector as `https`, directly or through a trusted `X-Forwarded-Proto`; over plain http the key travels in clear. It is a browser-session cookie with no remember-me, refresh or idle timeout. Bound its lifetime with `--expires-in-days` on the panel key.
 
 **The cookie authenticates reads and nothing else.** Ingest takes a bearer header
 only, so a page on another origin cannot make a signed-in browser submit findings.

@@ -328,7 +328,7 @@ system improved, the test got weaker, or the sample changed.
 
 | Field | What it is |
 |---|---|
-| `case_id` | the identity two runs are paired on. A hash of what distinguishes the case, so reordering prompts changes nothing and rewording one is a new case. It does not carry the text it was built from, so it is safe in a redacted report |
+| `case_id` | the identity two runs are paired on. A hash of what distinguishes the case, so reordering prompts changes nothing and rewording one is a new case. It does not carry the text it was built from, but its 12-hex digest can confirm a guess at a low-entropy value or private dataset prompt; `hash_identifiers: false` writes a bare label instead of a digest |
 | `assessor` | what produced the verdict — an evaluator id, or a rule grading in its own code |
 | `status` | `measured`, `inconclusive`, `error` or `skipped`. The last three are statuses, never zeros, and are excluded from the denominator |
 | `passed` | the boolean reading, or `null` when nothing could be graded. Never `false` for a case that was not measured |

@@ -545,7 +545,7 @@ system improved, the test got weaker, or the sample changed.</p>
 <tbody>
 <tr>
 <td><code>case_id</code></td>
-<td>the identity two runs are paired on. A hash of what distinguishes the case, so reordering prompts changes nothing and rewording one is a new case. It does not carry the text it was built from, so it is safe in a redacted report</td>
+<td>the identity two runs are paired on. A hash of what distinguishes the case, so reordering prompts changes nothing and rewording one is a new case. It does not carry the text it was built from, but its 12-hex digest can confirm a guess at a low-entropy value or private dataset prompt; <code>hash_identifiers: false</code> writes a bare label instead of a digest</td>
 </tr>
 <tr>
 <td><code>assessor</code></td>

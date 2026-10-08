@@ -44,6 +44,7 @@ be trusted on vibes.
    defeated the control, without touching the model.
 4. **The machine it runs on** — a CI runner with repository write access is a
    valuable target in its own right.
+5. **The collector database and its backups** — either can expose every project's findings; database writes can change keys, submissions and audit rows.
 
 ## Threats, and where we stand
 
@@ -150,12 +151,14 @@ redirect from the server under test is not followed through it.
 chose that address; Guardana fetches whatever the *operator* points it at, per the
 position above. A server that rebinds its own name between those requests is
 reached at whichever address the name answered; that loosens discovery only when
-every connection to the server landed inside the network.
+every connection to the server landed inside the network. The authorization checks have further limits; see [what these checks cannot see](usage-probe.md#what-these-checks-cannot-see).
 
 ### T3 — A malicious plugin or rule pack
 
 **Scenario:** `pip install` of a package that registers a `guardana.rules` entry
 point and runs arbitrary code on discovery.
+
+**Scenario, stdio MCP:** `probe --mcp <command>` starts the server process with the user's privileges. Without `--allow-exec`, Guardana refuses it with exit `3` and starts nothing. Supplying the flag is the same trust decision as installing a pack.
 
 **Stance:** this is the sharpest edge in the product, and it is **partially**
 mitigated. Entry-point discovery imports installed packages; a malicious one runs
@@ -224,7 +227,7 @@ key does not become a read of the whole fleet's findings.
 
 **Residual risk:** a write-capable key can poison history with fabricated clean
 runs. Audit log records the key used; detecting a fabricated *pass* is harder than
-detecting a fabricated *finding*, and is an open problem.
+detecting a fabricated *finding*, and is an open problem. Anyone with database write access can fabricate a run and its audit row. The log has no per-row signature or hash chain, so it does not prove the run occurred.
 
 ### T6 — Cross-tenant access in the collector
 
@@ -232,6 +235,8 @@ detecting a fabricated *finding*, and is an open problem.
 
 **Stance (v0.7):** tenancy enforced at the query boundary, not in handlers; no
 unscoped query exists. Tested per entity, both read and write.
+
+**Residual risk:** tenancy is enforced only in the API. Anyone with the database credential or a backup can read every project. Database write access can add API keys, rewrite submissions and edit the audit log. Stored API keys are digests, so a leak does not expose existing keys.
 
 ### T7 — Stored XSS through evidence in the dashboard
 
@@ -251,6 +256,8 @@ so styles need no inline allowance either. Tests check the header, that the hash
 matches the served script, and, without a browser, that every value the script
 splices into markup is escaped; a crafted finding reaches the API as data, and
 the served page holds none of it until the script fetches and escapes it.
+
+There is no CSRF token because every route the dashboard cookie can authenticate is a read-only `GET`. A state-changing route reachable by the cookie would need a CSRF token; that is an invariant of the guard.
 
 **Residual risk:** the escaping test reads the script's structure rather than
 rendering it in a browser, so a value passed through a call that returns raw text
@@ -289,6 +296,8 @@ distributions, a CycloneDX SBOM per distribution, and an SBOM and provenance
 attestation beside each container image. How to check them is in
 [`SECURITY.md`](../SECURITY.md#what-a-release-publishes-and-how-to-check-it-yourself).
 
+A tag ruleset lets only maintainers create, move or delete `v*` tags. The `pypi` environment requires one reviewer's approval for every publish. The `publish` job requires `ci-passed`, so a tag publishes only a commit CI passed. Both ghcr packages are public. `scripts/check_repo_settings.py` reports each setting as `PRESENT`, `ABSENT` or `NOT CHECKED`.
+
 **Residual risk:** Git tags are not signed. Images before 0.33.0 carry unsigned
 attestations only, so `gh attestation verify` cannot check them; from 0.33.0 each
 image digest has a signed provenance statement. The documented pins are moving `X.Y`
@@ -313,6 +322,14 @@ withheld from every output like a credential.
 
 **Residual risk:** the card's signatures are not verified, so a card is graded on what it
 declares, not on who signed it. Only the JSON-RPC binding is spoken.
+
+### T12 — A reply that steers its grader
+
+**Scenario:** the reply under test is attacker-influenced input to `llm_judge`, `guard`, `keyword` and `reference_judge`. A crafted reply can make a judge grade an attack as a pass; wrappers often flip judges.
+
+**Stance:** prefer deterministic evaluators (`canary`, `tool_call` and the equality checks). A judge-graded rate is corrected only with a calibration that measures the judge's error per class. Otherwise it reads `uncorrected` and declines. An evaluator that does not declare itself `deterministic` is treated as a judge.
+
+**Residual risk:** correction assumes the judge errs the same way on the calibration corpus as on this run's replies. One model's refusals do not calibrate a judge reading another model's jailbreaks. The corpus digest is printed beside the rate so a reader can check it.
 
 ## Explicit non-goals
 

@@ -26,6 +26,13 @@ of receiving it. Once a fix is available, we will coordinate a disclosure
 timeline with the reporter. Please allow us reasonable time to ship a fix
 before public disclosure.
 
+The default disclosure window is 90 days: the advisory is published when the fix ships, and at the latest 90 days after the report, unless the reporter agrees otherwise.
+
+- An emailed report is moved into a draft GitHub advisory. The fix is prepared on the advisory's private fork; nothing about it appears in a public branch, issue or PR before the release.
+- The advisory is published once all five distributions are on PyPI. It lists the affected distributions, affected versions (`<= X.Y.Z`) and patched version.
+- A CVE is requested when the severity warrants one. The reporter is credited if they want to be.
+- `CHANGELOG.md` gets a `### Security` entry linking the advisory.
+
 ## Scope
 
 This covers the Guardana engine, built-in rules, CLI, report renderers, and
@@ -67,6 +74,10 @@ A restrictive mode affects exit codes too. `rules` and `taxonomy
 <reference>` exit `2` (indeterminate) rather than `0` when a restrictive `--plugins` mode leaves an empty rule list or a reference that no *loaded* catalogue defines. Neither is a clean result. `pack validate` and `pack lock` refuse before reading any manifest if plugin trust refused anything, an installed format or reporter included, or if two distributions install one output name. Reading a manifest imports its package, and both commands check or pin this build's *own* registrations. A registry that omitted extensions cannot determine that a pack "does not register" something it was not allowed to load. In CI, check the exit code when you restrict trust; do not rely only on a warning on stderr.
 
 `--no-plugins` remains as a deprecated alias for `--plugins disabled` on `scan` and `plan scan` only.
+
+### What trust and a lock do not do
+
+Trust is per distribution: admitting one for its output also admits every rule, evaluator and target it ships. Pack manifests and locks are not signed. A pack lock detects a changed rule declaration or version, but does not authenticate the publisher or pin the Python behind an evaluator, target or output. Code installed editable or from a direct URL can change under one version; only a recipe lock pins it by file digests. To pin installed code, use hash-checked installs (`pip --require-hashes`, `uv.lock`).
 
 ## Running the collector (`guardana-server`)
 
@@ -141,6 +152,15 @@ release run against — one resolver, so the bill of materials cannot disagree w
 what was built — and `scripts/generate_sbom.py` reads each file back and checks it
 against that package's own metadata before the release keeps it. CI generates and
 verifies them on every push, so a tag is never the first time they are produced.
+
+The release controls are described in [the threat model](docs/threat-model.md#t10--a-compromised-guardana-release).
+
+## If a release is withdrawn
+
+- All five PyPI distributions are yanked, not deleted. An exact pin still installs the yanked release; a version range no longer picks it.
+- The ghcr image versions of both images are deleted, breaking digest pins to them. The moving `X.Y` image tag points back to the last good release.
+- The moving `vX.Y` Action tag moves back. `vX.Y.Z` never moves.
+- The GitHub Release is marked pre-release with the reason. A security advisory is published when the cause was a vulnerability or an artifact the project did not build.
 
 ## Supported versions
 

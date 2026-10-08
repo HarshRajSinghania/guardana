@@ -248,6 +248,15 @@ Rotation changes who may write, never what was written: the runs the old key
 sent stay in the project. A key belongs to one project, so a team with several
 projects rotates each key on its own.
 
+## If the database credential leaks
+
+1. Change the role password and restrict the hosts it may connect from.
+2. Update `GUARDANA_DATABASE_URL` and restart every replica. Run `guardana-collector status` to confirm the new credential works.
+3. Treat the stored findings as disclosed and tell each project's owners.
+4. Run `guardana-collector key list`, then revoke every key nobody issued with `guardana-collector key revoke`.
+
+Database read access exposes every project. Write access can add API keys, rewrite submissions and edit the audit log. Stored API keys are digests, so the leak does not expose existing keys.
+
 ## Which test exercises each procedure
 
 A procedure nobody has run is a belief. Each of these is run by a PostgreSQL test

@@ -305,6 +305,7 @@ numbers. A recorded entry looks like this:</p>
 point in time. The digest lets a reader check which corpus supplied the measurement.</p>
 <p><strong>A stale calibration is not an error.</strong> It is recorded with its age, and reading it
 is your job. Re-measure after changing a judge model.</p>
+<p><strong>Calibration must transfer to the replies being graded.</strong> Correction assumes the judge makes the same errors per class on the calibration corpus as on this run. One model's refusals do not calibrate a judge reading another model's jailbreaks. Check the corpus digest beside the rate.</p>
 <p>A measurement with fewer than 30 graded samples overall, or abstentions on half or
 more overall, is refused rather than recorded with exit code <code>2</code>: a run's evidence
 needs a number, not a caveat. A measurement carrying only a per-class <code>RATE CAVEAT:</code>

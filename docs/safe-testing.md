@@ -46,6 +46,8 @@ the refusal as a finding rather than following it to be sure.
 returns text. Nothing is deleted. This is not a setting; it is how the trajectory
 engine is built, and it is why a security test can safely offer a destructive tool.
 
+**An stdio MCP target runs its server process.** `probe --mcp <command>` starts it with your privileges only with `--allow-exec`; otherwise it exits `3` without starting anything. Allowing it is the same trust decision as installing a pack.
+
 **Guardana is never in the request path.** It does not proxy, intercept or block
 your users' traffic. If something needs to be stopped in production, Guardana is
 the wrong layer.

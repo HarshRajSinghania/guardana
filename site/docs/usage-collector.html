@@ -433,6 +433,9 @@ recorded anyway, because &quot;what happened, roughly when, by which route&quot;
 question a log usually answers — and labelling an assertion as proof would be the
 same false green this tool refuses in a verdict. Real identities arrive with users
 and RBAC.</p>
+<ul>
+<li><strong>The audit log is not tamper-evident.</strong> It has no per-row signature or hash chain. Anyone with database write access can edit or delete rows. It records actions; it does not prove them.</li>
+</ul>
 <p><code>api_keys.created_by</code> is filled by the same actor, and a stored submission now
 records <strong>which key wrote it</strong>.</p>
 <p>One event can never be recorded: rolling back the migration that created the log
@@ -630,6 +633,7 @@ bearer token and every panel would have loaded empty. Now the browser signs in:<
 <p>The key goes into an <code>HttpOnly</code>, <code>SameSite=Strict</code> cookie the page itself cannot
 read; <code>key revoke</code> ends the session, and an expiring key ends it on its own. There
 are no user accounts — those arrive with RBAC and replace this.</p>
+<p><strong>The cookie holds the read-scoped API key itself.</strong> Stealing it gives read access until the key is revoked or expires. It is marked <code>Secure</code> only when the request reaches the collector as <code>https</code>, directly or through a trusted <code>X-Forwarded-Proto</code>; over plain http the key travels in clear. It is a browser-session cookie with no remember-me, refresh or idle timeout. Bound its lifetime with <code>--expires-in-days</code> on the panel key.</p>
 <p><strong>The cookie authenticates reads and nothing else.</strong> Ingest takes a bearer header
 only, so a page on another origin cannot make a signed-in browser submit findings.
 That is enforced in the guard rather than left to <code>SameSite</code>, because a control
