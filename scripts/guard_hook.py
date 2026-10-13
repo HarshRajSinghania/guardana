@@ -151,8 +151,8 @@ def _is_main_ref(ref: str) -> bool:
     return ref in {"main", "refs/heads/main"}
 
 
-def _pushes_main(command: str) -> bool:
-    args = _push_args(command)
+def _push_matches_main(push: re.Match[str]) -> bool:
+    args = [arg for arg in push.group(1).split() if not arg.startswith("-")]
     if any(_is_main_ref(_refspec_dest(arg)) for arg in args):
         return True
     if len(args) >= 2 and args[1] != "HEAD":  # noqa: PLR2004 — remote plus an explicit refspec
@@ -162,6 +162,13 @@ def _pushes_main(command: str) -> bool:
     except (OSError, subprocess.TimeoutExpired):
         return True
     return branch == "main"
+
+
+def _pushes_main(command: str) -> bool:
+    # A compound command can push more than once; check every push.
+    return any(
+        _push_matches_main(push) for push in re.finditer(r"\bgit\s+push\b([^|;&]*)", command)
+    )
 
 
 def _guard_stage(command: str) -> None:

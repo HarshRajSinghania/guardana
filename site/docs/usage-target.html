@@ -48,6 +48,7 @@
 <li><a href="profiles.html">Profiles — guardana.yaml</a></li>
 </ul>
 <h2>Evidence and regression</h2><ul>
+<li><a href="reading-results.html">Read results from your own tool<span class="tag">beta</span></a></li>
 <li><a href="usage-case.html">guardana case<span class="tag">beta</span></a></li>
 <li><a href="usage-baseline.html">guardana baseline</a></li>
 <li><a href="usage-diff.html">guardana diff</a></li>
@@ -86,6 +87,7 @@
 <h2>Architecture and security</h2><ul>
 <li><a href="product-status.html">Product status</a></li>
 <li><a href="threat-model.html">Threat model</a></li>
+<li><a href="reproducible-builds.html">Reproducible builds<span class="tag">beta</span></a></li>
 <li><a href="architecture.html">Architecture</a></li>
 </ul>
 <h2>Reference</h2><ul>
@@ -98,6 +100,9 @@
 <li><a href="generated/first-run.html">First-run measure</a></li>
 <li><a href="generated/compatibility-matrix.html">Compatibility matrix</a></li>
 <li><a href="generated/application-measures.html">Application measures</a></li>
+</ul>
+<h2>Project direction</h2><ul>
+<li><a href="community.html">Community</a></li>
 </ul>
 <h2>Studies</h2><ul>
 <li><a href="studies/first-run-study.html">First-run study</a></li>
@@ -133,6 +138,7 @@
 <li><a href="profiles.html">Profiles — guardana.yaml</a></li>
 </ul>
 <h2>Evidence and regression</h2><ul>
+<li><a href="reading-results.html">Read results from your own tool<span class="tag">beta</span></a></li>
 <li><a href="usage-case.html">guardana case<span class="tag">beta</span></a></li>
 <li><a href="usage-baseline.html">guardana baseline</a></li>
 <li><a href="usage-diff.html">guardana diff</a></li>
@@ -171,6 +177,7 @@
 <h2>Architecture and security</h2><ul>
 <li><a href="product-status.html">Product status</a></li>
 <li><a href="threat-model.html">Threat model</a></li>
+<li><a href="reproducible-builds.html">Reproducible builds<span class="tag">beta</span></a></li>
 <li><a href="architecture.html">Architecture</a></li>
 </ul>
 <h2>Reference</h2><ul>
@@ -184,6 +191,9 @@
 <li><a href="generated/compatibility-matrix.html">Compatibility matrix</a></li>
 <li><a href="generated/application-measures.html">Application measures</a></li>
 </ul>
+<h2>Project direction</h2><ul>
+<li><a href="community.html">Community</a></li>
+</ul>
 <h2>Studies</h2><ul>
 <li><a href="studies/first-run-study.html">First-run study</a></li>
 <li><a href="studies/adopter-study.html">Adopter study</a></li>
@@ -196,10 +206,13 @@
 one turns a rule into a check that runs, proves nothing, and reports a pass.</p>
 <pre><code class="language-bash">guardana target inspect --url https://api.example.com --model gpt-4o-mini
 </code></pre>
-<p>An installed endpoint target with a locator uses the same inspection:</p>
+<p>An installed endpoint target with a locator uses the same inspection. This assumes that the
+distribution <code>acme-gateway</code> registers the <code>acme-gateway</code> scheme and is admitted by name, because
+every command starts with only Guardana's own distributions:</p>
 <pre><code class="language-bash">guardana target inspect \
   --target acme-gateway://llm.internal/v1 \
-  --target-option model=support-v3
+  --target-option model=support-v3 \
+  --plugins allowlist --allow-plugin acme-gateway
 </code></pre>
 <pre><code class="language-text">endpoint https://api.example.com#gpt-4o-mini
 
@@ -290,6 +303,8 @@ This inspection cost 3 request(s).
 </tr>
 </tbody>
 </table></div>
+<p>Only <code>human</code> and <code>json</code> are accepted. Any other <code>--format</code> exits <code>3</code> before
+reading configuration, discovering plugins or contacting the endpoint.</p>
 <p><code>--target</code> is mutually exclusive with the built-in connection flags. The
 selected class comes from the trusted <code>guardana.targets</code> entry points; an unknown
 scheme, conflicting owner, rejected option, or wrong target kind exits <code>3</code> before
@@ -340,7 +355,10 @@ When you are paying for coverage you expect to get, turn that on:</p>
 outranks it, because a fact somebody has to fix should not be buried under a
 warning about coverage.</p>
 <h2 id="what-it-costs">What it costs</h2>
-<p>Three requests, stated in the output. An inspection is cheap next to a probe, and
+<p>Up to three requests, one per testable capability (chat, a planted system prompt,
+tool calling). Capabilities the target does not implement are reported without a
+request. The output states the count. A transport retry after a <code>429</code> or <code>5xx</code> resends
+a request and is excluded from that count. An inspection is cheap next to a probe, and
 a team paying per token is entitled to know the price of every command.</p>
 <h2 id="see-also">See also</h2>
 <ul>
@@ -351,7 +369,7 @@ a team paying per token is entitled to know the price of every command.</p>
 </main>
 </div>
 <footer class="foot"><div class="bar">
-<span class="who">Guardana 1.0.0rc1 · Apache-2.0 ·
+<span class="who">Guardana 1.0.0rc2 · Apache-2.0 ·
 maintained by Konrad Karauda</span>
 <a href="https://github.com/guardana/guardana/blob/main/docs/usage-target.md">Edit this page on GitHub</a>
 <a href="https://github.com/guardana/guardana">github.com/guardana</a>

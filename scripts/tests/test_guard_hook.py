@@ -137,6 +137,8 @@ def test_bash_commands(
         "git push origin refs/heads/main",
         "git push origin HEAD:refs/heads/main",
         "git push origin feature:refs/heads/main",
+        "git push origin feature && git push origin main",
+        "git push origin feature; git push origin main",
     ],
 )
 def test_a_push_to_main_is_refused_while_the_site_is_stale(

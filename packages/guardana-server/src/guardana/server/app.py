@@ -1,12 +1,17 @@
+import copy
+import math
 import os
 import sys
 from collections.abc import Awaitable, Callable
 from dataclasses import asdict
 from datetime import UTC, datetime
 from hashlib import sha256
-from typing import Annotated
+from importlib.metadata import PackageNotFoundError, version
+from typing import Annotated, Any
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import HTMLResponse, JSONResponse
 from guardana.server.auth import Authenticated, AuthError, Scope, authenticate
 from guardana.server.dashboard import dashboard_headers, render_dashboard
@@ -14,13 +19,17 @@ from guardana.server.db.connection import connect
 from guardana.server.db.migrations import MigrationState, apply_pending, read_state
 from guardana.server.db.settings import StorageChoice, migrate_on_start, resolve_storage
 from guardana.server.deployment import EnvironmentMismatchError
-from guardana.server.envelope import SUPPORTED_SCHEMA_VERSIONS, Submission
+from guardana.server.envelope import SUPPORTED_SCHEMA_VERSIONS, Submission, off_schema_values
 from guardana.server.limits import Limits, RateLimiter
 from guardana.server.postgres_store import PostgresStore
+from guardana.server.redaction import RedactedTextTooLongError, redact_submission
 from guardana.server.rule_catalog import rule_catalog
 from guardana.server.security import (
+    SECURITY_SCHEMES,
     SESSION_COOKIE,
     UnauthenticatedCollectorError,
+    bearer_token,
+    documented,
     guard,
     require_authentication,
 )
@@ -104,11 +113,21 @@ def create_app(
     require_authentication(database_url, acknowledged=allow_unauthenticated)
     if database_url is None:
         _refuse_a_store_no_unauthenticated_caller_can_reach(active_store)
-    app = FastAPI(title="guardana-server")
+    app = FastAPI(
+        title="guardana-server",
+        version=_installed_version(),
+        description=_AUTHENTICATED if database_url is not None else _UNAUTHENTICATED,
+        # FastAPI's bundled viewers load their scripts, styles and fonts from third-party
+        # hosts in the reader's browser; only the document itself is served.
+        docs_url=None,
+        redoc_url=None,
+    )
+    _describe_authentication(app, database_url)
     _mount_limits(app)
     # After the limits, so it wraps them and their refusals carry the header too.
     _mount_nosniff(app)
     _mount_server_error(app)
+    _mount_validation_errors(app)
     _mount_health(app, database_url)
     # `Annotated`, not a `Depends` default: the parameter really is an identity at
     # run time and really is a dependency marker at definition time, and only this
@@ -120,19 +139,14 @@ def create_app(
     reading = Annotated[
         Authenticated | None, Depends(_noting_acceptance(guard(database_url, Scope.READ)))
     ]
+    ingest_docs = _documented(database_url, Scope.INGEST)
+    read_docs = _documented(database_url, Scope.READ)
 
-    @app.post("/findings")
+    @app.post("/findings", **ingest_docs)
     def post_findings(submission: Submission, identity: ingesting) -> dict[str, object]:
-        if submission.schema_version not in SUPPORTED_SCHEMA_VERSIONS:
-            raise HTTPException(
-                status_code=_UNPROCESSABLE,
-                detail=(
-                    f"unsupported schema_version {submission.schema_version}; "
-                    f"this collector speaks {sorted(SUPPORTED_SCHEMA_VERSIONS)}"
-                ),
-            )
+        redacted = _admissible(submission)
         try:
-            stored = active_store.add(_scope_of(identity), submission)
+            stored = active_store.add(_scope_of(identity), redacted)
         except EnvironmentMismatchError as exc:
             # `403`, like a missing scope: the caller *is* somebody, and that
             # somebody may not write here. A `422` would read as "your envelope is
@@ -153,7 +167,7 @@ def create_app(
             "project": identity.project_ref if identity is not None else None,
         }
 
-    @app.get("/findings")
+    @app.get("/findings", **read_docs)
     def get_findings(
         identity: reading,
         source: str | None = Query(default=None),
@@ -164,7 +178,7 @@ def create_app(
         # would mean loading the whole finding history to return a hundred rows.
         return active_store.submissions(_scope_of(identity), source, limit)[::-1]
 
-    @app.get("/trend")
+    @app.get("/trend", **read_docs)
     def get_trend(identity: reading) -> dict[str, int]:
         return active_store.trend(_scope_of(identity))
 
@@ -172,9 +186,92 @@ def create_app(
         # No longer refused on an authenticated collector: a browser signs in with
         # a read key and the session cookie carries it.
         _mount_sessions(app, database_url)
-        _mount_dashboard(app, active_store, refresh_seconds, reading)
+        _mount_dashboard(app, active_store, refresh_seconds, reading, read_docs)
 
     return app
+
+
+_AUTHENTICATED = (
+    "Routes that ingest or read results require a collector API key. The health checks, "
+    "this document and, with the dashboard, its page, `/catalog` and `/session` do not. This "
+    "API stores and serves results that Guardana runs submit; it does not start a scan or a "
+    "probe."
+)
+_UNAUTHENTICATED = (
+    "This collector runs without authentication: anyone who can reach its port can read "
+    "and write. This API stores and serves results that Guardana runs submit; it "
+    "does not start a scan or a probe."
+)
+
+
+def _installed_version() -> str:
+    """Return the installed `guardana-server` version, or `unknown` when it runs uninstalled."""
+    try:
+        return version("guardana-server")
+    except PackageNotFoundError:
+        return "unknown"
+
+
+def _documented(database_url: str | None, scope: Scope) -> dict[str, Any]:
+    """Describe a route's guard as decorator arguments; none when nothing is checked."""
+    return documented(scope) if database_url is not None else {}
+
+
+def _describe_authentication(app: FastAPI, database_url: str | None) -> None:
+    """Add the security schemes the route guards accept to the generated OpenAPI document.
+
+    FastAPI derives schemes only from its own security dependencies, and those would
+    describe the bearer header and the cookie as both required where either will do.
+    """
+    if database_url is None:
+        return
+    generate = app.openapi
+
+    def openapi() -> dict[str, Any]:
+        schema = generate()
+        schema.setdefault("components", {})["securitySchemes"] = copy.deepcopy(SECURITY_SCHEMES)
+        return schema
+
+    app.openapi = openapi  # type: ignore[method-assign]
+
+
+def _admissible(submission: Submission) -> Submission:
+    """Return what `POST /findings` may store of `submission`, or refuse it with a 422.
+
+    Refused when the collector does not speak its version or when it carries a value
+    the published schema does not allow; otherwise returned with its secrets redacted.
+    """
+    if submission.schema_version not in SUPPORTED_SCHEMA_VERSIONS:
+        raise HTTPException(
+            status_code=_UNPROCESSABLE,
+            detail=(
+                f"unsupported schema_version {submission.schema_version}; "
+                f"this collector speaks {sorted(SUPPORTED_SCHEMA_VERSIONS)}"
+            ),
+        )
+    refused = off_schema_values(submission)
+    if refused:
+        # The shape of FastAPI's own 422, so a client reads one kind of refusal.
+        raise HTTPException(
+            status_code=_UNPROCESSABLE,
+            detail=_finite(
+                [
+                    {
+                        "type": "value_error",
+                        "loc": ["body", *value.loc],
+                        "msg": value.message,
+                        "input": value.value,
+                    }
+                    for value in refused
+                ]
+            ),
+        )
+    try:
+        return redact_submission(submission)
+    except RedactedTextTooLongError as exc:
+        raise HTTPException(
+            status_code=_UNPROCESSABLE, detail=f"{exc}; nothing was stored"
+        ) from exc
 
 
 def _refuse_a_store_no_unauthenticated_caller_can_reach(store: Store) -> None:
@@ -285,7 +382,9 @@ def _migration_state(database_url: str) -> MigrationState:
         return read_state(connection)
 
 
-def _mount_dashboard(app: FastAPI, store: Store, refresh_seconds: int, reading: object) -> None:
+def _mount_dashboard(
+    app: FastAPI, store: Store, refresh_seconds: int, reading: object, read_docs: dict[str, Any]
+) -> None:
     """Add the read-only dashboard page and its aggregated `/stats` data endpoint.
 
     The page itself is static HTML and carries no findings; `/stats` aggregates the
@@ -303,7 +402,7 @@ def _mount_dashboard(app: FastAPI, store: Store, refresh_seconds: int, reading: 
 
     _also_on_head(app, "/", dashboard_page, HTMLResponse)
 
-    @app.get("/stats")
+    @app.get("/stats", **read_docs)
     def get_stats(identity: reading) -> dict[str, object]:  # type: ignore[valid-type]
         # One past the window, so the answer can say whether older submissions
         # were left out rather than presenting a capped aggregate as the whole.
@@ -343,12 +442,14 @@ def _mount_limits(app: FastAPI) -> None:
         oversized = await _reject_oversized(request, limits.max_body_bytes)
         if oversized is not None:
             return oversized
-        request.state.credential_accepted = False
+        request.state.credential_accepted = None
         response = await call_next(request)
         if credential is not None:
-            if request.state.credential_accepted:
+            # `None` is a route that never checked the key, such as a health probe;
+            # it says nothing about the key either way.
+            if request.state.credential_accepted is True:
                 limiter.vouch(credential)
-            else:
+            elif request.state.credential_accepted is False:
                 limiter.forget(credential)
         return response
 
@@ -385,6 +486,32 @@ def _mount_server_error(app: FastAPI) -> None:
         )
 
     app.add_exception_handler(Exception, _server_error)
+
+
+def _mount_validation_errors(app: FastAPI) -> None:
+    """Answer a refused body with FastAPI's usual 422, even when it held NaN or Infinity.
+
+    Python's `json` reads both, and the usual answer echoes the offending input, which
+    a strict JSON response cannot encode, so the refusal would itself fail as a 500.
+    """
+
+    @app.exception_handler(RequestValidationError)
+    async def _refused(request: Request, exc: RequestValidationError) -> JSONResponse:
+        return JSONResponse(
+            status_code=_UNPROCESSABLE,
+            content={"detail": _finite(jsonable_encoder(exc.errors()))},
+        )
+
+
+def _finite(value: object) -> object:
+    """Return `value` with every non-finite float spelled as text."""
+    if isinstance(value, float) and not math.isfinite(value):
+        return str(value)
+    if isinstance(value, list):
+        return [_finite(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _finite(item) for key, item in value.items()}
+    return value
 
 
 async def _reject_oversized(request: Request, ceiling: int) -> JSONResponse | None:
@@ -424,16 +551,16 @@ def _too_large(ceiling: int) -> JSONResponse:
 
 
 def _credential(request: Request) -> str | None:
-    """Key the limiter on the credential this request presented, if any.
+    """Key the limiter on the bearer token this request presented, if any.
 
-    A digest of the header rather than the resolved key, because the limiter runs
+    A digest of the token rather than the resolved key, because the limiter runs
     before authentication; the key earns its own allowance only once a route has
     accepted it.
     """
-    authorization = request.headers.get("Authorization", "")
-    if not authorization:
+    token = bearer_token(request)
+    if not token:
         return None
-    return f"token:{sha256(authorization.encode()).hexdigest()[:16]}"
+    return f"token:{sha256(token.encode()).hexdigest()[:16]}"
 
 
 def _peer(request: Request) -> str:
@@ -445,10 +572,14 @@ def _peer(request: Request) -> str:
 def _noting_acceptance(
     admit: Callable[[Request], Authenticated | None],
 ) -> Callable[[Request], Authenticated | None]:
-    """Wrap a route guard so the rate limiter learns which credentials it accepted."""
+    """Wrap a route guard so the rate limiter learns which credentials it accepted or refused."""
 
     def admitted(request: Request) -> Authenticated | None:
-        identity = admit(request)
+        try:
+            identity = admit(request)
+        except HTTPException:
+            request.state.credential_accepted = False
+            raise
         if identity is not None:
             request.state.credential_accepted = True
         return identity
@@ -464,8 +595,9 @@ def _mount_sessions(app: FastAPI, database_url: str | None) -> None:
     already names one project, is revocable and can expire — so the session is the
     key, and `key revoke` ends it.
     """
+    session_docs = _SESSION_DOCS if database_url is not None else {}
 
-    @app.post("/session", status_code=_NO_CONTENT)
+    @app.post("/session", status_code=_NO_CONTENT, **session_docs)
     def open_session(credentials: SessionRequest, request: Request, response: Response) -> None:
         if database_url is None:
             # Nothing to authenticate against: this collector is in the explicitly
@@ -490,6 +622,19 @@ def _mount_sessions(app: FastAPI, database_url: str | None) -> None:
     @app.delete("/session", status_code=_NO_CONTENT)
     def close_session(response: Response) -> None:
         response.delete_cookie(SESSION_COOKIE, httponly=True, samesite="strict")
+
+
+_SESSION_DOCS: dict[str, Any] = {
+    "description": (
+        "Sign a browser in with a key that holds the `read` permission. The key is kept in "
+        f"the httpOnly `{SESSION_COOKIE}` cookie, which read routes accept in place of the "
+        "header."
+    ),
+    "responses": {
+        _UNAUTHORIZED: {"description": "The key is not accepted."},
+        _FORBIDDEN: {"description": "The key does not hold the `read` permission."},
+    },
+}
 
 
 def _authenticate_for_session(database_url: str, token: str) -> Authenticated:

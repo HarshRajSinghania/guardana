@@ -18,6 +18,7 @@ import threading
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field, replace
 from enum import StrEnum
+from http.client import HTTPException
 from urllib.error import HTTPError
 from urllib.parse import SplitResult, urlsplit, urlunsplit
 
@@ -37,6 +38,7 @@ from guardana.core.target._mcp_http import (
     RawReply,
     RedirectRefusedError,
     Sender,
+    ascii_host,
     refusal_for,
     server_is_local,
 )
@@ -139,12 +141,16 @@ class Tasks:
     shown. It is asked only when a server that refused its tools to a caller presenting
     nothing listed that caller no task and a credential is configured, because an empty
     listing alone cannot tell tasks bound to their owner from no task at all.
+
+    `more` says the answered listing named a further page, which is never read: `count`
+    and `ids` are then the first page's, and an empty first page shows nothing.
     """
 
     answer: TaskAnswer | None = None
     status: int | None = None
     count: int = 0
     ids: tuple[str, ...] = field(default=(), repr=False)
+    more: bool = False
     offer: TaskOffer | None = None
     detail: str | None = None
     error: str | None = None
@@ -233,7 +239,11 @@ class Sessions:
     not_stripped_because: str | None = None
     no_protocol_sessions: str | None = None
     sampling_error: str | None = None
-    """Why sampling stopped before any id was collected: an error or a status, not a result."""
+    """Why sampling stopped short of every planned handshake: an error or a status, not a result.
+
+    Set beside `ids` when it stopped after some were collected, so the ids are a partial
+    sample a rule cannot read the absence of a structure from.
+    """
     unsettled_offer: str | None = None
     """Why it is not known whether the server offers a revision with sessions at all."""
 
@@ -535,7 +545,12 @@ class _Probe:
         issuer = _first_issuer(resource)
         if issuer is None:
             return Discovery(resource=resource, refused=tuple(refused))
-        authorization, more = self._first_readable(_authorization_server_urls(issuer), scope)
+        try:
+            candidates = _authorization_server_urls(issuer)
+        except ValueError:
+            unusable = Document(url=issuer, refused="the address is not a URL a client may open")
+            return Discovery(resource=resource, refused=(*refused, unusable))
+        authorization, more = self._first_readable(candidates, scope)
         return Discovery(
             resource=resource, authorization=authorization, refused=tuple(refused + more)
         )
@@ -610,8 +625,8 @@ class _Probe:
             return Sessions(not_stripped_because="the server issues no session id")
         declined = self._cannot_strip_the_credential(anonymous)
         if declined is not None:
-            return Sessions(ids=ids, not_stripped_because=declined)
-        return self._without_the_credential(ids, legacy)
+            return Sessions(ids=ids, not_stripped_because=declined, sampling_error=sampling_error)
+        return replace(self._without_the_credential(ids, legacy), sampling_error=sampling_error)
 
     def tasks(self, anonymous: Anonymous, offer: Callable[[], "LegacyOffer"]) -> Tasks:
         """Ask once for the task list presenting no credential, and record what came back.
@@ -619,7 +634,8 @@ class _Probe:
         `tasks/list` is a `2025-11-25` method, so it goes over the handshake era whenever
         the server still serves it: in the anonymous probe's session, or, when the run
         settled on the modern era of a dual-era server, in a session opened here without
-        a credential. Over the modern wire otherwise. One page; a cursor is never followed.
+        a credential. Over the modern wire otherwise. One page; a cursor is never followed,
+        and a listing that names one says so (`Tasks.more`).
         Every task id seen is handed to the target, which withholds it from the record.
         An empty listing on a server that refused its tools anonymously is followed by the
         operator's own listing, when a credential is configured (`Tasks.operator`).
@@ -848,20 +864,24 @@ class _Probe:
 
         Bounded by attempts rather than by results, so a server that issues no
         session id ends the loop instead of handshaking until the budget stops it.
-        The reason is kept only when the very first handshake was not a result: an
-        error there is not a server that issues no session id.
+        Whenever the loop ends short of `_SESSION_SAMPLES` ids for any reason but a
+        first result carrying none, the reason is returned: a handshake that failed
+        is not a server issuing no session id, and a partial sample cannot show that
+        the ids have no structure.
         """
         sampled: list[str] = []
         for _ in range(_SESSION_SAMPLES):
             try:
                 reply = self._call("initialize", self._opening(wire), wire=wire)
-            except McpError:
-                break
+            except McpError as exc:
+                return tuple(sampled), f"the handshake could not be sent: {exc}"
             problem = _sampling_problem(reply)
             if problem is not None:
-                return tuple(sampled), (None if sampled else problem)
+                return tuple(sampled), problem
             issued = self._session_id_of(reply)
             if issued is None:
+                if sampled:
+                    return tuple(sampled), "a later handshake was answered without a session id"
                 break
             sampled.append(issued)
         return tuple(sampled), None
@@ -954,11 +974,24 @@ class _Probe:
 
     def _fetch(self, url: str, scope: DiscoveryScope) -> Document:
         """Fetch one discovery document over a connection pinned to an address the guard passed."""
+        url = ascii_host(url)
         refusal = refusal_for(url, local_target=scope.local_target)
         if refusal is not None:
             return Document(url=url, refused=refusal)
+        reply = self._get(url, scope)
+        if isinstance(reply, Document):
+            return reply
+        if reply.status >= _HTTP_ERROR:
+            return _error_document(url, reply.status)
+        content = reply.json_object()
+        if content is None:
+            return Document(url=url, status=reply.status, error="the reply is not a JSON object")
+        return Document(url=url, status=reply.status, content=content)
+
+    def _get(self, url: str, scope: DiscoveryScope) -> RawReply | Document:
+        """Send one discovery `GET`, or say as a document why it got no reply."""
         try:
-            reply = self._spend(
+            return self._spend(
                 lambda: self._discovery_send(
                     url,
                     method="GET",
@@ -973,12 +1006,10 @@ class _Probe:
             return Document(url=url, refused=_refused_because(exc))
         except McpError as exc:
             return Document(url=url, error=str(exc))
-        if reply.status >= _HTTP_ERROR:
-            return _error_document(url, reply.status)
-        content = reply.json_object()
-        if content is None:
-            return Document(url=url, status=reply.status, error="the reply is not a JSON object")
-        return Document(url=url, status=reply.status, content=content)
+        except (HTTPException, ValueError):
+            # The guard already refuses every address `http.client` is known to reject; one
+            # a sender still rejects is a gap in the evidence, read once and kept like any other.
+            return Document(url=url, error="the address is not a URL a client may open")
 
     def _first_readable(
         self, urls: tuple[str, ...], scope: DiscoveryScope
@@ -1086,7 +1117,13 @@ def _task_listing(reply: RawReply) -> Tasks:
             and isinstance(task_id := entry.get("taskId"), str)
             and task_id
         )
-        return Tasks(answer=TaskAnswer.ANSWERED, status=reply.status, count=len(listed), ids=ids)
+        return Tasks(
+            answer=TaskAnswer.ANSWERED,
+            status=reply.status,
+            count=len(listed),
+            ids=ids,
+            more=result.get("nextCursor") is not None,
+        )
     detail = f"HTTP {reply.status}"
     if error is not None:
         detail = f"{detail} carrying JSON-RPC error {error.get('code')}"
@@ -1195,7 +1232,7 @@ def _resource_metadata_urls(server: str, challenge: str | None) -> tuple[str, ..
     candidates = []
     advertised = challenge_parameters(challenge).get("resource_metadata")
     if advertised:
-        candidates.append(advertised)
+        candidates.append(_without_userinfo(advertised))
     if path:
         candidates.append(
             urlunsplit((parts.scheme, host, f"/.well-known/oauth-protected-resource{path}", "", ""))
@@ -1227,6 +1264,17 @@ def _authorization_server_urls(issuer: str) -> tuple[str, ...]:
         urlunsplit((parts.scheme, host, "/.well-known/oauth-authorization-server", "", "")),
         urlunsplit((parts.scheme, host, "/.well-known/openid-configuration", "", "")),
     )
+
+
+def _without_userinfo(url: str) -> str:
+    """Return `url` without userinfo; one that does not parse is kept for the guard to refuse."""
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        return url
+    if "@" not in parts.netloc:
+        return url
+    return urlunsplit(parts._replace(netloc=_host_of(parts)))
 
 
 def _host_of(parts: SplitResult) -> str:

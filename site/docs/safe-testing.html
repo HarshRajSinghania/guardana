@@ -48,6 +48,7 @@
 <li><a href="profiles.html">Profiles — guardana.yaml</a></li>
 </ul>
 <h2>Evidence and regression</h2><ul>
+<li><a href="reading-results.html">Read results from your own tool<span class="tag">beta</span></a></li>
 <li><a href="usage-case.html">guardana case<span class="tag">beta</span></a></li>
 <li><a href="usage-baseline.html">guardana baseline</a></li>
 <li><a href="usage-diff.html">guardana diff</a></li>
@@ -86,6 +87,7 @@
 <h2>Architecture and security</h2><ul>
 <li><a href="product-status.html">Product status</a></li>
 <li><a href="threat-model.html">Threat model</a></li>
+<li><a href="reproducible-builds.html">Reproducible builds<span class="tag">beta</span></a></li>
 <li><a href="architecture.html">Architecture</a></li>
 </ul>
 <h2>Reference</h2><ul>
@@ -98,6 +100,9 @@
 <li><a href="generated/first-run.html">First-run measure</a></li>
 <li><a href="generated/compatibility-matrix.html">Compatibility matrix</a></li>
 <li><a href="generated/application-measures.html">Application measures</a></li>
+</ul>
+<h2>Project direction</h2><ul>
+<li><a href="community.html">Community</a></li>
 </ul>
 <h2>Studies</h2><ul>
 <li><a href="studies/first-run-study.html">First-run study</a></li>
@@ -133,6 +138,7 @@
 <li><a href="profiles.html">Profiles — guardana.yaml</a></li>
 </ul>
 <h2>Evidence and regression</h2><ul>
+<li><a href="reading-results.html">Read results from your own tool<span class="tag">beta</span></a></li>
 <li><a href="usage-case.html">guardana case<span class="tag">beta</span></a></li>
 <li><a href="usage-baseline.html">guardana baseline</a></li>
 <li><a href="usage-diff.html">guardana diff</a></li>
@@ -171,6 +177,7 @@
 <h2>Architecture and security</h2><ul>
 <li><a href="product-status.html">Product status</a></li>
 <li><a href="threat-model.html">Threat model</a></li>
+<li><a href="reproducible-builds.html">Reproducible builds<span class="tag">beta</span></a></li>
 <li><a href="architecture.html">Architecture</a></li>
 </ul>
 <h2>Reference</h2><ul>
@@ -183,6 +190,9 @@
 <li><a href="generated/first-run.html">First-run measure</a></li>
 <li><a href="generated/compatibility-matrix.html">Compatibility matrix</a></li>
 <li><a href="generated/application-measures.html">Application measures</a></li>
+</ul>
+<h2>Project direction</h2><ul>
+<li><a href="community.html">Community</a></li>
 </ul>
 <h2>Studies</h2><ul>
 <li><a href="studies/first-run-study.html">First-run study</a></li>
@@ -210,7 +220,8 @@ reach production;</li>
 <p><code>probe --mcp</code> is narrower than that, deliberately. Against an MCP server Guardana
 speaks only <code>server/discover</code>, <code>tools/list</code>, the <code>initialize</code> handshake (followed by
 <code>notifications/initialized</code>) where the server still expects one, <code>tasks/list</code>, and
-unauthenticated <code>GET</code>s of the authorization discovery documents, up to five of them; the
+unauthenticated <code>GET</code>s of the authorization discovery documents, up to six of them,
+each following at most ten redirects held to the same address rules; the
 full inventory and its count are in <a href="usage-probe.html#cost">the MCP probe's cost</a>. It
 <strong>never calls a tool</strong>, because a tool call is a side
 effect on somebody's system and no verification result is worth finding that out by
@@ -248,13 +259,19 @@ prompt, same tool manifest, non-production credentials and data. Staging evidenc
 production only insofar as the model, system prompt, and tool manifest match.</p>
 <p><strong>Point tools at a sandbox.</strong> If you must exercise a production-shaped agent, give
 it tool endpoints that write to a scratch environment.</p>
-<p><strong>Bound the run.</strong> Concurrency is bounded (<code>--concurrency</code>, default 4 for probe)
-and rate limits are retried with backoff rather than hammered. Request, token and
-duration budgets are hard ceilings: <code>--max-requests</code>, <code>--max-input-tokens</code>,
-<code>--max-output-tokens</code> and <code>--max-duration</code> stop the run, which exits <code>6</code> with an
-<code>indeterminate</code> gate, so an exhausted budget can never be mistaken for a clean result.
-<code>--max-requests-per-minute</code> paces the requests. <code>guardana plan</code> prices the run before it
-sends anything.</p>
+<p><strong>Bound the run.</strong> Concurrency is bounded (<code>--concurrency</code>, default 4 for probe) and
+rate limits are retried with backoff rather than hammered. Request, token and
+duration budgets are ceilings: <code>--max-requests</code> is
+<a href="profiles.html#budgets--a-ceiling-on-what-a-run-may-spend">checked</a> before each
+request, so the run never sends more than the ceiling; <code>--max-input-tokens</code>,
+<code>--max-output-tokens</code> and <code>--max-duration</code> can only be checked once a request has
+been answered, so the request that crosses a ceiling completes and the next one is
+not sent; a ceiling that stops the run exits <code>6</code> with an <code>indeterminate</code> gate, so an
+exhausted budget is never mistaken for a clean result. The request budget counts
+each request Guardana makes, not each redirect hop the transport follows for one (at
+most ten per request, each held to the same address rules).
+<code>--max-requests-per-minute</code> paces the requests. <code>guardana plan</code> prices the run
+before it sends anything.</p>
 <p><strong>Run deep checks on a schedule, not on every pull request.</strong> A fast static gate
 belongs in a PR. Endpoint probing belongs at deployment time and nightly. This
 keeps cost predictable and stops a noisy check from blocking every merge.</p>
@@ -330,7 +347,7 @@ what the reader needs to know.</p>
 </main>
 </div>
 <footer class="foot"><div class="bar">
-<span class="who">Guardana 1.0.0rc1 · Apache-2.0 ·
+<span class="who">Guardana 1.0.0rc2 · Apache-2.0 ·
 maintained by Konrad Karauda</span>
 <a href="https://github.com/guardana/guardana/blob/main/docs/safe-testing.md">Edit this page on GitHub</a>
 <a href="https://github.com/guardana/guardana">github.com/guardana</a>
