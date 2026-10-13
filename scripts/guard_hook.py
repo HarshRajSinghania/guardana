@@ -25,6 +25,9 @@ ROOT = Path(__file__).resolve().parent.parent
 FORBIDDEN_MODELS_ENV = "GUARD_FORBIDDEN_MODELS"
 ENV_FILE = r"(?<![\w.-])\.env(?!\.example)[\w.-]*"
 ATTRIBUTION = re.compile(r"co-authored-by|generated with|claude\.ai/code|\U0001F916", re.IGNORECASE)
+PUSH = re.compile(r"\bgit\s+push\b([^|;&]*)")
+# These push every local branch, main included, whatever branch is checked out.
+EVERY_BRANCH_OPTIONS = ("--all", "--branches", "--mirror")
 TAG_PUSH = re.compile(r"\bgit\s+push\b[^|;&]*(?:--tags\b|refs/tags/|\bv\d+\.\d+)")
 # A push to `main` deploys guardana.dev straight from the tree, before CI has run.
 SITE_CHECKS = (
@@ -134,11 +137,19 @@ def _site_in_sync() -> None:
             )
 
 
-def _push_args(command: str) -> list[str]:
-    push = re.search(r"\bgit\s+push\b([^|;&]*)", command)
-    if push is None:
-        return []
-    return [arg for arg in push.group(1).split() if not arg.startswith("-")]
+def _pushes(command: str) -> list[list[str]]:
+    """Return the words after each `git push` in a command, one list per push."""
+    return [push.group(1).split() for push in PUSH.finditer(command)]
+
+
+def _pushes_every_branch(words: list[str]) -> bool:
+    """Whether a push names `--all`, `--branches` or `--mirror`, or an abbreviation git accepts."""
+    return any(
+        len(word) > len("--") and option.startswith(word)
+        for word in words
+        if word.startswith("--")
+        for option in EVERY_BRANCH_OPTIONS
+    )
 
 
 def _refspec_dest(arg: str) -> str:
@@ -151,9 +162,9 @@ def _is_main_ref(ref: str) -> bool:
     return ref in {"main", "refs/heads/main"}
 
 
-def _push_matches_main(push: re.Match[str]) -> bool:
-    args = [arg for arg in push.group(1).split() if not arg.startswith("-")]
-    if any(_is_main_ref(_refspec_dest(arg)) for arg in args):
+def _push_matches_main(words: list[str]) -> bool:
+    args = [arg for arg in words if not arg.startswith("-")]
+    if _pushes_every_branch(words) or any(_is_main_ref(_refspec_dest(arg)) for arg in args):
         return True
     if len(args) >= 2 and args[1] != "HEAD":  # noqa: PLR2004 — remote plus an explicit refspec
         return False
@@ -166,9 +177,7 @@ def _push_matches_main(push: re.Match[str]) -> bool:
 
 def _pushes_main(command: str) -> bool:
     # A compound command can push more than once; check every push.
-    return any(
-        _push_matches_main(push) for push in re.finditer(r"\bgit\s+push\b([^|;&]*)", command)
-    )
+    return any(_push_matches_main(words) for words in _pushes(command))
 
 
 def _guard_stage(command: str) -> None:
@@ -196,7 +205,7 @@ def _guard_push(command: str) -> None:
     if not re.search(r"\bgit\s+push\b", command):
         return
     if re.search(r"--force\b|\s-f\b|--force-with-lease", command) or any(
-        arg.startswith("+") for arg in _push_args(command)
+        word.startswith("+") for words in _pushes(command) for word in words
     ):
         decide("ask", "Force push to a shared branch.")
     if TAG_PUSH.search(command):

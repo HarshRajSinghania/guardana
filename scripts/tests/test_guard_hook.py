@@ -75,6 +75,11 @@ def _no_subprocesses(monkeypatch: pytest.MonkeyPatch) -> None:
         ("git push origin +main", "ask"),
         ("git push origin +feature", "ask"),
         ("git push origin HEAD:refs/heads/feature/x", None),
+        ("git push origin feature && git push origin +main", "ask"),
+        ("git push origin feature && git push origin +feature", "ask"),
+        ("git push origin feature; git push origin +refs/heads/feature/x", "ask"),
+        ("git -C /repo push origin +feature", "ask"),
+        ("git push origin feature && git push origin feature/y", None),
         ("git push -f origin main", "ask"),
         ("git push origin v0.25.0", "ask"),
         ("git push origin --tags", "ask"),
@@ -139,6 +144,7 @@ def test_bash_commands(
         "git push origin feature:refs/heads/main",
         "git push origin feature && git push origin main",
         "git push origin feature; git push origin main",
+        "git push origin feature && git push origin refs/heads/main",
     ],
 )
 def test_a_push_to_main_is_refused_while_the_site_is_stale(
@@ -268,3 +274,53 @@ def test_a_broken_payload_never_blocks_work() -> None:
     )
     assert done.returncode == 0
     assert done.stdout == ""
+
+
+def _stale_site_on_a_feature_branch(cmd: list[str]) -> subprocess.CompletedProcess[str]:
+    if cmd[:2] == ["git", "rev-parse"]:
+        return subprocess.CompletedProcess(cmd, 0, "feature/x\n", "")
+    if "build_site.py" in cmd[3]:
+        return subprocess.CompletedProcess(cmd, 1, "site/docs is stale (3 files)\n", "")
+    return subprocess.CompletedProcess(cmd, 0, "current\n", "")
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git push --all origin",
+        "git push origin --mirror",
+        "git push --branches",
+        "git push --al origin",
+        "git -C /other/clone push origin main",
+        "git -c push.default=current push origin main",
+        "git -c k=v push --all origin",
+        "git push origin feature/x && git -C ../repo push --mirror",
+    ],
+)
+def test_a_push_that_reaches_main_from_another_branch_is_refused_while_the_site_is_stale(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], command: str
+) -> None:
+    """`--all`, `--branches` and `--mirror` push main whatever branch is checked out."""
+    monkeypatch.setattr(guard_hook, "_run", _stale_site_on_a_feature_branch)
+    assert _decision(monkeypatch, capsys, "Bash", {"command": command}) == "deny"
+
+
+@pytest.mark.parametrize(
+    ("command", "expected"),
+    [
+        ("git push origin feature/x", None),
+        ("git push", None),
+        ("git push --atomic origin feature/x", None),
+        ("git -C /other/clone push origin feature/x", None),
+        ("git push origin +feature/x", "ask"),
+        ("git push --force origin feature/x", "ask"),
+    ],
+)
+def test_a_feature_push_from_a_feature_branch_ignores_a_stale_site(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    command: str,
+    expected: str | None,
+) -> None:
+    monkeypatch.setattr(guard_hook, "_run", _stale_site_on_a_feature_branch)
+    assert _decision(monkeypatch, capsys, "Bash", {"command": command}) == expected
